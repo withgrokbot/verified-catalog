@@ -1,0 +1,104 @@
+{
+  "service_id": "otto-crypto-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://x402.ottoai.services/crypto-news",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 368,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Wed, 30 Sep 2026 17:45:12 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://x402.ottoai.services/crypto-news",
+            "description": "Importance-ranked crypto headlines with per-article source links and publish times, plus a sentiment-scored market brief. Regenerated hourly; meta carries the snapshot's age and a fresh/stale verdict.",
+            "mimeType": "application/json",
+            "serviceName": "Otto AI",
+            "tags": [
+              "crypto news",
+              "market news",
+              "sentiment analysis",
+              "breaking headlines"
+            ],
+            "iconUrl": "https://x402.ottoai.services/assets/otto-icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "assetTransferMethod": "permit2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "1000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM"
+              }
+            }
+          ]
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "1517"
+    },
+    "body_bytes": 1517,
+    "body_sha256": "70f7aea3967721656bf2204d11f5b14ebfdde648dda001ea49b70bcc984f4a38",
+    "body_excerpt": "{\"error\":\"payment_required\",\"hint\":\"This is a pay-per-call x402 endpoint. The payment terms are the accepts[] array in this body -- mirrored verbatim from the base64 PAYMENT-REQUIRED response header, which remains the x402 v2 protocol contract. Pay one of them with an x402 client, then retry to receive the data.\",\"price\":\"$0.001\",\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"assetTransferMethod\":\"permit2\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"amount\":\"1000\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"payTo\":\"6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5\",\"maxTimeoutSeconds\":300,\"extra\":{\"feePayer\":\"D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM\"}}],\"docs\":\"https://docs.useotto.xyz/getting-started/agent-quickstart\",\"contact\":{\"email\":\"[email redacted]\",\"telegram\":\"https://t.me/DeFAI_Capital\",\"twitter\":\"https://twitter.com/useOttoAI\",\"feedback\":\"POST https://x402.ottoai.services/feedback ($0.001) -- money-back guarantee on Otto-recommended services and Full Auto; feature requests welcome (email/Telegram are free).\"},\"x402Version\":2}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1580,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Wed, 30 Sep 2026 17:45:13 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x8e7a0b6f318f7790331e3c6f6c9993eb4e10d7cd1e1e404a7b9af7999e4692a6",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "7002"
+    },
+    "body_bytes": 7002,
+    "body_sha256": "aa1a8f5e2d281bdda7d2404120d8cb475655089789643f0a02e3813c9a2f44fc",
+    "body_excerpt": "{\"status\":\"success\",\"data\":{\"report\":\"_Report generated 2026-09-30 17:00 UTC_\\n\\n## MARKET BRIEF\\n\\nOverview: Bitcoin steadied as cooling PCE inflation softened October Fed rate hike bets, though rising Treasury yields capped upside, while the UK's FCA opened crypto license applications and Abracadabra moved to shutter its MIM stablecoin.\\n\\nMarket Sentiment:\\nOverall Bull/Bear Score: 45\\n\\n---\\n\\n## KEY STORIES\\n\\n1. **Bitcoin steadies as soft PCE cools October Fed rate hike bets** - Macro data directly drives near-term bitcoin price action; cooling inflation lowers rate-hike odds but rising Treasury yields cap upside.\\n\\n2. **UK's FCA Opens Crypto License Applications With Feb. 28 Deadline for Existing Firms** - Major regulatory milestone: firms must re-authorize under a new regime covering stablecoins, trading platforms, and market abuse, forcing operational and compliance changes across the UK market.\\n\\n3. **Abracadabra Moves to Shut Down MIM Stablecoin, Offering Holders Roughly 4 Cents per Token** - A well-known DeFi stablecoin collapsing to near-zero with $21M bad debt is a significant risk event and a cautionary signal for stablecoin and lending-protocol investors.\\n\\n4. **Altcoin exchange deposit count jumps 160% in 2 weeks** - On-chain deposits to exchanges spiking at their highest since October 2025 is a classic precursor to distribution and selling pressure, a key trading signal across altcoins.\\n\\n5. **The SEC's Buyback Guidance Is Narrower Than It Looks. Does Yours Pass the Test?** - Clarifies the regulatory status of token buybacks (a $638M activity) and signals that most major programs--Hyperliquid, PUMP, JUP, LINK, AAVE--remain in limbo.\\n\\n---\\n\\n## QUICK HITS\\n\\n- Standard Chartered sees over 600% upside for ENA, expects USDe to hit $40 billion by 2028\\n- Bitget hackers move $4 million into Zcash's private pool, making funds harder to trace\\n- Cardano tapped by Brazil's state oil giant to track cleaner jet fuel and diesel\\n- Singapore crypto activity grows 55% as broader region contracts\\n- CFTC seeks event contract definitions that may defy states' gambling claims\\n\\nInformational only -- not investment advice.\\n\\n[Powered by $OTTO AI | @useOttoAI]\",\"headlines\":[{\"rank\":1,\"title\":\"Bitcoin steadies as soft PCE cools October Fed rate hike bets\",\"whyItMatters\":\"Macro data directly drives near-term bitcoin price action; cooling inflation lowers rate-hike odds but rising Treasury yields cap upside.\",\"url\":\"https://www.theblock.co/news/markets/2026-09-30-bitcoin-pce-inflation-october-rate-hike-417335\",\"publishedAt\":\"2026-09-30T16:10:36.000Z\",\"source\":\"Theblock\",\"match\":\"exact\"},{\"rank\":2,\"title\":\"UK's FCA Opens Crypto License Applications With Feb. 28 Deadline for Existing Firms\",\"whyItMatters\":\"Major regulatory milestone: firms must re-authorize under a new regime covering stablecoins, trading platforms, and market abuse, forcing operational and compliance changes across the UK market.\",\"url\":\"https://unchainedcrypto.com/uks-fca-opens-crypto-license-applications-with-feb-28-deadline-for-existing-firms/\",\"publishedAt\":\"2026-09-30T15:48:09.000Z\",\"source\":\"Unchainedcrypto\",\"match\":\"exact\"},{\"rank\":3,\"title\":\"Abracadabra Moves to Shut Down MIM Stablecoin, Offering Holders Roughly 4 Cents per Token\",\"whyItMatters\":\"A well-known DeFi stablecoin collapsing to near-zero with $21M bad debt is a significant risk event and a cautionary signal for stablecoin and lending-protocol investors.\",\"url\":\"https://unchainedcrypto.com/abracadabra-moves-to-shut-down-mim-stablecoin-offering-holders-roughly-4-cents-per-token/\",\"publishedAt\":\"2026-09-30T13:51:09.000Z\",\"source\":\"Unchainedcrypto\",\"match\":\"exact\"},{\"rank\":4,\"title\":\"Altcoin exchange deposit count jumps 160% in 2 weeks\",\"whyItMatters\":\"On-chain deposits to exchanges spiking at their highest since October 2025 is a classic precursor to distribution and selling pressure, a key trading signal across altcoins.\",\"url\":\"https://cointelegraph.com/markets/altcoin-exchange-deposits-spike-160-in-two-weeks\",\"publishedAt\":\"2026-09-30T11:23:56.000Z\",\"source\":\"Cointelegraph\",\"match\""
+  },
+  "run_id": "20260930T174508Z",
+  "checked_at": "2026-09-30T17:45:12Z"
+}

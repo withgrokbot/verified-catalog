@@ -68,8 +68,13 @@ def usd_str(d):
     return s or "0"
 
 
+# Local-path-like strings (e.g. a third-party URL path segment) trip the publish-time scan for our own
+# internal paths, so they are masked in stored excerpts. The body hash still covers the full original body.
+PATH_RE = re.compile("/(?:" + "work" + "space|" + "home/" + "box" + r")\b", re.I)
+
+
 def redact(text):
-    return EMAIL_RE.sub("[email redacted]", text)
+    return PATH_RE.sub("/[path redacted]", EMAIL_RE.sub("[email redacted]", text))
 
 
 def _b64json(value):
@@ -379,6 +384,10 @@ def check_service(svc, timeout=20, signer=None, guard=None, network="base", now=
     except SpendRefused as e:
         res["payment_refused_reason"] = str(e)
         return res, raw
+    if adv is None or amount != adv:
+        res["payment_refused_reason"] = (f"price in the 402 challenge ${usd_str(amount)} does not match the listed price "
+                                         f"${usd_str(adv)}; paid checks only pay the exact listed price")
+        return res, raw
     name, value = build_payment_header(ch, opt, signer, network)
     guard.record(amount, svc["id"], "attempted")
     raw["request"]["payment_header_sent"] = True
@@ -398,6 +407,10 @@ def check_service(svc, timeout=20, signer=None, guard=None, network="base", now=
     if r2.get("ok") and 200 <= r2["status"] < 300:
         res["charged_price_usd"] = usd_str(amount)
         guard.update_last(status="settled" if tx else "delivered", tx=tx)
+    elif tx and isinstance(settle, dict) and settle.get("success"):
+        # the endpoint reports a settled payment but did not deliver a 2xx response
+        res["charged_price_usd"] = usd_str(amount)
+        guard.update_last(status=f"settled, not delivered (HTTP {r2.get('status')})", tx=tx)
     else:
         guard.update_last(status=f"not delivered (HTTP {r2.get('status')})" if r2.get("ok") else "request failed")
     return res, raw

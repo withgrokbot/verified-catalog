@@ -1,0 +1,131 @@
+{
+  "service_id": "x402atlas-web-search",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://websearch.use.x402atlas.com/search?chunks_per_source=2&query=latest+developments+in+AI+agents&search_depth=fast",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 223,
+    "headers": {
+      "content-length": "2365",
+      "content-type": "application/json",
+      "date": "Wed, 30 Sep 2026 17:45:15 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://websearch.use.x402atlas.com/search?chunks_per_source=2&query=latest+developments+in+AI+agents&search_depth=fast",
+            "description": "Real-time web search for AI agents \u2014 search the web and get ranked SERP-style results as clean JSON: title, URL, snippet, relevance score, optional LLM-generated answer. Find up-to-date information online \u2014 latest news, current events, finance. Date, domain and exact-phrase filters.",
+            "mimeType": "application/json",
+            "serviceName": "Web Search, News & Page Reader",
+            "tags": [
+              "web-search",
+              "search",
+              "serp",
+              "web",
+              "internet-search",
+              "news",
+              "news-search",
+              "real-time",
+              "rag",
+              "ai-agents",
+              "llm-answer",
+              "current-events",
+              "json",
+              "grounding",
+              "fast-search"
+            ]
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "10000",
+              "payTo": "0xF752eEB75d3Bea24AA867ad93bfd8EF5a2F431B9",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "merchant": "x402Atlas",
+                "name": "USD Coin",
+                "tier": "standard",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:137",
+              "asset": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+              "amount": "10000",
+              "payTo": "0xF752eEB75d3Bea24AA867ad93bfd8EF5a2F431B9",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "merchant": "x402Atlas",
+                "name": "USD Coin",
+                "tier": "standard",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:42161",
+              "asset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+              "amount": "10000",
+              "payTo": "0xF752eEB75d3Bea24AA867ad93bfd8EF5a2F431B9",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "merchant": "x402Atlas",
+                "name": "USD Coin",
+                "tier": "standard",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "amount": "10000",
+              "payTo": "ASt6xvRyQ7ntERsmcYVMdLqZvz1GEN8Fzexzq62tXrNQ",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "BENrLoUbndxoNMUS5JXApGMtNykLjFXXixMtpDwDR9SP",
+                "merchant": "x402Atlas",
+                "tier": "standard"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 2365,
+    "body_sha256": "c572f1a711c011bb5128f17939e0a170bac2acde8e64225f7271364cb1885f61",
+    "body_excerpt": "{\"error\":\"payment_required\",\"hint\":\"This endpoint requires x402 payment. The price and payment options are in the PAYMENT-REQUIRED response header (x402 v2). Pay with an x402 client, then retry to receive the data.\",\"price\":\"$0.01 per call\",\"method\":\"GET\",\"resource\":{\"url\":\"https://websearch.use.x402atlas.com/search?chunks_per_source=2\\u0026query=latest+developments+in+AI+agents\\u0026search_depth=fast\",\"description\":\"Real-time web search for AI agents \u2014 search the web and get ranked SERP-style results as clean JSON: title, URL, snippet, relevance score, optional LLM-generated answer. Find up-to-date information online \u2014 latest news, current events, finance. Date, domain and exact-phrase filters.\",\"mimeType\":\"application/json\",\"serviceName\":\"Web Search, News \\u0026 Page Reader\",\"tags\":[\"web-search\",\"search\",\"serp\",\"web\",\"internet-search\",\"news\",\"news-search\",\"real-time\",\"rag\",\"ai-agents\",\"llm-answer\",\"current-events\",\"json\",\"grounding\",\"fast-search\"]},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"amount\":\"10000\",\"payTo\":\"0xF752eEB75d3Bea24AA867ad93bfd8EF5a2F431B9\",\"maxTimeoutSeconds\":300,\"extra\":{\"merchant\":\"x402Atlas\",\"name\":\"USD Coin\",\"tier\":\"standard\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:137\",\"asset\":\"0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359\",\"amount\":\"10000\",\"payTo\":\"0xF752eEB75d3Bea24AA867ad93bfd8EF5a2F431B9\",\"maxTimeoutSeconds\":300,\"extra\":{\"merchant\":\"x402Atlas\",\"name\":\"USD Coin\",\"tier\":\"standard\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:42161\",\"asset\":\"0xaf88d065e77c8cC2239327C5EDb3A432268e5831\",\"amount\":\"10000\",\"payTo\":\"0xF752eEB75d3Bea24AA867ad93bfd8EF5a2F431B9\",\"maxTimeoutSeconds\":300,\"extra\":{\"merchant\":\"x402Atlas\",\"name\":\"USD Coin\",\"tier\":\"standard\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"amount\":\"10000\",\"payTo\":\"ASt6xvRyQ7ntERsmcYVMdLqZvz1GEN8Fzexzq62tXrNQ\",\"maxTimeoutSeconds\":300,\"extra\":{\"feePayer\":\"BENrLoUbndxoNMUS5JXApGMtNykLjFXXixMtpDwDR9SP\",\"merchant\":\"x402Atlas\",\"tier\":\"standard\"}}],\"documentation\":\"https://websearch.use.x402atlas.com/docs\",\"llms\":\"https://websearch.use.x402atlas.com/llms.txt\",\"openapi\":\"https://websearch.use.x402atlas.com/openapi.json\",\"contact\":{\"email\":\"[email redacted]\"},\"x402Version\":2}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1403,
+    "headers": {
+      "content-length": "11185",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Wed, 30 Sep 2026 17:45:17 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x37c877a14611e4f88f345ec63418cd8d8258141a0cd6665008361cae3abda169",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 11185,
+    "body_sha256": "b12386036dd352eb17c6b795308a85095d80511d8ed507fcb19210cc7a0af080",
+    "body_excerpt": "{\"queried_at\":\"2026-09-30T17:45:16.507043826Z\",\"query\":\"latest developments in AI agents\",\"results\":[{\"title\":\"GitHub - omarsar/ai-agents-latest-developments: Collection of latest news and developments in AI Agents \u00b7 GitHub\",\"url\":\"https://github.com/omarsar/ai-agents-latest-developments\",\"content\":\"1. Productivity Transformation: In 2024, AI agents evolved from simple chatbots to productivity powerhouses, with tools like OpenAI's Swarm and Google's Mariner enabling businesses to automate decisions and redefine workflows. Source: eMarketer\\n2. Enterprise Adoption: What began with Devin earlier in 2024 grew into a full-scale phenomenon offering enterprises new ways to transform work processes at various levels, from programming to development. Source: VentureBeat [...] 5. LLM-Based Developments: Large Language Models are driving AI agent advancement, with developers creating agents with significantly enhanced natural language processing capabilities. Source: Medium/Sahin Ahmed\\n6. Domain Specialization: If 2024 was the emergence year for agents as viable problem-solving approaches, 2025 is expected to be when they become the default solution for specific problem domains. Source: Victor Dibia's Newsletter\",\"score\":0.9253988},{\"title\":\"Enterprise AI Agents News: Latest Developments | Neuwark\",\"url\":\"https://neuwark.com/blog/enterprise-ai-agents-news-latest-developments\",\"content\":\"As of Wednesday, March 18, 2026, the most important enterprise AI agent developments are not just new model announcements. They are the platform and ecosystem changes that make agents more deployable, more governable, and more connected to enterprise systems. Since early 2025, AWS, Google Cloud, Microsoft, Salesforce, Workato, Anthropic, UiPath, and IBM have all pushed the market toward production agent systems. That acceleration matches the demand side. Capgemini's 2025 AI agents research says [...] \\u003e Quick answer\\n\\n\\u003e - The biggest enterprise AI agent news through March 18, 2026 is the shift from copilot experiments to connected agent platforms.\\n\\n\\u003e - Google, AWS, Salesforce, Microsoft, Workato, Anthropic, UiPath, and IBM all shipped changes that improve orchestration, interoperability, or deployment readiness.\\n\\n\\u003e - The strategic battleground is now tool access, workflow control, and trust, not just model quality.\",\"score\":0.91362286},{\"title\":\"MAI and MANUS \u2013 Latest developments in AI Agents\",\"url\":\"https://www.linkedin.com/pulse/mai-manus-latest-developments-ai-agents-srinath-vaidyanathan-k2b8c\",\"content\":\"# MAI and MANUS \u2013 Latest developments in AI Agents. Technologies like Microsoft's MAI and MANUS\u2014a general AI agent from a Chinese startup Monica, have sparked global buzz. While Microsoft fine-tunes MAI to strengthen its AI capabilities and lessen its dependence on OpenAI, Manus is being seen as a game-changer. Microsoft and Chinese tech company Monica are developing advanced AI agents designed to operate autonomously, collaborate seamlessly, and solve complex problems more efficiently than [...] efficiently than ever before. Microsoft\u2019s MAI: The Next-Gen AI Agent. Microsoft is making big moves in AI with its Multi-Agent Intelligence (MAI) model. (I don\u2019t know yet if MAI means Microsoft AI or Multi-Agent Intelligence). With MAI, Microsoft is building its own powerful AI to integrate into products like Copilot and enterprise software. Advanced AI Reasoning: Microsoft\u2019s research into the Belief State Transformer (BST) gives MAI an edge in understanding context, planning tasks, and\",\"score\":0.90771407},{\"title\":\"Unveiling the Latest: Recent Developments in AI Agents for Law Firms \u2013 Future of AI\",\"url\":\"https://cheryltechwebz.finance.blog/2024/06/24/unveiling-the-latest-recent-developments-in-ai-agents-for-law-firms\",\"content\":\"In conclusion, recent developments in AI agents for law firms represent a paradigm shift in the practice of law, empowering legal professionals to work smarter, faster, and more effectively. By harnessing advanced AI capabilities\u2014from enhanced NLP and machine learning to cloud integration and predic"
+  },
+  "run_id": "20260930T174508Z",
+  "checked_at": "2026-09-30T17:45:15Z"
+}

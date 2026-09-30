@@ -5,5 +5,142 @@
     "per_day": "1",
     "lifetime": "20"
   },
-  "entries": []
+  "entries": [
+    {
+      "ts": "2026-09-30T17:44:35Z",
+      "day": "2026-09-30",
+      "service_id": "minifetch-url-check",
+      "amount_usd": "0.001",
+      "status": "settled",
+      "tx": "0x696ac66dd168af3aeddc945972e38cea0da05846861751063a689f2bb3003d41"
+    },
+    {
+      "ts": "2026-09-30T17:45:08Z",
+      "day": "2026-09-30",
+      "service_id": "onesource-erc20-balance",
+      "amount_usd": "0.003",
+      "status": "settled",
+      "tx": "0xf93138c9c5b4979db87ea3a9843c996dd3604a583113eb249a4a2b294c8837c8"
+    },
+    {
+      "ts": "2026-09-30T17:45:09Z",
+      "day": "2026-09-30",
+      "service_id": "exa-search",
+      "amount_usd": "0.007",
+      "status": "settled",
+      "tx": "0xe361448acbed699c36722643b9d4045f3933a6c5351b5ea83d59c8a3e374efa8"
+    },
+    {
+      "ts": "2026-09-30T17:45:12Z",
+      "day": "2026-09-30",
+      "service_id": "otto-crypto-news",
+      "amount_usd": "0.001",
+      "status": "settled",
+      "tx": "0x8e7a0b6f318f7790331e3c6f6c9993eb4e10d7cd1e1e404a7b9af7999e4692a6"
+    },
+    {
+      "ts": "2026-09-30T17:45:14Z",
+      "day": "2026-09-30",
+      "service_id": "bitrefill-gift-card-search",
+      "amount_usd": "0.002",
+      "status": "settled",
+      "tx": "0x68141640c9a8d13f1e5c00f9336128a14466f633f964c821305346e85ec7fc0f"
+    },
+    {
+      "ts": "2026-09-30T17:45:15Z",
+      "day": "2026-09-30",
+      "service_id": "x402atlas-web-search",
+      "amount_usd": "0.01",
+      "status": "settled",
+      "tx": "0x37c877a14611e4f88f345ec63418cd8d8258141a0cd6665008361cae3abda169"
+    },
+    {
+      "ts": "2026-09-30T17:45:22Z",
+      "day": "2026-09-30",
+      "service_id": "oblique-paid-time",
+      "amount_usd": "0.01",
+      "status": "settled",
+      "tx": "0x564f933d6fa10f4c86cea330386117f44aebb473f608807acdbe1192f33af294"
+    },
+    {
+      "ts": "2026-09-30T17:45:23Z",
+      "day": "2026-09-30",
+      "service_id": "coingecko-onchain-pool-search",
+      "amount_usd": "0.01",
+      "status": "settled",
+      "tx": "0x101f5338979f2b1e09992611b28e766a78f20f36c8b9807411b6c3a08af07265"
+    },
+    {
+      "ts": "2026-09-30T17:45:26Z",
+      "day": "2026-09-30",
+      "service_id": "you-search",
+      "amount_usd": "0.005",
+      "status": "not delivered (HTTP 402)",
+      "tx": null
+    },
+    {
+      "ts": "2026-09-30T17:45:33Z",
+      "day": "2026-09-30",
+      "service_id": "tavily-search",
+      "amount_usd": "0.01",
+      "status": "settled, not delivered (HTTP 422)",
+      "tx": "0xccea65839e9c58733aee5dc898dc8b6359b40e9b80985ac524b7c8bb0398ec5e"
+    },
+    {
+      "ts": "2026-09-30T17:45:35Z",
+      "day": "2026-09-30",
+      "service_id": "glassnode-mvrv",
+      "amount_usd": "0.05",
+      "status": "settled",
+      "tx": "0x549363609132a5dabf235427aae34441d06761792001b4d5e990730cd470be83"
+    },
+    {
+      "ts": "2026-09-30T17:45:37Z",
+      "day": "2026-09-30",
+      "service_id": "x402tap-weather",
+      "amount_usd": "0.001",
+      "status": "settled",
+      "tx": "0xa88f084ac4dd8f2cd35e810194daa6849ffaa783d7b58f6326fba5194f272a83"
+    },
+    {
+      "ts": "2026-09-30T17:45:39Z",
+      "day": "2026-09-30",
+      "service_id": "massive-ticker-news",
+      "amount_usd": "0.01",
+      "status": "settled",
+      "tx": "0xe7fc70950e3c701590e0397a067ecda5b41f41de4affcf6f1c678f879639e893"
+    },
+    {
+      "ts": "2026-09-30T17:45:42Z",
+      "day": "2026-09-30",
+      "service_id": "x402scan-merchants",
+      "amount_usd": "0.01",
+      "status": "settled",
+      "tx": "0xb9e117053d321c6b975a13f244512d13827d7fe81c151c25ccdffaaaded6a1da"
+    },
+    {
+      "ts": "2026-09-30T17:45:44Z",
+      "day": "2026-09-30",
+      "service_id": "stride20k-wiki-summary",
+      "amount_usd": "0.003",
+      "status": "settled",
+      "tx": "0x7e79f7d7cc6a990b0c749d0daa980d374faf84e0a3c8b59af25c4e143aa059c5"
+    },
+    {
+      "ts": "2026-09-30T17:45:46Z",
+      "day": "2026-09-30",
+      "service_id": "x402atlas-ssl-check",
+      "amount_usd": "0.01",
+      "status": "settled",
+      "tx": "0x26b13c09bfae993cc055cfb72df86369eea00dca968f251f1210636f6b9276af"
+    },
+    {
+      "ts": "2026-09-30T17:45:47Z",
+      "day": "2026-09-30",
+      "service_id": "brasil-dados-cambio",
+      "amount_usd": "0.002",
+      "status": "not delivered (HTTP 500)",
+      "tx": null
+    }
+  ]
 }

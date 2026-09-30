@@ -1,0 +1,77 @@
+{
+  "service_id": "massive-ticker-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://agent.massive.com/v2/reference/news?limit=10&order=asc&sort=published_utc",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 201,
+    "headers": {
+      "content-type": "application/json",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://agent.massive.com/v2/reference/news?limit=10&order=asc&sort=published_utc",
+            "description": "Get the most recent news articles relating to a stock ticker symbol, including a summary of the article and a link to the original source. Can't find what you're looking for? POST feedback to /feedback, no charge.",
+            "mimeType": "application/json",
+            "serviceName": "Massive",
+            "tags": [
+              "news",
+              "articles",
+              "stocks"
+            ],
+            "iconUrl": "https://agent.massive.com/icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "10000",
+              "payTo": "0x525f6dDcE9aF7a7179D7696aaBfCd5FCd15a21e6",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "date": "Wed, 30 Sep 2026 17:45:39 GMT",
+      "content-length": "96"
+    },
+    "body_bytes": 96,
+    "body_sha256": "0a32141aa8c76c645d9ddb3d0fd78adc0e2076ce57832aef40013d4d41c33d5c",
+    "body_excerpt": "{\"message\":\"See the PAYMENT-REQUIRED header for the payment terms.\",\"status\":\"PAYMENT_REQUIRED\"}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 3103,
+    "headers": {
+      "content-length": "40316",
+      "content-type": "application/json",
+      "date": "Wed, 30 Sep 2026 17:45:41 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0xe7fc70950e3c701590e0397a067ecda5b41f41de4affcf6f1c678f879639e893",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 40316,
+    "body_sha256": "cb8dad52fc2b0deb87167fd912347c78cf68e153c33c70e9345939fb599f53bd",
+    "body_excerpt": "{\"results\":[{\"id\":\"YmGmHqaubjrLXVfxM2wfpxHVbEEJiQ4G4PxOl5wDymY\",\"publisher\":{\"name\":\"TheStreet\",\"homepage_url\":\"https://www.thestreet.com/\",\"logo_url\":\"https://s3.massive.com/public/assets/news/logos/thestreet.svg\",\"favicon_url\":\"https://s3.massive.com/public/assets/news/favicons/thestreet.png\"},\"title\":\"Polymetal Could Be a Winning Ticket on the Gold Price Rollercoaster\",\"author\":\"[email redacted] (Paul Whitfield)\",\"published_utc\":\"2016-06-22T13:18:00Z\",\"article_url\":\"http://feeds.thestreet.com/~r/tsc/feeds/rss/p/real-money/~3/jHb3j-_w74I/13616096.html\",\"tickers\":[\"AU\",\"GFI\"],\"image_url\":\"https://s.thestreet.com/files/tsc/tst_fb.jpg\",\"description\":\"Gold has been on a rollercoaster in recent trading sessions but brokers at Goldman Sachs are recommending investors hang on for the ride and grab a ticket for the thrills by investing in Polymetal International \\n  . \\n\\\"We expect Polymetal to remain one of the few global precious metal minders delivering meaningful volume growth with one of the lowest cash costs globally thanks to macro tailwinds and management focus on cost cutting,\\\" the broker noted this week as it upgraded its 12-month price forecast to 950 pence ($13.94), from 870 pence. \\nPolymetal shares traded Wednesday at 860 pence, with a little more than 10% to go before it hits the Goldman Sachs target. \\nUnderpinning Polymetal's prospects are a pair of deals that appear well timed to benefit increases in the price of gold. The Kapan mine in Armenia and the Komarovskoye gold deposit in Kazakhstan, were secured in March and early April, suggesting negotiations took place just as gold was recovering from its turn-of-the-year lows of below $1,060 an ounce. \\nThose acquisitions, coupled with the ramping up of its Kyzyl gold project in Kazakhstan will likely boost production by about 40% of the coming five years, or a compound average growth rate (CAGR) of about 6.9% until the end of 2020, Goldman predicts. \\nThat is almost twice the growth of \u00a0Fresnillo \\n  , which ranks second for growth among the big gold producers with a CAGR of 3.5%, while AngloGold \\n  is expected to add just 1.4% a year to output and Gold Fields \\n  is expected to shrink 2.2% a year, according to Goldman Sachs. \\nBetter still Polymetal is not growing at the expense of cost discipline. Its cash cost for an ounce of gold is expected to come in below $573 this year. \u00a0That is down 10% since 2014, and should fall to $551 in 2017, according to Goldman's note. By comparison, Gold Fields and AngloGold both spend more than $600 for each ounce they produce. \\nAll of that might suggest that Polymetal would trade at a premium to its rivals, yet the opposite is true. Shares are priced at about 12 times forecast 2017 earnings. Rival large gold miners trade at a median closer to 30 times 2017 earnings forecasts, though that figure is inflated by Fresnillo's valuation of about 45 times earnings. \\n\\\"We believe that such a discount for Polymetal vs. peers is unjustified given its superior growth potential and low cost of existing operations as well as assets under development,\\\" noted Goldman Sachs. \\nOf course any investment in Polymetal is also a bet on the gold price, and that has been a white-knuckle ride in recent days. Gold traded Wednesday at about $1,268 an ounce, after slumping on June 20 and 21 from just over $1,298 as fears of a British exit from the European Union receded. \\nGold price volatility is all but assured until the results of that vote, which takes place on tomorrow, are released in the early hours of Friday. Yet Goldman said it is confident that support for gold is set to continue in the short term, driven by delays to a Federal Reserve rate hike, loose central bank monetary policy, devaluation of the Chinese currency and a flight to safety as the U.S. election nears.\\n                        Click to view a price quote on POYYF.\",\"keywords\":[\"Equities\",\"Analyst Upgrades/Downgrades\",\"Basic Materials\",\"Gold Prices\",\"Metals and Mining\",\"Opinion\"]},{\"id\":\"ss-HN5xpsSLzgxTK80Snn_H76Gtk_7xWltzmvc47IUU\",\"publisher\":{\"name\":\"TheStreet\",\"hom"
+  },
+  "run_id": "20260930T174508Z",
+  "checked_at": "2026-09-30T17:45:39Z"
+}

@@ -1,0 +1,77 @@
+{
+  "service_id": "stride20k-wiki-summary",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://gateway.stride20k.com/knowledge/wiki/Alan%20Turing",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 209,
+    "headers": {
+      "date": "Wed, 30 Sep 2026 17:45:44 GMT",
+      "content-type": "application/json",
+      "content-length": "993",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://gateway.stride20k.com/knowledge/wiki/Alan%20Turing",
+            "description": "Wikipedia summary API: the lead summary of any English Wikipedia article \u2014 title, one-line description, extract paragraph, thumbnail, canonical URL, and Wikidata item id; disambiguation pages labeled via 'kind'. Titles case-sensitive; spaces or underscores accepted. Content CC BY-SA 4.0 with attribution in meta.attribution of every response. Use for knowledge lookup, entity enrichment, and fact grounding by agents. Cached up to 24 hours.",
+            "mimeType": "application/json",
+            "serviceName": "Aye Scout",
+            "tags": [
+              "knowledge"
+            ],
+            "iconUrl": "https://pulse.aye.today/icon.svg"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "3000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x552Cc4A10878C7F20574489D47184249657Ca3f6",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 993,
+    "body_sha256": "3b82db42b6aaf235ec639ccf6ff2eaa355953c33468e9b880dba7192298199bd",
+    "body_excerpt": "{\"ok\":false,\"error\":{\"code\":\"PAYMENT_REQUIRED\",\"message\":\"Get the English Wikipedia summary for a topic. Price: $0.003 (USDC via x402). Machine-readable catalog: /.well-known/x402.json\",\"retryable\":true},\"preview\":{\"note\":\"Example of the exact envelope a paid call returns.\",\"example\":{\"ok\":true,\"endpoint\":\"/knowledge/wiki/:title\",\"data\":{\"title\":\"Alan Turing\",\"kind\":\"standard\",\"description\":\"English computer scientist (1912\u20131954)\",\"extract\":\"Alan Mathison Turing was an English mathematician, computer scientist, logician, cryptanalyst, philosopher and theoretical biologist.\",\"lang\":\"en\",\"wikibaseItem\":\"Q7251\",\"thumbnailUrl\":\"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Alan_Turing.jpg/330px-Alan_Turing.jpg\",\"pageUrl\":\"https://en.wikipedia.org/wiki/Alan_Turing\"},\"meta\":{\"source\":\"Wikipedia REST API\",\"cached\":false,\"fetchedAt\":\"2026-07-04T00:00:00.000Z\",\"attribution\":\"Content from Wikipedia, licensed CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)\"}}}}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1392,
+    "headers": {
+      "date": "Wed, 30 Sep 2026 17:45:46 GMT",
+      "content-type": "application/json",
+      "content-length": "1177",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x7e79f7d7cc6a990b0c749d0daa980d374faf84e0a3c8b59af25c4e143aa059c5",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 1177,
+    "body_sha256": "93cb236a7f8d5e951c5829101b1d02919cddf298ee2eb639f2f2c56748385a33",
+    "body_excerpt": "{\"ok\":true,\"endpoint\":\"/knowledge/wiki/:title\",\"data\":{\"title\":\"Alan Turing\",\"kind\":\"standard\",\"description\":\"English computer scientist (1912\u20131954)\",\"extract\":\"Alan Mathison Turing was an English mathematician and logician widely regarded as the father of theoretical computer science. He formalised the concepts of algorithm and computation with the Turing machine, a model of a general-purpose computer, and his contributions to cryptanalysis helped the Allies of World War II deciper messages encrypted by the German Enigma machine. He also contributed the Turing test to philosophy of artificial intelligence and the Turing pattern concept to mathematical and theoretical biology.\",\"lang\":\"en\",\"wikibaseItem\":\"Q7251\",\"thumbnailUrl\":\"https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ce/Alan_turing_header.jpg/330px-Alan_turing_header.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail\",\"pageUrl\":\"https://en.wikipedia.org/wiki/Alan_Turing\"},\"meta\":{\"source\":\"Wikipedia REST API\",\"cached\":false,\"fetchedAt\":\"2026-09-30T17:45:45.337Z\",\"attribution\":\"Content from Wikipedia, licensed CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)\"}}"
+  },
+  "run_id": "20260930T174508Z",
+  "checked_at": "2026-09-30T17:45:44Z"
+}

@@ -24,18 +24,18 @@
 <li><strong>Valid x402 challenge</strong>: the unpaid request returned HTTP 402 with payment terms we could read, either from the <code>PAYMENT-REQUIRED</code> header (x402 v2) or from the JSON body (x402 v1).</li>
 <li><strong>Advertised price</strong>: the price in the public listing where we found the service (the source is linked on each service page).</li>
 <li><strong>Price in the 402 challenge</strong>: the amount the endpoint itself asks for, using the USDC "exact" option on Base. <strong>Matches listing</strong> compares the two.</li>
-<li><strong>Charged price</strong> and <strong>delivered a valid response</strong>: only for paid checks. Charged price is the amount we signed and the endpoint accepted. A valid response means HTTP 2xx with a non-empty body that parses as JSON when it says it is JSON. Until paid checks are switched on, these read "not tested (no payment made)".</li>
+<li><strong>Charged price</strong> and <strong>delivered a valid response</strong>: only for paid checks. Charged price is the amount we signed and the endpoint accepted. A valid response means HTTP 2xx with a non-empty body that parses as JSON when it says it is JSON. When the latest check made no payment, these read "not tested (no payment made)".</li>
 </ul>
 <p>We do not publish grades, scores, rankings, or labels such as "good" or "bad". A single failed check can be a temporary network problem on either side, so read results over time (each service page shows recent history).</p>
 <h2 id="free">The free check</h2>
 <p>One request per service, using the sample request from the public listing (method, query or body). No payment is made. We record the response and parse the payment challenge. Requests identify themselves with the user agent <code>WithGrokBot-catalog-checker/0.1.0</code>, and redirects are not followed.</p>
 <h2 id="paid">The paid check</h2>
-<p>Paid checks are built but switched off by default. When switched on, the checker pays like any other customer: it signs a USDC transfer authorization (EIP-3009) for the price in the 402 challenge, sends it, and records the response and the settlement transaction if the endpoint returns one. It signs only for USDC on Base, only with the "exact" scheme, and never for other tokens or networks.</p>
+<p>Paid checks are off by default and never run in the daily job. We start them by hand, on our own machine, from time to time. When run, the checker pays like any other customer: it signs a USDC transfer authorization (EIP-3009) for the price in the 402 challenge (only if it equals the listed price), sends it, and records the response and the settlement transaction if the endpoint returns one. It signs only for USDC on Base, only with the "exact" scheme, and never for other tokens or networks.</p>
 <p>Hard spend caps, checked before anything is signed: at most $0.1 per call, $1 per UTC day, and $20 in total, ever. Every attempt counts toward the caps, even if the endpoint fails. The spend ledger is public at <a href="results/spend_ledger.json">results/spend_ledger.json</a>.</p>
 <h2 id="money">Money</h2>
 <p>We never hold, receive, split or forward anyone else's funds. Buyers pay sellers directly. The only money we spend is our own, on our own checks, under the caps above.</p>
 <h2 id="raw">Raw logs</h2>
-<p>Every check writes a raw log (JSON) with the request, the status, selected headers (the payment challenge decoded), a hash of the body, and the first 4 KB of the body. Response text from services is untrusted: we store it as data, never render it as a web page, and redact email addresses.</p>
+<p>Every check writes a raw log (JSON) with the request, the status, selected headers (the payment challenge decoded), a hash of the body, and the first 4 KB of the body. Response text from services is untrusted: we store it as data, never render it as a web page, and redact email addresses and a few local-path-like strings (the body hash covers the full, unredacted body).</p>
 <h2 id="sources">Where the listings come from</h2>
 <p>Services are taken from public directories of x402 endpoints (currently the public CDP x402 Bazaar discovery API). We record the source and the date we read it. We did not invent any listing. Listing text (names, descriptions) is the seller's own, not verified by us.</p>
 <h2 id="contest">Contest a result</h2>
@@ -48,7 +48,7 @@
 <h2 id="limits">Limits</h2>
 <ul>
 <li>One request per service per run, from one location. Latency depends on where we check from.</li>
-<li>"Reachable" does not mean the service works. Before paid checks run, we only know that the endpoint answers and what it asks to be paid.</li>
+<li>"Reachable" does not mean the service works. A free check only shows that the endpoint answers and what it asks to be paid; only a paid check shows whether it delivers.</li>
 <li>The sample request comes from the listing. If it is out of date, the endpoint may answer with an error that a real customer would not see.</li>
 </ul>
 

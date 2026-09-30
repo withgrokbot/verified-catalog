@@ -44,30 +44,30 @@
   },
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/tavily-search.html",
   "latest": {
-    "checked_at": "2026-09-30T17:18:56Z",
-    "mode": "dry-run",
+    "checked_at": "2026-09-30T17:45:33Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 3433,
+    "latency_ms": 5335,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.01",
     "quoted_price_usd": "0.01",
     "price_matches_listing": true,
-    "paid": false,
-    "charged_price_usd": null,
-    "delivered_valid": null,
+    "paid": true,
+    "charged_price_usd": "0.01",
+    "delivered_valid": false,
     "payment_refused_reason": null,
     "error": null,
-    "raw_log": "results/raw/20260930T171853Z/tavily-search.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T171853Z/tavily-search.json"
+    "raw_log": "results/raw/20260930T174508Z/tavily-search.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/tavily-search.json"
   },
   "history_summary": {
-    "checks": 3,
-    "reachable": 3,
-    "x402_challenge_ok": 3,
-    "paid_checks": 0,
+    "checks": 4,
+    "reachable": 4,
+    "x402_challenge_ok": 4,
+    "paid_checks": 1,
     "first_checked": "2026-09-30T01:01:52Z",
-    "last_checked": "2026-09-30T17:18:56Z"
+    "last_checked": "2026-09-30T17:45:33Z"
   }
 }

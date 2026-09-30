@@ -1,0 +1,124 @@
+{
+  "service_id": "x402atlas-ssl-check",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://ssl.use.x402atlas.com/check?host=example.com&port=443",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 207,
+    "headers": {
+      "content-length": "2061",
+      "content-type": "application/json",
+      "date": "Wed, 30 Sep 2026 17:45:46 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://ssl.use.x402atlas.com/check?host=example.com&port=443",
+            "description": "SSL/TLS certificate check: expiry, issuer, SANs, chain validity, hostname match, negotiated protocol/cipher, and weak-algo warnings for a public HTTPS host. Clean JSON.",
+            "mimeType": "application/json",
+            "serviceName": "SSL/TLS Certificate Check",
+            "tags": [
+              "ssl",
+              "tls",
+              "certificate",
+              "https",
+              "expiry",
+              "chain",
+              "hostname",
+              "security"
+            ]
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "10000",
+              "payTo": "0xD7FE185ddaa9664c9211EC1ccDAc073Ef79215bf",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "merchant": "x402Atlas",
+                "name": "USD Coin",
+                "tier": "standard",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:137",
+              "asset": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+              "amount": "10000",
+              "payTo": "0xD7FE185ddaa9664c9211EC1ccDAc073Ef79215bf",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "merchant": "x402Atlas",
+                "name": "USD Coin",
+                "tier": "standard",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:42161",
+              "asset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+              "amount": "10000",
+              "payTo": "0xD7FE185ddaa9664c9211EC1ccDAc073Ef79215bf",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "merchant": "x402Atlas",
+                "name": "USD Coin",
+                "tier": "standard",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "amount": "10000",
+              "payTo": "ASt6xvRyQ7ntERsmcYVMdLqZvz1GEN8Fzexzq62tXrNQ",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "BFK9TLC3edb13K6v4YyH3DwPb5DSUpkWvb7XnqCL9b4F",
+                "merchant": "x402Atlas",
+                "tier": "standard"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 2061,
+    "body_sha256": "557b3a385b01b8e3f2081adc514aa165d9072dc4a70745fd4f32fd66f29fc917",
+    "body_excerpt": "{\"error\":\"payment_required\",\"hint\":\"This endpoint requires x402 payment. The price and payment options are in the PAYMENT-REQUIRED response header (x402 v2). Pay with an x402 client, then retry to receive the data.\",\"price\":\"$0.01 per call\",\"method\":\"GET\",\"resource\":{\"url\":\"https://ssl.use.x402atlas.com/check?host=example.com\\u0026port=443\",\"description\":\"SSL/TLS certificate check: expiry, issuer, SANs, chain validity, hostname match, negotiated protocol/cipher, and weak-algo warnings for a public HTTPS host. Clean JSON.\",\"mimeType\":\"application/json\",\"serviceName\":\"SSL/TLS Certificate Check\",\"tags\":[\"ssl\",\"tls\",\"certificate\",\"https\",\"expiry\",\"chain\",\"hostname\",\"security\"]},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"amount\":\"10000\",\"payTo\":\"0xD7FE185ddaa9664c9211EC1ccDAc073Ef79215bf\",\"maxTimeoutSeconds\":300,\"extra\":{\"merchant\":\"x402Atlas\",\"name\":\"USD Coin\",\"tier\":\"standard\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:137\",\"asset\":\"0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359\",\"amount\":\"10000\",\"payTo\":\"0xD7FE185ddaa9664c9211EC1ccDAc073Ef79215bf\",\"maxTimeoutSeconds\":300,\"extra\":{\"merchant\":\"x402Atlas\",\"name\":\"USD Coin\",\"tier\":\"standard\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:42161\",\"asset\":\"0xaf88d065e77c8cC2239327C5EDb3A432268e5831\",\"amount\":\"10000\",\"payTo\":\"0xD7FE185ddaa9664c9211EC1ccDAc073Ef79215bf\",\"maxTimeoutSeconds\":300,\"extra\":{\"merchant\":\"x402Atlas\",\"name\":\"USD Coin\",\"tier\":\"standard\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"amount\":\"10000\",\"payTo\":\"ASt6xvRyQ7ntERsmcYVMdLqZvz1GEN8Fzexzq62tXrNQ\",\"maxTimeoutSeconds\":300,\"extra\":{\"feePayer\":\"BFK9TLC3edb13K6v4YyH3DwPb5DSUpkWvb7XnqCL9b4F\",\"merchant\":\"x402Atlas\",\"tier\":\"standard\"}}],\"documentation\":\"https://ssl.use.x402atlas.com/docs\",\"llms\":\"https://ssl.use.x402atlas.com/llms.txt\",\"openapi\":\"https://ssl.use.x402atlas.com/openapi.json\",\"contact\":{\"email\":\"[email redacted]\"},\"x402Version\":2}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 927,
+    "headers": {
+      "content-length": "1236",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Wed, 30 Sep 2026 17:45:47 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x26b13c09bfae993cc055cfb72df86369eea00dca968f251f1210636f6b9276af",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 1236,
+    "body_sha256": "c226bb0906b4ee987034cd9244b4d3e1346c7e1ecb6730a2c3975c33340ea946",
+    "body_excerpt": "{\"host\":\"example.com\",\"port\":443,\"queried_at\":\"2026-09-30T17:45:46.661188766Z\",\"certificate\":{\"subject_cn\":\"example.com\",\"issuer_cn\":\"Cloudflare TLS Issuing ECC CA 3\",\"issuer_org\":\"SSL Corporation\",\"sans\":[\"example.com\",\"*.example.com\"],\"serial_number\":\"2569673129085639595562975411803018896\",\"not_before\":\"2026-09-26T22:49:11Z\",\"not_after\":\"2026-12-25T22:56:35Z\",\"key_algorithm\":\"ECDSA\",\"key_size\":256,\"signature_algorithm\":\"ECDSA-SHA256\"},\"chain\":{\"days_until_expiry\":86,\"is_expired\":false,\"is_self_signed\":false,\"hostname_matches\":true,\"chain_valid\":true},\"connection\":{\"tls_version\":\"TLS 1.3\",\"cipher_suite\":\"TLS_AES_128_GCM_SHA256\"},\"warnings\":[],\"_atlas\":{\"docs\":\"https://ssl.use.x402atlas.com/llms.txt\",\"related\":[{\"bridge\":\"dns\",\"url\":\"https://dns.use.x402atlas.com/a?ref=ssl\",\"docs\":\"https://dns.use.x402atlas.com/llms.txt?ref=ssl\",\"summary\":\"DNS records, WHOIS & RDAP\"},{\"bridge\":\"email-auth\",\"url\":\"https://email-auth.use.x402atlas.com/check?ref=ssl\",\"docs\":\"https://email-auth.use.x402atlas.com/llms.txt?ref=ssl\",\"summary\":\"SPF, DKIM & DMARC checks\"},{\"bridge\":\"headers\",\"url\":\"https://headers.use.x402atlas.com/?ref=ssl\",\"docs\":\"https://headers.use.x402atlas.com/llms.txt?ref=ssl\",\"summary\":\"HTTP security header audit\"}]}}"
+  },
+  "run_id": "20260930T174508Z",
+  "checked_at": "2026-09-30T17:45:46Z"
+}
