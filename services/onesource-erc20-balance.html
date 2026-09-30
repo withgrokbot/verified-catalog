@@ -22,33 +22,35 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-28 09:34:55.243 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-09-30 17:45:08 UTC</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-09-30 20:54:09 UTC</td></tr>
 <tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>246 ms</td></tr>
+<tr><th scope="row">Latency</th><td>191 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.003 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.003</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
 <tr><th scope="row">Charged price (paid check)</th><td>$0.003</td></tr>
 <tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>no pass/fail</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>passed (balance equals public-RPC balanceOf at block 26092813)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.003, batch-settlement on eip155:8453: $0.003.</p>
-<p>Evidence: <a href="../results/raw/20260930T174508Z/onesource-erc20-balance.json">raw log for this check</a>. Machine-readable: <a href="onesource-erc20-balance.json">onesource-erc20-balance.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20260930T205409Z/onesource-erc20-balance.json">raw log for this check</a>. Machine-readable: <a href="onesource-erc20-balance.json">onesource-erc20-balance.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: USDT balance of vitalik.eth (0xd8da...6045) on Ethereum. Passes if: balance equals balanceOf from a free public Ethereum RPC at one of the 6 newest blocks when we check.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-09-30 20:54:09 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>passed (balance equals public-RPC balanceOf at block 26092813)</td><td><a href="https://basescan.org/tx/0x92870c2e0e4cb59cae5edff30a9d2455c1f65970cba0e8ad9303dd70bfca4db5">0x92870c2e...</a></td></tr>
 <tr><td>2026-09-30 17:45:08 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>no pass/fail (this paid call was made before the known-answer tests existed)</td><td><a href="https://basescan.org/tx/0xf93138c9c5b4979db87ea3a9843c996dd3604a583113eb249a4a2b294c8837c8">0xf93138c9...</a></td></tr>
 </tbody></table></div>
 <h2>Recent checks</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-09-30 20:54:09 UTC</td><td>paid</td><td>yes</td><td>402</td><td>191 ms</td><td>$0.003</td><td>yes</td><td><a href="../results/raw/20260930T205409Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-09-30 17:45:08 UTC</td><td>paid</td><td>yes</td><td>402</td><td>246 ms</td><td>$0.003</td><td>yes</td><td><a href="../results/raw/20260930T174508Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-09-30 17:18:53 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>149 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20260930T171853Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-09-30 01:03:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>216 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20260930T010357Z/onesource-erc20-balance.json">raw log</a></td></tr>

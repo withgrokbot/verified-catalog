@@ -1,0 +1,120 @@
+{
+  "service_id": "otto-crypto-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://x402.ottoai.services/crypto-news",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 232,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Wed, 30 Sep 2026 20:54:13 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://x402.ottoai.services/crypto-news",
+            "description": "Importance-ranked crypto headlines with per-article source links and publish times, plus a sentiment-scored market brief. Regenerated hourly; meta carries the snapshot's age and a fresh/stale verdict.",
+            "mimeType": "application/json",
+            "serviceName": "Otto AI",
+            "tags": [
+              "crypto news",
+              "market news",
+              "sentiment analysis",
+              "breaking headlines"
+            ],
+            "iconUrl": "https://x402.ottoai.services/assets/otto-icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "assetTransferMethod": "permit2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "1000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM"
+              }
+            }
+          ]
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "1517"
+    },
+    "body_bytes": 1517,
+    "body_sha256": "70f7aea3967721656bf2204d11f5b14ebfdde648dda001ea49b70bcc984f4a38",
+    "body_excerpt": "{\"error\":\"payment_required\",\"hint\":\"This is a pay-per-call x402 endpoint. The payment terms are the accepts[] array in this body -- mirrored verbatim from the base64 PAYMENT-REQUIRED response header, which remains the x402 v2 protocol contract. Pay one of them with an x402 client, then retry to receive the data.\",\"price\":\"$0.001\",\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"assetTransferMethod\":\"permit2\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"amount\":\"1000\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"payTo\":\"6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5\",\"maxTimeoutSeconds\":300,\"extra\":{\"feePayer\":\"D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM\"}}],\"docs\":\"https://docs.useotto.xyz/getting-started/agent-quickstart\",\"contact\":{\"email\":\"[email redacted]\",\"telegram\":\"https://t.me/DeFAI_Capital\",\"twitter\":\"https://twitter.com/useOttoAI\",\"feedback\":\"POST https://x402.ottoai.services/feedback ($0.001) -- money-back guarantee on Otto-recommended services and Full Auto; feature requests welcome (email/Telegram are free).\"},\"x402Version\":2}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1546,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Wed, 30 Sep 2026 20:54:14 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x13ce0fc1db7fa45c1b5e37dabfdcce7a7862e16b7a455027e58f615b9445bcd5",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "7598"
+    },
+    "body_bytes": 7598,
+    "body_sha256": "2ed19b0f081d371033a78321a3fa8088d2d77e554afbfda6db338c54ec0a8ce0",
+    "body_excerpt": "{\"status\":\"success\",\"data\":{\"report\":\"_Report generated 2026-09-30 20:00 UTC_\\n\\n## MARKET BRIEF\\n\\nOverview: A major institutional stablecoin backed by Coinbase, Mastercard, Stripe and Visa launched today, headlining a busy news cycle that also saw Bitget begin recovering from a $388 million breach and Bitcoin ETF inflows extend to nine straight days.\\n\\nMarket Sentiment:\\nOverall Bull/Bear Score: 68\\n\\n---\\n\\n## KEY STORIES\\n\\n1. **Open USD Stablecoin Goes Live as Stripe, Visa and Mastercard Open It to Businesses** - A major stablecoin backed by Coinbase, Mastercard, Shopify, Stripe and Visa launching with native support across Ethereum, Solana, Base and Tempo represents one of the largest institutional pushes into stablecoin payments, directly challenging Tether and Circle's dominance in a $306B market.\\n\\n2. **Bitget 'gradually back to usual' as protection fund reaches $309M** - A $388M security breach at a major exchange with user losses is a significant market event, and the exchange's recovery timeline and protection fund status are critical for assessing counterparty risk across the industry.\\n\\n3. **Base completes Cobalt upgrade, adds new tools for tokenized assets** - Base's Cobalt upgrade introduces conditional transactions, expanded B20 compliance tools, and forced-transfer capabilities that materially advance onchain finance infrastructure on a top L2.\\n\\n4. **White House weighs new CFTC event contract rules in growing prediction market power struggle** - CFTC rules defining event contracts as swaps could determine jurisdiction over the fast-growing prediction market sector, with circuit court splits and potential Supreme Court involvement raising stakes.\\n\\n5. **Bitcoin ETFs Extend Win Streak to 9 Days, Matching August Rally** - A nine-day ETF inflow streak signals sustained institutional demand and is a key sentiment/momentum indicator for Bitcoin price direction.\\n\\n---\\n\\n## QUICK HITS\\n\\n- Bitcoin steadies as soft PCE cools October Fed rate hike bets\\n- UK's FCA Opens Crypto License Applications With Feb. 28 Deadline for Existing Firms\\n- Crypto advocacy group announces picks for US Congress as midterms loom\\n- DogeOS launches testnet to bring EVM smart contracts to Dogecoin\\n- Bloomberg brings onchain stablecoin data to its Terminal\\n\\nInformational only -- not investment advice.\\n\\n[Powered by $OTTO AI | @useOttoAI]\",\"headlines\":[{\"rank\":1,\"title\":\"Open USD Stablecoin Goes Live as Stripe, Visa and Mastercard Open It to Businesses\",\"whyItMatters\":\"A major stablecoin backed by Coinbase, Mastercard, Shopify, Stripe and Visa launching with native support across Ethereum, Solana, Base and Tempo represents one of the largest institutional pushes into stablecoin payments, directly challenging Tether and Circle's dominance in a $306B market.\",\"url\":\"https://unchainedcrypto.com/open-usd-stablecoin-goes-live-as-stripe-visa-and-mastercard-open-it-to-businesses/\",\"publishedAt\":\"2026-09-30T16:49:57.000Z\",\"source\":\"Unchainedcrypto\",\"match\":\"exact\"},{\"rank\":2,\"title\":\"Bitget 'gradually back to usual' as protection fund reaches $309M\",\"whyItMatters\":\"A $388M security breach at a major exchange with user losses is a significant market event, and the exchange's recovery timeline and protection fund status are critical for assessing counterparty risk across the industry.\",\"url\":\"https://cointelegraph.com/news/bitget-operations-protection-fund-security-breach\",\"publishedAt\":\"2026-09-30T16:28:30.000Z\",\"source\":\"Cointelegraph\",\"match\":\"exact\",\"sourceTitle\":\"Bitget 'gradually back to usual' as protection fund reaches $309M\"},{\"rank\":3,\"title\":\"Base completes Cobalt upgrade, adds new tools for tokenized assets\",\"whyItMatters\":\"Base's Cobalt upgrade introduces conditional transactions, expanded B20 compliance tools, and forced-transfer capabilities that materially advance onchain finance infrastructure on a top L2.\",\"url\":\"https://cointelegraph.com/news/base-cobalt-upgrade-tokenized-finance-b20-kyc\",\"publishedAt\":\"2026-09-30T19:00:00.000Z\",\"source\":\"Cointelegraph\",\"match\":\"exact\"},{\"rank\":4,\"title\":\"White House weighs new CFT"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "10 items with source URLs; newest 1.7 h old",
+    "observed": {
+      "items": 10,
+      "items_with_url": 10,
+      "newest": "2026-09-30T19:11:23Z",
+      "newest_age_hours": 1.71
+    },
+    "expected": {},
+    "test": {
+      "input": "none",
+      "pass_if": "at least 5 items, each with a source URL; newest item under 3 h old (the listing says hourly)"
+    },
+    "graded_at": "2026-09-30T20:54:14Z"
+  },
+  "run_id": "20260930T205409Z",
+  "checked_at": "2026-09-30T20:54:13Z"
+}

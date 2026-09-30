@@ -1,0 +1,93 @@
+{
+  "service_id": "massive-ticker-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://agent.massive.com/v2/reference/news?limit=10&order=desc&sort=published_utc&ticker=AAPL",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 250,
+    "headers": {
+      "content-type": "application/json",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://agent.massive.com/v2/reference/news?limit=10&order=desc&sort=published_utc&ticker=AAPL",
+            "description": "Get the most recent news articles relating to a stock ticker symbol, including a summary of the article and a link to the original source. Can't find what you're looking for? POST feedback to /feedback, no charge.",
+            "mimeType": "application/json",
+            "serviceName": "Massive",
+            "tags": [
+              "news",
+              "articles",
+              "stocks"
+            ],
+            "iconUrl": "https://agent.massive.com/icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "10000",
+              "payTo": "0x525f6dDcE9aF7a7179D7696aaBfCd5FCd15a21e6",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "date": "Wed, 30 Sep 2026 20:54:30 GMT",
+      "content-length": "96"
+    },
+    "body_bytes": 96,
+    "body_sha256": "0a32141aa8c76c645d9ddb3d0fd78adc0e2076ce57832aef40013d4d41c33d5c",
+    "body_excerpt": "{\"message\":\"See the PAYMENT-REQUIRED header for the payment terms.\",\"status\":\"PAYMENT_REQUIRED\"}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1294,
+    "headers": {
+      "content-length": "31535",
+      "content-type": "application/json",
+      "date": "Wed, 30 Sep 2026 20:54:31 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x9706e1a73df110033dc499890268c23d36a0e18dae7ff8054882441657306de6",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 31535,
+    "body_sha256": "ad0ce7d52b43346a05c1462191eea8cb0df3d0f45f5c07ada3d85cff99babdb4",
+    "body_excerpt": "{\"results\":[{\"id\":\"f977bcd4c89391ffd5b9f52f7b0474e108cd61d4233f63a749e5f16368bb23f9\",\"publisher\":{\"name\":\"The Motley Fool\",\"homepage_url\":\"https://www.fool.com/\",\"logo_url\":\"https://s3.massive.com/public/assets/news/logos/themotleyfool.svg\",\"favicon_url\":\"https://s3.massive.com/public/assets/news/favicons/themotleyfool.ico\"},\"title\":\"The SEC Just Granted a Temporary Innovation Exemption For Tokenized Stock Trading. Here's What That Means For the Average Investor.\",\"author\":\"Anders Bylund\",\"published_utc\":\"2026-09-30T18:41:17Z\",\"article_url\":\"https://www.fool.com/investing/2026/09/30/the-sec-just-granted-a-temporary-innovation-exempt/?source=iedfolrf0000001\",\"tickers\":[\"AAPL\"],\"image_url\":\"https://g.foolcdn.com/image/?url=https%3A%2F%2Fg.foolcdn.com%2Feditorial%2Fimages%2F887801%2Fblockchain-data-information-cryptocurrency-getty-images.jpg&w=1200&op=resize\",\"description\":\"The SEC approved a five-year Innovation Exemption allowing blockchain-based platforms to trade tokenized versions of real U.S. stocks with 24/7 trading and near-instant settlement. Tokenized shares carry the same rights as regular shares (dividends, voting), but trading is capped at 0.25-2.5% of daily volume per stock. The experiment is small-scale and won't immediately impact traditional brokerage accounts, with first venues expected to launch in early 2027.\",\"keywords\":[\"tokenized stocks\",\"blockchain trading\",\"SEC Innovation Exemption\",\"24/7 trading\",\"instant settlement\",\"Tokenized Securities Venues (TSVs)\",\"cryptocurrency\",\"regulatory sandbox\"],\"insights\":[{\"ticker\":\"AAPL\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Apple is mentioned as an example of a large-cap stock eligible for tokenization, but the article does not provide any positive or negative outlook specific to the company. It serves only as an illustrative example.\"}]},{\"id\":\"77d310ea90683c7aaa87a9ef223da688fa656b4677a62f9bc3c0e74ee0ffc32d\",\"publisher\":{\"name\":\"The Motley Fool\",\"homepage_url\":\"https://www.fool.com/\",\"logo_url\":\"https://s3.massive.com/public/assets/news/logos/themotleyfool.svg\",\"favicon_url\":\"https://s3.massive.com/public/assets/news/favicons/themotleyfool.ico\"},\"title\":\"Stock Market Indexes Rally on Inflation Data, Though the Dow Sat It Out\",\"author\":\"Anders Bylund\",\"published_utc\":\"2026-09-30T17:03:01Z\",\"article_url\":\"https://www.fool.com/investing/2026/09/30/stock-market-indexes-rally-on-inflation-data-though-the-dow-sat-it-out/?source=iedfolrf0000001\",\"tickers\":[\"GOOG\",\"GOOGL\",\"GOOGM\",\"GOOGN\",\"AAPL\",\"MSFT\",\"AMZN\",\"NVDA\",\"CAT\",\"GS\",\"GSpA\",\"GSpC\",\"GSpD\",\"MU\"],\"image_url\":\"https://g.foolcdn.com/image/?url=https%3A%2F%2Fcdn.content.foolcdn.com%2Fimages%2F1umn9qeh%2Fproduction%2F477861ab6c3c926823e3f13224d8fbe11199f1e4-1200x675.jpg%3Fw%3D800%26q%3D75%26fit%3Dmax%26auto%3Dformat&w=1200&op=resize\",\"description\":\"The Nasdaq Composite rose 1.1% and S&P 500 gained 0.6% following cooler-than-expected inflation data, with core PCE rising just 0.2% in August versus the 3.3% forecast. However, the rally was driven almost entirely by six mega-cap tech stocks, while the Dow remained flat as heavyweights like Caterpillar and Goldman Sachs declined. The market has shifted expectations for the next Fed rate hike from October to December.\",\"keywords\":[\"inflation data\",\"PCE\",\"Fed rate hike\",\"tech stocks\",\"market rally\",\"Nasdaq\",\"S&P 500\",\"Dow Jones\"],\"insights\":[{\"ticker\":\"GOOG\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Stock jumped ~3.1% after signing a White House AI accord with audit commitments. Contributed significantly to Nasdaq gains.\"},{\"ticker\":\"GOOGL\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Stock jumped ~3.1% after signing a White House AI accord with audit commitments. Contributed significantly to Nasdaq gains.\"},{\"ticker\":\"GOOGM\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Stock jumped ~3.1% after signing a White House AI accord with audit commitments. Contributed significantly to Nasdaq gains.\"},{\"ticker\":\"GOOGN\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Stock jumped ~3.1% after signing a White House AI accord with audit commitments. Contributed significantly t"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "all 10 items tag AAPL; newest 0.1 days old",
+    "observed": {
+      "items": 10,
+      "items_without_ticker": 0,
+      "newest": "2026-09-30T18:41:17Z",
+      "newest_age_days": 0.09
+    },
+    "expected": {},
+    "test": {
+      "input": "ticker=AAPL, newest first",
+      "pass_if": "every item tags AAPL; newest item at most 7 days old"
+    },
+    "graded_at": "2026-09-30T20:54:32Z"
+  },
+  "run_id": "20260930T205409Z",
+  "checked_at": "2026-09-30T20:54:30Z"
+}

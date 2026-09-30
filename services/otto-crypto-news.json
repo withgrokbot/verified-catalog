@@ -34,13 +34,13 @@
     "facts_only": false,
     "facts_only_reason": null
   },
-  "paid_receipts": 1,
+  "paid_receipts": 2,
   "latest": {
-    "checked_at": "2026-09-30T17:45:12Z",
+    "checked_at": "2026-09-30T20:54:13Z",
     "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 368,
+    "latency_ms": 232,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001",
@@ -51,16 +51,21 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
-    "quality": null,
-    "raw_log": "results/raw/20260930T174508Z/otto-crypto-news.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/otto-crypto-news.json"
+    "quality": {
+      "result": "pass",
+      "reason": "10 items with source URLs; newest 1.7 h old",
+      "facts_only": false,
+      "graded_at": "2026-09-30T20:54:14Z"
+    },
+    "raw_log": "results/raw/20260930T205409Z/otto-crypto-news.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T205409Z/otto-crypto-news.json"
   },
   "history_summary": {
-    "checks": 4,
-    "reachable": 4,
-    "x402_challenge_ok": 4,
-    "paid_checks": 1,
+    "checks": 5,
+    "reachable": 5,
+    "x402_challenge_ok": 5,
+    "paid_checks": 2,
     "first_checked": "2026-09-30T01:01:50Z",
-    "last_checked": "2026-09-30T17:45:12Z"
+    "last_checked": "2026-09-30T20:54:13Z"
   }
 }
