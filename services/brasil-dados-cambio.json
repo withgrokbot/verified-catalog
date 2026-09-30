@@ -23,7 +23,17 @@
     "listing_last_updated": "2026-09-29T10:19:46.81Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "fx-rates"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/brasil-dados-cambio.html",
+  "quality_test": {
+    "input": "none",
+    "pass_if": "USD/BRL equals the free BCB PTAX API for that date",
+    "facts_only": true,
+    "facts_only_reason": "On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported)."
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:47Z",
     "mode": "paid",
@@ -40,6 +50,7 @@
     "delivered_valid": false,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/brasil-dados-cambio.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/brasil-dados-cambio.json"
   },

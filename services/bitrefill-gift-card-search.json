@@ -27,7 +27,17 @@
     "listing_last_updated": "2026-09-29T15:07:33.873Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "gift-card-search"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/bitrefill-gift-card-search.html",
+  "quality_test": {
+    "input": "q=amazon, country=US",
+    "pass_if": "a result named \"Amazon...\"",
+    "facts_only": false,
+    "facts_only_reason": null
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:14Z",
     "mode": "paid",
@@ -44,6 +54,7 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/bitrefill-gift-card-search.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/bitrefill-gift-card-search.json"
   },

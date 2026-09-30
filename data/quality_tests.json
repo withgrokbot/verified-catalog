@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "note": "Known-answer task-quality tests. One test per service, run on the response of every paid call. Result is pass, fail, or not_graded. A paid call that settles but fails its test is a failed receipt. Services marked facts_only are broken on the seller's side at the moment: we publish what happened, but we do not grade them or sort them against others. The facts_only flag is lifted by hand after a clean paid call.",
+  "tests": {
+    "onesource-erc20-balance": {
+      "kind": "erc20_balance",
+      "input": "USDT balance of vitalik.eth (0xd8da...6045) on Ethereum",
+      "pass_if": "balance equals balanceOf from a free public Ethereum RPC at one of the 6 newest blocks when we check",
+      "token": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "account": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+      "rpc_urls": ["https://ethereum-rpc.publicnode.com", "https://eth.llamarpc.com"],
+      "block_window": 6
+    },
+    "exa-search": {"kind": "web_search", "input": "x402 payment protocol", "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402"},
+    "you-search": {"kind": "web_search", "input": "x402 payment protocol", "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402",
+      "facts_only": true, "facts_only_reason": "On 2026-09-30 the endpoint answered our x402 payment with a second HTTP 402 asking to pay again by another method (Tempo), so nothing was delivered."},
+    "tavily-search": {"kind": "web_search", "input": "x402 payment protocol", "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402",
+      "facts_only": true, "facts_only_reason": "On 2026-09-30 the payment settled but the sample request was rejected (HTTP 422). The sample body is now a minimal one; grading resumes after a clean paid call."},
+    "x402atlas-web-search": {"kind": "web_search", "input": "x402 payment protocol", "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402"},
+    "otto-crypto-news": {"kind": "crypto_news", "input": "none", "pass_if": "at least 5 items, each with a source URL; newest item under 3 h old (the listing says hourly)", "min_items": 5, "max_age_hours": 3},
+    "bitrefill-gift-card-search": {"kind": "name_prefix", "input": "q=amazon, country=US", "pass_if": "a result named \"Amazon...\"", "prefix": "Amazon"},
+    "apitoll-edgar-filings": {"kind": "edgar_10k", "input": "AAPL, form 10-K", "pass_if": "CIK 0000320193 and the latest 10-K filing date match SEC's free submissions API", "cik": "0000320193",
+      "facts_only": true, "facts_only_reason": "On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made."},
+    "oblique-paid-time": {"kind": "paid_time", "input": "none", "pass_if": "epoch within 5 s of our clock while the request was open; ISO time and epoch agree", "tolerance_s": 5},
+    "coingecko-onchain-pool-search": {"kind": "pool_base_token", "input": "query=weth, network=eth", "pass_if": "a pool with WETH (0xC02a...6Cc2) as base token", "base_token": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"},
+    "glassnode-mvrv": {"kind": "series_sanity", "input": "a=BTC, i=24h", "pass_if": "newest point at most 48 h old and value between 0.3 and 6 (sanity check only, the weakest test)", "max_age_hours": 48, "min": 0.3, "max": 6},
+    "minifetch-url-check": {"kind": "url_allowed", "input": "url=https://example.com", "pass_if": "allowed = true"},
+    "x402tap-weather": {"kind": "weather", "input": "city=Austin", "pass_if": "temperature within 3 C of the free Open-Meteo current temperature for Austin, TX (fallback: US National Weather Service station KAUS)", "latitude": 30.2672, "longitude": -97.7431, "nws_station": "KAUS", "tolerance_c": 3},
+    "massive-ticker-news": {"kind": "ticker_news", "input": "ticker=AAPL, newest first", "pass_if": "every item tags AAPL; newest item at most 7 days old", "ticker": "AAPL", "max_age_days": 7},
+    "x402scan-merchants": {"kind": "merchants", "input": "none", "pass_if": "non-empty, sorted by volume (total_amount, largest first), each entry has an address"},
+    "stride20k-wiki-summary": {"kind": "wiki", "input": "Alan Turing", "pass_if": "Wikidata Q7251 and canonical https://en.wikipedia.org/wiki/Alan_Turing", "wikidata": "Q7251", "page_url": "https://en.wikipedia.org/wiki/Alan_Turing"},
+    "x402atlas-ssl-check": {"kind": "ssl", "input": "host=example.com, port 443", "pass_if": "hostname match is true; expiry equals the certificate expiry in our own TLS handshake", "host": "example.com", "port": 443},
+    "brasil-dados-cambio": {"kind": "ptax", "input": "none", "pass_if": "USD/BRL equals the free BCB PTAX API for that date",
+      "facts_only": true, "facts_only_reason": "On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported)."}
+  }
+}

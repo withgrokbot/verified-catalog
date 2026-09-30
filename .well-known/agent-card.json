@@ -9,6 +9,7 @@
   },
   "documentationUrl": "https://withgrokbot.github.io/verified-catalog/methodology.html",
   "catalog": "https://withgrokbot.github.io/verified-catalog/catalog.json",
+  "receipts": "https://withgrokbot.github.io/verified-catalog/receipts.json",
   "llms_txt": "https://withgrokbot.github.io/verified-catalog/llms.txt",
   "capabilities": {
     "streaming": false,

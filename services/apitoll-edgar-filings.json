@@ -28,7 +28,18 @@
     "listing_last_updated": "2026-09-29T10:09:26.068Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "sec-filings",
+    "company-filings"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/apitoll-edgar-filings.html",
+  "quality_test": {
+    "input": "AAPL, form 10-K",
+    "pass_if": "CIK 0000320193 and the latest 10-K filing date match SEC's free submissions API",
+    "facts_only": true,
+    "facts_only_reason": "On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made."
+  },
+  "paid_receipts": 0,
   "latest": {
     "checked_at": "2026-09-30T17:45:22Z",
     "mode": "paid",
@@ -45,6 +56,7 @@
     "delivered_valid": null,
     "payment_refused_reason": "no valid x402 challenge",
     "error": "URLError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1029)",
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/apitoll-edgar-filings.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/apitoll-edgar-filings.json"
   },

@@ -30,7 +30,11 @@
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-28T09:34:55.243Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "token-balance",
+        "on-chain-data"
+      ]
     },
     {
       "id": "exa-search",
@@ -52,16 +56,20 @@
         "method": "POST",
         "json_body": {
           "numResults": 10,
-          "query": "example search query",
+          "query": "x402 payment protocol",
           "type": "auto"
-        }
+        },
+        "note": "Changed 2026-09-30 for the known-answer quality test (data/quality_tests.json)."
       },
       "source": {
         "name": "CDP x402 Bazaar (public discovery API)",
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-30T00:18:25.245Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "web-search"
+      ]
     },
     {
       "id": "otto-crypto-news",
@@ -87,7 +95,11 @@
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-29T20:30:54.933Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "crypto-news",
+        "news"
+      ]
     },
     {
       "id": "bitrefill-gift-card-search",
@@ -117,7 +129,10 @@
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-29T15:07:33.873Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "gift-card-search"
+      ]
     },
     {
       "id": "x402atlas-web-search",
@@ -139,16 +154,20 @@
         "method": "GET",
         "query": {
           "chunks_per_source": 2,
-          "query": "latest developments in AI agents",
+          "query": "x402 payment protocol",
           "search_depth": "fast"
-        }
+        },
+        "note": "Changed 2026-09-30 for the known-answer quality test (data/quality_tests.json)."
       },
       "source": {
         "name": "CDP x402 Bazaar (public discovery API)",
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-29T13:00:04.672Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "web-search"
+      ]
     },
     {
       "id": "apitoll-edgar-filings",
@@ -179,7 +198,11 @@
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-29T10:09:26.068Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "sec-filings",
+        "company-filings"
+      ]
     },
     {
       "id": "oblique-paid-time",
@@ -205,7 +228,10 @@
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-29T12:11:30.714Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "time"
+      ]
     },
     {
       "id": "coingecko-onchain-pool-search",
@@ -237,7 +263,11 @@
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-29T15:20:34.58Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "dex-pool-search",
+        "on-chain-data"
+      ]
     },
     {
       "id": "you-search",
@@ -259,15 +289,19 @@
         "method": "GET",
         "query": {
           "count": 10,
-          "query": "NVDA earnings guidance Q2 2026"
-        }
+          "query": "x402 payment protocol"
+        },
+        "note": "Changed 2026-09-30 for the known-answer quality test (data/quality_tests.json)."
       },
       "source": {
         "name": "CDP x402 Bazaar (public discovery API)",
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-29T04:09:00.302Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "web-search"
+      ]
     },
     {
       "id": "tavily-search",
@@ -288,31 +322,21 @@
       "sample_request": {
         "method": "POST",
         "json_body": {
-          "end_date": "2026-05-28",
-          "exclude_domains": [
-            "example.com"
-          ],
-          "include_answer": true,
-          "include_domains": [
-            "x402.org",
-            "docs.cdp.coinbase.com"
-          ],
-          "include_images": true,
-          "include_raw_content": true,
           "max_results": 5,
-          "query": "what is x402?",
-          "search_depth": "advanced",
-          "start_date": "2026-01-01",
-          "time_range": "month",
-          "topic": "general"
-        }
+          "query": "x402 payment protocol",
+          "search_depth": "advanced"
+        },
+        "note": "Changed 2026-09-30 for the known-answer quality test (data/quality_tests.json). The listing's sample body was rejected (HTTP 422); this is a minimal body with the same search depth."
       },
       "source": {
         "name": "CDP x402 Bazaar (public discovery API)",
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-30T00:05:49.421Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "web-search"
+      ]
     },
     {
       "id": "glassnode-mvrv",
@@ -342,7 +366,11 @@
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-29T11:00:46.45Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "crypto-market-metrics",
+        "on-chain-data"
+      ]
     },
     {
       "id": "minifetch-url-check",
@@ -372,7 +400,11 @@
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-29T10:07:18.421Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "url-check",
+        "robots-check"
+      ]
     },
     {
       "id": "x402tap-weather",
@@ -401,7 +433,10 @@
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-29T10:10:13.181Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "weather"
+      ]
     },
     {
       "id": "massive-ticker-news",
@@ -423,16 +458,22 @@
         "method": "GET",
         "query": {
           "limit": 10,
-          "order": "asc",
-          "sort": "published_utc"
-        }
+          "order": "desc",
+          "sort": "published_utc",
+          "ticker": "AAPL"
+        },
+        "note": "Changed 2026-09-30 for the known-answer quality test (data/quality_tests.json). Added ticker=AAPL; newest first."
       },
       "source": {
         "name": "CDP x402 Bazaar (public discovery API)",
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-29T12:45:26.692Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "stock-news",
+        "news"
+      ]
     },
     {
       "id": "x402scan-merchants",
@@ -458,7 +499,10 @@
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-30T00:19:51.292Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "x402-merchants"
+      ]
     },
     {
       "id": "stride20k-wiki-summary",
@@ -487,7 +531,11 @@
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-08-31T01:32:18.388Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "wiki-summary",
+        "encyclopedia"
+      ]
     },
     {
       "id": "x402atlas-ssl-check",
@@ -517,7 +565,10 @@
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-29T11:14:56.722Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "ssl-check"
+      ]
     },
     {
       "id": "brasil-dados-cambio",
@@ -543,7 +594,10 @@
         "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
         "listing_last_updated": "2026-09-29T10:19:46.81Z",
         "retrieved": "2026-09-29"
-      }
+      },
+      "tasks": [
+        "fx-rates"
+      ]
     }
   ],
   "own_bots": [

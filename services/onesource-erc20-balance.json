@@ -28,7 +28,18 @@
     "listing_last_updated": "2026-09-28T09:34:55.243Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "token-balance",
+    "on-chain-data"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/onesource-erc20-balance.html",
+  "quality_test": {
+    "input": "USDT balance of vitalik.eth (0xd8da...6045) on Ethereum",
+    "pass_if": "balance equals balanceOf from a free public Ethereum RPC at one of the 6 newest blocks when we check",
+    "facts_only": false,
+    "facts_only_reason": null
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:08Z",
     "mode": "paid",
@@ -45,6 +56,7 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/onesource-erc20-balance.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/onesource-erc20-balance.json"
   },

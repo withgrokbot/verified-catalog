@@ -8,3 +8,7 @@ wallet*.json
 __pycache__/
 *.pyc
 results/spend_ledger.json.tmp
+# Cloudflare Worker local state and installs
+worker/.wrangler/
+node_modules/
+.dev.vars

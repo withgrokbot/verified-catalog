@@ -26,7 +26,18 @@
     "listing_last_updated": "2026-08-31T01:32:18.388Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "wiki-summary",
+    "encyclopedia"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/stride20k-wiki-summary.html",
+  "quality_test": {
+    "input": "Alan Turing",
+    "pass_if": "Wikidata Q7251 and canonical https://en.wikipedia.org/wiki/Alan_Turing",
+    "facts_only": false,
+    "facts_only_reason": null
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:44Z",
     "mode": "paid",
@@ -43,6 +54,7 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/stride20k-wiki-summary.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/stride20k-wiki-summary.json"
   },

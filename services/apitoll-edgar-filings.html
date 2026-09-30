@@ -33,11 +33,20 @@
 <tr><th scope="row">Challenge price matches listing</th><td>n/a</td></tr>
 <tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
 <tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
 <tr><th scope="row">Error</th><td>URLError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1029)</td></tr>
 <tr><th scope="row">Payment not made because</th><td>no valid x402 challenge</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: none seen.</p>
 <p>Evidence: <a href="../results/raw/20260930T174508Z/apitoll-edgar-filings.json">raw log for this check</a>. Machine-readable: <a href="apitoll-edgar-filings.json">apitoll-edgar-filings.json</a>.</p>
+<h2>Known-answer test</h2>
+<p>Input: AAPL, form 10-K. Passes if: CIK 0000320193 and the latest 10-K filing date match SEC&#x27;s free submissions API.</p><p class="notice">Facts only (no pass/fail result is given): On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made.</p>
+<h2>Paid calls</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
+<tbody>
+<tr><td colspan="6">No paid calls yet.</td></tr>
+</tbody></table></div>
 <h2>Recent checks</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>

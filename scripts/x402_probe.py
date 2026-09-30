@@ -22,7 +22,7 @@ import urllib.parse
 import urllib.request
 from decimal import Decimal, ROUND_HALF_UP
 
-CHECKER_VERSION = "0.1.0"
+CHECKER_VERSION = "0.2.0"
 USER_AGENT = "WithGrokBot-catalog-checker/" + CHECKER_VERSION
 
 # Hard limits. Command-line caps may lower these, never raise them.
@@ -138,7 +138,8 @@ def summarize_options(challenge, limit=8):
         out.append({"scheme": opt.get("scheme"), "network": opt.get("network"),
                     "asset": "USDC" if known else str(opt.get("asset", ""))[:12],
                     "amount_atomic": str(amt) if amt is not None else None,
-                    "amount_usd": usd_str(usd(amt)) if (amt is not None and known) else None})
+                    "amount_usd": usd_str(usd(amt)) if (amt is not None and known) else None,
+                    "pay_to": str(opt.get("payTo") or "")[:64] or None})
     return out
 
 
@@ -340,8 +341,11 @@ def _valid_delivery(r):
 
 
 # ------------------------------------------------------------------ one check
-def check_service(svc, timeout=20, signer=None, guard=None, network="base", now=None):
-    """Return (result, raw_log). Free check unless both signer and guard are given."""
+def check_service(svc, timeout=20, signer=None, guard=None, network="base", now=None, quality_tests=None, refs=None):
+    """Return (result, raw_log). Free check unless both signer and guard are given.
+
+    In paid mode, when quality_tests is given, the full paid response is graded by its known-answer test
+    (scripts/quality.py) and the result carries a `quality` block; the raw log keeps the observed/expected facts."""
     paid_mode = signer is not None and guard is not None
     method, url, data = build_request(svc)
     r = http_call(method, url, data, timeout=timeout)
@@ -352,7 +356,8 @@ def check_service(svc, timeout=20, signer=None, guard=None, network="base", now=
            "error": r.get("error"), "x402_challenge": False, "x402_version": None,
            "advertised_price_usd": usd_str(adv), "quoted_price_usd": None, "price_matches_listing": None,
            "payment_options": [], "paid": False, "charged_price_usd": None, "delivered_valid": None,
-           "delivered_status": None, "payment_refused_reason": None, "settlement_tx": None}
+           "delivered_status": None, "payment_refused_reason": None, "settlement_tx": None, "pay_to": None,
+           "quality": None}
     raw = {"service_id": svc["id"], "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
            "request": {"method": method, "url": url, "json_body": svc.get("sample_request", {}).get("json_body"),
                        "payment_header_sent": False},
@@ -392,7 +397,10 @@ def check_service(svc, timeout=20, signer=None, guard=None, network="base", now=
     guard.record(amount, svc["id"], "attempted")
     raw["request"]["payment_header_sent"] = True
     raw["request"]["payment_header_name"] = name
+    res["pay_to"] = str(opt.get("payTo") or "") or None
+    sent_at = utc_now()
     r2 = http_call(method, url, data, extra_headers={name: value}, timeout=timeout)
+    received_at = utc_now()
     raw["paid_response"] = _raw_response(r2)
     res["paid"] = True
     res["delivered_status"] = r2.get("status")
@@ -413,4 +421,11 @@ def check_service(svc, timeout=20, signer=None, guard=None, network="base", now=
         guard.update_last(status=f"settled, not delivered (HTTP {r2.get('status')})", tx=tx)
     else:
         guard.update_last(status=f"not delivered (HTTP {r2.get('status')})" if r2.get("ok") else "request failed")
+    if quality_tests is not None:
+        import quality  # local module; imported lazily so the free path stays minimal
+        q = quality.grade(svc["id"], r2.get("body", b"") if r2.get("ok") else b"", (sent_at, received_at), quality_tests,
+                          refs=refs, delivered=bool(res["delivered_valid"]), settled=res["charged_price_usd"] is not None)
+        raw["quality"] = dict(q, graded_at=iso_z())
+        res["quality"] = {"result": q["result"], "reason": q["reason"], "facts_only": bool(q.get("facts_only")),
+                          "graded_at": raw["quality"]["graded_at"]}
     return res, raw

@@ -26,7 +26,17 @@
     "listing_last_updated": "2026-09-29T10:10:13.181Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "weather"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/x402tap-weather.html",
+  "quality_test": {
+    "input": "city=Austin",
+    "pass_if": "temperature within 3 C of the free Open-Meteo current temperature for Austin, TX (fallback: US National Weather Service station KAUS)",
+    "facts_only": false,
+    "facts_only_reason": null
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:37Z",
     "mode": "paid",
@@ -43,6 +53,7 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/x402tap-weather.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/x402tap-weather.json"
   },

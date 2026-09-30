@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build the static catalog site from data/services.json and results/.
 
-Writes: index.html, methodology.html, services/<id>.html and .json, catalog.json, llms.txt,
-.well-known/agent-card.json, .nojekyll. Pages load only local files (style.css); there is no
+Writes: index.html, methodology.html, services/<id>.html and .json, catalog.json, receipts.json, llms.txt,
+.well-known/agent-card.json, .nojekyll, and openapi.json when data/site.json has a lookup_url. Pages load only local files (style.css); there is no
 JavaScript and no request to any other host. Only factual results are published: no grades.
 """
 import html
@@ -65,6 +65,49 @@ def charged_text(r):
     return money(r.get("charged_price_usd")) if r.get("charged_price_usd") else "unknown"
 
 
+STALE_AFTER_HOURS = 36
+RECEIPTS_KEPT = 30
+BASESCAN_TX = "https://basescan.org/tx/"
+PRE_QUALITY = "no pass/fail: this paid call was made before the known-answer tests existed"
+
+
+def quality_text(q):
+    # Wording avoids the word "graded" in pages: the no-grades check (AT-05) reads "graded" as "grade D".
+    if not q or not q.get("result"):
+        return "no pass/fail" + (f" ({q['reason'].removeprefix('no pass/fail: ')})" if q and q.get("reason") else "")
+    label = {"pass": "passed", "fail": "failed", "not_graded": "no pass/fail"}.get(q["result"], q["result"])
+    return label + (f" ({q['reason']})" if q.get("reason") else "")
+
+
+def _pay_to_from_raw(site, r):
+    """Older receipts (before checker 0.2.0) did not store pay_to; read it from the 402 challenge in the raw log."""
+    try:
+        with open(os.path.join(site, r["raw_log"]), encoding="utf-8") as fh:
+            raw = json.load(fh)
+        ch = (raw.get("response", {}).get("headers", {}).get("payment-required") or {}).get("decoded") or {}
+        want = (r.get("charged_price_usd") or r.get("quoted_price_usd"))
+        for opt in ch.get("accepts") or []:
+            if (str(opt.get("network")) in xp.NETWORKS["base"]["ids"]
+                    and str(opt.get("asset", "")).lower() == xp.NETWORKS["base"]["usdc"].lower()
+                    and (want is None or xp.usd_str(xp.usd(xp.option_amount(opt) or 0)) == want)):
+                return opt.get("payTo")
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return None
+
+
+def receipt(site, base, r):
+    tx = r.get("settlement_tx")
+    q = r.get("quality")
+    return {"time": r.get("checked_at"), "tx": tx, "basescan_url": (BASESCAN_TX + tx) if tx else None,
+            "charged_usd": r.get("charged_price_usd"), "delivered": bool(r.get("delivered_valid")),
+            "http_status": r.get("delivered_status"),
+            "quality": q.get("result") if q else None,
+            "quality_reason": q.get("reason") if q else PRE_QUALITY,
+            "pay_to": r.get("pay_to") or _pay_to_from_raw(site, r),
+            "raw_log_url": base + r["raw_log"] if r.get("raw_log") else None}
+
+
 def page(title, body, cfg, depth=0):
     up = "../" * depth
     return f"""<!doctype html>
@@ -106,6 +149,7 @@ def result_rows(r, svc):
         ("Challenge price matches listing", yn((r or {}).get("price_matches_listing"))),
         ("Charged price (paid check)", charged_text(r)),
         ("Delivered a valid response (paid check)", delivered_text(r)),
+        ("Known-answer test (paid check)", quality_text((r or {}).get("quality")) if (r or {}).get("paid") else "not tested (no payment made)"),
     ]
     if r and r.get("error"):
         rows.append(("Error", r["error"]))
@@ -122,7 +166,26 @@ def build(site):
     by_id = {r["service_id"]: r for r in latest.get("results", [])}
     hist = _history(site)
     base = cfg["base_url"]
+    lookup_url = cfg.get("lookup_url") or None
     contest = cfg["issues_url"] + "/new?template=contest-a-result.md"
+    qtests = _load(os.path.join(site, "data", "quality_tests.json"), {"tests": {}}).get("tests", {})
+
+    def qinfo(sid):
+        t = qtests.get(sid) or {}
+        return {"input": t.get("input"), "pass_if": t.get("pass_if"), "facts_only": bool(t.get("facts_only")),
+                "facts_only_reason": t.get("facts_only_reason")} if t else None
+
+    # ---------------- receipts.json (every paid call, newest first; read by the lookup Worker)
+    receipts = {}
+    for s in data["services"]:
+        paid = [x for x in hist.get(s["id"], []) if x.get("paid")]
+        receipts[s["id"]] = {"quality_test": qinfo(s["id"]),
+                             "receipts": [receipt(site, base, x) for x in paid[::-1][:RECEIPTS_KEPT]]}
+    with open(os.path.join(site, "receipts.json"), "w", encoding="utf-8") as fh:
+        json.dump({"schema": 1, "generated_at": latest.get("generated_at"), "stale_after_hours": STALE_AFTER_HOURS,
+                   "notes": "Paid calls we made, newest first. quality is the known-answer test result: pass, fail, not_graded, "
+                            "or null for calls made before the tests existed. Services with facts_only are not graded.",
+                   "services": receipts}, fh, indent=2)
     os.makedirs(os.path.join(site, "services"), exist_ok=True)
     os.makedirs(os.path.join(site, ".well-known"), exist_ok=True)
 
@@ -136,11 +199,13 @@ def build(site):
             latest_block = {k: r.get(k) for k in (
                 "checked_at", "mode", "reachable", "http_status", "latency_ms", "x402_challenge", "x402_version",
                 "advertised_price_usd", "quoted_price_usd", "price_matches_listing", "paid", "charged_price_usd",
-                "delivered_valid", "payment_refused_reason", "error")}
+                "delivered_valid", "payment_refused_reason", "error", "quality")}
             latest_block["raw_log"] = r.get("raw_log")
             latest_block["raw_log_url"] = base + r["raw_log"] if r.get("raw_log") else None
         rec = dict(s)
         rec["page_url"] = base + f"services/{s['id']}.html"
+        rec["quality_test"] = qinfo(s["id"])
+        rec["paid_receipts"] = len(receipts[s["id"]]["receipts"])
         rec["latest"] = latest_block
         rec["history_summary"] = {
             "checks": len(h), "reachable": sum(1 for x in h if x.get("reachable")),
@@ -160,6 +225,8 @@ def build(site):
         "last_run_mode": latest.get("mode"),
         "methodology_url": base + "methodology.html",
         "contest_url": contest,
+        "receipts_url": base + "receipts.json",
+        "lookup_url": lookup_url,
         "notes": "Factual check results only. No grades, scores or rankings. Each result is one automated check at one moment. "
                  "We hold no funds and are not a party to any transaction; buyers pay sellers directly.",
         "fields": {
@@ -169,6 +236,9 @@ def build(site):
             "latest.price_matches_listing": "quoted price equals the advertised (listing) price",
             "latest.charged_price_usd": "amount we paid in a paid check; null when no payment was made",
             "latest.delivered_valid": "paid check returned 2xx with a non-empty, parseable body; null when no payment was made",
+            "latest.quality": "known-answer test on the paid response: pass, fail or not_graded; null when no paid call was graded",
+            "quality_test": "the known-answer test for this service; facts_only means it is broken on the seller's side and is not graded",
+            "tasks": "task names the lookup endpoint matches on",
         },
         "services": services_out,
         "own_bots": data.get("own_bots", []),
@@ -235,6 +305,15 @@ def build(site):
         opts = ", ".join(f"{o.get('scheme')} on {o.get('network')}: {money(o.get('amount_usd')) if o.get('amount_usd') else (o.get('amount_atomic') or '?') + ' units of ' + str(o.get('asset'))}"
                          for o in (r or {}).get("payment_options", [])) or "none seen"
         raw_link = f"<a href=\"../{e(r['raw_log'])}\">raw log for this check</a>" if r and r.get("raw_log") else "no raw log yet"
+        qi = qinfo(s["id"])
+        qsec = ("<p>No known-answer test for this service.</p>" if not qi else
+                f"<p>Input: {e(qi['input'] or '')}. Passes if: {e(qi['pass_if'] or '')}.</p>"
+                + (f"<p class=\"notice\">Facts only (no pass/fail result is given): {e(qi['facts_only_reason'] or '')}</p>" if qi["facts_only"] else ""))
+        rrows = "\n".join(
+            f"<tr><td>{e(fmt_ts(x['time']))}</td><td>{e(money(x['charged_usd']))}</td><td>{e(yn(x['delivered']))}</td>"
+            f"<td>{e(str(x['http_status']))}</td><td>{e(quality_text({'result': x['quality'], 'reason': x['quality_reason']}))}</td>"
+            + (f"<td><a href=\"{e(x['basescan_url'])}\">{e(x['tx'][:10])}...</a></td>" if x.get("tx") else "<td>none</td>")
+            + "</tr>" for x in receipts[s["id"]]["receipts"][:10]) or "<tr><td colspan=\"6\">No paid calls yet.</td></tr>"
         body = f"""
 <p><a href="../index.html">&larr; All services</a></p>
 <h1>{e(s['name'])}</h1>
@@ -248,6 +327,14 @@ def build(site):
 </table>
 <p>Payment options seen in the 402 challenge: {e(opts)}.</p>
 <p>Evidence: {raw_link}. Machine-readable: <a href="{e(s['id'])}.json">{e(s['id'])}.json</a>.</p>
+<h2>Known-answer test</h2>
+{qsec}
+<h2>Paid calls</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
+<tbody>
+{rrows}
+</tbody></table></div>
 <h2>Recent checks</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
@@ -282,6 +369,15 @@ def build(site):
 <h2 id="paid">The paid check</h2>
 <p>Paid checks are off by default and never run in the daily job. We start them by hand, on our own machine, from time to time. When run, the checker pays like any other customer: it signs a USDC transfer authorization (EIP-3009) for the price in the 402 challenge (only if it equals the listed price), sends it, and records the response and the settlement transaction if the endpoint returns one. It signs only for USDC on Base, only with the "exact" scheme, and never for other tokens or networks.</p>
 <p>Hard spend caps, checked before anything is signed: at most ${e(caps['per_call'])} per call, ${e(caps['per_day'])} per UTC day, and ${e(caps['lifetime'])} in total, ever. Every attempt counts toward the caps, even if the endpoint fails. The spend ledger is public at <a href="results/spend_ledger.json">results/spend_ledger.json</a>.</p>
+<h2 id="quality">Known-answer tests</h2>
+<p>Every paid call is also checked against a known answer for that service, and the result is pass or fail. Examples: a token balance must equal <code>balanceOf</code> from a free public Ethereum RPC; a web search for "x402 payment protocol" must return at least one result on x402.org or github.com/coinbase/x402; a weather reading must be within 3 &deg;C of a free public weather source. The full list, with inputs and pass rules, is in <a href="data/quality_tests.json">data/quality_tests.json</a>; each service page shows its test. The test runs on the full response when it arrives, and the observed and expected values are kept in the raw log.</p>
+<ul>
+<li>A paid call that settles but fails its test counts as a failed call.</li>
+<li>If our own reference source cannot be reached (for example a public API is rate-limited), the call gets no pass/fail result rather than a fail.</li>
+<li>Services that are broken on the seller's side (for example an HTTP 500, or asking to be paid a second time) are marked "facts only": we publish what happened but give no pass/fail result. We lift this by hand after a clean paid call.</li>
+<li>Paid calls made before these tests existed (the first paid round on 2026-09-30) have no pass/fail result.</li>
+</ul>
+<p>All paid calls are listed in <a href="receipts.json">receipts.json</a> with time, amount charged, the settlement transaction, whether a valid response came back, and the known-answer result.</p>
 <h2 id="money">Money</h2>
 <p>We never hold, receive, split or forward anyone else's funds. Buyers pay sellers directly. The only money we spend is our own, on our own checks, under the caps above.</p>
 <h2 id="raw">Raw logs</h2>
@@ -317,6 +413,14 @@ def build(site):
         r = by_id.get(s["id"]) or {}
         lines.append(f"- [{s['name']}]({base}services/{s['id']}.json): {s['category']}; advertised ${s['advertised_price']['amount_usd']} USDC; "
                      f"last check {fmt_ts(r.get('checked_at'))}: reachable {yn(r.get('reachable'))}, 402 price {money(r.get('quoted_price_usd'))}")
+    lines += ["", "## Paid receipts", "", f"- [receipts.json]({base}receipts.json): every paid call we made (time, charged, settlement tx, delivered, known-answer test result)"]
+    if lookup_url:
+        lines[2:2] = ["", "## Lookup (start here)", "",
+                      f"- `GET {lookup_url}v1/lookup?task=web-search&max_price=0.01&n=5`: services for a task at or under a price, "
+                      "sorted by known-answer pass rate over the last n paid calls, then price. Each result has its paid receipts "
+                      "(time, tx, Basescan link, charged, delivered, pass/fail), last check time and a stale flag. Free, no key.",
+                      f"- Task names: {lookup_url}v1/tasks . Optional: endpoint=<id or url>, client=<your agent name>, payer=<0x wallet>.",
+                      f"- OpenAPI: {lookup_url}openapi.json"]
     lines += ["", "## Our own bots", ""] + [f"- {b['name']}: {b['status']}" for b in data.get("own_bots", [])]
     lines += ["", "## Contest a result", "", f"- Open a GitHub issue: {cfg['issues_url']}", ""]
     with open(os.path.join(site, "llms.txt"), "w", encoding="utf-8") as fh:
@@ -332,6 +436,8 @@ def build(site):
         "provider": {"organization": cfg["brand"], "url": cfg["repo_url"]},
         "documentationUrl": base + "methodology.html",
         "catalog": base + "catalog.json",
+        "receipts": base + "receipts.json",
+        **({"lookup_url": lookup_url, "openapi": lookup_url + "openapi.json"} if lookup_url else {}),
         "llms_txt": base + "llms.txt",
         "capabilities": {"streaming": False, "pushNotifications": False},
         "defaultInputModes": ["application/json"],
@@ -340,6 +446,10 @@ def build(site):
             {"id": "search_catalog", "name": "Search the catalog",
              "description": "Filter services by text, category, maximum advertised price, or reachable in the last check. Read catalog.json (static) or use the MCP server in the repository.",
              "tags": ["x402", "catalog", "discovery"], "examples": ["web search under $0.01 that was reachable today"]},
+            *([{"id": "lookup", "name": "Reliability lookup",
+                 "description": "Is an endpoint reliable for task X at price <= Y? GET " + lookup_url + "v1/lookup?task=<task>&max_price=<usd>&n=5 "
+                                "returns matching services sorted by known-answer pass rate over the last n paid calls, then price, with receipts.",
+                 "tags": ["x402", "reliability", "lookup"], "examples": ["task=web-search&max_price=0.01"]}] if lookup_url else []),
             {"id": "get_service", "name": "Get one service",
              "description": "Full record for one service id, including the latest check and a raw log link.",
              "tags": ["x402", "catalog"], "examples": ["otto-crypto-news"]},

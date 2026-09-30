@@ -33,9 +33,18 @@
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
 <tr><th scope="row">Charged price (paid check)</th><td>$0.002</td></tr>
 <tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>no pass/fail</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.002, exact on eip155:42161: 2000 units of 0xaf88d065e7, exact on eip155:137: 2000 units of 0x3c499c542c, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 2000 units of EPjFWdd5Aufq.</p>
 <p>Evidence: <a href="../results/raw/20260930T174508Z/bitrefill-gift-card-search.json">raw log for this check</a>. Machine-readable: <a href="bitrefill-gift-card-search.json">bitrefill-gift-card-search.json</a>.</p>
+<h2>Known-answer test</h2>
+<p>Input: q=amazon, country=US. Passes if: a result named &quot;Amazon...&quot;.</p>
+<h2>Paid calls</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
+<tbody>
+<tr><td>2026-09-30 17:45:14 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>no pass/fail (this paid call was made before the known-answer tests existed)</td><td><a href="https://basescan.org/tx/0x68141640c9a8d13f1e5c00f9336128a14466f633f964c821305346e85ec7fc0f">0x68141640...</a></td></tr>
+</tbody></table></div>
 <h2>Recent checks</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>

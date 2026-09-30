@@ -23,7 +23,18 @@
     "listing_last_updated": "2026-09-29T20:30:54.933Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "crypto-news",
+    "news"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/otto-crypto-news.html",
+  "quality_test": {
+    "input": "none",
+    "pass_if": "at least 5 items, each with a source URL; newest item under 3 h old (the listing says hourly)",
+    "facts_only": false,
+    "facts_only_reason": null
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:12Z",
     "mode": "paid",
@@ -40,6 +51,7 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/otto-crypto-news.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/otto-crypto-news.json"
   },

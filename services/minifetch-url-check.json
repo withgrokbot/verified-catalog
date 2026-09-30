@@ -27,7 +27,18 @@
     "listing_last_updated": "2026-09-29T10:07:18.421Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "url-check",
+    "robots-check"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/minifetch-url-check.html",
+  "quality_test": {
+    "input": "url=https://example.com",
+    "pass_if": "allowed = true",
+    "facts_only": false,
+    "facts_only_reason": null
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:44:35Z",
     "mode": "paid",
@@ -44,6 +55,7 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174435Z/minifetch-url-check.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174435Z/minifetch-url-check.json"
   },

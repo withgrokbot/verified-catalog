@@ -8,6 +8,8 @@
   "last_run_mode": "paid",
   "methodology_url": "https://withgrokbot.github.io/verified-catalog/methodology.html",
   "contest_url": "https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md",
+  "receipts_url": "https://withgrokbot.github.io/verified-catalog/receipts.json",
+  "lookup_url": null,
   "notes": "Factual check results only. No grades, scores or rankings. Each result is one automated check at one moment. We hold no funds and are not a party to any transaction; buyers pay sellers directly.",
   "fields": {
     "latest.reachable": "an HTTP response arrived within the timeout",
@@ -15,7 +17,10 @@
     "latest.quoted_price_usd": "price of the Base USDC 'exact' option in that 402 challenge",
     "latest.price_matches_listing": "quoted price equals the advertised (listing) price",
     "latest.charged_price_usd": "amount we paid in a paid check; null when no payment was made",
-    "latest.delivered_valid": "paid check returned 2xx with a non-empty, parseable body; null when no payment was made"
+    "latest.delivered_valid": "paid check returned 2xx with a non-empty, parseable body; null when no payment was made",
+    "latest.quality": "known-answer test on the paid response: pass, fail or not_graded; null when no paid call was graded",
+    "quality_test": "the known-answer test for this service; facts_only means it is broken on the seller's side and is not graded",
+    "tasks": "task names the lookup endpoint matches on"
   },
   "services": [
     {
@@ -48,7 +53,18 @@
         "listing_last_updated": "2026-09-28T09:34:55.243Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "token-balance",
+        "on-chain-data"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/onesource-erc20-balance.html",
+      "quality_test": {
+        "input": "USDT balance of vitalik.eth (0xd8da...6045) on Ethereum",
+        "pass_if": "balance equals balanceOf from a free public Ethereum RPC at one of the 6 newest blocks when we check",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:08Z",
         "mode": "paid",
@@ -65,6 +81,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/onesource-erc20-balance.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/onesource-erc20-balance.json"
       },
@@ -97,9 +114,10 @@
         "method": "POST",
         "json_body": {
           "numResults": 10,
-          "query": "example search query",
+          "query": "x402 payment protocol",
           "type": "auto"
-        }
+        },
+        "note": "Changed 2026-09-30 for the known-answer quality test (data/quality_tests.json)."
       },
       "source": {
         "name": "CDP x402 Bazaar (public discovery API)",
@@ -107,7 +125,17 @@
         "listing_last_updated": "2026-09-30T00:18:25.245Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "web-search"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/exa-search.html",
+      "quality_test": {
+        "input": "x402 payment protocol",
+        "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:09Z",
         "mode": "paid",
@@ -124,6 +152,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/exa-search.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/exa-search.json"
       },
@@ -161,7 +190,18 @@
         "listing_last_updated": "2026-09-29T20:30:54.933Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "crypto-news",
+        "news"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/otto-crypto-news.html",
+      "quality_test": {
+        "input": "none",
+        "pass_if": "at least 5 items, each with a source URL; newest item under 3 h old (the listing says hourly)",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:12Z",
         "mode": "paid",
@@ -178,6 +218,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/otto-crypto-news.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/otto-crypto-news.json"
       },
@@ -219,7 +260,17 @@
         "listing_last_updated": "2026-09-29T15:07:33.873Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "gift-card-search"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/bitrefill-gift-card-search.html",
+      "quality_test": {
+        "input": "q=amazon, country=US",
+        "pass_if": "a result named \"Amazon...\"",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:14Z",
         "mode": "paid",
@@ -236,6 +287,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/bitrefill-gift-card-search.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/bitrefill-gift-card-search.json"
       },
@@ -268,9 +320,10 @@
         "method": "GET",
         "query": {
           "chunks_per_source": 2,
-          "query": "latest developments in AI agents",
+          "query": "x402 payment protocol",
           "search_depth": "fast"
-        }
+        },
+        "note": "Changed 2026-09-30 for the known-answer quality test (data/quality_tests.json)."
       },
       "source": {
         "name": "CDP x402 Bazaar (public discovery API)",
@@ -278,7 +331,17 @@
         "listing_last_updated": "2026-09-29T13:00:04.672Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "web-search"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/x402atlas-web-search.html",
+      "quality_test": {
+        "input": "x402 payment protocol",
+        "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:15Z",
         "mode": "paid",
@@ -295,6 +358,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/x402atlas-web-search.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/x402atlas-web-search.json"
       },
@@ -337,7 +401,18 @@
         "listing_last_updated": "2026-09-29T10:09:26.068Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "sec-filings",
+        "company-filings"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/apitoll-edgar-filings.html",
+      "quality_test": {
+        "input": "AAPL, form 10-K",
+        "pass_if": "CIK 0000320193 and the latest 10-K filing date match SEC's free submissions API",
+        "facts_only": true,
+        "facts_only_reason": "On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made."
+      },
+      "paid_receipts": 0,
       "latest": {
         "checked_at": "2026-09-30T17:45:22Z",
         "mode": "paid",
@@ -354,6 +429,7 @@
         "delivered_valid": null,
         "payment_refused_reason": "no valid x402 challenge",
         "error": "URLError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1029)",
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/apitoll-edgar-filings.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/apitoll-edgar-filings.json"
       },
@@ -391,7 +467,17 @@
         "listing_last_updated": "2026-09-29T12:11:30.714Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "time"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/oblique-paid-time.html",
+      "quality_test": {
+        "input": "none",
+        "pass_if": "epoch within 5 s of our clock while the request was open; ISO time and epoch agree",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:22Z",
         "mode": "paid",
@@ -408,6 +494,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/oblique-paid-time.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/oblique-paid-time.json"
       },
@@ -451,7 +538,18 @@
         "listing_last_updated": "2026-09-29T15:20:34.58Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "dex-pool-search",
+        "on-chain-data"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/coingecko-onchain-pool-search.html",
+      "quality_test": {
+        "input": "query=weth, network=eth",
+        "pass_if": "a pool with WETH (0xC02a...6Cc2) as base token",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:23Z",
         "mode": "paid",
@@ -468,6 +566,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/coingecko-onchain-pool-search.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/coingecko-onchain-pool-search.json"
       },
@@ -500,8 +599,9 @@
         "method": "GET",
         "query": {
           "count": 10,
-          "query": "NVDA earnings guidance Q2 2026"
-        }
+          "query": "x402 payment protocol"
+        },
+        "note": "Changed 2026-09-30 for the known-answer quality test (data/quality_tests.json)."
       },
       "source": {
         "name": "CDP x402 Bazaar (public discovery API)",
@@ -509,7 +609,17 @@
         "listing_last_updated": "2026-09-29T04:09:00.302Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "web-search"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/you-search.html",
+      "quality_test": {
+        "input": "x402 payment protocol",
+        "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402",
+        "facts_only": true,
+        "facts_only_reason": "On 2026-09-30 the endpoint answered our x402 payment with a second HTTP 402 asking to pay again by another method (Tempo), so nothing was delivered."
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:26Z",
         "mode": "paid",
@@ -526,6 +636,7 @@
         "delivered_valid": false,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/you-search.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/you-search.json"
       },
@@ -557,24 +668,11 @@
       "sample_request": {
         "method": "POST",
         "json_body": {
-          "end_date": "2026-05-28",
-          "exclude_domains": [
-            "example.com"
-          ],
-          "include_answer": true,
-          "include_domains": [
-            "x402.org",
-            "docs.cdp.coinbase.com"
-          ],
-          "include_images": true,
-          "include_raw_content": true,
           "max_results": 5,
-          "query": "what is x402?",
-          "search_depth": "advanced",
-          "start_date": "2026-01-01",
-          "time_range": "month",
-          "topic": "general"
-        }
+          "query": "x402 payment protocol",
+          "search_depth": "advanced"
+        },
+        "note": "Changed 2026-09-30 for the known-answer quality test (data/quality_tests.json). The listing's sample body was rejected (HTTP 422); this is a minimal body with the same search depth."
       },
       "source": {
         "name": "CDP x402 Bazaar (public discovery API)",
@@ -582,7 +680,17 @@
         "listing_last_updated": "2026-09-30T00:05:49.421Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "web-search"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/tavily-search.html",
+      "quality_test": {
+        "input": "x402 payment protocol",
+        "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402",
+        "facts_only": true,
+        "facts_only_reason": "On 2026-09-30 the payment settled but the sample request was rejected (HTTP 422). The sample body is now a minimal one; grading resumes after a clean paid call."
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:33Z",
         "mode": "paid",
@@ -599,6 +707,7 @@
         "delivered_valid": false,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/tavily-search.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/tavily-search.json"
       },
@@ -640,7 +749,18 @@
         "listing_last_updated": "2026-09-29T11:00:46.45Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "crypto-market-metrics",
+        "on-chain-data"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/glassnode-mvrv.html",
+      "quality_test": {
+        "input": "a=BTC, i=24h",
+        "pass_if": "newest point at most 48 h old and value between 0.3 and 6 (sanity check only, the weakest test)",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:35Z",
         "mode": "paid",
@@ -657,6 +777,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/glassnode-mvrv.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/glassnode-mvrv.json"
       },
@@ -698,7 +819,18 @@
         "listing_last_updated": "2026-09-29T10:07:18.421Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "url-check",
+        "robots-check"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/minifetch-url-check.html",
+      "quality_test": {
+        "input": "url=https://example.com",
+        "pass_if": "allowed = true",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:44:35Z",
         "mode": "paid",
@@ -715,6 +847,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174435Z/minifetch-url-check.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174435Z/minifetch-url-check.json"
       },
@@ -755,7 +888,17 @@
         "listing_last_updated": "2026-09-29T10:10:13.181Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "weather"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/x402tap-weather.html",
+      "quality_test": {
+        "input": "city=Austin",
+        "pass_if": "temperature within 3 C of the free Open-Meteo current temperature for Austin, TX (fallback: US National Weather Service station KAUS)",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:37Z",
         "mode": "paid",
@@ -772,6 +915,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/x402tap-weather.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/x402tap-weather.json"
       },
@@ -804,9 +948,11 @@
         "method": "GET",
         "query": {
           "limit": 10,
-          "order": "asc",
-          "sort": "published_utc"
-        }
+          "order": "desc",
+          "sort": "published_utc",
+          "ticker": "AAPL"
+        },
+        "note": "Changed 2026-09-30 for the known-answer quality test (data/quality_tests.json). Added ticker=AAPL; newest first."
       },
       "source": {
         "name": "CDP x402 Bazaar (public discovery API)",
@@ -814,7 +960,18 @@
         "listing_last_updated": "2026-09-29T12:45:26.692Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "stock-news",
+        "news"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/massive-ticker-news.html",
+      "quality_test": {
+        "input": "ticker=AAPL, newest first",
+        "pass_if": "every item tags AAPL; newest item at most 7 days old",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:39Z",
         "mode": "paid",
@@ -831,6 +988,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/massive-ticker-news.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/massive-ticker-news.json"
       },
@@ -868,7 +1026,17 @@
         "listing_last_updated": "2026-09-30T00:19:51.292Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "x402-merchants"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/x402scan-merchants.html",
+      "quality_test": {
+        "input": "none",
+        "pass_if": "non-empty, sorted by volume (total_amount, largest first), each entry has an address",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:42Z",
         "mode": "paid",
@@ -885,6 +1053,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/x402scan-merchants.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/x402scan-merchants.json"
       },
@@ -925,7 +1094,18 @@
         "listing_last_updated": "2026-08-31T01:32:18.388Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "wiki-summary",
+        "encyclopedia"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/stride20k-wiki-summary.html",
+      "quality_test": {
+        "input": "Alan Turing",
+        "pass_if": "Wikidata Q7251 and canonical https://en.wikipedia.org/wiki/Alan_Turing",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:44Z",
         "mode": "paid",
@@ -942,6 +1122,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/stride20k-wiki-summary.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/stride20k-wiki-summary.json"
       },
@@ -983,7 +1164,17 @@
         "listing_last_updated": "2026-09-29T11:14:56.722Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "ssl-check"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/x402atlas-ssl-check.html",
+      "quality_test": {
+        "input": "host=example.com, port 443",
+        "pass_if": "hostname match is true; expiry equals the certificate expiry in our own TLS handshake",
+        "facts_only": false,
+        "facts_only_reason": null
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:46Z",
         "mode": "paid",
@@ -1000,6 +1191,7 @@
         "delivered_valid": true,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/x402atlas-ssl-check.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/x402atlas-ssl-check.json"
       },
@@ -1037,7 +1229,17 @@
         "listing_last_updated": "2026-09-29T10:19:46.81Z",
         "retrieved": "2026-09-29"
       },
+      "tasks": [
+        "fx-rates"
+      ],
       "page_url": "https://withgrokbot.github.io/verified-catalog/services/brasil-dados-cambio.html",
+      "quality_test": {
+        "input": "none",
+        "pass_if": "USD/BRL equals the free BCB PTAX API for that date",
+        "facts_only": true,
+        "facts_only_reason": "On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported)."
+      },
+      "paid_receipts": 1,
       "latest": {
         "checked_at": "2026-09-30T17:45:47Z",
         "mode": "paid",
@@ -1054,6 +1256,7 @@
         "delivered_valid": false,
         "payment_refused_reason": null,
         "error": null,
+        "quality": null,
         "raw_log": "results/raw/20260930T174508Z/brasil-dados-cambio.json",
         "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/brasil-dados-cambio.json"
       },

@@ -15,7 +15,7 @@
 <main>
 
 <h1>Methodology</h1>
-<p>This page explains exactly what we check, what we publish, and how to contest a result. Checker version 0.1.0. Schedule: daily at 14:17 UTC.</p>
+<p>This page explains exactly what we check, what we publish, and how to contest a result. Checker version 0.2.0. Schedule: daily at 14:17 UTC.</p>
 <h2 id="what">What we publish</h2>
 <p>For each service, only factual results of our own checks, each with a timestamp (UTC) and a link to the raw log:</p>
 <ul>
@@ -28,10 +28,19 @@
 </ul>
 <p>We do not publish grades, scores, rankings, or labels such as "good" or "bad". A single failed check can be a temporary network problem on either side, so read results over time (each service page shows recent history).</p>
 <h2 id="free">The free check</h2>
-<p>One request per service, using the sample request from the public listing (method, query or body). No payment is made. We record the response and parse the payment challenge. Requests identify themselves with the user agent <code>WithGrokBot-catalog-checker/0.1.0</code>, and redirects are not followed.</p>
+<p>One request per service, using the sample request from the public listing (method, query or body). No payment is made. We record the response and parse the payment challenge. Requests identify themselves with the user agent <code>WithGrokBot-catalog-checker/0.2.0</code>, and redirects are not followed.</p>
 <h2 id="paid">The paid check</h2>
 <p>Paid checks are off by default and never run in the daily job. We start them by hand, on our own machine, from time to time. When run, the checker pays like any other customer: it signs a USDC transfer authorization (EIP-3009) for the price in the 402 challenge (only if it equals the listed price), sends it, and records the response and the settlement transaction if the endpoint returns one. It signs only for USDC on Base, only with the "exact" scheme, and never for other tokens or networks.</p>
 <p>Hard spend caps, checked before anything is signed: at most $0.1 per call, $1 per UTC day, and $20 in total, ever. Every attempt counts toward the caps, even if the endpoint fails. The spend ledger is public at <a href="results/spend_ledger.json">results/spend_ledger.json</a>.</p>
+<h2 id="quality">Known-answer tests</h2>
+<p>Every paid call is also checked against a known answer for that service, and the result is pass or fail. Examples: a token balance must equal <code>balanceOf</code> from a free public Ethereum RPC; a web search for "x402 payment protocol" must return at least one result on x402.org or github.com/coinbase/x402; a weather reading must be within 3 &deg;C of a free public weather source. The full list, with inputs and pass rules, is in <a href="data/quality_tests.json">data/quality_tests.json</a>; each service page shows its test. The test runs on the full response when it arrives, and the observed and expected values are kept in the raw log.</p>
+<ul>
+<li>A paid call that settles but fails its test counts as a failed call.</li>
+<li>If our own reference source cannot be reached (for example a public API is rate-limited), the call gets no pass/fail result rather than a fail.</li>
+<li>Services that are broken on the seller's side (for example an HTTP 500, or asking to be paid a second time) are marked "facts only": we publish what happened but give no pass/fail result. We lift this by hand after a clean paid call.</li>
+<li>Paid calls made before these tests existed (the first paid round on 2026-09-30) have no pass/fail result.</li>
+</ul>
+<p>All paid calls are listed in <a href="receipts.json">receipts.json</a> with time, amount charged, the settlement transaction, whether a valid response came back, and the known-answer result.</p>
 <h2 id="money">Money</h2>
 <p>We never hold, receive, split or forward anyone else's funds. Buyers pay sellers directly. The only money we spend is our own, on our own checks, under the caps above.</p>
 <h2 id="raw">Raw logs</h2>

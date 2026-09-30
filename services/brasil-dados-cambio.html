@@ -33,9 +33,18 @@
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
 <tr><th scope="row">Charged price (paid check)</th><td>unknown</td></tr>
 <tr><th scope="row">Delivered a valid response (paid check)</th><td>no</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>no pass/fail</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.002, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 2000 units of EPjFWdd5Aufq.</p>
 <p>Evidence: <a href="../results/raw/20260930T174508Z/brasil-dados-cambio.json">raw log for this check</a>. Machine-readable: <a href="brasil-dados-cambio.json">brasil-dados-cambio.json</a>.</p>
+<h2>Known-answer test</h2>
+<p>Input: none. Passes if: USD/BRL equals the free BCB PTAX API for that date.</p><p class="notice">Facts only (no pass/fail result is given): On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported).</p>
+<h2>Paid calls</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
+<tbody>
+<tr><td>2026-09-30 17:45:47 UTC</td><td>n/a</td><td>no</td><td>500</td><td>no pass/fail (this paid call was made before the known-answer tests existed)</td><td>none</td></tr>
+</tbody></table></div>
 <h2>Recent checks</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>

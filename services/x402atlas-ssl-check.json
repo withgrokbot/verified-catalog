@@ -27,7 +27,17 @@
     "listing_last_updated": "2026-09-29T11:14:56.722Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "ssl-check"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/x402atlas-ssl-check.html",
+  "quality_test": {
+    "input": "host=example.com, port 443",
+    "pass_if": "hostname match is true; expiry equals the certificate expiry in our own TLS handshake",
+    "facts_only": false,
+    "facts_only_reason": null
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:46Z",
     "mode": "paid",
@@ -44,6 +54,7 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/x402atlas-ssl-check.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/x402atlas-ssl-check.json"
   },

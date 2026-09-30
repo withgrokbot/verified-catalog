@@ -33,9 +33,18 @@
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
 <tr><th scope="row">Charged price (paid check)</th><td>$0.01</td></tr>
 <tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>no pass/fail</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.01, exact on eip155:137: 10000 units of 0x3c499c542c, exact on eip155:42161: 10000 units of 0xaf88d065e7, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 10000 units of EPjFWdd5Aufq.</p>
 <p>Evidence: <a href="../results/raw/20260930T174508Z/x402atlas-ssl-check.json">raw log for this check</a>. Machine-readable: <a href="x402atlas-ssl-check.json">x402atlas-ssl-check.json</a>.</p>
+<h2>Known-answer test</h2>
+<p>Input: host=example.com, port 443. Passes if: hostname match is true; expiry equals the certificate expiry in our own TLS handshake.</p>
+<h2>Paid calls</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
+<tbody>
+<tr><td>2026-09-30 17:45:46 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>no pass/fail (this paid call was made before the known-answer tests existed)</td><td><a href="https://basescan.org/tx/0x26b13c09bfae993cc055cfb72df86369eea00dca968f251f1210636f6b9276af">0x26b13c09...</a></td></tr>
+</tbody></table></div>
 <h2>Recent checks</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>

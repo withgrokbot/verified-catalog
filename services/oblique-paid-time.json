@@ -23,7 +23,17 @@
     "listing_last_updated": "2026-09-29T12:11:30.714Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "time"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/oblique-paid-time.html",
+  "quality_test": {
+    "input": "none",
+    "pass_if": "epoch within 5 s of our clock while the request was open; ISO time and epoch agree",
+    "facts_only": false,
+    "facts_only_reason": null
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:22Z",
     "mode": "paid",
@@ -40,6 +50,7 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/oblique-paid-time.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/oblique-paid-time.json"
   },

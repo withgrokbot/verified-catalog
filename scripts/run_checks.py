@@ -23,6 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import x402_probe as xp  # noqa: E402
 import build_site  # noqa: E402
+import quality  # noqa: E402
 
 
 def main(argv=None):
@@ -77,8 +78,12 @@ def main(argv=None):
     raw_dir = os.path.join(results_dir, "raw", run_id)
     os.makedirs(raw_dir, exist_ok=True)
 
+    qtests_path = os.path.join(site, "data", "quality_tests.json")
+    qtests = quality.load_tests(qtests_path) if (signer and os.path.exists(qtests_path)) else None
+
     def one(svc):
-        return xp.check_service(svc, timeout=a.timeout, signer=signer, guard=guard, network=a.network)
+        return xp.check_service(svc, timeout=a.timeout, signer=signer, guard=guard, network=a.network,
+                                quality_tests=qtests)
 
     if signer:  # paid calls run one at a time so the caps are checked in order
         pairs = [one(s) for s in services]
@@ -112,6 +117,8 @@ def main(argv=None):
         "x402_challenge_ok": sum(1 for r in allr if r["x402_challenge"]),
         "price_matches_listing": sum(1 for r in allr if r["price_matches_listing"]),
         "paid_calls": sum(1 for r in allr if r["paid"]),
+        "quality_pass": sum(1 for r in allr if (r.get("quality") or {}).get("result") == "pass"),
+        "quality_fail": sum(1 for r in allr if (r.get("quality") or {}).get("result") == "fail"),
     }
     latest = {"schema": 1, "generated_at": xp.iso_z(now), "run_id": run_id, "mode": "paid" if signer else "dry-run",
               "checker_version": xp.CHECKER_VERSION, "summary": summary, "spend": guard.summary(),
@@ -129,7 +136,7 @@ def main(argv=None):
               f"latency={r['latency_ms']}ms 402={'yes' if r['x402_challenge'] else 'no'} "
               f"quoted=${r['quoted_price_usd']} listed=${r['advertised_price_usd']} "
               + (f"paid={r['paid']} valid={r['delivered_valid']} charged=${r['charged_price_usd']} "
-                 f"refused={r['payment_refused_reason']}" if signer else ""))
+                 f"refused={r['payment_refused_reason']} quality={(r.get('quality') or {}).get('result')}" if signer else ""))
     print("summary:", json.dumps(summary), "spend:", json.dumps(guard.summary()))
     if not a.no_build:
         build_site.build(site)

@@ -29,7 +29,18 @@
     "listing_last_updated": "2026-09-29T15:20:34.58Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "dex-pool-search",
+    "on-chain-data"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/coingecko-onchain-pool-search.html",
+  "quality_test": {
+    "input": "query=weth, network=eth",
+    "pass_if": "a pool with WETH (0xC02a...6Cc2) as base token",
+    "facts_only": false,
+    "facts_only_reason": null
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:23Z",
     "mode": "paid",
@@ -46,6 +57,7 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/coingecko-onchain-pool-search.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/coingecko-onchain-pool-search.json"
   },

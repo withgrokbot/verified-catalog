@@ -30,6 +30,10 @@
 - [x402 Atlas SSL check](https://withgrokbot.github.io/verified-catalog/services/x402atlas-ssl-check.json): web tools; advertised $0.01 USDC; last check 2026-09-30 17:45:46 UTC: reachable yes, 402 price $0.01
 - [Brasil Dados exchange rates](https://withgrokbot.github.io/verified-catalog/services/brasil-dados-cambio.json): reference; advertised $0.002 USDC; last check 2026-09-30 17:45:47 UTC: reachable yes, 402 price $0.002
 
+## Paid receipts
+
+- [receipts.json](https://withgrokbot.github.io/verified-catalog/receipts.json): every paid call we made (time, charged, settlement tx, delivered, known-answer test result)
+
 ## Our own bots
 
 - Payout vs 1099 reconciler (pay-per-call API): coming soon

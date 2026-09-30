@@ -17,24 +17,11 @@
   "sample_request": {
     "method": "POST",
     "json_body": {
-      "end_date": "2026-05-28",
-      "exclude_domains": [
-        "example.com"
-      ],
-      "include_answer": true,
-      "include_domains": [
-        "x402.org",
-        "docs.cdp.coinbase.com"
-      ],
-      "include_images": true,
-      "include_raw_content": true,
       "max_results": 5,
-      "query": "what is x402?",
-      "search_depth": "advanced",
-      "start_date": "2026-01-01",
-      "time_range": "month",
-      "topic": "general"
-    }
+      "query": "x402 payment protocol",
+      "search_depth": "advanced"
+    },
+    "note": "Changed 2026-09-30 for the known-answer quality test (data/quality_tests.json). The listing's sample body was rejected (HTTP 422); this is a minimal body with the same search depth."
   },
   "source": {
     "name": "CDP x402 Bazaar (public discovery API)",
@@ -42,7 +29,17 @@
     "listing_last_updated": "2026-09-30T00:05:49.421Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "web-search"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/tavily-search.html",
+  "quality_test": {
+    "input": "x402 payment protocol",
+    "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402",
+    "facts_only": true,
+    "facts_only_reason": "On 2026-09-30 the payment settled but the sample request was rejected (HTTP 422). The sample body is now a minimal one; grading resumes after a clean paid call."
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:33Z",
     "mode": "paid",
@@ -59,6 +56,7 @@
     "delivered_valid": false,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/tavily-search.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/tavily-search.json"
   },

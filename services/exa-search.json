@@ -18,9 +18,10 @@
     "method": "POST",
     "json_body": {
       "numResults": 10,
-      "query": "example search query",
+      "query": "x402 payment protocol",
       "type": "auto"
-    }
+    },
+    "note": "Changed 2026-09-30 for the known-answer quality test (data/quality_tests.json)."
   },
   "source": {
     "name": "CDP x402 Bazaar (public discovery API)",
@@ -28,7 +29,17 @@
     "listing_last_updated": "2026-09-30T00:18:25.245Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "web-search"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/exa-search.html",
+  "quality_test": {
+    "input": "x402 payment protocol",
+    "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402",
+    "facts_only": false,
+    "facts_only_reason": null
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:09Z",
     "mode": "paid",
@@ -45,6 +56,7 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/exa-search.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/exa-search.json"
   },

@@ -1,0 +1,13 @@
+{
+  "name": "verified-catalog-lookup",
+  "private": true,
+  "type": "module",
+  "description": "Reliability lookup Worker for the verified catalog (Cloudflare Workers free plan)",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.145.0"
+  }
+}

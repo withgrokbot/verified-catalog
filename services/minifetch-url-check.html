@@ -33,9 +33,18 @@
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
 <tr><th scope="row">Charged price (paid check)</th><td>$0.001</td></tr>
 <tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>no pass/fail</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.001, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 1000 units of EPjFWdd5Aufq.</p>
 <p>Evidence: <a href="../results/raw/20260930T174435Z/minifetch-url-check.json">raw log for this check</a>. Machine-readable: <a href="minifetch-url-check.json">minifetch-url-check.json</a>.</p>
+<h2>Known-answer test</h2>
+<p>Input: url=https://example.com. Passes if: allowed = true.</p>
+<h2>Paid calls</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
+<tbody>
+<tr><td>2026-09-30 17:44:35 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>no pass/fail (this paid call was made before the known-answer tests existed)</td><td><a href="https://basescan.org/tx/0x696ac66dd168af3aeddc945972e38cea0da05846861751063a689f2bb3003d41">0x696ac66d...</a></td></tr>
+</tbody></table></div>
 <h2>Recent checks</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>

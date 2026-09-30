@@ -27,7 +27,18 @@
     "listing_last_updated": "2026-09-29T11:00:46.45Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "crypto-market-metrics",
+    "on-chain-data"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/glassnode-mvrv.html",
+  "quality_test": {
+    "input": "a=BTC, i=24h",
+    "pass_if": "newest point at most 48 h old and value between 0.3 and 6 (sanity check only, the weakest test)",
+    "facts_only": false,
+    "facts_only_reason": null
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:35Z",
     "mode": "paid",
@@ -44,6 +55,7 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/glassnode-mvrv.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/glassnode-mvrv.json"
   },

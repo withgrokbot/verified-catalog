@@ -23,7 +23,17 @@
     "listing_last_updated": "2026-09-30T00:19:51.292Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "x402-merchants"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/x402scan-merchants.html",
+  "quality_test": {
+    "input": "none",
+    "pass_if": "non-empty, sorted by volume (total_amount, largest first), each entry has an address",
+    "facts_only": false,
+    "facts_only_reason": null
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:42Z",
     "mode": "paid",
@@ -40,6 +50,7 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/x402scan-merchants.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/x402scan-merchants.json"
   },

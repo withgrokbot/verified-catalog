@@ -18,9 +18,11 @@
     "method": "GET",
     "query": {
       "limit": 10,
-      "order": "asc",
-      "sort": "published_utc"
-    }
+      "order": "desc",
+      "sort": "published_utc",
+      "ticker": "AAPL"
+    },
+    "note": "Changed 2026-09-30 for the known-answer quality test (data/quality_tests.json). Added ticker=AAPL; newest first."
   },
   "source": {
     "name": "CDP x402 Bazaar (public discovery API)",
@@ -28,7 +30,18 @@
     "listing_last_updated": "2026-09-29T12:45:26.692Z",
     "retrieved": "2026-09-29"
   },
+  "tasks": [
+    "stock-news",
+    "news"
+  ],
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/massive-ticker-news.html",
+  "quality_test": {
+    "input": "ticker=AAPL, newest first",
+    "pass_if": "every item tags AAPL; newest item at most 7 days old",
+    "facts_only": false,
+    "facts_only_reason": null
+  },
+  "paid_receipts": 1,
   "latest": {
     "checked_at": "2026-09-30T17:45:39Z",
     "mode": "paid",
@@ -45,6 +58,7 @@
     "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
+    "quality": null,
     "raw_log": "results/raw/20260930T174508Z/massive-ticker-news.json",
     "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T174508Z/massive-ticker-news.json"
   },
