@@ -1,0 +1,58 @@
+{
+  "id": "you-search",
+  "name": "You.com search",
+  "provider": "you.com",
+  "category": "web search",
+  "description": "You.com Search API: real-time web search returning ranked results grouped by section (results.web, results.news), each with url, title and description; web results also carry snippets. Use when an agent needs fresh, citable web data (news, markets, company facts) to ground a deci",
+  "endpoint": "https://api.you.com/v1/search",
+  "protocol": "x402",
+  "x402_version": 2,
+  "advertised_price": {
+    "amount_usd": "0.005",
+    "atomic": "5000",
+    "asset": "USDC",
+    "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "network": "eip155:8453"
+  },
+  "sample_request": {
+    "method": "GET",
+    "query": {
+      "count": 10,
+      "query": "NVDA earnings guidance Q2 2026"
+    }
+  },
+  "source": {
+    "name": "CDP x402 Bazaar (public discovery API)",
+    "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+    "listing_last_updated": "2026-09-29T04:09:00.302Z",
+    "retrieved": "2026-09-29"
+  },
+  "page_url": "https://withgrokbot.github.io/verified-catalog/services/you-search.html",
+  "latest": {
+    "checked_at": "2026-09-30T01:04:01Z",
+    "mode": "dry-run",
+    "reachable": true,
+    "http_status": 402,
+    "latency_ms": 3828,
+    "x402_challenge": true,
+    "x402_version": 2,
+    "advertised_price_usd": "0.005",
+    "quoted_price_usd": "0.005",
+    "price_matches_listing": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
+    "payment_refused_reason": null,
+    "error": null,
+    "raw_log": "results/raw/20260930T010357Z/you-search.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T010357Z/you-search.json"
+  },
+  "history_summary": {
+    "checks": 2,
+    "reachable": 2,
+    "x402_challenge_ok": 2,
+    "paid_checks": 0,
+    "first_checked": "2026-09-30T01:01:51Z",
+    "last_checked": "2026-09-30T01:04:01Z"
+  }
+}

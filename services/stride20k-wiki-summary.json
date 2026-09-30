@@ -1,0 +1,57 @@
+{
+  "id": "stride20k-wiki-summary",
+  "name": "Stride20k Wikipedia summary",
+  "provider": "stride20k.com",
+  "category": "reference",
+  "description": "Wikipedia summary API: the lead summary of any English Wikipedia article \u2014 title, one-line description, extract paragraph, thumbnail, canonical URL, and Wikidata item id; disambiguation pages labeled via 'kind'. Titles case-sensitive; spaces or underscores accepted. Content CC BY",
+  "endpoint": "https://gateway.stride20k.com/knowledge/wiki/:title",
+  "protocol": "x402",
+  "x402_version": 2,
+  "advertised_price": {
+    "amount_usd": "0.003",
+    "atomic": "3000",
+    "asset": "USDC",
+    "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "network": "eip155:8453"
+  },
+  "sample_request": {
+    "method": "GET",
+    "path_params": {
+      "title": "Alan Turing"
+    }
+  },
+  "source": {
+    "name": "CDP x402 Bazaar (public discovery API)",
+    "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+    "listing_last_updated": "2026-08-31T01:32:18.388Z",
+    "retrieved": "2026-09-29"
+  },
+  "page_url": "https://withgrokbot.github.io/verified-catalog/services/stride20k-wiki-summary.html",
+  "latest": {
+    "checked_at": "2026-09-30T01:03:58Z",
+    "mode": "dry-run",
+    "reachable": true,
+    "http_status": 402,
+    "latency_ms": 64,
+    "x402_challenge": true,
+    "x402_version": 2,
+    "advertised_price_usd": "0.003",
+    "quoted_price_usd": "0.003",
+    "price_matches_listing": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
+    "payment_refused_reason": null,
+    "error": null,
+    "raw_log": "results/raw/20260930T010357Z/stride20k-wiki-summary.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T010357Z/stride20k-wiki-summary.json"
+  },
+  "history_summary": {
+    "checks": 2,
+    "reachable": 2,
+    "x402_challenge_ok": 2,
+    "paid_checks": 0,
+    "first_checked": "2026-09-30T01:01:51Z",
+    "last_checked": "2026-09-30T01:03:58Z"
+  }
+}

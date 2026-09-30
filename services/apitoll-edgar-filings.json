@@ -1,0 +1,59 @@
+{
+  "id": "apitoll-edgar-filings",
+  "name": "API Toll SEC EDGAR filings",
+  "provider": "apitoll.cloud",
+  "category": "public records",
+  "description": "Latest SEC EDGAR filings for any US-listed company by stock ticker or CIK: 10-K annual reports, 10-Q quarterly reports, and 8-K material events. Resolves ticker to CIK via SEC's official index and returns the parsed filing (company, form type, dated items). Sourced live from data",
+  "endpoint": "https://edgar.apitoll.cloud/v1/edgar/filings",
+  "protocol": "x402",
+  "x402_version": 2,
+  "advertised_price": {
+    "amount_usd": "0.003",
+    "atomic": "3000",
+    "asset": "USDC",
+    "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "network": "eip155:8453"
+  },
+  "sample_request": {
+    "method": "GET",
+    "query": {
+      "form": "10-K",
+      "limit": 5,
+      "ticker": "AAPL"
+    }
+  },
+  "source": {
+    "name": "CDP x402 Bazaar (public discovery API)",
+    "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+    "listing_last_updated": "2026-09-29T10:09:26.068Z",
+    "retrieved": "2026-09-29"
+  },
+  "page_url": "https://withgrokbot.github.io/verified-catalog/services/apitoll-edgar-filings.html",
+  "latest": {
+    "checked_at": "2026-09-30T01:04:02Z",
+    "mode": "dry-run",
+    "reachable": false,
+    "http_status": null,
+    "latency_ms": 5043,
+    "x402_challenge": false,
+    "x402_version": null,
+    "advertised_price_usd": "0.003",
+    "quoted_price_usd": null,
+    "price_matches_listing": null,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
+    "payment_refused_reason": null,
+    "error": "URLError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1029)",
+    "raw_log": "results/raw/20260930T010357Z/apitoll-edgar-filings.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T010357Z/apitoll-edgar-filings.json"
+  },
+  "history_summary": {
+    "checks": 2,
+    "reachable": 0,
+    "x402_challenge_ok": 0,
+    "paid_checks": 0,
+    "first_checked": "2026-09-30T01:01:55Z",
+    "last_checked": "2026-09-30T01:04:02Z"
+  }
+}

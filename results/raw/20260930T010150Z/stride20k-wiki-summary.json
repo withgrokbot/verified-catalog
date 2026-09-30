@@ -1,0 +1,55 @@
+{
+  "service_id": "stride20k-wiki-summary",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://gateway.stride20k.com/knowledge/wiki/Alan%20Turing",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 344,
+    "headers": {
+      "date": "Wed, 30 Sep 2026 01:01:51 GMT",
+      "content-type": "application/json",
+      "content-length": "993",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://gateway.stride20k.com/knowledge/wiki/Alan%20Turing",
+            "description": "Wikipedia summary API: the lead summary of any English Wikipedia article \u2014 title, one-line description, extract paragraph, thumbnail, canonical URL, and Wikidata item id; disambiguation pages labeled via 'kind'. Titles case-sensitive; spaces or underscores accepted. Content CC BY-SA 4.0 with attribution in meta.attribution of every response. Use for knowledge lookup, entity enrichment, and fact grounding by agents. Cached up to 24 hours.",
+            "mimeType": "application/json",
+            "serviceName": "Aye Scout",
+            "tags": [
+              "knowledge"
+            ],
+            "iconUrl": "https://pulse.aye.today/icon.svg"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "3000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x552Cc4A10878C7F20574489D47184249657Ca3f6",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 993,
+    "body_sha256": "3b82db42b6aaf235ec639ccf6ff2eaa355953c33468e9b880dba7192298199bd",
+    "body_excerpt": "{\"ok\":false,\"error\":{\"code\":\"PAYMENT_REQUIRED\",\"message\":\"Get the English Wikipedia summary for a topic. Price: $0.003 (USDC via x402). Machine-readable catalog: /.well-known/x402.json\",\"retryable\":true},\"preview\":{\"note\":\"Example of the exact envelope a paid call returns.\",\"example\":{\"ok\":true,\"endpoint\":\"/knowledge/wiki/:title\",\"data\":{\"title\":\"Alan Turing\",\"kind\":\"standard\",\"description\":\"English computer scientist (1912\u20131954)\",\"extract\":\"Alan Mathison Turing was an English mathematician, computer scientist, logician, cryptanalyst, philosopher and theoretical biologist.\",\"lang\":\"en\",\"wikibaseItem\":\"Q7251\",\"thumbnailUrl\":\"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Alan_Turing.jpg/330px-Alan_Turing.jpg\",\"pageUrl\":\"https://en.wikipedia.org/wiki/Alan_Turing\"},\"meta\":{\"source\":\"Wikipedia REST API\",\"cached\":false,\"fetchedAt\":\"2026-07-04T00:00:00.000Z\",\"attribution\":\"Content from Wikipedia, licensed CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)\"}}}}"
+  },
+  "run_id": "20260930T010150Z",
+  "checked_at": "2026-09-30T01:01:51Z"
+}

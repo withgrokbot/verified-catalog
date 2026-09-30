@@ -1,0 +1,85 @@
+{
+  "service_id": "tavily-search",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "POST",
+    "url": "https://x402.tavily.com/search",
+    "json_body": {
+      "end_date": "2026-05-28",
+      "exclude_domains": [
+        "example.com"
+      ],
+      "include_answer": true,
+      "include_domains": [
+        "x402.org",
+        "docs.cdp.coinbase.com"
+      ],
+      "include_images": true,
+      "include_raw_content": true,
+      "max_results": 5,
+      "query": "what is x402?",
+      "search_depth": "advanced",
+      "start_date": "2026-01-01",
+      "time_range": "month",
+      "topic": "general"
+    },
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 1262,
+    "headers": {
+      "date": "Wed, 30 Sep 2026 01:03:59 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "54",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment header is required",
+          "resource": {
+            "url": "https://x402.tavily.com/search",
+            "description": "Tavily Search - advanced mode",
+            "mimeType": "application/json"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "10000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x14e6f3c5a082e3ea6ad0a1e21bb70d934ac4cfed",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "terms": "By using the Tavily solution, you agree to be bound by the Terms of Use (https://tavily.com/terms) and Privacy Policy (https://tavily.com/privacy) and accept that Tavily disclaims any liability with regard to the AI agent and cryptocurrency payments.",
+                "tier": "advanced"
+              }
+            },
+            {
+              "scheme": "agent-pay",
+              "network": "aws:base",
+              "amount": "0.016",
+              "asset": "iso4217:USD",
+              "payTo": "urn:x402:agent-pay:see-quote",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "reference": "tavily-search-advanced",
+                "settlement": {
+                  "product_id": "prod-maeet6sajeg42"
+                },
+                "tier": "advanced",
+                "quoteToken": "eyJhbGciOiJFUzM4NCIsInR5cCI6IkpXVCIsImtpZCI6InRhdmlseS1hZ2VudHBheS14NDAyLXNpZ25pbmcta2V5In0.eyJpc3MiOiJodHRwczovL3g0MDIudGF2aWx5LmNvbSIsImF1ZCI6ImF3czptYXJrZXRwbGFjZSIsImlhdCI6MTc5MDczMDIzOSwiZXhwIjoxNzkwNzMwNTM5LCJqdGkiOiI0ODdjNDAwMC1iMjMwLTRlODctOThkMC0yYzA4NWZmMzMzNzUiLCJwcmljZSI6eyJhbW91bnQiOiIwLjAxNiIsImN1cnJlbmN5IjoiVVNEIn0sInBheVRvIjoic2VsbGVyIiwicmVmZXJlbmNlIjoidGF2aWx5LXNlYXJjaC1hZHZhbmNlZCIsInNldHRsZW1lbnQiOnsicHJvZHVjdF9pZCI6InByb2QtbWFlZXQ2c2FqZWc0MiJ9fQ.uBZHCN8yveH2ZhVnltSq3Jr24r0rbn8RuXK5VMTJsDxXHJVBH7WH7BTfNwr_z_c5sIVbWzKe1XXmdDesb6vsr2OS7Rhh7ARTpW69ET4iqIY6ITYm7z08Y5BKNTdpqcun"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 54,
+    "body_sha256": "837a903dfad0fd1efdac09a6813a212aef4c05efe4e3a305e5ef1ebddd3d1328",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"Payment header is required\"}"
+  },
+  "run_id": "20260930T010357Z",
+  "checked_at": "2026-09-30T01:03:59Z"
+}

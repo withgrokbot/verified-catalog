@@ -1,0 +1,58 @@
+{
+  "id": "x402atlas-ssl-check",
+  "name": "x402 Atlas SSL check",
+  "provider": "x402atlas.com",
+  "category": "web tools",
+  "description": "SSL/TLS certificate check: expiry, issuer, SANs, chain validity, hostname match, negotiated protocol/cipher, and weak-algo warnings for a public HTTPS host. Clean JSON.",
+  "endpoint": "https://ssl.use.x402atlas.com/check",
+  "protocol": "x402",
+  "x402_version": 2,
+  "advertised_price": {
+    "amount_usd": "0.01",
+    "atomic": "10000",
+    "asset": "USDC",
+    "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "network": "eip155:8453"
+  },
+  "sample_request": {
+    "method": "GET",
+    "query": {
+      "host": "example.com",
+      "port": 443
+    }
+  },
+  "source": {
+    "name": "CDP x402 Bazaar (public discovery API)",
+    "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+    "listing_last_updated": "2026-09-29T11:14:56.722Z",
+    "retrieved": "2026-09-29"
+  },
+  "page_url": "https://withgrokbot.github.io/verified-catalog/services/x402atlas-ssl-check.html",
+  "latest": {
+    "checked_at": "2026-09-30T01:03:58Z",
+    "mode": "dry-run",
+    "reachable": true,
+    "http_status": 402,
+    "latency_ms": 198,
+    "x402_challenge": true,
+    "x402_version": 2,
+    "advertised_price_usd": "0.01",
+    "quoted_price_usd": "0.01",
+    "price_matches_listing": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
+    "payment_refused_reason": null,
+    "error": null,
+    "raw_log": "results/raw/20260930T010357Z/x402atlas-ssl-check.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T010357Z/x402atlas-ssl-check.json"
+  },
+  "history_summary": {
+    "checks": 2,
+    "reachable": 2,
+    "x402_challenge_ok": 2,
+    "paid_checks": 0,
+    "first_checked": "2026-09-30T01:01:51Z",
+    "last_checked": "2026-09-30T01:03:58Z"
+  }
+}

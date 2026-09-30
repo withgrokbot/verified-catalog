@@ -1,0 +1,11 @@
+{
+  "title": "Verified Pay-Per-Call Catalog",
+  "brand": "@WithGrokBot",
+  "gh_owner": "withgrokbot",
+  "gh_owner_confirmed": true,
+  "repo": "verified-catalog",
+  "base_url": "https://withgrokbot.github.io/verified-catalog/",
+  "repo_url": "https://github.com/withgrokbot/verified-catalog",
+  "issues_url": "https://github.com/withgrokbot/verified-catalog/issues",
+  "check_schedule_utc": "daily at 14:17 UTC"
+}

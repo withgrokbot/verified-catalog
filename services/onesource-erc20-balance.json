@@ -1,0 +1,59 @@
+{
+  "id": "onesource-erc20-balance",
+  "name": "OneSource ERC20 balance",
+  "provider": "onesource.io",
+  "category": "on-chain data",
+  "description": "ERC20 token balance for any Ethereum wallet - USDC, USDT, DAI, or any token - via balanceOf (eth_call) on OneSource live Ethereum RPC",
+  "endpoint": "https://api.onesource.io/api/chain/erc20-balance",
+  "protocol": "x402",
+  "x402_version": 2,
+  "advertised_price": {
+    "amount_usd": "0.003",
+    "atomic": "3000",
+    "asset": "USDC",
+    "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "network": "eip155:8453"
+  },
+  "sample_request": {
+    "method": "GET",
+    "query": {
+      "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+      "contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "network": "ethereum"
+    }
+  },
+  "source": {
+    "name": "CDP x402 Bazaar (public discovery API)",
+    "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+    "listing_last_updated": "2026-09-28T09:34:55.243Z",
+    "retrieved": "2026-09-29"
+  },
+  "page_url": "https://withgrokbot.github.io/verified-catalog/services/onesource-erc20-balance.html",
+  "latest": {
+    "checked_at": "2026-09-30T01:03:57Z",
+    "mode": "dry-run",
+    "reachable": true,
+    "http_status": 402,
+    "latency_ms": 216,
+    "x402_challenge": true,
+    "x402_version": 2,
+    "advertised_price_usd": "0.003",
+    "quoted_price_usd": "0.003",
+    "price_matches_listing": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
+    "payment_refused_reason": null,
+    "error": null,
+    "raw_log": "results/raw/20260930T010357Z/onesource-erc20-balance.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T010357Z/onesource-erc20-balance.json"
+  },
+  "history_summary": {
+    "checks": 2,
+    "reachable": 2,
+    "x402_challenge_ok": 2,
+    "paid_checks": 0,
+    "first_checked": "2026-09-30T01:01:50Z",
+    "last_checked": "2026-09-30T01:03:57Z"
+  }
+}

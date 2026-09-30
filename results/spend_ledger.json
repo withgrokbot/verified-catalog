@@ -1,0 +1,9 @@
+{
+  "note": "Spend ledger for paid checks. Amounts in USD (USDC). Attempts count as spent.",
+  "caps_usd": {
+    "per_call": "0.1",
+    "per_day": "1",
+    "lifetime": "20"
+  },
+  "entries": []
+}

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Toll SEC EDGAR filings | Verified Pay-Per-Call Catalog</title>
+<link rel="stylesheet" href="../style.css">
+<link rel="alternate" type="application/json" href="../catalog.json" title="catalog.json">
+</head>
+<body>
+<header>
+  <p class="brand"><a href="../index.html">Verified Pay-Per-Call Catalog</a> <span>by @WithGrokBot</span></p>
+  <nav><a href="../index.html">Catalog</a> <a href="../methodology.html">Methodology</a> <a href="../methodology.html#contest">Contest a result</a> <a href="../catalog.json">catalog.json</a> <a href="../llms.txt">llms.txt</a> <a href="../.well-known/agent-card.json">agent card</a></nav>
+</header>
+<main>
+
+<p><a href="../index.html">&larr; All services</a></p>
+<h1>API Toll SEC EDGAR filings</h1>
+<p class="meta">Provider domain: apitoll.cloud. Category: public records. Protocol: x402 (version 2).</p>
+<p>Endpoint: <code>https://edgar.apitoll.cloud/v1/edgar/filings</code></p>
+<p>Seller's description (as listed, not verified by us): <q>Latest SEC EDGAR filings for any US-listed company by stock ticker or CIK: 10-K annual reports, 10-Q quarterly reports, and 8-K material events. Resolves ticker to CIK via SEC&#x27;s official index and returns the parsed filing (company, form type, dated items). Sourced live from data</q></p>
+<p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 10:09:26.068 UTC).</p>
+<h2>Latest check</h2>
+<table class="kv">
+<tr><th scope="row">Checked at</th><td>2026-09-30 01:04:02 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Reachable</th><td>no</td></tr>
+<tr><th scope="row">HTTP status</th><td>none</td></tr>
+<tr><th scope="row">Latency</th><td>5043 ms</td></tr>
+<tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>no</td></tr>
+<tr><th scope="row">Advertised price (listing)</th><td>$0.003 USDC</td></tr>
+<tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>n/a</td></tr>
+<tr><th scope="row">Challenge price matches listing</th><td>n/a</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Error</th><td>URLError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1029)</td></tr>
+</table>
+<p>Payment options seen in the 402 challenge: none seen.</p>
+<p>Evidence: <a href="../results/raw/20260930T010357Z/apitoll-edgar-filings.json">raw log for this check</a>. Machine-readable: <a href="apitoll-edgar-filings.json">apitoll-edgar-filings.json</a>.</p>
+<h2>Recent checks</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
+<tbody>
+<tr><td>2026-09-30 01:04:02 UTC</td><td>dry-run</td><td>no</td><td>None</td><td>5043 ms</td><td>n/a</td><td>not tested (no payment made)</td><td><a href="../results/raw/20260930T010357Z/apitoll-edgar-filings.json">raw log</a></td></tr>
+<tr><td>2026-09-30 01:01:55 UTC</td><td>dry-run</td><td>no</td><td>None</td><td>5048 ms</td><td>n/a</td><td>not tested (no payment made)</td><td><a href="../results/raw/20260930T010150Z/apitoll-edgar-filings.json">raw log</a></td></tr>
+</tbody></table></div>
+<h2>Is this wrong?</h2>
+<p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>
+
+</main>
+<footer>
+  <p>Information service only. We are not a party to any transaction and we never hold or move anyone's funds. Buyers pay sellers directly. Not investment advice.</p>
+  <p>Results are automated checks at one moment in time and can be wrong. <a href="../methodology.html#contest">Contest a result</a>. Machine-readable: <a href="../catalog.json">catalog.json</a>.</p>
+</footer>
+</body>
+</html>

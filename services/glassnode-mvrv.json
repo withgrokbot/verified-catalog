@@ -1,0 +1,58 @@
+{
+  "id": "glassnode-mvrv",
+  "name": "Glassnode MVRV metric",
+  "provider": "glassnode.com",
+  "category": "on-chain data",
+  "description": "Market Value to Realized Value Ratio (MVRV) \u2014 Market Value to Realized Value (MVRV) is the ratio between market cap and realized cap. Data by Glassnode.",
+  "endpoint": "https://x402.glassnode.com/v1/metrics/market/mvrv",
+  "protocol": "x402",
+  "x402_version": 2,
+  "advertised_price": {
+    "amount_usd": "0.05",
+    "atomic": "50000",
+    "asset": "USDC",
+    "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "network": "eip155:8453"
+  },
+  "sample_request": {
+    "method": "GET",
+    "query": {
+      "a": "BTC",
+      "i": "24h"
+    }
+  },
+  "source": {
+    "name": "CDP x402 Bazaar (public discovery API)",
+    "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+    "listing_last_updated": "2026-09-29T11:00:46.45Z",
+    "retrieved": "2026-09-29"
+  },
+  "page_url": "https://withgrokbot.github.io/verified-catalog/services/glassnode-mvrv.html",
+  "latest": {
+    "checked_at": "2026-09-30T01:03:58Z",
+    "mode": "dry-run",
+    "reachable": true,
+    "http_status": 402,
+    "latency_ms": 312,
+    "x402_challenge": true,
+    "x402_version": 2,
+    "advertised_price_usd": "0.05",
+    "quoted_price_usd": "0.05",
+    "price_matches_listing": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
+    "payment_refused_reason": null,
+    "error": null,
+    "raw_log": "results/raw/20260930T010357Z/glassnode-mvrv.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T010357Z/glassnode-mvrv.json"
+  },
+  "history_summary": {
+    "checks": 2,
+    "reachable": 2,
+    "x402_challenge_ok": 2,
+    "paid_checks": 0,
+    "first_checked": "2026-09-30T01:01:51Z",
+    "last_checked": "2026-09-30T01:03:58Z"
+  }
+}

@@ -1,0 +1,2 @@
+# Only needed for PAID checks (--pay). Free checks use the Python standard library only.
+eth-account>=0.13

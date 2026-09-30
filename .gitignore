@@ -1,0 +1,10 @@
+# Never commit wallets or keys. The probe wallet lives outside this folder.
+secrets/
+wallet*.json
+*.key
+*.pem
+.env
+.env.*
+__pycache__/
+*.pyc
+results/spend_ledger.json.tmp

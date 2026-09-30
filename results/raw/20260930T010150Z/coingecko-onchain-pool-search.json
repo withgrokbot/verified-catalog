@@ -1,0 +1,59 @@
+{
+  "service_id": "coingecko-onchain-pool-search",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://pro-api.coingecko.com/api/v3/x402/onchain/search/pools?include=base_token&network=eth&page=1&query=weth",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 129,
+    "headers": {
+      "date": "Wed, 30 Sep 2026 01:01:51 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "resource": {
+            "url": "https://pro-api.coingecko.com/api/v3/x402/onchain/search/pools",
+            "description": "Search onchain DEX pools and token, by contract address, name, or token symbol.",
+            "mimeType": "application/json"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "10000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x110cdBba7FE6434Ec4CE3464CC523942ad6Fb784",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "10000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "8XhngTRitTcUJMiaDJ6azw8GRSiFPpwhnmV3HYQLHUpL",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "feePayer": "D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM"
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 84,
+    "body_sha256": "476a9bd899c78bc2cdf54e5bdf126ebc728df2f93b368798382be09590a2f08c",
+    "body_excerpt": "{\"error\":\"Payment required\",\"message\":\"Payment is required to access this resource\"}"
+  },
+  "run_id": "20260930T010150Z",
+  "checked_at": "2026-09-30T01:01:51Z"
+}

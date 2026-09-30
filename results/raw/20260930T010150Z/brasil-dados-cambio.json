@@ -1,0 +1,68 @@
+{
+  "service_id": "brasil-dados-cambio",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://brasil-dados-api.onrender.com/cambio",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 176,
+    "headers": {
+      "date": "Wed, 30 Sep 2026 01:01:51 GMT",
+      "content-type": "application/json",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://brasil-dados-api.onrender.com/cambio",
+            "description": "Official USD/BRL and EUR/BRL exchange rates (PTAX, Central Bank of Brazil).",
+            "mimeType": "application/json",
+            "serviceName": "Brazil Data API",
+            "tags": [
+              "brazil",
+              "brasil",
+              "data",
+              "economy",
+              "verify"
+            ]
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "2000",
+              "payTo": "0x649006bC937E7a60F98e49455D0fE3425321A3b0",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "amount": "2000",
+              "payTo": "yUdt7ThMbP5mvtLtURiwK3wgnhexuFtbKC9LEgb1Q8e",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "Hc3sdEAsCGQcpgfivywog9uwtk8gUBUZgsxdME1EJy88"
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 2,
+    "body_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "body_excerpt": "{}"
+  },
+  "run_id": "20260930T010150Z",
+  "checked_at": "2026-09-30T01:01:51Z"
+}

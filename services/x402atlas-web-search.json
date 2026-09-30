@@ -1,0 +1,59 @@
+{
+  "id": "x402atlas-web-search",
+  "name": "x402 Atlas web search",
+  "provider": "x402atlas.com",
+  "category": "web search",
+  "description": "Real-time web search for AI agents \u2014 search the web and get ranked SERP-style results as clean JSON: title, URL, snippet, relevance score, optional LLM-generated answer. Find up-to-date information online \u2014 latest news, current events, finance. Date, domain and exact-phrase filte",
+  "endpoint": "https://websearch.use.x402atlas.com/search",
+  "protocol": "x402",
+  "x402_version": 2,
+  "advertised_price": {
+    "amount_usd": "0.01",
+    "atomic": "10000",
+    "asset": "USDC",
+    "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "network": "eip155:8453"
+  },
+  "sample_request": {
+    "method": "GET",
+    "query": {
+      "chunks_per_source": 2,
+      "query": "latest developments in AI agents",
+      "search_depth": "fast"
+    }
+  },
+  "source": {
+    "name": "CDP x402 Bazaar (public discovery API)",
+    "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+    "listing_last_updated": "2026-09-29T13:00:04.672Z",
+    "retrieved": "2026-09-29"
+  },
+  "page_url": "https://withgrokbot.github.io/verified-catalog/services/x402atlas-web-search.html",
+  "latest": {
+    "checked_at": "2026-09-30T01:03:57Z",
+    "mode": "dry-run",
+    "reachable": true,
+    "http_status": 402,
+    "latency_ms": 183,
+    "x402_challenge": true,
+    "x402_version": 2,
+    "advertised_price_usd": "0.01",
+    "quoted_price_usd": "0.01",
+    "price_matches_listing": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
+    "payment_refused_reason": null,
+    "error": null,
+    "raw_log": "results/raw/20260930T010357Z/x402atlas-web-search.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T010357Z/x402atlas-web-search.json"
+  },
+  "history_summary": {
+    "checks": 2,
+    "reachable": 2,
+    "x402_challenge_ok": 2,
+    "paid_checks": 0,
+    "first_checked": "2026-09-30T01:01:50Z",
+    "last_checked": "2026-09-30T01:03:57Z"
+  }
+}

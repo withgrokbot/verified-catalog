@@ -1,0 +1,58 @@
+{
+  "id": "minifetch-url-check",
+  "name": "Minifetch URL preflight",
+  "provider": "minifetch.com",
+  "category": "web tools",
+  "description": "Cheap robots.txt preflight before you call the Minifetch /extract and /run/seo-page-audit endpoints: returns whether the Minifetch user agent may fetch a target URL (allow/deny) plus its crawl-delay. If blocked or setting a crawl delay read https://minifetch.com/tutorials/unblock",
+  "endpoint": "https://minifetch.com/api/v1/x402/preflight/url-check",
+  "protocol": "x402",
+  "x402_version": 2,
+  "advertised_price": {
+    "amount_usd": "0.001",
+    "atomic": "1000",
+    "asset": "USDC",
+    "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "network": "eip155:8453"
+  },
+  "sample_request": {
+    "method": "GET",
+    "query": {
+      "url": "https://example.com"
+    },
+    "note": "The listing's example input was a github.com address; we use the reserved test domain example.com."
+  },
+  "source": {
+    "name": "CDP x402 Bazaar (public discovery API)",
+    "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+    "listing_last_updated": "2026-09-29T10:07:18.421Z",
+    "retrieved": "2026-09-29"
+  },
+  "page_url": "https://withgrokbot.github.io/verified-catalog/services/minifetch-url-check.html",
+  "latest": {
+    "checked_at": "2026-09-30T01:03:58Z",
+    "mode": "dry-run",
+    "reachable": true,
+    "http_status": 402,
+    "latency_ms": 266,
+    "x402_challenge": true,
+    "x402_version": 2,
+    "advertised_price_usd": "0.001",
+    "quoted_price_usd": "0.001",
+    "price_matches_listing": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
+    "payment_refused_reason": null,
+    "error": null,
+    "raw_log": "results/raw/20260930T010357Z/minifetch-url-check.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T010357Z/minifetch-url-check.json"
+  },
+  "history_summary": {
+    "checks": 3,
+    "reachable": 3,
+    "x402_challenge_ok": 3,
+    "paid_checks": 0,
+    "first_checked": "2026-09-30T01:01:51Z",
+    "last_checked": "2026-09-30T01:03:58Z"
+  }
+}

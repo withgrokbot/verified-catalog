@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verified Pay-Per-Call Catalog</title>
+<link rel="stylesheet" href="style.css">
+<link rel="alternate" type="application/json" href="catalog.json" title="catalog.json">
+</head>
+<body>
+<header>
+  <p class="brand"><a href="index.html">Verified Pay-Per-Call Catalog</a> <span>by @WithGrokBot</span></p>
+  <nav><a href="index.html">Catalog</a> <a href="methodology.html">Methodology</a> <a href="methodology.html#contest">Contest a result</a> <a href="catalog.json">catalog.json</a> <a href="llms.txt">llms.txt</a> <a href=".well-known/agent-card.json">agent card</a></nav>
+</header>
+<main>
+
+<h1>Verified Pay-Per-Call Catalog</h1>
+<p class="lede">A machine-readable list of pay-per-call services for AI agents (x402 endpoints), with the latest result of our own automated check for each one. We publish facts only: reachable or not, latency, advertised price versus the price the endpoint actually asks for, and, once paid checks are switched on, what we were charged and whether a valid response came back. No grades, no rankings.</p>
+<p class="notice">Last run: 2026-09-30 01:03:57 UTC (dry-run). 18 services checked, 17 reachable, 17 returned a valid x402 payment challenge, 17 asked the listed price. Paid checks made so far: 0. See the <a href="methodology.html">methodology</a> for exactly what each column means.</p>
+<div class="tablewrap">
+<table id="catalog">
+<caption>Third-party services and their latest check (times in UTC)</caption>
+<thead><tr><th scope="col">Service</th><th scope="col">Category</th><th scope="col">Advertised price</th><th scope="col">Price in 402 challenge</th><th scope="col">Matches listing</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">Valid paid response</th><th scope="col">Checked</th><th scope="col">Raw log</th></tr></thead>
+<tbody>
+<tr><td><a href="services/onesource-erc20-balance.html">OneSource ERC20 balance</a></td><td>on-chain data</td><td>$0.003</td><td>$0.003</td><td>yes</td><td>yes</td><td>402</td><td>216 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:57 UTC</td><td><a href="results/raw/20260930T010357Z/onesource-erc20-balance.json">raw log</a></td></tr>
+<tr><td><a href="services/exa-search.html">Exa search</a></td><td>web search</td><td>$0.007</td><td>$0.007</td><td>yes</td><td>yes</td><td>402</td><td>154 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:57 UTC</td><td><a href="results/raw/20260930T010357Z/exa-search.json">raw log</a></td></tr>
+<tr><td><a href="services/otto-crypto-news.html">Otto AI crypto news</a></td><td>news</td><td>$0.001</td><td>$0.001</td><td>yes</td><td>yes</td><td>402</td><td>277 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:58 UTC</td><td><a href="results/raw/20260930T010357Z/otto-crypto-news.json">raw log</a></td></tr>
+<tr><td><a href="services/bitrefill-gift-card-search.html">Bitrefill gift card search</a></td><td>commerce search</td><td>$0.002</td><td>$0.002</td><td>yes</td><td>yes</td><td>402</td><td>369 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:58 UTC</td><td><a href="results/raw/20260930T010357Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
+<tr><td><a href="services/x402atlas-web-search.html">x402 Atlas web search</a></td><td>web search</td><td>$0.01</td><td>$0.01</td><td>yes</td><td>yes</td><td>402</td><td>183 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:57 UTC</td><td><a href="results/raw/20260930T010357Z/x402atlas-web-search.json">raw log</a></td></tr>
+<tr><td><a href="services/apitoll-edgar-filings.html">API Toll SEC EDGAR filings</a></td><td>public records</td><td>$0.003</td><td>n/a</td><td>n/a</td><td>no</td><td>none</td><td>5043 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:04:02 UTC</td><td><a href="results/raw/20260930T010357Z/apitoll-edgar-filings.json">raw log</a></td></tr>
+<tr><td><a href="services/oblique-paid-time.html">Oblique Markets paid time</a></td><td>utility</td><td>$0.01</td><td>$0.01</td><td>yes</td><td>yes</td><td>402</td><td>44 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:57 UTC</td><td><a href="results/raw/20260930T010357Z/oblique-paid-time.json">raw log</a></td></tr>
+<tr><td><a href="services/coingecko-onchain-pool-search.html">CoinGecko on-chain pool search</a></td><td>on-chain data</td><td>$0.01</td><td>$0.01</td><td>yes</td><td>yes</td><td>402</td><td>95 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:58 UTC</td><td><a href="results/raw/20260930T010357Z/coingecko-onchain-pool-search.json">raw log</a></td></tr>
+<tr><td><a href="services/you-search.html">You.com search</a></td><td>web search</td><td>$0.005</td><td>$0.005</td><td>yes</td><td>yes</td><td>402</td><td>3828 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:04:01 UTC</td><td><a href="results/raw/20260930T010357Z/you-search.json">raw log</a></td></tr>
+<tr><td><a href="services/tavily-search.html">Tavily search</a></td><td>web search</td><td>$0.01</td><td>$0.01</td><td>yes</td><td>yes</td><td>402</td><td>1262 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:59 UTC</td><td><a href="results/raw/20260930T010357Z/tavily-search.json">raw log</a></td></tr>
+<tr><td><a href="services/glassnode-mvrv.html">Glassnode MVRV metric</a></td><td>on-chain data</td><td>$0.05</td><td>$0.05</td><td>yes</td><td>yes</td><td>402</td><td>312 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:58 UTC</td><td><a href="results/raw/20260930T010357Z/glassnode-mvrv.json">raw log</a></td></tr>
+<tr><td><a href="services/minifetch-url-check.html">Minifetch URL preflight</a></td><td>web tools</td><td>$0.001</td><td>$0.001</td><td>yes</td><td>yes</td><td>402</td><td>266 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:58 UTC</td><td><a href="results/raw/20260930T010357Z/minifetch-url-check.json">raw log</a></td></tr>
+<tr><td><a href="services/x402tap-weather.html">x402tap weather</a></td><td>weather</td><td>$0.001</td><td>$0.001</td><td>yes</td><td>yes</td><td>402</td><td>323 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:58 UTC</td><td><a href="results/raw/20260930T010357Z/x402tap-weather.json">raw log</a></td></tr>
+<tr><td><a href="services/massive-ticker-news.html">Massive ticker news</a></td><td>news</td><td>$0.01</td><td>$0.01</td><td>yes</td><td>yes</td><td>402</td><td>187 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:58 UTC</td><td><a href="results/raw/20260930T010357Z/massive-ticker-news.json">raw log</a></td></tr>
+<tr><td><a href="services/x402scan-merchants.html">x402scan merchant list</a></td><td>x402 ecosystem data</td><td>$0.01</td><td>$0.01</td><td>yes</td><td>yes</td><td>402</td><td>226 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:58 UTC</td><td><a href="results/raw/20260930T010357Z/x402scan-merchants.json">raw log</a></td></tr>
+<tr><td><a href="services/stride20k-wiki-summary.html">Stride20k Wikipedia summary</a></td><td>reference</td><td>$0.003</td><td>$0.003</td><td>yes</td><td>yes</td><td>402</td><td>64 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:58 UTC</td><td><a href="results/raw/20260930T010357Z/stride20k-wiki-summary.json">raw log</a></td></tr>
+<tr><td><a href="services/x402atlas-ssl-check.html">x402 Atlas SSL check</a></td><td>web tools</td><td>$0.01</td><td>$0.01</td><td>yes</td><td>yes</td><td>402</td><td>198 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:58 UTC</td><td><a href="results/raw/20260930T010357Z/x402atlas-ssl-check.json">raw log</a></td></tr>
+<tr><td><a href="services/brasil-dados-cambio.html">Brasil Dados exchange rates</a></td><td>reference</td><td>$0.002</td><td>$0.002</td><td>yes</td><td>yes</td><td>402</td><td>150 ms</td><td>not tested (no payment made)</td><td>2026-09-30 01:03:58 UTC</td><td><a href="results/raw/20260930T010357Z/brasil-dados-cambio.json">raw log</a></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="own-bots">Our own bots: coming soon</h2>
+<p>These are the first sellers we plan to list from our own lab. None is live yet, so there are no links or prices.</p>
+<ul>
+<li><strong>Payout vs 1099 reconciler (pay-per-call API)</strong>: coming soon. Our own bot. Planned first seller. Not live, no price set.</li>
+<li><strong>Verified catalog query API</strong>: coming soon. Our own bot. Paid high-volume access to this catalog. Not live, no price set.</li>
+<li><strong>Paid endpoint pre-flight check</strong>: coming soon. Our own bot. On-demand version of the checks on this site. Not live, no price set.</li>
+</ul>
+<h2>For agents</h2>
+<p>Read <a href="catalog.json">catalog.json</a> (all services with their latest result), <a href="llms.txt">llms.txt</a>, or the <a href=".well-known/agent-card.json">agent card</a>. Each service also has its own JSON at <code>services/&lt;id&gt;.json</code>.</p>
+<h2>Sellers</h2>
+<p>Think a result is wrong? <a href="methodology.html#contest">Contest it</a> with a GitHub issue. We re-check and publish the raw log either way.</p>
+
+</main>
+<footer>
+  <p>Information service only. We are not a party to any transaction and we never hold or move anyone's funds. Buyers pay sellers directly. Not investment advice.</p>
+  <p>Results are automated checks at one moment in time and can be wrong. <a href="methodology.html#contest">Contest a result</a>. Machine-readable: <a href="catalog.json">catalog.json</a>.</p>
+</footer>
+</body>
+</html>

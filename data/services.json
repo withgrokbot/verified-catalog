@@ -1,0 +1,569 @@
+{
+  "schema": 1,
+  "services": [
+    {
+      "id": "onesource-erc20-balance",
+      "name": "OneSource ERC20 balance",
+      "provider": "onesource.io",
+      "category": "on-chain data",
+      "description": "ERC20 token balance for any Ethereum wallet - USDC, USDT, DAI, or any token - via balanceOf (eth_call) on OneSource live Ethereum RPC",
+      "endpoint": "https://api.onesource.io/api/chain/erc20-balance",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.003",
+        "atomic": "3000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+          "contract": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+          "network": "ethereum"
+        }
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-28T09:34:55.243Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "exa-search",
+      "name": "Exa search",
+      "provider": "exa.ai",
+      "category": "web search",
+      "description": "Exa /search endpoint",
+      "endpoint": "https://api.exa.ai/search",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.007",
+        "atomic": "7000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "POST",
+        "json_body": {
+          "numResults": 10,
+          "query": "example search query",
+          "type": "auto"
+        }
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-30T00:18:25.245Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "otto-crypto-news",
+      "name": "Otto AI crypto news",
+      "provider": "ottoai.services",
+      "category": "news",
+      "description": "Importance-ranked crypto headlines with per-article source links and publish times, plus a sentiment-scored market brief. Regenerated hourly; meta carries the snapshot's age and a fresh/stale verdict.",
+      "endpoint": "https://x402.ottoai.services/crypto-news",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.001",
+        "atomic": "1000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET"
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T20:30:54.933Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "bitrefill-gift-card-search",
+      "name": "Bitrefill gift card search",
+      "provider": "bitrefill.com",
+      "category": "commerce search",
+      "description": "Search 10,000+ gift card & voucher brands across 180+ countries by name and country. Pay in USDC via x402, no account.",
+      "endpoint": "https://api.bitrefill.com/x402/gift-cards/search",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.002",
+        "atomic": "2000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "country": "US",
+          "q": "amazon"
+        }
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T15:07:33.873Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "x402atlas-web-search",
+      "name": "x402 Atlas web search",
+      "provider": "x402atlas.com",
+      "category": "web search",
+      "description": "Real-time web search for AI agents \u2014 search the web and get ranked SERP-style results as clean JSON: title, URL, snippet, relevance score, optional LLM-generated answer. Find up-to-date information online \u2014 latest news, current events, finance. Date, domain and exact-phrase filte",
+      "endpoint": "https://websearch.use.x402atlas.com/search",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.01",
+        "atomic": "10000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "chunks_per_source": 2,
+          "query": "latest developments in AI agents",
+          "search_depth": "fast"
+        }
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T13:00:04.672Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "apitoll-edgar-filings",
+      "name": "API Toll SEC EDGAR filings",
+      "provider": "apitoll.cloud",
+      "category": "public records",
+      "description": "Latest SEC EDGAR filings for any US-listed company by stock ticker or CIK: 10-K annual reports, 10-Q quarterly reports, and 8-K material events. Resolves ticker to CIK via SEC's official index and returns the parsed filing (company, form type, dated items). Sourced live from data",
+      "endpoint": "https://edgar.apitoll.cloud/v1/edgar/filings",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.003",
+        "atomic": "3000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "form": "10-K",
+          "limit": 5,
+          "ticker": "AAPL"
+        }
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T10:09:26.068Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "oblique-paid-time",
+      "name": "Oblique Markets paid time",
+      "provider": "oblique.markets",
+      "category": "utility",
+      "description": "Use when an agent needs a trusted UTC timestamp or the smallest end-to-end test of its x402 payment client. Returns Current server time as ISO 8601 and Unix epoch milliseconds, returned only after a real settlement. $0.01.",
+      "endpoint": "https://api.oblique.markets/api/v1/paid/time",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.01",
+        "atomic": "10000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET"
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T12:11:30.714Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "coingecko-onchain-pool-search",
+      "name": "CoinGecko on-chain pool search",
+      "provider": "coingecko.com",
+      "category": "on-chain data",
+      "description": "Search onchain DEX pools and token, by contract address, name, or token symbol.",
+      "endpoint": "https://pro-api.coingecko.com/api/v3/x402/onchain/search/pools",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.01",
+        "atomic": "10000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "include": "base_token",
+          "network": "eth",
+          "page": 1,
+          "query": "weth"
+        }
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T15:20:34.58Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "you-search",
+      "name": "You.com search",
+      "provider": "you.com",
+      "category": "web search",
+      "description": "You.com Search API: real-time web search returning ranked results grouped by section (results.web, results.news), each with url, title and description; web results also carry snippets. Use when an agent needs fresh, citable web data (news, markets, company facts) to ground a deci",
+      "endpoint": "https://api.you.com/v1/search",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.005",
+        "atomic": "5000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "count": 10,
+          "query": "NVDA earnings guidance Q2 2026"
+        }
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T04:09:00.302Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "tavily-search",
+      "name": "Tavily search",
+      "provider": "tavily.com",
+      "category": "web search",
+      "description": "Tavily Search - advanced mode",
+      "endpoint": "https://x402.tavily.com/search",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.01",
+        "atomic": "10000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "POST",
+        "json_body": {
+          "end_date": "2026-05-28",
+          "exclude_domains": [
+            "example.com"
+          ],
+          "include_answer": true,
+          "include_domains": [
+            "x402.org",
+            "docs.cdp.coinbase.com"
+          ],
+          "include_images": true,
+          "include_raw_content": true,
+          "max_results": 5,
+          "query": "what is x402?",
+          "search_depth": "advanced",
+          "start_date": "2026-01-01",
+          "time_range": "month",
+          "topic": "general"
+        }
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-30T00:05:49.421Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "glassnode-mvrv",
+      "name": "Glassnode MVRV metric",
+      "provider": "glassnode.com",
+      "category": "on-chain data",
+      "description": "Market Value to Realized Value Ratio (MVRV) \u2014 Market Value to Realized Value (MVRV) is the ratio between market cap and realized cap. Data by Glassnode.",
+      "endpoint": "https://x402.glassnode.com/v1/metrics/market/mvrv",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.05",
+        "atomic": "50000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "a": "BTC",
+          "i": "24h"
+        }
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T11:00:46.45Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "minifetch-url-check",
+      "name": "Minifetch URL preflight",
+      "provider": "minifetch.com",
+      "category": "web tools",
+      "description": "Cheap robots.txt preflight before you call the Minifetch /extract and /run/seo-page-audit endpoints: returns whether the Minifetch user agent may fetch a target URL (allow/deny) plus its crawl-delay. If blocked or setting a crawl delay read https://minifetch.com/tutorials/unblock",
+      "endpoint": "https://minifetch.com/api/v1/x402/preflight/url-check",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.001",
+        "atomic": "1000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "url": "https://example.com"
+        },
+        "note": "The listing's example input was a github.com address; we use the reserved test domain example.com."
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T10:07:18.421Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "x402tap-weather",
+      "name": "x402tap weather",
+      "provider": "x402tap.com",
+      "category": "weather",
+      "description": "Live current weather conditions for any city, sourced from Open-Meteo",
+      "endpoint": "https://x402tap.com/api/weather",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.001",
+        "atomic": "1000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "city": "Austin"
+        }
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T10:10:13.181Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "massive-ticker-news",
+      "name": "Massive ticker news",
+      "provider": "massive.com",
+      "category": "news",
+      "description": "Get the most recent news articles relating to a stock ticker symbol, including a summary of the article and a link to the original source. Can't find what you're looking for? POST feedback to /feedback, no charge.",
+      "endpoint": "https://agent.massive.com/v2/reference/news",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.01",
+        "atomic": "10000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "limit": 10,
+          "order": "asc",
+          "sort": "published_utc"
+        }
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T12:45:26.692Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "x402scan-merchants",
+      "name": "x402scan merchant list",
+      "provider": "x402scan.com",
+      "category": "x402 ecosystem data",
+      "description": "Paginated list of merchants (top recipients by volume)",
+      "endpoint": "https://www.x402scan.com/api/x402/merchants",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.01",
+        "atomic": "10000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET"
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-30T00:19:51.292Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "stride20k-wiki-summary",
+      "name": "Stride20k Wikipedia summary",
+      "provider": "stride20k.com",
+      "category": "reference",
+      "description": "Wikipedia summary API: the lead summary of any English Wikipedia article \u2014 title, one-line description, extract paragraph, thumbnail, canonical URL, and Wikidata item id; disambiguation pages labeled via 'kind'. Titles case-sensitive; spaces or underscores accepted. Content CC BY",
+      "endpoint": "https://gateway.stride20k.com/knowledge/wiki/:title",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.003",
+        "atomic": "3000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "path_params": {
+          "title": "Alan Turing"
+        }
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-08-31T01:32:18.388Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "x402atlas-ssl-check",
+      "name": "x402 Atlas SSL check",
+      "provider": "x402atlas.com",
+      "category": "web tools",
+      "description": "SSL/TLS certificate check: expiry, issuer, SANs, chain validity, hostname match, negotiated protocol/cipher, and weak-algo warnings for a public HTTPS host. Clean JSON.",
+      "endpoint": "https://ssl.use.x402atlas.com/check",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.01",
+        "atomic": "10000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "host": "example.com",
+          "port": 443
+        }
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T11:14:56.722Z",
+        "retrieved": "2026-09-29"
+      }
+    },
+    {
+      "id": "brasil-dados-cambio",
+      "name": "Brasil Dados exchange rates",
+      "provider": "brasil-dados-api.onrender.com",
+      "category": "reference",
+      "description": "Official USD/BRL and EUR/BRL exchange rates (PTAX, Central Bank of Brazil).",
+      "endpoint": "https://brasil-dados-api.onrender.com/cambio",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.002",
+        "atomic": "2000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET"
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T10:19:46.81Z",
+        "retrieved": "2026-09-29"
+      }
+    }
+  ],
+  "own_bots": [
+    {
+      "id": "own-1099-reconciler-api",
+      "name": "Payout vs 1099 reconciler (pay-per-call API)",
+      "status": "coming soon",
+      "note": "Our own bot. Planned first seller. Not live, no price set."
+    },
+    {
+      "id": "own-catalog-query-api",
+      "name": "Verified catalog query API",
+      "status": "coming soon",
+      "note": "Our own bot. Paid high-volume access to this catalog. Not live, no price set."
+    },
+    {
+      "id": "own-endpoint-preflight",
+      "name": "Paid endpoint pre-flight check",
+      "status": "coming soon",
+      "note": "Our own bot. On-demand version of the checks on this site. Not live, no price set."
+    }
+  ]
+}

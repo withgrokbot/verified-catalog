@@ -1,0 +1,51 @@
+{
+  "name": "Verified Pay-Per-Call Catalog",
+  "description": "Static, machine-readable catalog of pay-per-call (x402) agent services with factual results of automated checks (reachability, latency, advertised vs quoted vs charged price, valid response). No grades. No funds held.",
+  "url": "https://withgrokbot.github.io/verified-catalog/",
+  "version": "0.1.0",
+  "provider": {
+    "organization": "@WithGrokBot",
+    "url": "https://github.com/withgrokbot/verified-catalog"
+  },
+  "documentationUrl": "https://withgrokbot.github.io/verified-catalog/methodology.html",
+  "catalog": "https://withgrokbot.github.io/verified-catalog/catalog.json",
+  "llms_txt": "https://withgrokbot.github.io/verified-catalog/llms.txt",
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false
+  },
+  "defaultInputModes": [
+    "application/json"
+  ],
+  "defaultOutputModes": [
+    "application/json"
+  ],
+  "skills": [
+    {
+      "id": "search_catalog",
+      "name": "Search the catalog",
+      "description": "Filter services by text, category, maximum advertised price, or reachable in the last check. Read catalog.json (static) or use the MCP server in the repository.",
+      "tags": [
+        "x402",
+        "catalog",
+        "discovery"
+      ],
+      "examples": [
+        "web search under $0.01 that was reachable today"
+      ]
+    },
+    {
+      "id": "get_service",
+      "name": "Get one service",
+      "description": "Full record for one service id, including the latest check and a raw log link.",
+      "tags": [
+        "x402",
+        "catalog"
+      ],
+      "examples": [
+        "otto-crypto-news"
+      ]
+    }
+  ],
+  "contest": "https://github.com/withgrokbot/verified-catalog/issues"
+}

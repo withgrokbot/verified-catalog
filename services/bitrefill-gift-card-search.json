@@ -1,0 +1,58 @@
+{
+  "id": "bitrefill-gift-card-search",
+  "name": "Bitrefill gift card search",
+  "provider": "bitrefill.com",
+  "category": "commerce search",
+  "description": "Search 10,000+ gift card & voucher brands across 180+ countries by name and country. Pay in USDC via x402, no account.",
+  "endpoint": "https://api.bitrefill.com/x402/gift-cards/search",
+  "protocol": "x402",
+  "x402_version": 2,
+  "advertised_price": {
+    "amount_usd": "0.002",
+    "atomic": "2000",
+    "asset": "USDC",
+    "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "network": "eip155:8453"
+  },
+  "sample_request": {
+    "method": "GET",
+    "query": {
+      "country": "US",
+      "q": "amazon"
+    }
+  },
+  "source": {
+    "name": "CDP x402 Bazaar (public discovery API)",
+    "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+    "listing_last_updated": "2026-09-29T15:07:33.873Z",
+    "retrieved": "2026-09-29"
+  },
+  "page_url": "https://withgrokbot.github.io/verified-catalog/services/bitrefill-gift-card-search.html",
+  "latest": {
+    "checked_at": "2026-09-30T01:03:58Z",
+    "mode": "dry-run",
+    "reachable": true,
+    "http_status": 402,
+    "latency_ms": 369,
+    "x402_challenge": true,
+    "x402_version": 2,
+    "advertised_price_usd": "0.002",
+    "quoted_price_usd": "0.002",
+    "price_matches_listing": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
+    "payment_refused_reason": null,
+    "error": null,
+    "raw_log": "results/raw/20260930T010357Z/bitrefill-gift-card-search.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T010357Z/bitrefill-gift-card-search.json"
+  },
+  "history_summary": {
+    "checks": 2,
+    "reachable": 2,
+    "x402_challenge_ok": 2,
+    "paid_checks": 0,
+    "first_checked": "2026-09-30T01:01:51Z",
+    "last_checked": "2026-09-30T01:03:58Z"
+  }
+}
