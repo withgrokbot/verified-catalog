@@ -1,0 +1,54 @@
+{
+  "service_id": "x402scan-merchants",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://www.x402scan.com/api/x402/merchants",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 206,
+    "headers": {
+      "content-length": "0",
+      "content-type": "application/json",
+      "date": "Wed, 30 Sep 2026 17:18:54 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "resource": {
+            "url": "https://www.x402scan.com/api/x402/merchants",
+            "method": "GET",
+            "description": "Paginated list of merchants (top recipients by volume)",
+            "mimeType": "application/json",
+            "tags": [
+              "X402"
+            ],
+            "serviceName": "x402scan"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "10000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x2EC4545f96A24876764bF2B04D54E66A1351bE71",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "Vercel"
+    },
+    "body_bytes": 0,
+    "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "body_excerpt": ""
+  },
+  "run_id": "20260930T171853Z",
+  "checked_at": "2026-09-30T17:18:54Z"
+}

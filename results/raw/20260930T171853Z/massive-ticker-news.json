@@ -1,0 +1,56 @@
+{
+  "service_id": "massive-ticker-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://agent.massive.com/v2/reference/news?limit=10&order=asc&sort=published_utc",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 117,
+    "headers": {
+      "content-type": "application/json",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://agent.massive.com/v2/reference/news?limit=10&order=asc&sort=published_utc",
+            "description": "Get the most recent news articles relating to a stock ticker symbol, including a summary of the article and a link to the original source. Can't find what you're looking for? POST feedback to /feedback, no charge.",
+            "mimeType": "application/json",
+            "serviceName": "Massive",
+            "tags": [
+              "news",
+              "articles",
+              "stocks"
+            ],
+            "iconUrl": "https://agent.massive.com/icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "10000",
+              "payTo": "0x525f6dDcE9aF7a7179D7696aaBfCd5FCd15a21e6",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "date": "Wed, 30 Sep 2026 17:18:53 GMT",
+      "content-length": "96"
+    },
+    "body_bytes": 96,
+    "body_sha256": "0a32141aa8c76c645d9ddb3d0fd78adc0e2076ce57832aef40013d4d41c33d5c",
+    "body_excerpt": "{\"message\":\"See the PAYMENT-REQUIRED header for the payment terms.\",\"status\":\"PAYMENT_REQUIRED\"}"
+  },
+  "run_id": "20260930T171853Z",
+  "checked_at": "2026-09-30T17:18:53Z"
+}

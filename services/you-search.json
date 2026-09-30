@@ -29,11 +29,11 @@
   },
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/you-search.html",
   "latest": {
-    "checked_at": "2026-09-30T01:04:01Z",
+    "checked_at": "2026-09-30T17:18:54Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 3828,
+    "latency_ms": 884,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.005",
@@ -44,15 +44,15 @@
     "delivered_valid": null,
     "payment_refused_reason": null,
     "error": null,
-    "raw_log": "results/raw/20260930T010357Z/you-search.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T010357Z/you-search.json"
+    "raw_log": "results/raw/20260930T171853Z/you-search.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T171853Z/you-search.json"
   },
   "history_summary": {
-    "checks": 2,
-    "reachable": 2,
-    "x402_challenge_ok": 2,
+    "checks": 3,
+    "reachable": 3,
+    "x402_challenge_ok": 3,
     "paid_checks": 0,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-09-30T01:04:01Z"
+    "last_checked": "2026-09-30T17:18:54Z"
   }
 }

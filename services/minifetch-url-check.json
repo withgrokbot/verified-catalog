@@ -29,11 +29,11 @@
   },
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/minifetch-url-check.html",
   "latest": {
-    "checked_at": "2026-09-30T01:03:58Z",
+    "checked_at": "2026-09-30T17:18:53Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 266,
+    "latency_ms": 177,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001",
@@ -44,15 +44,15 @@
     "delivered_valid": null,
     "payment_refused_reason": null,
     "error": null,
-    "raw_log": "results/raw/20260930T010357Z/minifetch-url-check.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T010357Z/minifetch-url-check.json"
+    "raw_log": "results/raw/20260930T171853Z/minifetch-url-check.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T171853Z/minifetch-url-check.json"
   },
   "history_summary": {
-    "checks": 3,
-    "reachable": 3,
-    "x402_challenge_ok": 3,
+    "checks": 4,
+    "reachable": 4,
+    "x402_challenge_ok": 4,
     "paid_checks": 0,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-09-30T01:03:58Z"
+    "last_checked": "2026-09-30T17:18:53Z"
   }
 }
