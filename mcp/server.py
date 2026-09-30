@@ -7,8 +7,8 @@ Tools:
   lookup(task?, max_price_usd?, n?, endpoint?, payer?, limit?)                 calls the reliability lookup Worker
 
 `lookup` is the only tool that uses the network: one GET to the lookup Worker with client=vc-mcp (so MCP users are
-counted as one client name, never by IP). The Worker URL comes from --lookup-url, env VC_LOOKUP_URL, or the
-catalog's lookup_url (in that order). No deps.
+counted as one client name, never by IP). The Worker URL comes from --lookup-url, env VC_LOOKUP_URL, the
+catalog's lookup_url, or DEFAULT_LOOKUP_URL (in that order); VC_LOOKUP_URL=off turns the tool off. No deps.
 Run:  python3 mcp/server.py [--catalog path/to/catalog.json] [--lookup-url https://.../]
 Not published to any registry.
 """
@@ -21,6 +21,7 @@ import urllib.request
 from decimal import Decimal, InvalidOperation
 
 MCP_CLIENT = "vc-mcp"
+DEFAULT_LOOKUP_URL = "https://verified-catalog-lookup.withgrokbot.workers.dev/"
 LOOKUP_TIMEOUT_S = 15
 
 PROTOCOL = "2025-06-18"
@@ -70,7 +71,7 @@ def search(cat, args):
 
 def lookup(cat, args, lookup_url):
     if not lookup_url:
-        return None, "The lookup endpoint is not configured yet (no --lookup-url, VC_LOOKUP_URL, or catalog lookup_url)."
+        return None, "The lookup endpoint is not configured (VC_LOOKUP_URL=off, or no --lookup-url, VC_LOOKUP_URL, catalog lookup_url or default)."
     q = {"client": MCP_CLIENT}
     if args.get("task"):
         q["task"] = str(args["task"])
@@ -172,7 +173,9 @@ def main(argv=None):
     lookup_url = None
     if "--lookup-url" in argv:
         lookup_url = argv[argv.index("--lookup-url") + 1]
-    lookup_url = lookup_url or os.environ.get("VC_LOOKUP_URL") or cat.get("lookup_url")
+    lookup_url = lookup_url or os.environ.get("VC_LOOKUP_URL") or cat.get("lookup_url") or DEFAULT_LOOKUP_URL
+    if lookup_url.strip().lower() == "off":
+        lookup_url = None
     for line in sys.stdin:
         line = line.strip()
         if not line:

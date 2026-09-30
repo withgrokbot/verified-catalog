@@ -7,8 +7,8 @@ workers_dev = true
 [vars]
 DATA_BASE_URL = "https://withgrokbot.github.io/verified-catalog/"
 SELF_CLIENTS = "withgrokbot,withgrokbot-selftest"
-# Set to the UTC date the first listing goes live (day 1 of the 14-day test), e.g. "2026-10-05".
-WEEK_EPOCH = ""
+# UTC date of test day 1 (the 14-day demand test starts 2026-10-01).
+WEEK_EPOCH = "2026-10-01"
 # CLIENT_SALT is a secret: npx wrangler secret put CLIENT_SALT
 
 # One data point per lookup (free plan: 100k writes/day, kept 3 months).

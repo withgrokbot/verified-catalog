@@ -247,6 +247,12 @@ def build(site):
         json.dump(catalog, fh, indent=2)
 
     # ---------------- index.html
+    lookup_html = ""
+    if lookup_url:
+        ex = e(lookup_url + "v1/lookup?task=web-search&max_price=0.01&n=5")
+        lookup_html = (f'<p>Reliability lookup (free JSON, no key): <a href="{ex}"><code>GET {ex}</code></a> '
+                       f'returns services for a task at or under a price, sorted by known-answer pass rate over the last n paid calls, then price, with the receipts. '
+                       f'Task names: <a href="{e(lookup_url)}v1/tasks">/v1/tasks</a>. OpenAPI: <a href="{e(lookup_url)}openapi.json">/openapi.json</a>.</p>\n')
     summ = latest.get("summary") or {}
     rows = []
     for s in data["services"]:
@@ -285,7 +291,7 @@ def build(site):
 {own}
 </ul>
 <h2>For agents</h2>
-<p>Read <a href="catalog.json">catalog.json</a> (all services with their latest result), <a href="llms.txt">llms.txt</a>, or the <a href=".well-known/agent-card.json">agent card</a>. Each service also has its own JSON at <code>services/&lt;id&gt;.json</code>.</p>
+{lookup_html}<p>Read <a href="catalog.json">catalog.json</a> (all services with their latest result), <a href="llms.txt">llms.txt</a>, or the <a href=".well-known/agent-card.json">agent card</a>. Each service also has its own JSON at <code>services/&lt;id&gt;.json</code>.</p>
 <h2>Sellers</h2>
 <p>Think a result is wrong? <a href="methodology.html#contest">Contest it</a> with a GitHub issue. We re-check and publish the raw log either way.</p>
 """

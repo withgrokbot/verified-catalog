@@ -9,7 +9,7 @@
   "methodology_url": "https://withgrokbot.github.io/verified-catalog/methodology.html",
   "contest_url": "https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md",
   "receipts_url": "https://withgrokbot.github.io/verified-catalog/receipts.json",
-  "lookup_url": null,
+  "lookup_url": "https://verified-catalog-lookup.withgrokbot.workers.dev/",
   "notes": "Factual check results only. No grades, scores or rankings. Each result is one automated check at one moment. We hold no funds and are not a party to any transaction; buyers pay sellers directly.",
   "fields": {
     "latest.reachable": "an HTTP response arrived within the timeout",

@@ -10,6 +10,8 @@
   "documentationUrl": "https://withgrokbot.github.io/verified-catalog/methodology.html",
   "catalog": "https://withgrokbot.github.io/verified-catalog/catalog.json",
   "receipts": "https://withgrokbot.github.io/verified-catalog/receipts.json",
+  "lookup_url": "https://verified-catalog-lookup.withgrokbot.workers.dev/",
+  "openapi": "https://verified-catalog-lookup.withgrokbot.workers.dev/openapi.json",
   "llms_txt": "https://withgrokbot.github.io/verified-catalog/llms.txt",
   "capabilities": {
     "streaming": false,
@@ -33,6 +35,19 @@
       ],
       "examples": [
         "web search under $0.01 that was reachable today"
+      ]
+    },
+    {
+      "id": "lookup",
+      "name": "Reliability lookup",
+      "description": "Is an endpoint reliable for task X at price <= Y? GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup?task=<task>&max_price=<usd>&n=5 returns matching services sorted by known-answer pass rate over the last n paid calls, then price, with receipts.",
+      "tags": [
+        "x402",
+        "reliability",
+        "lookup"
+      ],
+      "examples": [
+        "task=web-search&max_price=0.01"
       ]
     },
     {
