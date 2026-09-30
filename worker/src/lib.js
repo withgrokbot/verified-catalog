@@ -83,11 +83,12 @@ export function taskIndex(catalog) {
   return idx;
 }
 
-function matchesTask(s, task) {
+function matchesTask(s, task, known) {
   if (!task) return true;
   const t = slug(task);
   if ((s.tasks || []).map(slug).includes(t)) return true;
-  // fallback: every word of the task appears in the service's name, category or description
+  if (known.has(t)) return false; // a known task name matches exactly, never by description text
+  // fallback for unknown task names: every word appears in the service's name, category or description
   const hay = norm([s.id, s.name, s.category, s.description, (s.tasks || []).join(" ")].join(" "));
   const words = t.split("-").filter(Boolean);
   return words.length > 0 && words.every((w) => hay.includes(w));
@@ -156,9 +157,10 @@ export function lookup(data, q, now = Date.now()) {
   const { catalog, receipts } = data;
   const staleH = Number(receipts.stale_after_hours) || STALE_AFTER_H_DEFAULT;
   const n = q.n;
+  const known = new Set(Object.keys(taskIndex(catalog)).map(slug));
   const cands = catalog.services.filter(
     (s) =>
-      matchesTask(s, q.task) &&
+      matchesTask(s, q.task, known) &&
       matchesEndpoint(s, q.endpoint) &&
       (q.max_price === null || Number(s.advertised_price && s.advertised_price.amount_usd) <= q.max_price + 1e-12)
   );
