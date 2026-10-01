@@ -1,0 +1,192 @@
+{
+  "service_id": "exa-search",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.exa.ai/search",
+    "json_body": {
+      "numResults": 10,
+      "query": "x402 payment protocol",
+      "type": "auto"
+    },
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 338,
+    "headers": {
+      "date": "Thu, 01 Oct 2026 14:30:56 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "5833",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required to access this resource",
+          "resource": {
+            "url": "https://api.exa.ai/search",
+            "description": "Exa /search endpoint",
+            "mimeType": "application/json"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "7000",
+              "payTo": "0x6d6E695b09861467c7d462f5AAF31cF3540B9192",
+              "maxTimeoutSeconds": 60,
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "breakdown": {
+                  "search": 0.006999999999999999
+                },
+                "totalUsd": 0.006999999999999999,
+                "acceptId": "legacy"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "7000",
+              "payTo": "12Ec2cJmfR1C9uwejzxcuMhUgEC7wDrLgm1wBvvR5w9E",
+              "maxTimeoutSeconds": 60,
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "extra": {
+                "feePayer": "GVJJ7rdGiXr5xaYbRwRbjfaJL7fmwRygFi1H6aGqDveb",
+                "name": "USD Coin",
+                "version": "2",
+                "breakdown": {
+                  "search": 0.006999999999999999
+                },
+                "totalUsd": 0.006999999999999999,
+                "acceptId": "solana-usdc-mainnet"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "7000",
+              "payTo": "0xB98eF29eb2be19Ae646A8FC0248255B90A332dbC",
+              "maxTimeoutSeconds": 604900,
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x77777777dcc4d5a8b6e418fd04d8997ef11000ee",
+                "minValiditySeconds": 604800,
+                "assets": [
+                  {
+                    "symbol": "USDC",
+                    "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "decimals": 6
+                  }
+                ],
+                "breakdown": {
+                  "search": 0.006999999999999999
+                },
+                "totalUsd": 0.006999999999999999,
+                "acceptId": "base-usdc-gateway"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:480",
+              "amount": "7000",
+              "payTo": "0xB98eF29eb2be19Ae646A8FC0248255B90A332dbC",
+              "maxTimeoutSeconds": 604900,
+              "asset": "0x79A02482A880bCE3F13e09Da970dC34db4CD24d1",
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x77777777dcc4d5a8b6e418fd04d8997ef11000ee",
+                "minValiditySeconds": 604800,
+                "assets": [
+                  {
+                    "symbol": "USDC",
+                    "address": "0x79a02482a880bce3f13e09da970dc34db4cd24d1",
+                    "decimals": 6
+                  }
+                ],
+                "breakdown": {
+                  "search": 0.006999999999999999
+                },
+                "totalUsd": 0.006999999999999999,
+                "acceptId": "worldchain-usdc-gateway"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:5042",
+              "amount": "7000",
+              "payTo": "0xB98eF29eb2be19Ae646A8FC0248255B90A332dbC",
+              "maxTimeoutSeconds": 604900,
+              "asset": "0x3600000000000000000000000000000000000000",
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x77777777dcc4d5a8b6e418fd04d8997ef11000ee",
+                "minValiditySeconds": 604800,
+                "assets": [
+                  {
+                    "symbol": "USDC",
+                    "address": "0x3600000000000000000000000000000000000000",
+                    "decimals": 6
+                  }
+                ],
+                "breakdown": {
+                  "search": 0.006999999999999999
+                },
+                "totalUsd": 0.006999999999999999,
+                "acceptId": "arc-usdc-gateway"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:5042",
+              "amount": "7000",
+              "payTo": "0xB98eF29eb2be19Ae646A8FC0248255B90A332dbC",
+              "maxTimeoutSeconds": 3600,
+              "asset": "0x3600000000000000000000000000000000000000",
+              "extra": {
+                "assetTransferMethod": "eip3009",
+                "name": "USDC",
+                "version": "2",
+                "breakdown": {
+                  "search": 0.006999999999999999
+                },
+                "totalUsd": 0.006999999999999999,
+                "acceptId": "arc-usdc-circle"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "7000",
+              "payTo": "0xB98eF29eb2be19Ae646A8FC0248255B90A332dbC",
+              "maxTimeoutSeconds": 3600,
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "extra": {
+                "assetTransferMethod": "eip3009",
+                "name": "USD Coin",
+                "version": "2",
+                "breakdown": {
+                  "search": 0.006999999999999999
+                },
+                "totalUsd": 0.006999999999999999,
+                "acceptId": "base-usdc-circle"
+              }
+            }
+          ]
+        }
+      },
+      "www-authenticate": "Payment id=\"3Ph8NDUAxbsOzu0TYtIaB-KbQc-TxHUTPYKxGBdjwRs\", realm=\"api.exa.ai\", method=\"tempo\", intent=\"charge\", request=\"eyJhbW91bnQiOiI3MDAwIiwiY3VycmVuY3kiOiIweDIwQzAwMDAwMDAwMDAwMDAwMDAwMDAwMGI5NTM3ZDExYzYwRThiNTAiLCJtZXRob2REZXRhaWxzIjp7ImNoYWluSWQiOjQyMTcsImZlZVBheWVyIjp0cnVlLCJzdXBwb3J0ZWRNb2RlcyI6WyJwdWxsIl19LCJyZWNpcGllbnQiOiIweEI5OGVGMjllYjJiZTE5QWU2NDZBOEZDMDI0ODI1NUI5MEEzMzJkYkMifQ\", description=\"Exa /search endpoint\", expires=\"2026-10-01T14:35:56.780Z\", opaque=\"eyJfbXBweF9zY29wZSI6IlB",
+      "server": "cloudflare"
+    },
+    "body_bytes": 5833,
+    "body_sha256": "200a5ba6d0d100e68e8c47688adb10600f4162718cf07ae1c8b49931d98f7145",
+    "body_excerpt": "{\"requestId\":\"dd4426f810ae8c99593a1b2921eeccd0\",\"error\":\"Payment required to access this resource\",\"tag\":\"X402_PAYMENT_REQUIRED\",\"x402Version\":2,\"resource\":{\"url\":\"https://api.exa.ai/search\",\"description\":\"Exa /search endpoint\",\"mimeType\":\"application/json\"},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"7000\",\"payTo\":\"0x6d6E695b09861467c7d462f5AAF31cF3540B9192\",\"maxTimeoutSeconds\":60,\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"breakdown\":{\"search\":0.006999999999999999},\"totalUsd\":0.006999999999999999,\"acceptId\":\"legacy\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"amount\":\"7000\",\"payTo\":\"12Ec2cJmfR1C9uwejzxcuMhUgEC7wDrLgm1wBvvR5w9E\",\"maxTimeoutSeconds\":60,\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"extra\":{\"feePayer\":\"GVJJ7rdGiXr5xaYbRwRbjfaJL7fmwRygFi1H6aGqDveb\",\"name\":\"USD Coin\",\"version\":\"2\",\"breakdown\":{\"search\":0.006999999999999999},\"totalUsd\":0.006999999999999999,\"acceptId\":\"solana-usdc-mainnet\"}},{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"7000\",\"payTo\":\"0xB98eF29eb2be19Ae646A8FC0248255B90A332dbC\",\"maxTimeoutSeconds\":604900,\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"extra\":{\"name\":\"GatewayWalletBatched\",\"version\":\"1\",\"verifyingContract\":\"0x77777777dcc4d5a8b6e418fd04d8997ef11000ee\",\"minValiditySeconds\":604800,\"assets\":[{\"symbol\":\"USDC\",\"address\":\"0x833589fcd6edb6e08f4c7c32d4f71b54bda02913\",\"decimals\":6}],\"breakdown\":{\"search\":0.006999999999999999},\"totalUsd\":0.006999999999999999,\"acceptId\":\"base-usdc-gateway\"}},{\"scheme\":\"exact\",\"network\":\"eip155:480\",\"amount\":\"7000\",\"payTo\":\"0xB98eF29eb2be19Ae646A8FC0248255B90A332dbC\",\"maxTimeoutSeconds\":604900,\"asset\":\"0x79A02482A880bCE3F13e09Da970dC34db4CD24d1\",\"extra\":{\"name\":\"GatewayWalletBatched\",\"version\":\"1\",\"verifyingContract\":\"0x77777777dcc4d5a8b6e418fd04d8997ef11000ee\",\"minValiditySeconds\":604800,\"assets\":[{\"symbol\":\"USDC\",\"address\":\"0x79a02482a880bce3f13e09da970dc34db4cd24d1\",\"decimals\":6}],\"breakdown\":{\"search\":0.006999999999999999},\"totalUsd\":0.006999999999999999,\"acceptId\":\"worldchain-usdc-gateway\"}},{\"scheme\":\"exact\",\"network\":\"eip155:5042\",\"amount\":\"7000\",\"payTo\":\"0xB98eF29eb2be19Ae646A8FC0248255B90A332dbC\",\"maxTimeoutSeconds\":604900,\"asset\":\"0x3600000000000000000000000000000000000000\",\"extra\":{\"name\":\"GatewayWalletBatched\",\"version\":\"1\",\"verifyingContract\":\"0x77777777dcc4d5a8b6e418fd04d8997ef11000ee\",\"minValiditySeconds\":604800,\"assets\":[{\"symbol\":\"USDC\",\"address\":\"0x3600000000000000000000000000000000000000\",\"decimals\":6}],\"breakdown\":{\"search\":0.006999999999999999},\"totalUsd\":0.006999999999999999,\"acceptId\":\"arc-usdc-gateway\"}},{\"scheme\":\"exact\",\"network\":\"eip155:5042\",\"amount\":\"7000\",\"payTo\":\"0xB98eF29eb2be19Ae646A8FC0248255B90A332dbC\",\"maxTimeoutSeconds\":3600,\"asset\":\"0x3600000000000000000000000000000000000000\",\"extra\":{\"assetTransferMethod\":\"eip3009\",\"name\":\"USDC\",\"version\":\"2\",\"breakdown\":{\"search\":0.006999999999999999},\"totalUsd\":0.006999999999999999,\"acceptId\":\"arc-usdc-circle\"}},{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"7000\",\"payTo\":\"0xB98eF29eb2be19Ae646A8FC0248255B90A332dbC\",\"maxTimeoutSeconds\":3600,\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"extra\":{\"assetTransferMethod\":\"eip3009\",\"name\":\"USD Coin\",\"version\":\"2\",\"breakdown\":{\"search\":0.006999999999999999},\"totalUsd\":0.006999999999999999,\"acceptId\":\"base-usdc-circle\"}}],\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"type\":\"http\",\"bodyType\":\"json\",\"body\":{\"query\":\"example search query\",\"numResults\":10,\"type\":\"auto\"},\"method\":\"POST\"},\"output\":{\"type\":\"json\",\"example\":{\"results\":[{\"url\":\"https://example.com\",\"title\":\"Example\",\"score\":0.99}]}}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"POST\"]},\"bodyType\":{\"type\":\"string\",\"enum\":[\"json\",\"form-data\",\"text\"]},\"body\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Search query\"},\"numResults\":{\"type\":\"number\",\"description\":\"Number of "
+  },
+  "run_id": "20261001T143056Z",
+  "checked_at": "2026-10-01T14:30:56Z"
+}

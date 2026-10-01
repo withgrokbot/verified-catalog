@@ -22,21 +22,21 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-28 09:34:55.243 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-09-30 20:54:09 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>paid</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-01 14:30:56 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>191 ms</td></tr>
+<tr><th scope="row">Latency</th><td>116 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.003 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.003</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>$0.003</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>passed (balance equals public-RPC balanceOf at block 26092813)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.003, batch-settlement on eip155:8453: $0.003.</p>
-<p>Evidence: <a href="../results/raw/20260930T205409Z/onesource-erc20-balance.json">raw log for this check</a>. Machine-readable: <a href="onesource-erc20-balance.json">onesource-erc20-balance.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261001T143056Z/onesource-erc20-balance.json">raw log for this check</a>. Machine-readable: <a href="onesource-erc20-balance.json">onesource-erc20-balance.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: USDT balance of vitalik.eth (0xd8da...6045) on Ethereum. Passes if: balance equals balanceOf from a free public Ethereum RPC at one of the 6 newest blocks when we check.</p>
 <h2>Paid calls</h2>
@@ -50,6 +50,7 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-01 14:30:56 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>116 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261001T143056Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-09-30 20:54:09 UTC</td><td>paid</td><td>yes</td><td>402</td><td>191 ms</td><td>$0.003</td><td>yes</td><td><a href="../results/raw/20260930T205409Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-09-30 17:45:08 UTC</td><td>paid</td><td>yes</td><td>402</td><td>246 ms</td><td>$0.003</td><td>yes</td><td><a href="../results/raw/20260930T174508Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-09-30 17:18:53 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>149 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20260930T171853Z/onesource-erc20-balance.json">raw log</a></td></tr>

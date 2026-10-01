@@ -38,36 +38,31 @@
   },
   "paid_receipts": 2,
   "latest": {
-    "checked_at": "2026-09-30T20:54:28Z",
-    "mode": "paid",
+    "checked_at": "2026-10-01T14:30:57Z",
+    "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 195,
+    "latency_ms": 210,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001",
     "quoted_price_usd": "0.001",
     "price_matches_listing": true,
-    "paid": true,
-    "charged_price_usd": "0.001",
-    "delivered_valid": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
     "payment_refused_reason": null,
     "error": null,
-    "quality": {
-      "result": "pass",
-      "reason": "within 0.1 C of open-meteo.com",
-      "facts_only": false,
-      "graded_at": "2026-09-30T20:54:30Z"
-    },
-    "raw_log": "results/raw/20260930T205409Z/x402tap-weather.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20260930T205409Z/x402tap-weather.json"
+    "quality": null,
+    "raw_log": "results/raw/20261001T143056Z/x402tap-weather.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261001T143056Z/x402tap-weather.json"
   },
   "history_summary": {
-    "checks": 5,
-    "reachable": 5,
-    "x402_challenge_ok": 5,
+    "checks": 6,
+    "reachable": 6,
+    "x402_challenge_ok": 6,
     "paid_checks": 2,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-09-30T20:54:28Z"
+    "last_checked": "2026-10-01T14:30:57Z"
   }
 }
