@@ -1,0 +1,89 @@
+{
+  "service_id": "x402scan-merchants",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://www.x402scan.com/api/x402/merchants",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 196,
+    "headers": {
+      "content-length": "0",
+      "content-type": "application/json",
+      "date": "Fri, 02 Oct 2026 18:49:08 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "resource": {
+            "url": "https://www.x402scan.com/api/x402/merchants",
+            "method": "GET",
+            "description": "Paginated list of merchants (top recipients by volume)",
+            "mimeType": "application/json",
+            "tags": [
+              "X402"
+            ],
+            "serviceName": "x402scan"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "10000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x2EC4545f96A24876764bF2B04D54E66A1351bE71",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "Vercel"
+    },
+    "body_bytes": 0,
+    "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "body_excerpt": ""
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1531,
+    "headers": {
+      "content-type": "application/json",
+      "date": "Fri, 02 Oct 2026 18:49:09 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x62b34c8526e1186b754445f0a51b4d04e0991c3d43b1f039d023c32ffdd0f611",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "Vercel"
+    },
+    "body_bytes": 2588,
+    "body_sha256": "8de8627bb87357b5df933f452a3ff4c90abddf8d20b03fcbfefe0045171c1a15",
+    "body_excerpt": "{\"data\":[{\"recipient\":\"0xf7b1356cfed0eebe01d76da7ba9e9f8bf12d9d57\",\"facilitator_ids\":[\"coinbase\",\"daydreams\",\"openx402\",\"payAI\",\"x402rs\"],\"tx_count\":12375513,\"total_amount\":11514056400000,\"latest_block_timestamp\":\"2025-11-28T04:04:29.000Z\",\"unique_buyers\":12827,\"chains\":[\"base\"]},{\"recipient\":\"0x07737a1fb3863202bcd3c7408b801eed68604d39\",\"facilitator_ids\":[\"coinbase\",\"heurist\"],\"tx_count\":886059,\"total_amount\":6997809190000,\"latest_block_timestamp\":\"2026-08-31T12:09:07.000Z\",\"unique_buyers\":97,\"chains\":[\"base\"]},{\"recipient\":\"0xef4364fe4487353df46eb7c811d4fac78b856c7f\",\"facilitator_ids\":[\"coinbase\",\"virtuals\"],\"tx_count\":2362715,\"total_amount\":4884576035475,\"latest_block_timestamp\":\"2026-09-28T04:26:45.000Z\",\"unique_buyers\":25227,\"chains\":[\"base\"]},{\"recipient\":\"DevFFyNWxZPtYLpEjzUnN1PFc9Po6PH7eZCi9f3tTkTw\",\"facilitator_ids\":[\"dexter\",\"relai\"],\"tx_count\":25915820,\"total_amount\":4706170467978,\"latest_block_timestamp\":\"2026-04-09T16:30:07.000Z\",\"unique_buyers\":12751,\"chains\":[\"solana\"]},{\"recipient\":\"0x5e50d23ec14ea4436582029a25313e5048e01d10\",\"facilitator_ids\":[\"coinbase\",\"daydreams\",\"openx402\",\"payAI\",\"x402rs\"],\"tx_count\":8904262,\"total_amount\":2737839333000,\"latest_block_timestamp\":\"2026-08-30T21:24:45.000Z\",\"unique_buyers\":23107,\"chains\":[\"base\"]},{\"recipient\":\"0x45a33ac6db4455460b364a1fc1ae8c489bc644a7\",\"facilitator_ids\":[\"coinbase\",\"daydreams\",\"openx402\",\"payAI\",\"x402rs\"],\"tx_count\":10921576,\"total_amount\":2597254983200,\"latest_block_timestamp\":\"2025-11-28T04:04:29.000Z\",\"unique_buyers\":598,\"chains\":[\"base\"]},{\"recipient\":\"0x4e9bce2547a9491b09ed092c433b19888e665edb\",\"facilitator_ids\":[\"coinbase\",\"daydreams\",\"openx402\",\"payAI\",\"thirdweb\",\"x402rs\"],\"tx_count\":6467161,\"total_amount\":2058988635000,\"latest_block_timestamp\":\"2025-11-28T04:04:27.000Z\",\"unique_buyers\":9923,\"chains\":[\"base\"]},{\"recipient\":\"0x8e7769d440b3460b92159dd9c6d17302b036e2d6\",\"facilitator_ids\":[\"mrdn\"],\"tx_count\":62394,\"total_amount\":1611117562669,\"latest_block_timestamp\":\"2026-07-13T18:12:33.000Z\",\"unique_buyers\":50,\"chains\":[\"base\"]},{\"recipient\":\"8VBmdiVAffkhE1hpLZkStAgT8a3eJQm4hExUhPEtN73E\",\"facilitator_ids\":[\"payAI\"],\"tx_count\":2580217,\"total_amount\":1246649250000,\"latest_block_timestamp\":\"2026-02-27T13:33:50.000Z\",\"unique_buyers\":425,\"chains\":[\"solana\"]},{\"recipient\":\"0x27599d824bbb4f506f985af865d840f61ba848c8\",\"facilitator_ids\":[\"coinbase\",\"daydreams\",\"openx402\",\"payAI\"],\"tx_count\":6634771,\"total_amount\":663477100000,\"latest_block_timestamp\":\"2026-01-12T09:40:55.000Z\",\"unique_buyers\":3925,\"chains\":[\"base\"]}],\"pagination\":{\"page\":0,\"page_size\":10,\"has_next_page\":true}}"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "10 entries, sorted by volume, each with an address",
+    "observed": {
+      "entries": 10,
+      "entries_without_address": 0
+    },
+    "expected": {},
+    "test": {
+      "input": "none",
+      "pass_if": "non-empty, sorted by volume (total_amount, largest first), each entry has an address"
+    },
+    "graded_at": "2026-10-02T18:49:09Z"
+  },
+  "run_id": "20261002T184842Z",
+  "checked_at": "2026-10-02T18:49:08Z"
+}

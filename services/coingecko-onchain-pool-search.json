@@ -40,33 +40,38 @@
     "facts_only": false,
     "facts_only_reason": null
   },
-  "paid_receipts": 2,
+  "paid_receipts": 3,
   "latest": {
-    "checked_at": "2026-10-02T14:29:30Z",
-    "mode": "dry-run",
+    "checked_at": "2026-10-02T18:48:53Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 120,
+    "latency_ms": 87,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.01",
     "quoted_price_usd": "0.01",
     "price_matches_listing": true,
-    "paid": false,
-    "charged_price_usd": null,
-    "delivered_valid": null,
+    "paid": true,
+    "charged_price_usd": "0.01",
+    "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
-    "quality": null,
-    "raw_log": "results/raw/20261002T142930Z/coingecko-onchain-pool-search.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261002T142930Z/coingecko-onchain-pool-search.json"
+    "quality": {
+      "result": "pass",
+      "reason": "pool eth_0x4e68ccd3e89f51c3074ca5072bbac773960dfa36 has WETH as base token",
+      "facts_only": false,
+      "graded_at": "2026-10-02T18:48:55Z"
+    },
+    "raw_log": "results/raw/20261002T184842Z/coingecko-onchain-pool-search.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261002T184842Z/coingecko-onchain-pool-search.json"
   },
   "history_summary": {
-    "checks": 7,
-    "reachable": 7,
-    "x402_challenge_ok": 7,
-    "paid_checks": 2,
+    "checks": 8,
+    "reachable": 8,
+    "x402_challenge_ok": 8,
+    "paid_checks": 3,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-10-02T14:29:30Z"
+    "last_checked": "2026-10-02T18:48:53Z"
   }
 }

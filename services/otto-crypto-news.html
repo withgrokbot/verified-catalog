@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 20:30:54.933 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-02 14:29:31 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-02 18:48:47 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>496 ms</td></tr>
+<tr><th scope="row">Latency</th><td>368 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.001 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.001</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.001</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>passed (10 items with source URLs; newest 1.2 h old)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.001, exact on eip155:8453: $0.001, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 1000 units of EPjFWdd5Aufq.</p>
-<p>Evidence: <a href="../results/raw/20261002T142930Z/otto-crypto-news.json">raw log for this check</a>. Machine-readable: <a href="otto-crypto-news.json">otto-crypto-news.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261002T184842Z/otto-crypto-news.json">raw log for this check</a>. Machine-readable: <a href="otto-crypto-news.json">otto-crypto-news.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: none. Passes if: at least 5 items, each with a source URL; newest item under 3 h old (the listing says hourly).</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-10-02 18:48:47 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>passed (10 items with source URLs; newest 1.2 h old)</td><td><a href="https://basescan.org/tx/0xf1f1be2f8382722f9d9acb8476b5718e6806b3b122075bf6b16952878a46ae68">0xf1f1be2f...</a></td></tr>
 <tr><td>2026-09-30 20:54:13 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>passed (10 items with source URLs; newest 1.7 h old)</td><td><a href="https://basescan.org/tx/0x13ce0fc1db7fa45c1b5e37dabfdcce7a7862e16b7a455027e58f615b9445bcd5">0x13ce0fc1...</a></td></tr>
 <tr><td>2026-09-30 17:45:12 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>no pass/fail (this paid call was made before the known-answer tests existed)</td><td><a href="https://basescan.org/tx/0x8e7a0b6f318f7790331e3c6f6c9993eb4e10d7cd1e1e404a7b9af7999e4692a6">0x8e7a0b6f...</a></td></tr>
 </tbody></table></div>
@@ -50,6 +51,7 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-02 18:48:47 UTC</td><td>paid</td><td>yes</td><td>402</td><td>368 ms</td><td>$0.001</td><td>yes</td><td><a href="../results/raw/20261002T184842Z/otto-crypto-news.json">raw log</a></td></tr>
 <tr><td>2026-10-02 14:29:31 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>496 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261002T142930Z/otto-crypto-news.json">raw log</a></td></tr>
 <tr><td>2026-10-01 14:30:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>797 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261001T143056Z/otto-crypto-news.json">raw log</a></td></tr>
 <tr><td>2026-09-30 20:54:13 UTC</td><td>paid</td><td>yes</td><td>402</td><td>232 ms</td><td>$0.001</td><td>yes</td><td><a href="../results/raw/20260930T205409Z/otto-crypto-news.json">raw log</a></td></tr>

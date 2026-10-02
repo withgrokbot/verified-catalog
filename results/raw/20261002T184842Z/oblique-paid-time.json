@@ -1,0 +1,146 @@
+{
+  "service_id": "oblique-paid-time",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.oblique.markets/api/v1/paid/time",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 73,
+    "headers": {
+      "date": "Fri, 02 Oct 2026 18:48:52 GMT",
+      "content-type": "application/json",
+      "content-length": "3684",
+      "www-authenticate": "Payment id=\"N6zIr-x3uIE-NZ5ugn4_u8XHoIhvHAPGN3EAS3Rqxyc\", realm=\"api.oblique.markets\", method=\"tempo\", intent=\"charge\", request=\"eyJhbW91bnQiOiIxMDAwMCIsImN1cnJlbmN5IjoiMHgyMGMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwiZGVzY3JpcHRpb24iOiJVc2Ugd2hlbiBhbiBhZ2VudCBuZWVkcyBhIHRydXN0ZWQgVVRDIHRpbWVzdGFtcCBvciB0aGUgc21hbGxlc3QgZW5kLXRvLWVuZCB0ZXN0IG9mIGl0cyB4NDAyIHBheW1lbnQgY2xpZW50LiBSZXR1cm5zIEN1cnJlbnQgc2VydmVyIHRpbWUgYXMgSVNPIDg2MDEgYW5kIFVuaXggZXBvY2ggbWlsbGlzZWNvbmRzLCByZXR1cm5lZCBvbmx",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://api.oblique.markets/api/v1/paid/time",
+            "description": "Use when an agent needs a trusted UTC timestamp or the smallest end-to-end test of its x402 payment client. Returns Current server time as ISO 8601 and Unix epoch milliseconds, returned only after a real settlement. $0.01.",
+            "mimeType": "application/json",
+            "serviceName": "Oblique Markets",
+            "iconUrl": "https://oblique.markets/icon.png",
+            "tags": [
+              "time",
+              "clock",
+              "timestamp",
+              "x402-test",
+              "utility"
+            ]
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "10000",
+              "maxAmountRequired": "10000",
+              "maxTimeoutSeconds": 60,
+              "resource": "https://api.oblique.markets/api/v1/paid/time",
+              "description": "Use when an agent needs a trusted UTC timestamp or the smallest end-to-end test of its x402 payment client. Returns Current server time as ISO 8601 and Unix epoch milliseconds, returned only after a real settlement. $0.01.",
+              "payTo": "0x970007590aCC5C938cd51345B17AF51B1B40D3Ab",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "bazaar": {
+                  "enabled": true,
+                  "category": "utility",
+                  "tags": [
+                    "time",
+                    "clock",
+                    "timestamp",
+                    "x402-test",
+                    "utility"
+                  ],
+                  "serviceName": "Oblique Markets",
+                  "iconUrl": "https://oblique.markets/icon.png",
+                  "description": "Use when an agent needs a trusted UTC timestamp or the smallest end-to-end test of its x402 payment client. Returns Current server time as ISO 8601 and Unix epoch milliseconds, returned only after a real settlement. $0.01."
+                }
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "10000",
+              "maxTimeoutSeconds": 60,
+              "maxAmountRequired": "10000",
+              "resource": "https://api.oblique.markets/api/v1/paid/time",
+              "description": "Use when an agent needs a trusted UTC timestamp or the smallest end-to-end test of its x402 payment client. Returns Current server time as ISO 8601 and Unix epoch milliseconds, returned only after a real settlement. $0.01.",
+              "payTo": "GYyTRmt317JafPHXPnM54Fsvsma5GnS9wm6qGMqaykdS",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "extra": {
+                "feePayer": "GVJJ7rdGiXr5xaYbRwRbjfaJL7fmwRygFi1H6aGqDveb",
+                "name": "USD Coin",
+                "bazaar": {
+                  "enabled": true,
+                  "category": "utility",
+                  "tags": [
+                    "time",
+                    "clock",
+                    "timestamp",
+                    "x402-test",
+                    "utility"
+                  ],
+                  "serviceName": "Oblique Markets",
+                  "iconUrl": "https://oblique.markets/icon.png",
+                  "description": "Use when an agent needs a trusted UTC timestamp or the smallest end-to-end test of its x402 payment client. Returns Current server time as ISO 8601 and Unix epoch milliseconds, returned only after a real settlement. $0.01."
+                }
+              }
+            }
+          ]
+        }
+      },
+      "x-payment-amount": "$0.01",
+      "server": "cloudflare"
+    },
+    "body_bytes": 3684,
+    "body_sha256": "c819756599fba8b9f8ef40ee87f1349038769a107c7ea028a5c9f9aa5c775190",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{\"url\":\"https://api.oblique.markets/api/v1/paid/time\",\"description\":\"Use when an agent needs a trusted UTC timestamp or the smallest end-to-end test of its x402 payment client. Returns Current server time as ISO 8601 and Unix epoch milliseconds, returned only after a real settlement. $0.01.\",\"mimeType\":\"application/json\",\"serviceName\":\"Oblique Markets\",\"iconUrl\":\"https://oblique.markets/icon.png\",\"tags\":[\"time\",\"clock\",\"timestamp\",\"x402-test\",\"utility\"]},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"10000\",\"maxAmountRequired\":\"10000\",\"maxTimeoutSeconds\":60,\"resource\":\"https://api.oblique.markets/api/v1/paid/time\",\"description\":\"Use when an agent needs a trusted UTC timestamp or the smallest end-to-end test of its x402 payment client. Returns Current server time as ISO 8601 and Unix epoch milliseconds, returned only after a real settlement. $0.01.\",\"payTo\":\"0x970007590aCC5C938cd51345B17AF51B1B40D3Ab\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"bazaar\":{\"enabled\":true,\"category\":\"utility\",\"tags\":[\"time\",\"clock\",\"timestamp\",\"x402-test\",\"utility\"],\"serviceName\":\"Oblique Markets\",\"iconUrl\":\"https://oblique.markets/icon.png\",\"description\":\"Use when an agent needs a trusted UTC timestamp or the smallest end-to-end test of its x402 payment client. Returns Current server time as ISO 8601 and Unix epoch milliseconds, returned only after a real settlement. $0.01.\",\"output\":{\"type\":\"json\",\"example\":{\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"epoch\":1767225600000,\"timezone\":\"UTC\",\"message\":\"This response was paid for via x402 protocol\"}}}}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"amount\":\"10000\",\"maxTimeoutSeconds\":60,\"maxAmountRequired\":\"10000\",\"resource\":\"https://api.oblique.markets/api/v1/paid/time\",\"description\":\"Use when an agent needs a trusted UTC timestamp or the smallest end-to-end test of its x402 payment client. Returns Current server time as ISO 8601 and Unix epoch milliseconds, returned only after a real settlement. $0.01.\",\"payTo\":\"GYyTRmt317JafPHXPnM54Fsvsma5GnS9wm6qGMqaykdS\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"extra\":{\"feePayer\":\"GVJJ7rdGiXr5xaYbRwRbjfaJL7fmwRygFi1H6aGqDveb\",\"name\":\"USD Coin\",\"bazaar\":{\"enabled\":true,\"category\":\"utility\",\"tags\":[\"time\",\"clock\",\"timestamp\",\"x402-test\",\"utility\"],\"serviceName\":\"Oblique Markets\",\"iconUrl\":\"https://oblique.markets/icon.png\",\"description\":\"Use when an agent needs a trusted UTC timestamp or the smallest end-to-end test of its x402 payment client. Returns Current server time as ISO 8601 and Unix epoch milliseconds, returned only after a real settlement. $0.01.\",\"output\":{\"type\":\"json\",\"example\":{\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"epoch\":1767225600000,\"timezone\":\"UTC\",\"message\":\"This response was paid for via x402 protocol\"}}}}}],\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"type\":\"http\",\"method\":\"GET\",\"queryParams\":{}},\"output\":{\"type\":\"json\",\"example\":{\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"epoch\":1767225600000,\"timezone\":\"UTC\",\"message\":\"This response was paid for via x402 protocol\"}}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"GET\",\"HEAD\",\"DELETE\"]},\"queryParams\":{\"type\":\"object\",\"properties\":{}}},\"required\":[\"type\",\"method\"],\"additionalProperties\":false},\"output\":{\"type\":\"object\",\"properties\":{\"timestamp\":{\"type\":\"string\"},\"epoch\":{\"type\":\"integer\"},\"timezone\":{\"type\":\"string\"},\"message\":{\"type\":\"string\"}}}},\"required\":[\"input\"]}}}}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 985,
+    "headers": {
+      "date": "Fri, 02 Oct 2026 18:48:53 GMT",
+      "content-type": "application/json",
+      "content-length": "136",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x7b28f874570acf1f43fd1cd51148511edf7616ee8bf8f7353488266a0cf4c53e",
+          "network": "eip155:8453"
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 136,
+    "body_sha256": "4897f03aeaeaab3fe64b9a73bdf116e40483a9311603a3958dba670800ec1f77",
+    "body_excerpt": "{\"timestamp\":\"2026-10-02T18:48:52.430Z\",\"epoch\":1790966932430,\"timezone\":\"UTC\",\"message\":\"This response was paid for via x402 protocol\"}"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "epoch within 5 s of our clock; ISO and epoch agree",
+    "observed": {
+      "epoch_s": 1790966932.43,
+      "iso": "2026-10-02T18:48:52.430Z",
+      "our_clock": [
+        "2026-10-02T18:48:52Z",
+        "2026-10-02T18:48:53Z"
+      ]
+    },
+    "expected": {},
+    "test": {
+      "input": "none",
+      "pass_if": "epoch within 5 s of our clock while the request was open; ISO time and epoch agree"
+    },
+    "graded_at": "2026-10-02T18:48:53Z"
+  },
+  "run_id": "20261002T184842Z",
+  "checked_at": "2026-10-02T18:48:52Z"
+}

@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 15:07:33.873 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-02 14:29:31 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-02 18:48:49 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>697 ms</td></tr>
+<tr><th scope="row">Latency</th><td>155 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.002 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.002</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.002</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>passed (result named &#x27;Amazon.com USA&#x27;)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.002, exact on eip155:42161: 2000 units of 0xaf88d065e7, exact on eip155:137: 2000 units of 0x3c499c542c, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 2000 units of EPjFWdd5Aufq.</p>
-<p>Evidence: <a href="../results/raw/20261002T142930Z/bitrefill-gift-card-search.json">raw log for this check</a>. Machine-readable: <a href="bitrefill-gift-card-search.json">bitrefill-gift-card-search.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261002T184842Z/bitrefill-gift-card-search.json">raw log for this check</a>. Machine-readable: <a href="bitrefill-gift-card-search.json">bitrefill-gift-card-search.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: q=amazon, country=US. Passes if: a result named &quot;Amazon...&quot;.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-10-02 18:48:49 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>passed (result named &#x27;Amazon.com USA&#x27;)</td><td><a href="https://basescan.org/tx/0xcc6f1dc5fc62b2a8539750f651fd2a87999f129df064f1aafcb0544e1f3b7688">0xcc6f1dc5...</a></td></tr>
 <tr><td>2026-09-30 20:54:15 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>passed (result named &#x27;Amazon.com USA&#x27;)</td><td><a href="https://basescan.org/tx/0x3c81b69c3de028b141046da6f39a91a61c954643b4bb771b9031f6bc7c52c130">0x3c81b69c...</a></td></tr>
 <tr><td>2026-09-30 17:45:14 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>no pass/fail (this paid call was made before the known-answer tests existed)</td><td><a href="https://basescan.org/tx/0x68141640c9a8d13f1e5c00f9336128a14466f633f964c821305346e85ec7fc0f">0x68141640...</a></td></tr>
 </tbody></table></div>
@@ -50,6 +51,7 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-02 18:48:49 UTC</td><td>paid</td><td>yes</td><td>402</td><td>155 ms</td><td>$0.002</td><td>yes</td><td><a href="../results/raw/20261002T184842Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
 <tr><td>2026-10-02 14:29:31 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>697 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261002T142930Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
 <tr><td>2026-10-01 14:30:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>630 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261001T143056Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
 <tr><td>2026-09-30 20:54:15 UTC</td><td>paid</td><td>yes</td><td>402</td><td>166 ms</td><td>$0.002</td><td>yes</td><td><a href="../results/raw/20260930T205409Z/bitrefill-gift-card-search.json">raw log</a></td></tr>

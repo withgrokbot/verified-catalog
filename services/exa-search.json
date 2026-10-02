@@ -39,33 +39,38 @@
     "facts_only": false,
     "facts_only_reason": null
   },
-  "paid_receipts": 2,
+  "paid_receipts": 3,
   "latest": {
-    "checked_at": "2026-10-02T14:29:30Z",
-    "mode": "dry-run",
+    "checked_at": "2026-10-02T18:48:44Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 119,
+    "latency_ms": 117,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.007",
     "quoted_price_usd": "0.007",
     "price_matches_listing": true,
-    "paid": false,
-    "charged_price_usd": null,
-    "delivered_valid": null,
+    "paid": true,
+    "charged_price_usd": "0.007",
+    "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
-    "quality": null,
-    "raw_log": "results/raw/20261002T142930Z/exa-search.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261002T142930Z/exa-search.json"
+    "quality": {
+      "result": "pass",
+      "reason": "4 result URL(s) on x402.org or github.com/coinbase/x402",
+      "facts_only": false,
+      "graded_at": "2026-10-02T18:48:47Z"
+    },
+    "raw_log": "results/raw/20261002T184842Z/exa-search.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261002T184842Z/exa-search.json"
   },
   "history_summary": {
-    "checks": 7,
-    "reachable": 7,
-    "x402_challenge_ok": 7,
-    "paid_checks": 2,
+    "checks": 8,
+    "reachable": 8,
+    "x402_challenge_ok": 8,
+    "paid_checks": 3,
     "first_checked": "2026-09-30T01:01:50Z",
-    "last_checked": "2026-10-02T14:29:30Z"
+    "last_checked": "2026-10-02T18:48:44Z"
   }
 }

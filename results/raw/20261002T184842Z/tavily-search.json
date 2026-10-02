@@ -1,0 +1,104 @@
+{
+  "service_id": "tavily-search",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "POST",
+    "url": "https://x402.tavily.com/search",
+    "json_body": {
+      "max_results": 5,
+      "query": "x402 payment protocol",
+      "search_depth": "advanced"
+    },
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 1180,
+    "headers": {
+      "date": "Fri, 02 Oct 2026 18:48:56 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "54",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment header is required",
+          "resource": {
+            "url": "https://x402.tavily.com/search",
+            "description": "Tavily Search - advanced mode",
+            "mimeType": "application/json"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "10000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0xe13fbb3563179b626190a1632c192f5b1d223962",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "terms": "By using the Tavily solution, you agree to be bound by the Terms of Use (https://tavily.com/terms) and Privacy Policy (https://tavily.com/privacy) and accept that Tavily disclaims any liability with regard to the AI agent and cryptocurrency payments.",
+                "tier": "advanced"
+              }
+            },
+            {
+              "scheme": "agent-pay",
+              "network": "aws:base",
+              "amount": "0.016",
+              "asset": "iso4217:USD",
+              "payTo": "urn:x402:agent-pay:see-quote",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "reference": "tavily-search-advanced",
+                "settlement": {
+                  "product_id": "prod-maeet6sajeg42"
+                },
+                "tier": "advanced",
+                "quoteToken": "eyJhbGciOiJFUzM4NCIsInR5cCI6IkpXVCIsImtpZCI6InRhdmlseS1hZ2VudHBheS14NDAyLXNpZ25pbmcta2V5In0.eyJpc3MiOiJodHRwczovL3g0MDIudGF2aWx5LmNvbSIsImF1ZCI6ImF3czptYXJrZXRwbGFjZSIsImlhdCI6MTc5MDk2NjkzNiwiZXhwIjoxNzkwOTY3MjM2LCJqdGkiOiIyMDYxMzFlOS02ZmVlLTQ5MDktYjNlMy1jN2RmYTI3MjdjYTciLCJwcmljZSI6eyJhbW91bnQiOiIwLjAxNiIsImN1cnJlbmN5IjoiVVNEIn0sInBheVRvIjoic2VsbGVyIiwicmVmZXJlbmNlIjoidGF2aWx5LXNlYXJjaC1hZHZhbmNlZCIsInNldHRsZW1lbnQiOnsicHJvZHVjdF9pZCI6InByb2QtbWFlZXQ2c2FqZWc0MiJ9fQ._XKVxwMzmYGCXYNA5t3vDsG5rJropNambBMNHhXxh2qQARTUk8e7acD_QGsmeqmoG2B-htOH39qEhbVI1Z1zupzyfbb8YFD8gaNhC6GSKZYPwfjzvu4EpuRX5YOK57nQ"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 54,
+    "body_sha256": "837a903dfad0fd1efdac09a6813a212aef4c05efe4e3a305e5ef1ebddd3d1328",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"Payment header is required\"}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 3279,
+    "headers": {
+      "date": "Fri, 02 Oct 2026 18:48:59 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "10088",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x69a0126843d3194ec966acb26ce6d12b8785f18afa5534baf4aed5f1be96351a",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 10088,
+    "body_sha256": "524a699ba91cbb576fe66333e2950b45baf1b26eb0fcd05ed76ff8221fd66f27",
+    "body_excerpt": "{\"query\":\"x402 payment protocol\",\"follow_up_questions\":null,\"answer\":null,\"images\":[],\"results\":[{\"url\":\"https://www.fireblocks.com/glossary/x402\",\"title\":\"x402 | Glossary | Fireblocks\",\"content\":\"# What Is x402? The HTTP Payment Protocol for Agents\\n\\nx402 is an open payment protocol built for the internet of autonomous agents. It takes its name from HTTP status code 402, a placeholder in the original web specification that was never formally implemented. That status code was always intended to mean \u201cPayment Required\u201d, and x402 finally makes it functional. The protocol enables any HTTP-connected service to request payment from an AI agent, receive on-chain settlement, and return access to a resource, all in a single round-trip interaction with no human involved. [...] x402 fills that gap by providing a machine-native payment protocol. It treats payment as a first-class primitive of the HTTP layer rather than a business logic layer bolted on top. This makes it well-suited to agentic payments workflows, where speed, programmability, and finality matter more than the familiar user interfaces of consumer finance.\\n\\nThe timing is not incidental. The broader agentic finance stack is maturing rapidly, and infrastructure providers, payment processors, and financial institutions are all beginning to plan for a world in which a significant share of transactions will be initiated by software rather than people. x402 offers a common standard that makes that transition more orderly and interoperable.\\n\\n## How the x402 Protocol Works\",\"score\":0.9412289,\"raw_content\":null,\"id\":\"5ff4ee-00\"},{\"url\":\"https://medium.com/@gwrx2005/x402-an-ai-native-payment-protocol-for-the-web-419358450936\",\"title\":\"x402: An AI-Native Payment Protocol for the Web | by Jung-Hua Liu | Medium\",\"content\":\"The x402 protocol is a new open standard that embeds payment functionality directly into the fabric of the web to support autonomous machine-to-machine commerce. It revives the long-reserved HTTP 402 \u201cPayment Required\u201d status code as a mechanism for websites, APIs, and AI agents to negotiate and settle micropayments in real time, x402 is designed to enable internet-native money transfers that are fast, low-cost, and chain-agnostic, and the role of wallets. We also present real-world use cases enabled by x402, from pay-per-use APIs and content monetization to autonomous AI services, and examine the benefits and potential limitations of this approach. Through a comparison with prior micropayment attempts and parallel initiatives, we contextualize x402 in the broader landscape of agentic [...] we contextualize x402 in the broader landscape of agentic payment protocols. Our analysis finds that x402 represents a promising foundation for the next generation of web payments, addressing long-standing challenges of micropayments and automation while highlighting areas for further development (such as wallet security and adoption). [...] x402 Telegram Bot GitHub URL: \\n\\nA production-ready Telegram bot integrated with Coinbase\u2019s x402 payment protocol, enabling instant, automatic stablecoin payments for premium content and API access.\\n\\nThis project implements a Telegram bot that uses the x402 protocol to accept payments for premium content. It integrates with Coinbase Developer Platform\u2019s x402 facilitator for secure payment verification and settlement.\\n\\n## Introduction\",\"score\":0.9405774,\"raw_content\":null,\"id\":\"bcfa32-01\"},{\"url\":\"https://www.digitalapplied.com/blog/x402-payment-protocol-ai-agents-pay-coinbase-cloudflare\",\"title\":\"x402 Payment Protocol: How AI Agents Will Pay Online\",\"content\":\"## What Is the x402 Payment Protocol\\n\\nx402 is an open protocol specification that defines how HTTP servers signal payment requirements and how HTTP clients\u2014including AI agents\u2014fulfill those requirements autonomously. The protocol takes its name from HTTP status code 402, which was defined in the original HTTP/1.1 specification as reserved for future payment systems but never formally standardized. [...] ## Coinbase, Cloudflare, and the x402 Foundation\\n\\nThe x402 protoco"
+  },
+  "quality": {
+    "result": "not_graded",
+    "reason": "facts only: On 2026-09-30 the payment settled but the sample request was rejected (HTTP 422). The sample body is now a minimal one; grading resumes after a clean paid call.",
+    "observed": {},
+    "expected": {},
+    "test": {
+      "input": "x402 payment protocol",
+      "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402"
+    },
+    "facts_only": true,
+    "graded_at": "2026-10-02T18:48:59Z"
+  },
+  "run_id": "20261002T184842Z",
+  "checked_at": "2026-10-02T18:48:56Z"
+}

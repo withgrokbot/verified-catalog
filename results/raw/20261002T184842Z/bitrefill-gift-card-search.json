@@ -1,0 +1,130 @@
+{
+  "service_id": "bitrefill-gift-card-search",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.bitrefill.com/x402/gift-cards/search?country=US&q=amazon",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 155,
+    "headers": {
+      "date": "Fri, 02 Oct 2026 18:48:49 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://api.bitrefill.com/x402/gift-cards/search?country=US&q=amazon",
+            "description": "Search 10,000+ gift card & voucher brands across 180+ countries by name and country. Pay in USDC via x402, no account.",
+            "mimeType": "application/json",
+            "serviceName": "Bitrefill",
+            "tags": [
+              "gift-cards",
+              "vouchers",
+              "search",
+              "usdc",
+              "base",
+              "solana"
+            ],
+            "iconUrl": "https://www.bitrefill.com/android-chrome-512x512.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "2000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x480CD46E6faDe651a0437DeaddA53D5c8e7D846A",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:42161",
+              "amount": "2000",
+              "asset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+              "payTo": "0x480CD46E6faDe651a0437DeaddA53D5c8e7D846A",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:137",
+              "amount": "2000",
+              "asset": "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
+              "payTo": "0x480CD46E6faDe651a0437DeaddA53D5c8e7D846A",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "2000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "5yASLjtNssGXDv6bR9e71WXKxRymDiUzbgkGPqkQNgRn",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "BENrLoUbndxoNMUS5JXApGMtNykLjFXXixMtpDwDR9SP"
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 3031,
+    "body_sha256": "a20ac70b708a3efcd1c40b5f787ab5bb1dd1734272d6a71e0933c8bfe1ad2c6b",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{\"url\":\"https://api.bitrefill.com/x402/gift-cards/search?country=US&q=amazon\",\"description\":\"Search 10,000+ gift card & voucher brands across 180+ countries by name and country. Pay in USDC via x402, no account.\",\"mimeType\":\"application/json\",\"serviceName\":\"Bitrefill\",\"tags\":[\"gift-cards\",\"vouchers\",\"search\",\"usdc\",\"base\",\"solana\"],\"iconUrl\":\"https://www.bitrefill.com/android-chrome-512x512.png\"},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"2000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x480CD46E6faDe651a0437DeaddA53D5c8e7D846A\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:42161\",\"amount\":\"2000\",\"asset\":\"0xaf88d065e77c8cC2239327C5EDb3A432268e5831\",\"payTo\":\"0x480CD46E6faDe651a0437DeaddA53D5c8e7D846A\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:137\",\"amount\":\"2000\",\"asset\":\"0x3c499c542cef5e3811e1192ce70d8cc03d5c3359\",\"payTo\":\"0x480CD46E6faDe651a0437DeaddA53D5c8e7D846A\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"amount\":\"2000\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"payTo\":\"5yASLjtNssGXDv6bR9e71WXKxRymDiUzbgkGPqkQNgRn\",\"maxTimeoutSeconds\":300,\"extra\":{\"feePayer\":\"BENrLoUbndxoNMUS5JXApGMtNykLjFXXixMtpDwDR9SP\"}}],\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"type\":\"http\",\"method\":\"GET\",\"queryParams\":{\"q\":\"amazon\",\"country\":\"US\"}},\"output\":{\"type\":\"json\",\"example\":{\"products\":[{\"slug\":\"amazon-us\",\"name\":\"Amazon\",\"country\":\"US\",\"recipient_type\":\"none\",\"in_stock\":true},{\"slug\":\"steam\",\"name\":\"Steam\",\"country\":\"US\",\"recipient_type\":\"none\",\"in_stock\":true}],\"next_step\":{\"url\":\"/x402/products/detail\",\"body\":{\"slug\":\"<product slug from results>\"}}}}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"GET\"]},\"queryParams\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\",\"description\":\"Search query (brand or product name)\"},\"country\":{\"type\":\"string\",\"description\":\"Optional ISO 3166-1 alpha-2 country code filter; omit for all countries (global results)\"}}}},\"required\":[\"type\",\"method\"],\"additionalProperties\":false},\"output\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\"},\"example\":{\"type\":\"object\"}},\"required\":[\"type\"]}},\"required\":[\"input\"]}},\"builder-code\":{\"info\":{\"a\":\"bc_suil8bdj\"},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\",\"pattern\":\"^[a-z0-9_]{1,32}$\",\"description\":\"App builder code\"},\"w\":{\"type\":\"string\",\"pattern\":\"^[a-z0-9_]{1,32}$\",\"description\":\"Wallet builder code\"},\"s\":{\"type\":\"array\",\"maxItems\":11,\"items\":{\"type\":\"string\",\"pattern\":\"^[a-z0-9_]{1,32}$\"},\"description\":\"Service builder codes\"}},\"additionalProperties\":false}}}}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1419,
+    "headers": {
+      "date": "Fri, 02 Oct 2026 18:48:50 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0xcc6f1dc5fc62b2a8539750f651fd2a87999f129df064f1aafcb0544e1f3b7688",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 581,
+    "body_sha256": "d722680e81beb4aa12f4f43229112a42ca7fc07ac3a5d98b6e534a555e5acfe5",
+    "body_excerpt": "{\"categories\":[{\"count\":1,\"highlighted\":\"online-marketplaces\",\"value\":\"online-marketplaces\"}],\"products\":[{\"_id\":\"amazon_com-usa\",\"categories\":[\"online-marketplaces\"],\"countries\":[\"US\",\"PR\"],\"currency\":\"USD\",\"in_stock\":true,\"keywords\":[\"whole foods\",\"Amazon Fresh\",\"Amazon Prime\",\"Amazon Music\",\"Audible\"],\"name\":\"Amazon.com USA\",\"slug\":\"amazon_com-usa\",\"type\":\"giftcards\",\"product_url\":\"https://www.bitrefill.com/amazon_com-usa/\"}],\"found\":1,\"page\":1,\"per_page\":25,\"next_step\":{\"url\":\"https://api.bitrefill.com/x402/products/detail\",\"body\":{\"slug\":\"<product slug from results>\"}}}"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "result named 'Amazon.com USA'",
+    "observed": {
+      "names": [
+        "Amazon.com USA"
+      ]
+    },
+    "expected": {},
+    "test": {
+      "input": "q=amazon, country=US",
+      "pass_if": "a result named \"Amazon...\""
+    },
+    "graded_at": "2026-10-02T18:48:50Z"
+  },
+  "run_id": "20261002T184842Z",
+  "checked_at": "2026-10-02T18:48:49Z"
+}

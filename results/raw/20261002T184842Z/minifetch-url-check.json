@@ -1,0 +1,107 @@
+{
+  "service_id": "minifetch-url-check",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://minifetch.com/api/v1/x402/preflight/url-check?url=https%3A%2F%2Fexample.com",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 291,
+    "headers": {
+      "server": "nginx/1.28.0 (Ubuntu)",
+      "date": "Fri, 02 Oct 2026 18:49:01 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "2",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://minifetch.com/api/v1/x402/preflight/url-check?url=https%3A%2F%2Fexample.com",
+            "description": "Cheap robots.txt preflight before you call the Minifetch /extract and /run/seo-page-audit endpoints: returns whether the Minifetch user agent may fetch a target URL (allow/deny) plus its crawl-delay. If blocked or setting a crawl delay read https://minifetch.com/tutorials/unblock-minifetch . Checks the URL as given \u2014 does not follow redirects. Supports GET & POST",
+            "mimeType": "application/json",
+            "serviceName": "Minifetch: Search, Scrape, Extract & SEO Audit web pages",
+            "tags": [
+              "seo",
+              "robots-txt",
+              "preflight",
+              "crawlability",
+              "indexability"
+            ],
+            "iconUrl": "https://minifetch.com/favicon-96x96.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0xffA9155A0e4B3d8d42351Da226cC1feEe449686f",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "1000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "46vMcwuC4sK11sB3gkLhyA7J7GEwfkhn5rFyDtihBwqe",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 2,
+    "body_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "body_excerpt": "{}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1568,
+    "headers": {
+      "server": "nginx/1.28.0 (Ubuntu)",
+      "date": "Fri, 02 Oct 2026 18:49:03 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "363",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x79b4e1e39a746e39f249bdaa33257ae43a9f6dc014624dc372cce5f66c48e3ad",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 363,
+    "body_sha256": "3e34f673fe91431fd743ab05897f37f620c40fa2234fa86a844f7aa8f1a9d55b",
+    "body_excerpt": "{\"success\":true,\"results\":[{\"data\":{\"url\":\"https://example.com\",\"allowed\":true,\"message\":\"robots.txt not found, defaulting to allowed\",\"crawlDelay\":1,\"proxy\":{\"proxyType\":\"minifetch\",\"userAgent\":\"minifetch/1.0 (+https://minifetch.com/site-owner-faq)\"},\"minifetchCache\":{\"hit\":false,\"cachedAt\":\"2026-10-02T18:49:02.281Z\",\"expiresAt\":\"2026-10-03T18:49:02.281Z\"}}}]}"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "allowed = true",
+    "observed": {
+      "allowed": [
+        true
+      ]
+    },
+    "expected": {},
+    "test": {
+      "input": "url=https://example.com",
+      "pass_if": "allowed = true"
+    },
+    "graded_at": "2026-10-02T18:49:03Z"
+  },
+  "run_id": "20261002T184842Z",
+  "checked_at": "2026-10-02T18:49:01Z"
+}

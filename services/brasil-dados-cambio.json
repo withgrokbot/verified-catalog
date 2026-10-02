@@ -33,33 +33,38 @@
     "facts_only": true,
     "facts_only_reason": "On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported)."
   },
-  "paid_receipts": 2,
+  "paid_receipts": 3,
   "latest": {
-    "checked_at": "2026-10-02T14:29:31Z",
-    "mode": "dry-run",
+    "checked_at": "2026-10-02T18:49:12Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 180,
+    "latency_ms": 142,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.002",
     "quoted_price_usd": "0.002",
     "price_matches_listing": true,
-    "paid": false,
-    "charged_price_usd": null,
-    "delivered_valid": null,
+    "paid": true,
+    "charged_price_usd": "0.002",
+    "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
-    "quality": null,
-    "raw_log": "results/raw/20261002T142930Z/brasil-dados-cambio.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261002T142930Z/brasil-dados-cambio.json"
+    "quality": {
+      "result": "not_graded",
+      "reason": "facts only: On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported).",
+      "facts_only": true,
+      "graded_at": "2026-10-02T18:49:15Z"
+    },
+    "raw_log": "results/raw/20261002T184842Z/brasil-dados-cambio.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261002T184842Z/brasil-dados-cambio.json"
   },
   "history_summary": {
-    "checks": 7,
-    "reachable": 7,
-    "x402_challenge_ok": 7,
-    "paid_checks": 2,
+    "checks": 8,
+    "reachable": 8,
+    "x402_challenge_ok": 8,
+    "paid_checks": 3,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-10-02T14:29:31Z"
+    "last_checked": "2026-10-02T18:49:12Z"
   }
 }
