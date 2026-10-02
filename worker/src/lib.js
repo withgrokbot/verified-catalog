@@ -1,6 +1,6 @@
 // Reliability lookup Worker (logic; entry point is index.js) for the Verified Pay-Per-Call Catalog (demand test, see DEMAND_TEST.md in the job).
 //
-//   GET /v1/lookup?task=web-search&max_price=0.01&n=5[&endpoint=<id|url>][&client=<name>][&payer=<0x wallet>][&limit=10]
+//   GET /v1/lookup?task=web-search&max_price=0.01&n=5[&endpoint=<id|url>][&client=<name>][&ref=<source>][&payer=<0x wallet>][&limit=10]
 //   GET /v1/tasks        task names and how many services each has
 //   GET /openapi.json    OpenAPI 3.1 description
 //   GET /                short help
@@ -11,7 +11,7 @@
 // plus the User-Agent, salted with a secret that changes every ISO week.
 // No runtime dependencies.
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 const DEFAULT_DATA = "https://withgrokbot.github.io/verified-catalog/";
 const CACHE_TTL_S = 300;
 const STALE_AFTER_H_DEFAULT = 36;
@@ -208,9 +208,13 @@ export function parseQuery(url) {
   const payerRaw = p.get("payer");
   const payer = payerRaw && /^0x[0-9a-fA-F]{40}$/.test(payerRaw) ? payerRaw.toLowerCase() : null;
   if (payerRaw && !payer) errors.push("payer must be a 0x address (40 hex characters)");
+  // ref = where the caller found us (e.g. via-awesome-x402). Attribution only: it never changes the client id.
+  const refRaw = p.get("ref");
+  const ref = refRaw && /^[A-Za-z0-9._\-]{1,64}$/.test(refRaw) ? refRaw.toLowerCase() : "";
   return {
     task,
     max_price,
+    ref,
     n: clampInt(p.get("n"), 5, 1, 20),
     limit: clampInt(p.get("limit"), 10, 1, 20),
     endpoint,
@@ -286,7 +290,15 @@ function uaFamily(ua) {
 }
 
 // ------------------------------------------------------------------ counting
-export function dataPoint({ cid, q, excluded, candidates, ua, returnedPayTo, status }) {
+export function refererHost(req) {
+  try {
+    return new URL(req.headers.get("referer") || "").hostname.slice(0, 100);
+  } catch (_) {
+    return "";
+  }
+}
+
+export function dataPoint({ cid, q, excluded, candidates, ua, returnedPayTo, status, referer = "" }) {
   const qualifying =
     !excluded && q.errors.length === 0 && ((q.task && q.max_price !== null) || !!q.endpoint) && candidates >= 1 ? 1 : 0;
   let reason = excluded;
@@ -306,6 +318,8 @@ export function dataPoint({ cid, q, excluded, candidates, ua, returnedPayTo, sta
       returnedPayTo.join(",").slice(0, 1000), // blob8 vendor pay_to addresses returned (for the payer check)
       uaFamily(ua), // blob9
       VERSION, // blob10
+      q.ref || "", // blob11 ref parameter (source attribution)
+      referer || "", // blob12 Referer host (browser clicks only)
     ],
     doubles: [qualifying, candidates, status, q.n], // double1..4
   };
@@ -342,6 +356,7 @@ export function openapi(origin) {
             { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 20, default: 10 }, description: "services returned" },
             { name: "endpoint", in: "query", schema: { type: "string" }, description: "a service id or endpoint URL" },
             { name: "client", in: "query", schema: { type: "string" }, description: "your agent or app name (optional)" },
+            { name: "ref", in: "query", schema: { type: "string" }, description: "where you found this lookup, e.g. via-readme (optional, attribution only)" },
             { name: "payer", in: "query", schema: { type: "string" }, description: "your 0x wallet, if you want to report which vendor you paid (optional)" },
           ],
           responses: { 200: { description: "results (sorted), facts_only (broken on the seller's side, not sorted)" }, 400: { description: "bad parameters" } },
@@ -363,16 +378,16 @@ async function handleLookup(req, env, ctx, url) {
   try {
     data = await loadData(env, ctx);
   } catch (e) {
-    writePoint(env, dataPoint({ cid, q, excluded, candidates: 0, ua, returnedPayTo: [], status: 503 }));
+    writePoint(env, dataPoint({ cid, q, excluded, candidates: 0, ua, returnedPayTo: [], status: 503, referer: refererHost(req) }));
     return json({ error: "catalog data unavailable, try again shortly" }, 503);
   }
   if (q.errors.length) {
-    writePoint(env, dataPoint({ cid, q, excluded, candidates: 0, ua, returnedPayTo: [], status: 400 }));
+    writePoint(env, dataPoint({ cid, q, excluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer: refererHost(req) }));
     return json({ error: q.errors.join("; "), tasks: Object.keys(taskIndex(data.catalog)).sort(), docs: url.origin + "/openapi.json" }, 400);
   }
   const out = lookup(data, q);
   const payTo = [...new Set(out.results.concat(out.facts_only).flatMap((r) => r.pay_to))];
-  writePoint(env, dataPoint({ cid, q, excluded, candidates: out.results.length + out.facts_only.length, ua, returnedPayTo: payTo, status: 200 }));
+  writePoint(env, dataPoint({ cid, q, excluded, candidates: out.results.length + out.facts_only.length, ua, returnedPayTo: payTo, status: 200, referer: refererHost(req) }));
   return json({
     query: { task: q.task, max_price_usd: q.max_price, n: q.n, limit: q.limit, endpoint: q.endpoint },
     generated_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),

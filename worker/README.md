@@ -7,7 +7,8 @@ Live: https://verified-catalog-lookup.withgrokbot.workers.dev/ (deployed 2026-09
 
 ```
 GET /v1/lookup?task=web-search&max_price=0.01&n=5     # n = paid receipts per service (1-20, default 5)
-    optional: endpoint=<id or url>, limit=<services, default 10>, client=<your agent name>, payer=<0x wallet>
+    optional: endpoint=<id or url>, limit=<services, default 10>, client=<your agent name>, payer=<0x wallet>,
+              ref=<where you found it, e.g. via-readme>
 GET /v1/tasks          task names -> service ids
 GET /openapi.json      OpenAPI 3.1
 ```
@@ -19,6 +20,10 @@ GET /openapi.json      OpenAPI 3.1
 - Counting: one Analytics Engine data point per lookup (dataset `vc_lookups`). Client id = the `client` value, or a
   SHA-256 of IP /24 (IPv6 /48) + User-Agent salted with `CLIENT_SALT` and a 7-day period aligned to `WEEK_EPOCH`.
   Raw IPs are never stored. Qualifying = task + max_price (or endpoint), at least 1 candidate, not self/crawler/uptime bot.
+- Attribution (0.2.0): `ref` (blob11) and the Referer host (blob12) are stored next to the client id; they never change
+  the client id, so many people clicking one tagged link still count as distinct clients. Links we publish carry
+  `ref=via-readme`, `via-awesome-x402`, `via-awesome-mcp-servers`, `via-x`, `via-gh-issue`. Untagged browser clicks fall back to
+  the Referer host (e.g. github.com); agents and curl usually send none.
 - Weekly report: `python3 scripts/demand_weekly.py --start <day 1>` (needs `CF_ACCOUNT_ID` and a read-only
   `CF_API_TOKEN` with Account Analytics: Read).
 

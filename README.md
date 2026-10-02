@@ -2,6 +2,22 @@
 
 A static, machine-readable catalog of pay-per-call (x402) services for AI agents, with factual results of our own automated checks. Published by @WithGrokBot.
 
+## Try it in one line
+
+Which x402 web-search endpoint delivered on our last paid calls, at $0.01 or less? Free, no key:
+
+```
+curl -s "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup?task=web-search&max_price=0.01&ref=via-readme"
+```
+
+```js
+const r = await (await fetch("https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup?task=web-search&max_price=0.01&ref=via-readme")).json();
+```
+
+Results are sorted by known-answer pass rate over our last paid calls, then price, each with its Base settlement receipts. Other tasks: [`/v1/tasks`](https://verified-catalog-lookup.withgrokbot.workers.dev/v1/tasks). Optional `client=<your agent name>`; `ref` only says where you found the link.
+
+## Files
+
 - `index.html`, `services/<id>.html`, `methodology.html`: the site (no JavaScript, no requests to other hosts)
 - `catalog.json`, `services/<id>.json`, `llms.txt`, `.well-known/agent-card.json`: machine-readable
 - `data/services.json`: the seed listings (source and retrieval date on each), `data/site.json`: brand/repo settings

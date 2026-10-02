@@ -36,7 +36,7 @@ PAYER_WINDOW_S = 30 * 60
 
 
 def sql_rows(since):
-    return f"""SELECT blob1 AS client, blob7 AS payer, blob8 AS pay_to, double1 AS qualifying,
+    return f"""SELECT blob1 AS client, blob7 AS payer, blob8 AS pay_to, double1 AS qualifying, blob11 AS ref, blob12 AS referer,
   toUInt32(timestamp) AS ts, _sample_interval AS weight
 FROM {DATASET}
 WHERE timestamp >= toDateTime('{since.strftime('%Y-%m-%d %H:%M:%S')}') AND double1 = 1
@@ -90,6 +90,15 @@ def evaluate(rows, start, today, spend_usd=Decimal("0")):
         why = f"{w2['distinct_clients']} clients in days 8-14; " + ("one 14-day extension allowed (week 2 beat week 1)" if ext else "no extension (week 2 did not beat week 1)")
     return {"test_day": day_now, "week1": w1, "week2": w2, "repeat_client_in_14_days": any_repeat,
             "test_spend_usd": str(spend_usd), "verdict": verdict, "why": why}
+
+
+def by_source(rows):
+    """Distinct qualifying clients per source: the ref parameter, else the Referer host, else "none"."""
+    src = {}
+    for r in rows:
+        key = (r.get("ref") or "") or ("referer:" + r["referer"] if r.get("referer") else "none")
+        src.setdefault(key, set()).add(r["client"])
+    return {k: len(v) for k, v in sorted(src.items())}
 
 
 def spend_since(ledger_path, start):
@@ -163,7 +172,7 @@ def main(argv=None):
     spend = spend_since(os.path.join(a.site, "results", "spend_ledger.json"), start)
     report = {"schema": 1, "generated_at": xp.iso_z(), "start": start.isoformat(),
               "note": "Distinct qualifying clients of the reliability lookup. Client ids are weekly-salted hashes or self-chosen names; no raw IPs.",
-              **evaluate(rows, start, today, spend)}
+              **evaluate(rows, start, today, spend), "by_source": by_source(rows)}
     if not a.no_payer_check:
         try:
             report["payer_check"] = payer_confirmations(rows, BaseRpc())
