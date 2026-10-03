@@ -43,36 +43,31 @@
   },
   "paid_receipts": 3,
   "latest": {
-    "checked_at": "2026-10-02T18:49:06Z",
-    "mode": "paid",
+    "checked_at": "2026-10-03T18:34:44Z",
+    "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 177,
+    "latency_ms": 218,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.01",
     "quoted_price_usd": "0.01",
     "price_matches_listing": true,
-    "paid": true,
-    "charged_price_usd": "0.01",
-    "delivered_valid": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
     "payment_refused_reason": null,
     "error": null,
-    "quality": {
-      "result": "pass",
-      "reason": "all 10 items tag AAPL; newest 0.1 days old",
-      "facts_only": false,
-      "graded_at": "2026-10-02T18:49:07Z"
-    },
-    "raw_log": "results/raw/20261002T184842Z/massive-ticker-news.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261002T184842Z/massive-ticker-news.json"
+    "quality": null,
+    "raw_log": "results/raw/20261003T183443Z/massive-ticker-news.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261003T183443Z/massive-ticker-news.json"
   },
   "history_summary": {
-    "checks": 8,
-    "reachable": 8,
-    "x402_challenge_ok": 8,
+    "checks": 9,
+    "reachable": 9,
+    "x402_challenge_ok": 9,
     "paid_checks": 3,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-10-02T18:49:06Z"
+    "last_checked": "2026-10-03T18:34:44Z"
   }
 }

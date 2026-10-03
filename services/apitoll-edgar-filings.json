@@ -41,31 +41,31 @@
   },
   "paid_receipts": 0,
   "latest": {
-    "checked_at": "2026-10-02T14:29:31Z",
+    "checked_at": "2026-10-03T18:35:03Z",
     "mode": "dry-run",
-    "reachable": true,
-    "http_status": 402,
-    "latency_ms": 465,
-    "x402_challenge": true,
-    "x402_version": 2,
+    "reachable": false,
+    "http_status": null,
+    "latency_ms": 20140,
+    "x402_challenge": false,
+    "x402_version": null,
     "advertised_price_usd": "0.003",
-    "quoted_price_usd": "0.003",
-    "price_matches_listing": true,
+    "quoted_price_usd": null,
+    "price_matches_listing": null,
     "paid": false,
     "charged_price_usd": null,
     "delivered_valid": null,
     "payment_refused_reason": null,
-    "error": null,
+    "error": "URLError: timed out",
     "quality": null,
-    "raw_log": "results/raw/20261002T142930Z/apitoll-edgar-filings.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261002T142930Z/apitoll-edgar-filings.json"
+    "raw_log": "results/raw/20261003T183443Z/apitoll-edgar-filings.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261003T183443Z/apitoll-edgar-filings.json"
   },
   "history_summary": {
-    "checks": 6,
+    "checks": 7,
     "reachable": 3,
     "x402_challenge_ok": 3,
     "paid_checks": 0,
     "first_checked": "2026-09-30T01:01:55Z",
-    "last_checked": "2026-10-02T14:29:31Z"
+    "last_checked": "2026-10-03T18:35:03Z"
   }
 }

@@ -1,0 +1,16 @@
+{
+  "service_id": "apitoll-edgar-filings",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://edgar.apitoll.cloud/v1/edgar/filings?form=10-K&limit=5&ticker=AAPL",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "error": "URLError: timed out",
+    "latency_ms": 20140
+  },
+  "run_id": "20261003T183443Z",
+  "checked_at": "2026-10-03T18:35:03Z"
+}

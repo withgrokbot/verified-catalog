@@ -40,36 +40,31 @@
   },
   "paid_receipts": 3,
   "latest": {
-    "checked_at": "2026-10-02T18:49:01Z",
-    "mode": "paid",
+    "checked_at": "2026-10-03T18:34:44Z",
+    "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 291,
+    "latency_ms": 118,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001",
     "quoted_price_usd": "0.001",
     "price_matches_listing": true,
-    "paid": true,
-    "charged_price_usd": "0.001",
-    "delivered_valid": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
     "payment_refused_reason": null,
     "error": null,
-    "quality": {
-      "result": "pass",
-      "reason": "allowed = true",
-      "facts_only": false,
-      "graded_at": "2026-10-02T18:49:03Z"
-    },
-    "raw_log": "results/raw/20261002T184842Z/minifetch-url-check.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261002T184842Z/minifetch-url-check.json"
+    "quality": null,
+    "raw_log": "results/raw/20261003T183443Z/minifetch-url-check.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261003T183443Z/minifetch-url-check.json"
   },
   "history_summary": {
-    "checks": 9,
-    "reachable": 9,
-    "x402_challenge_ok": 9,
+    "checks": 10,
+    "reachable": 10,
+    "x402_challenge_ok": 10,
     "paid_checks": 3,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-10-02T18:49:01Z"
+    "last_checked": "2026-10-03T18:34:44Z"
   }
 }
