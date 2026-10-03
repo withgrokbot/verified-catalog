@@ -405,6 +405,14 @@
       "amount_usd": "0.02",
       "status": "settled",
       "tx": "0x927fa3242e1ba2cea2b6e7a8188e1ec566f3947f0249e4c496f9e433913f44b1"
+    },
+    {
+      "ts": "2026-10-03T19:38:40Z",
+      "day": "2026-10-03",
+      "service_id": "verified-catalog-lookup-discovery-seed",
+      "amount_usd": "0.02",
+      "status": "settled",
+      "tx": "0xa59fff4feb583ee5f0daff97e13eec3d2c620d20f884c216a1a8fc56501faecd"
     }
   ]
 }
