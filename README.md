@@ -22,6 +22,14 @@ Results are sorted by known-answer pass rate over our last paid calls, then pric
 - **After that, $0.02 USDC on Base per lookup via [x402](https://github.com/coinbase/x402).** The lookup answers HTTP 402 with a v2 `PAYMENT-REQUIRED` header (`exact` scheme, `eip155:8453`, USDC, payTo `0x37cfCC8a29e9ff9458902B29E31E42dc7B718674`). Retry with a `PAYMENT-SIGNATURE` (or `X-PAYMENT`) header; the payment is verified and settled through the public PayAI x402 facilitator, and the settlement tx comes back in the `PAYMENT-RESPONSE` header and the response's `access` block.
 - **Payment never changes results, sort order or listings.** It buys query access only. Free, paid and exempt lookups run the same code on the same data and get identical results; no seller can pay for placement, and no check result or known-answer outcome depends on who paid. Every lookup response repeats this in `payment_policy`.
 
+## Remote MCP server (free)
+
+`https://verified-catalog-lookup.withgrokbot.workers.dev/mcp` (Streamable HTTP, stateless JSON-RPC, no key). Same 3 tools and results as `mcp/server.py`: `search_catalog`, `get_service` and `lookup`. `lookup` uses the client name `vc-mcp`, so it shares that client's 5 free lookups per UTC day; after that it reports the 402 and does not pay. Registry name: `io.github.withgrokbot/verified-catalog` (`server.json`).
+
+## Always-paid endpoint (x402)
+
+`GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup/paid?task=web-search&max_price=0.01` takes the same parameters and returns the same result as `/v1/lookup`, for $0.02 USDC on Base per call with no free quota. Its 402 carries x402 Bazaar discovery metadata (`extensions.bazaar`); it is also listed in `/openapi.json` (`x-payment-info`) and `/.well-known/x402`. Bad parameters get a 400 before anything is settled.
+
 ## Files
 
 - `index.html`, `services/<id>.html`, `methodology.html`: the site (no JavaScript, no requests to other hosts)
@@ -32,7 +40,8 @@ Results are sorted by known-answer pass rate over our last paid calls, then pric
 - `data/quality_tests.json`, `scripts/quality.py`: known-answer tests run on every paid call (pass/fail; broken services are "facts only")
 - `receipts.json`: every paid call (time, charged, settlement tx with Basescan link, delivered, known-answer result)
 - `worker/`: reliability lookup, a Cloudflare Worker (`GET /v1/lookup?task=web-search&max_price=0.01&n=5`) that reads `catalog.json` and `receipts.json` from this site and counts distinct clients (see `worker/README.md`)
-- `mcp/server.py`: small stdio MCP server with `search_catalog`, `get_service` (read `catalog.json`) and `lookup` (calls the Worker)
+- `mcp/server.py`: small stdio MCP server with `search_catalog`, `get_service` (read `catalog.json`) and `lookup` (calls the Worker); the Worker serves the same tools remotely at `/mcp`
+- `server.json`: official MCP Registry entry (remote server)
 - `scripts/demand_weekly.py`: weekly count of distinct lookup clients -> `results/demand_weekly.json`
 - `.github/workflows/daily.yml`: daily free checks and commit
 
@@ -47,3 +56,7 @@ python3 tests/run_tests.py               # acceptance tests (Node 18+ for the Wo
 Paid checks exist but are off by default. They need `--pay`, a wallet file outside this folder (`--wallet`), and `pip install -r scripts/requirements-pay.txt`. Hard caps: $0.10 per call, $1.00 per UTC day, $20.00 lifetime; only USDC "exact" on Base is ever signed.
 
 We publish facts only, no grades. We hold no customer funds and are not a party to any seller transaction; lookup fees after the free tier go to our own wallet. To contest a result, open a GitHub issue (see `methodology.html#contest`).
+
+## License
+
+MIT, see `LICENSE`.

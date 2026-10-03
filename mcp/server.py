@@ -10,7 +10,7 @@ Tools:
 counted as one client name, never by IP). The Worker URL comes from --lookup-url, env VC_LOOKUP_URL, the
 catalog's lookup_url, or DEFAULT_LOOKUP_URL (in that order); VC_LOOKUP_URL=off turns the tool off. No deps.
 Run:  python3 mcp/server.py [--catalog path/to/catalog.json] [--lookup-url https://.../]
-Not published to any registry.
+The same tools are served remotely (Streamable HTTP) at <lookup URL>/mcp; see server.json.
 """
 import json
 import os

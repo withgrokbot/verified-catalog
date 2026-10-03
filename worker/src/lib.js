@@ -7,6 +7,9 @@
 // (the same lookup() runs for free, paid and exempt calls). SELF_CLIENTS are exempt.
 //
 //   GET /v1/lookup?task=web-search&max_price=0.01&n=5[&endpoint=<id|url>][&client=<name>][&ref=<source>][&payer=<0x wallet>][&limit=10]
+//   GET /v1/lookup/paid  same lookup, always x402 ($0.02 USDC on Base, no free quota), with Bazaar discovery metadata
+//   POST /mcp            free remote MCP server (Streamable HTTP, stateless JSON-RPC): search_catalog, get_service, lookup
+//   GET /.well-known/x402  x402 discovery fan-out
 //   GET /v1/tasks        task names and how many services each has
 //   GET /openapi.json    OpenAPI 3.1 description
 //   GET /                short help
@@ -17,7 +20,7 @@
 // plus the User-Agent, salted with a secret that changes every ISO week.
 // No runtime dependencies.
 
-export const VERSION = "0.3.0";
+export const VERSION = "0.4.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -391,9 +394,11 @@ export async function takeFree(env, key, limit, now = new Date(), op = "take") {
   }
 }
 
-export function paymentRequirements(c, resourceUrl, version = 2) {
+export function paymentRequirements(c, resourceUrl, version = 2, paidPath = false) {
   const extra = { name: "USD Coin", version: "2" };
-  const description = `Verified catalog reliability lookup, one call after the ${c.freePerDay} free calls per UTC day. ${PAYMENT_POLICY}`;
+  const description = paidPath
+    ? `Verified catalog reliability lookup, paid per call (no free quota on this path). ${PAYMENT_POLICY}`
+    : `Verified catalog reliability lookup, one call after the ${c.freePerDay} free calls per UTC day. ${PAYMENT_POLICY}`;
   if (version === 1)
     return {
       scheme: "exact",
@@ -408,6 +413,80 @@ export function paymentRequirements(c, resourceUrl, version = 2) {
       extra,
     };
   return { scheme: "exact", network: c.network, amount: c.priceAtomic, asset: USDC_BASE, payTo: c.payTo, maxTimeoutSeconds: 300, extra };
+}
+
+// Bazaar discovery extension (x402 v2 specs/extensions/bazaar.md): info + a JSON Schema (draft 2020-12) for info.
+export const SERVICE_NAME = "Verified Catalog Lookup";
+export const SERVICE_TAGS = ["x402", "reliability", "receipts", "catalog", "agents"];
+const QUERY_PROPS = {
+  task: { type: "string", description: "task name, e.g. web-search (see /v1/tasks); task or endpoint is required" },
+  max_price: { type: "string", description: "maximum listed price per call, USD, e.g. 0.01" },
+  n: { type: "string", description: "paid receipts per service, 1-20 (default 5)" },
+  limit: { type: "string", description: "services returned, 1-20 (default 10)" },
+  endpoint: { type: "string", description: "a service id or endpoint URL instead of a task" },
+  client: { type: "string", description: "your agent or app name (optional)" },
+  ref: { type: "string", description: "where you found this lookup (optional, attribution only)" },
+  payer: { type: "string", description: "your 0x wallet (optional)" },
+};
+export function bazaarExtension() {
+  return {
+    info: {
+      input: { type: "http", method: "GET", queryParams: { task: "web-search", max_price: "0.01", n: "5" } },
+      output: {
+        type: "json",
+        example: {
+          query: { task: "web-search", max_price_usd: 0.01, n: 5, limit: 10, endpoint: null },
+          matched: 1,
+          results: [{ id: "example-search", endpoint: "https://example.com/search", price_usd: "0.01", pass_rate: 1, stale: false, receipts: [{ time: "2026-10-02T18:48:42Z", tx: "0x...", charged_usd: "0.01", delivered: true, quality: "pass" }] }],
+          facts_only: [],
+          access: { tier: "paid", charged_usd: "0.02", tx: "0x..." },
+          payment_policy: PAYMENT_POLICY,
+        },
+      },
+    },
+    schema: {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties: {
+        input: {
+          type: "object",
+          properties: {
+            type: { type: "string", const: "http" },
+            method: { type: "string", enum: ["GET"] },
+            queryParams: { type: "object", properties: QUERY_PROPS },
+            headers: { type: "object", additionalProperties: { type: "string" } },
+          },
+          required: ["type", "method"],
+          additionalProperties: false,
+        },
+        output: { type: "object", properties: { type: { type: "string" }, example: { type: "object" } }, required: ["type"] },
+      },
+      required: ["input"],
+    },
+  };
+}
+
+// The always-paid path: 402 for every unpaid call, with Bazaar discovery metadata so facilitators and x402scan can list it.
+export function paidPaymentRequired(c, resourceUrl, error) {
+  return {
+    x402Version: 2,
+    error,
+    resource: {
+      url: resourceUrl,
+      description: `Verified catalog reliability lookup: x402 endpoints for a task at or under a price, with our own paid receipts and known-answer pass/fail. $${c.priceUsd} USDC on Base per call.`,
+      mimeType: "application/json",
+      serviceName: SERVICE_NAME,
+      tags: SERVICE_TAGS,
+    },
+    accepts: [paymentRequirements(c, resourceUrl, 2, true)],
+    extensions: { bazaar: bazaarExtension() },
+    price_usd: c.priceUsd,
+    asset: "USDC on Base (eip155:8453)",
+    payment_policy: PAYMENT_POLICY,
+    free_alternative: "The same lookup is free for 5 calls per client per UTC day at /v1/lookup and via the free MCP server at /mcp. Payment never changes results.",
+    how_to_pay:
+      "Retry the same request with a PAYMENT-SIGNATURE header (x402 v2; X-PAYMENT is also accepted) holding a signed USDC EIP-3009 authorization for the amount and payTo above. Bad parameters get a 400 before anything is settled.",
+  };
 }
 
 export function paymentRequired(c, url, error, used) {
@@ -491,9 +570,9 @@ async function facilitatorCall(c, path, body) {
 }
 
 // verify, then settle. Returns {ok, settle?, reason}.
-export async function verifyAndSettle(c, payload, url) {
+export async function verifyAndSettle(c, payload, url, paidPath = false) {
   const v = Number(payload.x402Version || 1);
-  const body = { x402Version: v, paymentPayload: payload, paymentRequirements: paymentRequirements(c, url.toString(), v) };
+  const body = { x402Version: v, paymentPayload: payload, paymentRequirements: paymentRequirements(c, url.toString(), v, paidPath) };
   let vr;
   try {
     vr = await facilitatorCall(c, "/verify", body);
@@ -574,7 +653,7 @@ export function pricingDoc(c) {
     free_scope: "per client per UTC day; client = the client value when sent, otherwise a salted hash of your IP",
     then: `HTTP 402 x402 payment requirement: $${c.priceUsd} USDC on Base (eip155:8453), scheme exact, payTo ${c.payTo}`,
     facilitator: c.facilitator,
-    metered: "/v1/lookup only (/v1/tasks, /openapi.json, /health are free)",
+    metered: "/v1/lookup after the free quota; /v1/lookup/paid always (same results). /mcp, /v1/tasks, /openapi.json, /health are free (the MCP lookup tool shares the vc-mcp free quota)",
   };
 }
 
@@ -585,6 +664,8 @@ export function openapi(origin, env = {}) {
     info: {
       title: "Verified catalog reliability lookup",
       version: VERSION,
+      contact: { url: "https://github.com/withgrokbot/verified-catalog/issues" },
+      "x-guidance": `Ask GET /v1/lookup?task=<task>&max_price=<usd> (task names: /v1/tasks). ${c.freePerDay} free calls per client per UTC day, then the same path answers 402; /v1/lookup/paid is the always-paid twin ($${c.priceUsd} USDC on Base via x402) with identical results. Free MCP: POST /mcp.`,
       description:
         `Is an x402 endpoint reliable for task X at price <= Y? Facts from our own paid calls: receipts with settlement tx, delivered yes/no and a known-answer pass/fail. Pricing: ${c.freePerDay} free lookups per client per UTC day, then HTTP 402 with an x402 payment requirement of $${c.priceUsd} USDC on Base per lookup. ${PAYMENT_POLICY} Not investment advice; we hold no customer funds.`,
     },
@@ -593,6 +674,7 @@ export function openapi(origin, env = {}) {
       "/v1/lookup": {
         get: {
           operationId: "lookup",
+          security: [],
           summary: "Services for a task at or under a price, sorted by known-answer pass rate over the last n paid calls, then price",
           parameters: [
             { name: "task", in: "query", schema: { type: "string" }, description: "task name, e.g. web-search (see /v1/tasks)" },
@@ -613,12 +695,56 @@ export function openapi(origin, env = {}) {
           },
         },
       },
-      "/v1/tasks": { get: { operationId: "tasks", summary: "Task names", responses: { 200: { description: "task -> service ids" } } } },
+      "/v1/lookup/paid": {
+        get: {
+          operationId: "lookupPaid",
+          summary: `Same lookup as /v1/lookup, always paid: $${c.priceUsd} USDC on Base per call via x402 (no free quota). Identical results.`,
+          parameters: Object.entries(QUERY_PROPS).map(([name, sch]) => ({ name, in: "query", schema: { type: "string" }, description: sch.description })),
+          "x-payment-info": { price: { mode: "fixed", currency: "USD", amount: c.priceUsd }, protocols: [{ x402: { scheme: "exact", network: c.network, asset: USDC_BASE, payTo: c.payTo } }] },
+          responses: {
+            200: { description: "same body as /v1/lookup, access.tier = paid, PAYMENT-RESPONSE header with the settlement tx" },
+            400: { description: "bad parameters (checked after the 402, before anything is settled)" },
+            402: { description: `x402 v2 payment requirement ($${c.priceUsd} USDC on Base) with Bazaar discovery metadata. ${PAYMENT_POLICY}` },
+          },
+        },
+      },
+      "/mcp": {
+        post: {
+          operationId: "mcp",
+          security: [],
+          summary: "Free remote MCP server (Streamable HTTP, stateless JSON-RPC 2.0): tools search_catalog, get_service, lookup (lookup shares the vc-mcp free quota)",
+          responses: { 200: { description: "JSON-RPC response" }, 202: { description: "notification accepted" } },
+        },
+      },
+      "/v1/tasks": { get: { operationId: "tasks", security: [], summary: "Task names", responses: { 200: { description: "task -> service ids" } } } },
     },
   };
 }
 
 // ------------------------------------------------------------------ handler
+// The lookup response body. Same for free, paid, exempt and MCP calls: only `access` differs.
+function lookupBody(q, data, out, access) {
+  return {
+      query: { task: q.task, max_price_usd: q.max_price, n: q.n, limit: q.limit, endpoint: q.endpoint },
+      generated_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+      data_generated_at: data.catalog.generated_at || null,
+      matched: out.matched,
+      results: out.results,
+      facts_only: out.facts_only,
+      sorting: "known-answer pass rate over the last n paid calls (services with no graded calls last), then price, then id",
+      notes:
+        "Facts from our own paid calls. stale = newest paid receipt older than " +
+        (Number(data.receipts.stale_after_hours) || STALE_AFTER_H_DEFAULT) +
+        " h (or none yet). facts_only services are broken on the seller's side right now: shown, not graded or sorted. Results can be wrong; see methodology.",
+      access,
+      payment_policy: PAYMENT_POLICY,
+      methodology_url: data.catalog.methodology_url,
+      catalog_url: data.base + "catalog.json",
+      receipts_url: data.base + "receipts.json",
+      contest_url: data.catalog.contest_url,
+    };
+}
+
 async function handleLookup(req, env, ctx, url) {
   const q = parseQuery(url);
   const cid = await clientId(req, q, env);
@@ -689,29 +815,268 @@ async function handleLookup(req, env, ctx, url) {
       point({ status: 200, access: "paid", amountUsd: Number(c.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed: t.used });
     }
   }
-  return json(
-    {
-      query: { task: q.task, max_price_usd: q.max_price, n: q.n, limit: q.limit, endpoint: q.endpoint },
-      generated_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-      data_generated_at: data.catalog.generated_at || null,
-      matched: out.matched,
-      results: out.results,
-      facts_only: out.facts_only,
-      sorting: "known-answer pass rate over the last n paid calls (services with no graded calls last), then price, then id",
-      notes:
-        "Facts from our own paid calls. stale = newest paid receipt older than " +
-        (Number(data.receipts.stale_after_hours) || STALE_AFTER_H_DEFAULT) +
-        " h (or none yet). facts_only services are broken on the seller's side right now: shown, not graded or sorted. Results can be wrong; see methodology.",
-      access,
-      payment_policy: PAYMENT_POLICY,
-      methodology_url: data.catalog.methodology_url,
-      catalog_url: data.base + "catalog.json",
-      receipts_url: data.base + "receipts.json",
-      contest_url: data.catalog.contest_url,
+  return json(lookupBody(q, data, out, access), 200, extraHeaders);
+}
+
+// Always-paid path: every unpaid call gets a 402 (before any parameter check, so discovery probes see the challenge).
+// With a payment header: parameters are checked first (400, nothing settled), then verify + settle, then the same lookup().
+async function handlePaidLookup(req, env, ctx, url) {
+  const q = parseQuery(url);
+  const cid = await clientId(req, q, env);
+  const excluded = exclusion(req, q, env);
+  const ua = req.headers.get("user-agent") || "";
+  const referer = refererHost(req);
+  const c = cfg(env);
+  const resourceUrl = url.origin + url.pathname;
+  let candidates = 0;
+  let payTo = [];
+  const point = (extra) => writePoint(env, dataPoint({ cid, q, excluded, candidates, ua, returnedPayTo: payTo, referer, ...extra }));
+  const deny = (error, kind) => {
+    const body = paidPaymentRequired(c, resourceUrl, error);
+    point({ status: 402, access: kind });
+    return json(body, 402, { "payment-required": b64encode(body) });
+  };
+  const hdr = paymentHeader(req);
+  if (!hdr) return deny(`Payment required: $${c.priceUsd} USDC on Base per lookup via x402.`, "payment-required");
+  if (!q.task && !q.endpoint) q.errors.push("task or endpoint is required (see /v1/tasks)");
+  let data;
+  try {
+    data = await loadData(env, ctx);
+  } catch (e) {
+    point({ status: 503 });
+    return json({ error: "catalog data unavailable, try again shortly (nothing was charged)" }, 503);
+  }
+  if (q.errors.length) {
+    point({ status: 400 });
+    return json({ error: q.errors.join("; ") + " (nothing was charged)", tasks: Object.keys(taskIndex(data.catalog)).sort(), docs: url.origin + "/openapi.json" }, 400);
+  }
+  const out = lookup(data, q);
+  candidates = out.results.length + out.facts_only.length;
+  payTo = [...new Set(out.results.concat(out.facts_only).flatMap((r) => r.pay_to))];
+  const payload = decodePaymentHeader(hdr);
+  if (!payload) return deny("payment header is not valid base64 JSON x402 payload", "payment-failed");
+  const bad = checkPayload(payload, c);
+  if (bad) return deny("payment rejected: " + bad, "payment-failed");
+  const r = await verifyAndSettle(c, payload, resourceUrl, true);
+  if (!r.ok) return deny("payment rejected: " + r.reason, "payment-failed");
+  const enc = b64encode(r.settle);
+  const access = { tier: "paid", charged_usd: c.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null };
+  point({ status: 200, access: "paid", amountUsd: Number(c.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer });
+  return json(lookupBody(q, data, out, access), 200, { "payment-response": enc, "x-payment-response": enc });
+}
+
+// ------------------------------------------------------------------ remote MCP (Streamable HTTP, stateless JSON-RPC)
+// Same 3 tools, same results as mcp/server.py: search_catalog and get_service read the published catalog.json (the
+// file mcp/server.py ships with); lookup runs the same /v1/lookup code with client=vc-mcp, so it shares that client's
+// free quota (5 per UTC day) and reports, but never pays, the 402 after it.
+export const MCP_CLIENT = "vc-mcp";
+export const MCP_PROTOCOL = "2025-06-18";
+export const MCP_SERVER_INFO = { name: "verified-catalog", version: "0.2.0" };
+export const MCP_TOOLS = [
+  {
+    name: "search_catalog",
+    description: "Search pay-per-call (x402) agent services in the verified catalog. Returns factual latest-check results (reachable, latency, advertised vs quoted price). No grades.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "words to match in name, category, description" },
+        category: { type: "string" },
+        max_price_usd: { type: "number", description: "maximum advertised price per call in USD" },
+        reachable_only: { type: "boolean", description: "only services reachable in the latest check" },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
     },
-    200,
-    extraHeaders
-  );
+  },
+  {
+    name: "get_service",
+    description: "Get the full catalog record for one service id, including its latest check and raw log link.",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+  },
+  {
+    name: "lookup",
+    description:
+      "Is an x402 endpoint reliable for a task at a price? Asks the catalog's lookup service for services matching a task " +
+      "at or under max_price_usd, sorted by known-answer pass rate over the last n paid calls, then price. Each result has " +
+      "its paid receipts (time, tx, Basescan link, charged, delivered, pass/fail), last check time and a stale flag. " +
+      "Services broken on the seller's side come back under facts_only, not sorted. Sends client=vc-mcp: 5 free lookups per UTC day " +
+      "for that client name, then the service answers HTTP 402 (x402, $0.02 USDC on Base), which this tool reports but does not pay. " +
+      "Payment never changes results, sort order or listings.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task: { type: "string", description: "task name, e.g. web-search, crypto-news, weather, token-balance" },
+        max_price_usd: { type: "number", description: "maximum listed price per call in USD" },
+        n: { type: "integer", minimum: 1, maximum: 20, description: "paid receipts per service (default 5)" },
+        limit: { type: "integer", minimum: 1, maximum: 20, description: "services returned (default 10)" },
+        endpoint: { type: "string", description: "a service id or endpoint URL instead of a task" },
+        payer: { type: "string", description: "optional: your 0x wallet, so a later payment to a returned vendor can be confirmed on-chain" },
+      },
+    },
+  },
+];
+
+class ToolInputError extends Error {}
+const pyStr = (v) => (v === null ? "None" : v === true ? "True" : v === false ? "False" : String(v));
+const blank = (v) => v === undefined || v === null || v === "";
+function pyInt(v) {
+  if (typeof v === "number" && Number.isFinite(v)) return Math.trunc(v);
+  if (typeof v === "string" && /^\s*[+-]?\d+\s*$/.test(v)) return parseInt(v, 10);
+  throw new ToolInputError(`invalid literal for int() with base 10: ${JSON.stringify(pyStr(v))}`);
+}
+function decStr(v) {
+  const x = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
+  if (!Number.isFinite(x)) return null;
+  if (typeof v === "string" && /^\s*[+-]?(\d+\.?\d*|\.\d+)\s*$/.test(v)) return v.trim();
+  const t = String(x);
+  return /e/i.test(t) ? x.toFixed(20).replace(/0+$/, "").replace(/\.$/, "") : t;
+}
+
+// mcp/server.py brief() and search(), field for field.
+export function mcpBrief(s) {
+  const latest = s.latest || {};
+  const keys = ["checked_at", "reachable", "http_status", "latency_ms", "quoted_price_usd", "price_matches_listing", "charged_price_usd", "delivered_valid", "raw_log_url"];
+  return {
+    id: s.id,
+    name: s.name,
+    category: s.category ?? null,
+    endpoint: s.endpoint ?? null,
+    advertised_price_usd: (s.advertised_price || {}).amount_usd ?? null,
+    latest: Object.fromEntries(keys.map((k) => [k, latest[k] ?? null])),
+    page_url: s.page_url ?? null,
+  };
+}
+
+export function mcpSearch(cat, args) {
+  const q = String(args.query || "").toLowerCase().trim();
+  const category = String(args.category || "").toLowerCase().trim();
+  const limit = pyInt(args.limit || 20);
+  let maxp = null;
+  if (!blank(args.max_price_usd)) {
+    if (decStr(args.max_price_usd) === null) throw new ToolInputError("max_price_usd must be a number");
+    maxp = Number(args.max_price_usd);
+  }
+  const field = (s, k) => (s[k] === undefined ? "" : pyStr(s[k]));
+  const out = [];
+  for (const s of cat.services || []) {
+    const hay = ["id", "name", "category", "description", "provider"].map((k) => field(s, k)).join(" ").toLowerCase();
+    if (q && !q.split(/\s+/).every((w) => hay.includes(w))) continue;
+    if (category && !field(s, "category").toLowerCase().includes(category)) continue;
+    if (maxp !== null && Number(s.advertised_price.amount_usd) > maxp) continue;
+    if (args.reachable_only && !(s.latest || {}).reachable) continue;
+    out.push(mcpBrief(s));
+  }
+  const res = out.slice(0, limit);
+  return { count: res.length, results: res, generated_at: cat.generated_at ?? null, note: "Factual check results only; no grades. See methodology_url.", methodology_url: cat.methodology_url ?? null };
+}
+
+// lookup tool: one in-process /v1/lookup call with client=vc-mcp (same code path, counting and quota as the stdio server's GET).
+async function mcpLookup(req, env, ctx, origin, args) {
+  const qp = new URLSearchParams({ client: MCP_CLIENT });
+  if (args.task) qp.set("task", pyStr(args.task));
+  if (!blank(args.max_price_usd)) {
+    const d = decStr(args.max_price_usd);
+    if (d === null) return [null, "max_price_usd must be a number"];
+    qp.set("max_price", d);
+  }
+  for (const k of ["n", "limit"]) if (!blank(args[k])) qp.set(k, String(pyInt(args[k])));
+  for (const k of ["endpoint", "payer"]) if (args[k]) qp.set(k, pyStr(args[k]));
+  if (!qp.has("task") && !qp.has("endpoint")) return [null, "give a task (e.g. web-search) or an endpoint (service id or URL)"];
+  const u = new URL(origin + "/v1/lookup?" + qp.toString());
+  const headers = { accept: "application/json", "user-agent": "verified-catalog-mcp/0.2" };
+  const ip = req.headers.get("cf-connecting-ip");
+  if (ip) headers["cf-connecting-ip"] = ip;
+  const r = await handleLookup(new Request(u, { headers }), env, ctx, u);
+  let body = null;
+  try {
+    body = await r.json();
+  } catch (_) {
+    body = null;
+  }
+  if (r.status === 200) return [body, null];
+  const detail = body && body.error;
+  if (r.status === 402)
+    return [null, "lookup returned HTTP 402: " + (detail || "free lookups used up for today") + " Call the lookup URL directly with an x402 client to pay $0.02 USDC on Base; payment never changes results."];
+  return [null, `lookup returned HTTP ${r.status}` + (detail ? `: ${detail}` : "")];
+}
+
+class RpcError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+  }
+}
+
+async function mcpDispatch(msg, req, env, ctx, origin) {
+  const method = msg.method;
+  const params = msg.params || {};
+  if (method === "initialize")
+    return { protocolVersion: params.protocolVersion || MCP_PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: MCP_SERVER_INFO };
+  if (method === "ping") return {};
+  if (method === "tools/list") return { tools: MCP_TOOLS };
+  if (method === "tools/call") {
+    const name = params.name;
+    const args = params.arguments || {};
+    const err = (text) => ({ content: [{ type: "text", text }], isError: true });
+    if (!["search_catalog", "get_service", "lookup"].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
+    let data;
+    try {
+      if (name === "lookup") {
+        const [d, e] = await mcpLookup(req, env, ctx, origin, args);
+        if (e) return err(e);
+        data = d;
+      } else {
+        let loaded;
+        try {
+          loaded = await loadData(env, ctx);
+        } catch (e) {
+          return err("catalog data unavailable, try again shortly");
+        }
+        const q = parseQuery(new URL(origin + "/"));
+        writePoint(env, dataPoint({ cid: await clientId(req, q, env), q, excluded: exclusion(req, q, env), candidates: 0, ua: req.headers.get("user-agent") || "", returnedPayTo: [], status: 200, referer: refererHost(req), access: "mcp-" + name }));
+        if (name === "search_catalog") data = mcpSearch(loaded.catalog, args);
+        else {
+          const m = loaded.catalog.services.filter((s) => s.id === args.id);
+          if (!m.length) return err(`no service with id ${args.id === undefined || args.id === null ? "None" : `'${args.id}'`}`);
+          data = m[0];
+        }
+      }
+    } catch (e) {
+      if (e instanceof ToolInputError) return err(e.message);
+      throw e;
+    }
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }], structuredContent: data };
+  }
+  throw new RpcError(-32601, `method not found: ${method}`);
+}
+
+async function handleMcp(req, env, ctx, url) {
+  if (req.method === "GET" || req.method === "HEAD")
+    return json({ error: "this MCP endpoint is stateless: POST JSON-RPC 2.0 messages (Streamable HTTP, no SSE stream)" }, 405, { allow: "POST, OPTIONS" });
+  if (req.method === "DELETE") return json({ error: "stateless server: no session to delete" }, 405, { allow: "POST, OPTIONS" });
+  if (req.method !== "POST") return json({ error: "method not allowed" }, 405, { allow: "POST, OPTIONS" });
+  let msg;
+  try {
+    msg = JSON.parse(await req.text());
+  } catch (_) {
+    return json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } }, 400);
+  }
+  const one = async (m) => {
+    if (!m || typeof m !== "object" || Array.isArray(m)) return { jsonrpc: "2.0", id: null, error: { code: -32600, message: "invalid request" } };
+    if (!("id" in m)) return null; // notification or response: accepted, no reply
+    if (typeof m.method !== "string") return null;
+    try {
+      return { jsonrpc: "2.0", id: m.id, result: await mcpDispatch(m, req, env, ctx, url.origin) };
+    } catch (e) {
+      if (e instanceof RpcError) return { jsonrpc: "2.0", id: m.id, error: { code: e.code, message: e.message } };
+      return { jsonrpc: "2.0", id: m.id, error: { code: -32603, message: "internal error" } };
+    }
+  };
+  if (Array.isArray(msg)) {
+    const outs = (await Promise.all(msg.map(one))).filter(Boolean);
+    return outs.length ? json(outs) : new Response(null, { status: 202, headers: { "access-control-allow-origin": "*" } });
+  }
+  const out = await one(msg);
+  return out ? json(out) : new Response(null, { status: 202, headers: { "access-control-allow-origin": "*" } });
 }
 
 export const handler = {
@@ -722,15 +1087,19 @@ export const handler = {
         status: 204,
         headers: {
           "access-control-allow-origin": "*",
-          "access-control-allow-methods": "GET, OPTIONS",
-          "access-control-allow-headers": "PAYMENT-SIGNATURE, X-PAYMENT, Content-Type",
+          "access-control-allow-methods": "GET, POST, OPTIONS",
+          "access-control-allow-headers": "PAYMENT-SIGNATURE, X-PAYMENT, Content-Type, Accept, Mcp-Session-Id, MCP-Protocol-Version, Last-Event-ID",
           "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
           "access-control-max-age": "86400",
         },
       });
-    if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405, { allow: "GET, OPTIONS" });
     const path = url.pathname.replace(/\/+$/, "") || "/";
+    if (path === "/mcp") return handleMcp(req, env, ctx, url);
+    // POST is accepted on the paid path so method-probing discovery tools get the same 402.
+    if (path === "/v1/lookup/paid" && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaidLookup(req, env, ctx, url);
+    if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405, { allow: "GET, OPTIONS" });
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
+    if (path === "/.well-known/x402") return json({ version: 1, resources: [url.origin + "/v1/lookup/paid"] });
     if (path === "/v1/tasks") {
       try {
         const data = await loadData(env, ctx);
@@ -746,6 +1115,8 @@ export const handler = {
         name: "Verified catalog reliability lookup",
         version: VERSION,
         usage: url.origin + "/v1/lookup?task=web-search&max_price=0.01&n=5",
+        paid: url.origin + "/v1/lookup/paid?task=web-search&max_price=0.01&n=5",
+        mcp: url.origin + "/mcp",
         tasks: url.origin + "/v1/tasks",
         openapi: url.origin + "/openapi.json",
         catalog: (env.DATA_BASE_URL || DEFAULT_DATA).replace(/\/?$/, "/") + "catalog.json",

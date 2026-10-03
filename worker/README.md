@@ -11,6 +11,9 @@ Live: https://verified-catalog-lookup.withgrokbot.workers.dev/ (deployed 2026-09
 
 ```
 GET /v1/lookup?task=web-search&max_price=0.01&n=5     # n = paid receipts per service (1-20, default 5)
+GET /v1/lookup/paid?task=...      # same lookup, always x402 $0.02 USDC on Base (no free quota); 402 has Bazaar metadata (0.4.0)
+POST /mcp                         # free remote MCP (Streamable HTTP, stateless JSON-RPC): search_catalog, get_service, lookup (0.4.0)
+GET /.well-known/x402             # x402 discovery fan-out (0.4.0)
     optional: endpoint=<id or url>, limit=<services, default 10>, client=<your agent name>, payer=<0x wallet>,
               ref=<where you found it, e.g. via-readme>
 GET /v1/tasks          task names -> service ids
