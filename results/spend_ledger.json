@@ -397,6 +397,14 @@
       "amount_usd": "0.002",
       "status": "settled",
       "tx": "0x78b537e79409ec25656f5942a620af20dfe8384bd9afadc266c89d20d677fa7c"
+    },
+    {
+      "ts": "2026-10-03T18:48:46Z",
+      "day": "2026-10-03",
+      "service_id": "verified-catalog-lookup-e2e",
+      "amount_usd": "0.02",
+      "status": "settled",
+      "tx": "0x927fa3242e1ba2cea2b6e7a8188e1ec566f3947f0249e4c496f9e433913f44b1"
     }
   ]
 }

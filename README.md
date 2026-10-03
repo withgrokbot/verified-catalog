@@ -4,7 +4,7 @@ A static, machine-readable catalog of pay-per-call (x402) services for AI agents
 
 ## Try it in one line
 
-Which x402 web-search endpoint delivered on our last paid calls, at $0.01 or less? Free, no key:
+Which x402 web-search endpoint delivered on our last paid calls, at $0.01 or less? No key; 5 free lookups per client per UTC day:
 
 ```
 curl -s "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup?task=web-search&max_price=0.01&ref=via-readme"
@@ -15,6 +15,12 @@ const r = await (await fetch("https://verified-catalog-lookup.withgrokbot.worker
 ```
 
 Results are sorted by known-answer pass rate over our last paid calls, then price, each with its Base settlement receipts. Other tasks: [`/v1/tasks`](https://verified-catalog-lookup.withgrokbot.workers.dev/v1/tasks). Optional `client=<your agent name>`; `ref` only says where you found the link.
+
+## Pricing
+
+- **5 free lookups per client per UTC day.** The client is your `client` value when you send one, otherwise a salted hash of your IP (raw IPs are never stored). The counter resets at 00:00 UTC. Only `/v1/lookup` is metered; `/v1/tasks`, `/openapi.json` and the static catalog files stay free.
+- **After that, $0.02 USDC on Base per lookup via [x402](https://github.com/coinbase/x402).** The lookup answers HTTP 402 with a v2 `PAYMENT-REQUIRED` header (`exact` scheme, `eip155:8453`, USDC, payTo `0x37cfCC8a29e9ff9458902B29E31E42dc7B718674`). Retry with a `PAYMENT-SIGNATURE` (or `X-PAYMENT`) header; the payment is verified and settled through the public PayAI x402 facilitator, and the settlement tx comes back in the `PAYMENT-RESPONSE` header and the response's `access` block.
+- **Payment never changes results, sort order or listings.** It buys query access only. Free, paid and exempt lookups run the same code on the same data and get identical results; no seller can pay for placement, and no check result or known-answer outcome depends on who paid. Every lookup response repeats this in `payment_policy`.
 
 ## Files
 
@@ -40,4 +46,4 @@ python3 tests/run_tests.py               # acceptance tests (Node 18+ for the Wo
 
 Paid checks exist but are off by default. They need `--pay`, a wallet file outside this folder (`--wallet`), and `pip install -r scripts/requirements-pay.txt`. Hard caps: $0.10 per call, $1.00 per UTC day, $20.00 lifetime; only USDC "exact" on Base is ever signed.
 
-We publish facts only, no grades. We hold no funds and are not a party to any transaction. To contest a result, open a GitHub issue (see `methodology.html#contest`).
+We publish facts only, no grades. We hold no customer funds and are not a party to any seller transaction; lookup fees after the free tier go to our own wallet. To contest a result, open a GitHub issue (see `methodology.html#contest`).

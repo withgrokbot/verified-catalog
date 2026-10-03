@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-10-02T18:48:42Z",
+  "generated_at": "2026-10-03T18:34:43Z",
   "stale_after_hours": 36,
   "notes": "Paid calls we made, newest first. quality is the known-answer test result: pass, fail, not_graded, or null for calls made before the tests existed. Services with facts_only are not graded.",
   "services": {

@@ -4,10 +4,15 @@
 Reads the lookup Worker's Analytics Engine dataset (one data point per lookup; see worker/src/lib.js dataPoint()):
   blob1 client id, blob6 why not qualifying ("" = qualifying), blob7 payer, blob8 returned vendor pay_to list,
   double1 qualifying (1/0), timestamp.
+  Paid lookups (Worker 0.3.0+): blob13 access ("paid"), blob14 settlement tx, blob15 paying wallet, blob11 ref,
+  blob6 "self" for our own test clients, double5 USD charged.
 
 Live:     CF_ACCOUNT_ID=... CF_API_TOKEN=... python3 scripts/demand_weekly.py --start 2026-10-05
           (API token needs only "Account Analytics: Read"; never commit it)
-Offline:  python3 scripts/demand_weekly.py --start 2026-10-05 --rows rows.json [--no-payer-check]
+Offline:  python3 scripts/demand_weekly.py --start 2026-10-05 --rows rows.json [--paid-rows paid.json] [--no-payer-check]
+
+The report also shows paid lookups and revenue (x402, $0.02 USDC each after 5 free per client per UTC day): count,
+USD, distinct paying clients, by ref and test week, with our own self-test payments shown separately.
 
 Verdict (DEMAND_TEST.md section 5), days counted from --start (day 1 = the day the first listing went live):
   pass          >= 10 distinct qualifying clients in days 8-14, and >= 3 of them active on >= 2 separate days
@@ -44,12 +49,42 @@ ORDER BY ts
 LIMIT 100000"""
 
 
-def query_ae(since):
+def sql_paid(since):
+    return f"""SELECT blob1 AS client, blob6 AS reason, blob11 AS ref, blob14 AS tx, blob15 AS payer, double5 AS amount_usd,
+  toUInt32(timestamp) AS ts, _sample_interval AS weight
+FROM {DATASET}
+WHERE timestamp >= toDateTime('{since.strftime('%Y-%m-%d %H:%M:%S')}') AND blob13 = 'paid'
+ORDER BY ts
+LIMIT 100000"""
+
+
+def paid_summary(rows, start):
+    """Paid lookups and revenue. Outside = not our own test clients (reason != "self")."""
+    def block(rs):
+        usd_total = sum((Decimal(str(r.get("amount_usd") or 0)) for r in rs), Decimal("0"))
+        return {"paid_lookups": len(rs), "revenue_usd": format(usd_total.normalize(), "f") if usd_total else "0",
+                "distinct_paying_clients": len({r["client"] for r in rs})}
+    outside = [r for r in rows if (r.get("reason") or "") != "self"]
+    self_rows = [r for r in rows if (r.get("reason") or "") == "self"]
+    by_ref = {}
+    for r in outside:
+        by_ref.setdefault(r.get("ref") or "none", []).append(r)
+    week = lambda lo, hi: [r for r in outside if lo <= test_day(r["ts"], start) <= hi]
+    return {"price_usd": "0.02", "free_per_client_per_day": 5,
+            "outside": block(outside), "self_test": block(self_rows),
+            "week1": block(week(1, 7)), "week2": block(week(8, 14)),
+            "by_ref": {k: block(v) for k, v in sorted(by_ref.items())},
+            "payments": [{"at": xp.iso_z(dt.datetime.fromtimestamp(int(float(r["ts"])), dt.timezone.utc)), "client": r["client"],
+                          "ref": r.get("ref") or "", "amount_usd": str(r.get("amount_usd")), "tx": r.get("tx") or "",
+                          "self_test": (r.get("reason") or "") == "self"} for r in rows][-200:]}
+
+
+def query_ae(since, sql=sql_rows):
     acct, tok = os.environ.get("CF_ACCOUNT_ID"), os.environ.get("CF_API_TOKEN")
     if not (acct and tok):
         raise SystemExit("set CF_ACCOUNT_ID and CF_API_TOKEN, or pass --rows")
     url = f"https://api.cloudflare.com/client/v4/accounts/{acct}/analytics_engine/sql"
-    r = xp.http_call("POST", url, sql_rows(since).encode(), {"Authorization": "Bearer " + tok, "Content-Type": "text/plain"}, timeout=60)
+    r = xp.http_call("POST", url, sql(since).encode(), {"Authorization": "Bearer " + tok, "Content-Type": "text/plain"}, timeout=60)
     if not r.get("ok") or r["status"] != 200:
         raise SystemExit(f"Analytics Engine query failed: {r.get('error') or r.get('status')}")
     return json.loads(r["body"].decode("utf-8")).get("data", [])
@@ -159,6 +194,7 @@ def main(argv=None):
     ap.add_argument("--today", help="override today's UTC date (tests)")
     ap.add_argument("--site", default=os.path.dirname(HERE))
     ap.add_argument("--out", help="default: <site>/results/demand_weekly.json")
+    ap.add_argument("--paid-rows", help="JSON file with paid-lookup rows (offline; see sql_paid)")
     ap.add_argument("--no-payer-check", action="store_true")
     a = ap.parse_args(argv)
     start = dt.date.fromisoformat(a.start)
@@ -169,10 +205,18 @@ def main(argv=None):
             rows = rows.get("data", rows) if isinstance(rows, dict) else rows
     else:
         rows = query_ae(dt.datetime.combine(start, dt.time(), dt.timezone.utc))
+    if a.paid_rows:
+        with open(a.paid_rows, encoding="utf-8") as fh:
+            paid = json.load(fh)
+            paid = paid.get("data", paid) if isinstance(paid, dict) else paid
+    elif a.rows:
+        paid = []
+    else:
+        paid = query_ae(dt.datetime.combine(start, dt.time(), dt.timezone.utc), sql_paid)
     spend = spend_since(os.path.join(a.site, "results", "spend_ledger.json"), start)
     report = {"schema": 1, "generated_at": xp.iso_z(), "start": start.isoformat(),
               "note": "Distinct qualifying clients of the reliability lookup. Client ids are weekly-salted hashes or self-chosen names; no raw IPs.",
-              **evaluate(rows, start, today, spend), "by_source": by_source(rows)}
+              **evaluate(rows, start, today, spend), "by_source": by_source(rows), "paid": paid_summary(paid, start)}
     if not a.no_payer_check:
         try:
             report["payer_check"] = payer_confirmations(rows, BaseRpc())
@@ -181,7 +225,9 @@ def main(argv=None):
     out = a.out or os.path.join(a.site, "results", "demand_weekly.json")
     with open(out, "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2)
-    print(json.dumps({k: report[k] for k in ("test_day", "week1", "week2", "verdict", "why")}))
+    print(json.dumps({**{k: report[k] for k in ("test_day", "week1", "week2", "verdict", "why")},
+                      "paid_lookups": report["paid"]["outside"]["paid_lookups"], "revenue_usd": report["paid"]["outside"]["revenue_usd"],
+                      "self_test_paid_lookups": report["paid"]["self_test"]["paid_lookups"]}))
     return 0
 
 

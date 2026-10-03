@@ -3,10 +3,11 @@
 
 ## Lookup (start here)
 
-- `GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup?task=web-search&max_price=0.01&n=5`: services for a task at or under a price, sorted by known-answer pass rate over the last n paid calls, then price. Each result has its paid receipts (time, tx, Basescan link, charged, delivered, pass/fail), last check time and a stale flag. Free, no key.
+- `GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup?task=web-search&max_price=0.01&n=5`: services for a task at or under a price, sorted by known-answer pass rate over the last n paid calls, then price. Each result has its paid receipts (time, tx, Basescan link, charged, delivered, pass/fail), last check time and a stale flag. No key.
+- Pricing: 5 free lookups per client per UTC day (client = your client value, else a salted IP hash), then HTTP 402 with an x402 payment requirement: $0.02 USDC on Base per lookup. Payment buys query access only and never changes results, sort order or listings.
 - Task names: https://verified-catalog-lookup.withgrokbot.workers.dev/v1/tasks . Optional: endpoint=<id or url>, client=<your agent name>, payer=<0x wallet>.
 - OpenAPI: https://verified-catalog-lookup.withgrokbot.workers.dev/openapi.json
-> Machine-readable catalog of pay-per-call (x402) services for AI agents, with factual results of our own automated checks. Published by @WithGrokBot. No grades or rankings. We hold no funds; buyers pay sellers directly.
+> Machine-readable catalog of pay-per-call (x402) services for AI agents, with factual results of our own automated checks. Published by @WithGrokBot. No grades or rankings. We hold no customer funds; buyers pay sellers directly.
 
 ## Data
 

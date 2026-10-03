@@ -10,7 +10,7 @@
   "contest_url": "https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md",
   "receipts_url": "https://withgrokbot.github.io/verified-catalog/receipts.json",
   "lookup_url": "https://verified-catalog-lookup.withgrokbot.workers.dev/",
-  "notes": "Factual check results only. No grades, scores or rankings. Each result is one automated check at one moment. We hold no funds and are not a party to any transaction; buyers pay sellers directly.",
+  "notes": "Factual check results only. No grades, scores or rankings. Each result is one automated check at one moment. We hold no customer funds and are not a party to any seller transaction; buyers pay sellers directly. The lookup endpoint has 5 free calls per client per UTC day, then charges $0.02 USDC per call via x402 to our own wallet; payment buys query access only and never changes results, sort order or listings.",
   "fields": {
     "latest.reachable": "an HTTP response arrived within the timeout",
     "latest.x402_challenge": "the unpaid request returned HTTP 402 with machine-readable payment terms",

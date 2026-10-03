@@ -1,7 +1,11 @@
 # Reliability lookup Worker
 
-One free JSON endpoint on the Cloudflare Workers free plan. It answers "is endpoint E reliable for task X at price <= Y?"
+One JSON endpoint on the Cloudflare Workers free plan. It answers "is endpoint E reliable for task X at price <= Y?"
 from the catalog's own data and counts distinct clients for the demand test. It stores no catalog data itself.
+
+**Pricing (0.3.0):** 5 free `/v1/lookup` calls per client per UTC day, then HTTP 402 with an x402 payment requirement of
+$0.02 USDC on Base. **Payment never changes results, sort order or listings**: it buys query access only, and free, paid
+and exempt lookups run the same `lookup()` on the same data (unit-tested: paid and free results are identical).
 
 Live: https://verified-catalog-lookup.withgrokbot.workers.dev/ (deployed 2026-09-30; test day 1 = 2026-10-01).
 
@@ -24,8 +28,23 @@ GET /openapi.json      OpenAPI 3.1
   the client id, so many people clicking one tagged link still count as distinct clients. Links we publish carry
   `ref=via-readme`, `via-awesome-x402`, `via-awesome-mcp-servers`, `via-x`, `via-gh-issue`. Untagged browser clicks fall back to
   the Referer host (e.g. github.com); agents and curl usually send none.
+- Free quota: one SQLite-backed Durable Object (`QuotaCounter`, binding `QUOTA`, free plan) per client key holds
+  `{day, used}`. Key = `c:<client>` when `client` is sent, else `ip:` + SHA-256 of `CLIENT_SALT`, the UTC day and the IP
+  (IPv6 /64). The User-Agent is not part of the quota key. Bad requests (400) never use the quota. If the counter is
+  unreachable the call is served free (fail open). `SELF_CLIENTS` (by `client` value only) are exempt.
+- Payment (x402 v2, `exact`, `eip155:8453`, USDC `0x8335…2913`, amount `20000` = $0.02, payTo `PAY_TO`): after the
+  free calls the lookup answers 402 with `PAYMENT-REQUIRED` (base64 JSON, also in the body). A retry with
+  `PAYMENT-SIGNATURE` (or `X-PAYMENT`) is checked against our own requirements, then `POST /verify` and `POST /settle`
+  at `FACILITATOR_URL` (PayAI, `https://facilitator.payai.network`: public, Base mainnet, free tier of 1,000 settlements
+  per receiving wallet with no API key or account). The answer is computed before settlement and is the same as a
+  free answer; the settlement comes back in `PAYMENT-RESPONSE` and in the body's `access` block. A failed verify or
+  settle answers 402 again with the reason; nothing is charged.
+- Paid lookups in Analytics Engine: blob13 access (`free`, `paid`, `exempt`, `payment-required`, `payment-failed`),
+  blob14 settlement tx, blob15 paying wallet, blob11 ref, double5 USD charged, double6 free calls used today.
+  402 answers are not qualifying lookups.
 - Weekly report: `python3 scripts/demand_weekly.py --start <day 1>` (needs `CF_ACCOUNT_ID` and a read-only
-  `CF_API_TOKEN` with Account Analytics: Read).
+  `CF_API_TOKEN` with Account Analytics: Read). It includes paid lookups and revenue (by week and ref; our own
+  self-test payments listed separately).
 
 ## Local test (no account needed)
 

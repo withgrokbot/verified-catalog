@@ -98,6 +98,9 @@ def lookup(cat, args, lookup_url):
             detail = json.loads(e.read(100_000).decode("utf-8")).get("error")
         except (ValueError, UnicodeDecodeError, AttributeError):
             detail = None
+        if e.code == 402:
+            return None, ("lookup returned HTTP 402: " + (detail or "free lookups used up for today") +
+                          " Call the lookup URL directly with an x402 client to pay $0.02 USDC on Base; payment never changes results.")
         return None, f"lookup returned HTTP {e.code}" + (f": {detail}" if detail else "")
     except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
         return None, f"lookup request failed: {getattr(e, 'reason', e)}"
@@ -119,7 +122,9 @@ TOOLS = [
      "description": "Is an x402 endpoint reliable for a task at a price? Asks the catalog's lookup service for services matching a task "
                     "at or under max_price_usd, sorted by known-answer pass rate over the last n paid calls, then price. Each result has "
                     "its paid receipts (time, tx, Basescan link, charged, delivered, pass/fail), last check time and a stale flag. "
-                    "Services broken on the seller's side come back under facts_only, not sorted. Free; sends client=vc-mcp.",
+                    "Services broken on the seller's side come back under facts_only, not sorted. Sends client=vc-mcp: 5 free lookups per UTC day "
+                    "for that client name, then the service answers HTTP 402 (x402, $0.02 USDC on Base), which this tool reports but does not pay. "
+                    "Payment never changes results, sort order or listings.",
      "inputSchema": {"type": "object", "properties": {
          "task": {"type": "string", "description": "task name, e.g. web-search, crypto-news, weather, token-balance"},
          "max_price_usd": {"type": "number", "description": "maximum listed price per call in USD"},

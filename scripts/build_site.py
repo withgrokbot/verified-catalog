@@ -228,7 +228,9 @@ def build(site):
         "receipts_url": base + "receipts.json",
         "lookup_url": lookup_url,
         "notes": "Factual check results only. No grades, scores or rankings. Each result is one automated check at one moment. "
-                 "We hold no funds and are not a party to any transaction; buyers pay sellers directly.",
+                 "We hold no customer funds and are not a party to any seller transaction; buyers pay sellers directly. "
+                 "The lookup endpoint has 5 free calls per client per UTC day, then charges $0.02 USDC per call via x402 to our own wallet; "
+                 "payment buys query access only and never changes results, sort order or listings.",
         "fields": {
             "latest.reachable": "an HTTP response arrived within the timeout",
             "latest.x402_challenge": "the unpaid request returned HTTP 402 with machine-readable payment terms",
@@ -250,9 +252,10 @@ def build(site):
     lookup_html = ""
     if lookup_url:
         ex = e(lookup_url + "v1/lookup?task=web-search&max_price=0.01&n=5")
-        lookup_html = (f'<p>Reliability lookup (free JSON, no key): <a href="{ex}"><code>GET {ex}</code></a> '
+        lookup_html = (f'<p>Reliability lookup (JSON, no key; 5 free calls per client per UTC day, then $0.02 USDC on Base per call via x402): <a href="{ex}"><code>GET {ex}</code></a> '
                        f'returns services for a task at or under a price, sorted by known-answer pass rate over the last n paid calls, then price, with the receipts. '
-                       f'Task names: <a href="{e(lookup_url)}v1/tasks">/v1/tasks</a>. OpenAPI: <a href="{e(lookup_url)}openapi.json">/openapi.json</a>.</p>\n')
+                       f'Task names: <a href="{e(lookup_url)}v1/tasks">/v1/tasks</a>. OpenAPI: <a href="{e(lookup_url)}openapi.json">/openapi.json</a>. '
+                       f'Payment buys query access only and never changes results, sort order or listings.</p>\n')
     summ = latest.get("summary") or {}
     rows = []
     for s in data["services"]:
@@ -385,7 +388,7 @@ def build(site):
 </ul>
 <p>All paid calls are listed in <a href="receipts.json">receipts.json</a> with time, amount charged, the settlement transaction, whether a valid response came back, and the known-answer result.</p>
 <h2 id="money">Money</h2>
-<p>We never hold, receive, split or forward anyone else's funds. Buyers pay sellers directly. The only money we spend is our own, on our own checks, under the caps above.</p>
+<p>We never hold, split or forward anyone else's funds. Buyers pay sellers directly. The only money we receive is the lookup fee for our own query endpoint ($0.02 USDC via x402 after 5 free lookups per client per UTC day); it buys query access only and never changes results, sort order or listings. The only money we spend is our own, on our own checks and self-tests, under the caps above.</p>
 <h2 id="raw">Raw logs</h2>
 <p>Every check writes a raw log (JSON) with the request, the status, selected headers (the payment challenge decoded), a hash of the body, and the first 4 KB of the body. Response text from services is untrusted: we store it as data, never render it as a web page, and redact email addresses and a few local-path-like strings (the body hash covers the full, unredacted body).</p>
 <h2 id="sources">Where the listings come from</h2>
@@ -409,7 +412,7 @@ def build(site):
 
     # ---------------- llms.txt
     lines = [f"# {cfg['title']}", "",
-             f"> Machine-readable catalog of pay-per-call (x402) services for AI agents, with factual results of our own automated checks. Published by {cfg['brand']}. No grades or rankings. We hold no funds; buyers pay sellers directly.",
+             f"> Machine-readable catalog of pay-per-call (x402) services for AI agents, with factual results of our own automated checks. Published by {cfg['brand']}. No grades or rankings. We hold no customer funds; buyers pay sellers directly.",
              "", "## Data", "",
              f"- [catalog.json]({base}catalog.json): every service with endpoint, advertised price, source, and the latest check (reachable, latency, 402 price, charged price, delivered_valid, checked_at, raw log)",
              f"- [agent card]({base}.well-known/agent-card.json): what this catalog offers to agents",
@@ -424,7 +427,10 @@ def build(site):
         lines[2:2] = ["", "## Lookup (start here)", "",
                       f"- `GET {lookup_url}v1/lookup?task=web-search&max_price=0.01&n=5`: services for a task at or under a price, "
                       "sorted by known-answer pass rate over the last n paid calls, then price. Each result has its paid receipts "
-                      "(time, tx, Basescan link, charged, delivered, pass/fail), last check time and a stale flag. Free, no key.",
+                      "(time, tx, Basescan link, charged, delivered, pass/fail), last check time and a stale flag. No key.",
+                      "- Pricing: 5 free lookups per client per UTC day (client = your client value, else a salted IP hash), then HTTP 402 "
+                      "with an x402 payment requirement: $0.02 USDC on Base per lookup. Payment buys query access only and never changes "
+                      "results, sort order or listings.",
                       f"- Task names: {lookup_url}v1/tasks . Optional: endpoint=<id or url>, client=<your agent name>, payer=<0x wallet>.",
                       f"- OpenAPI: {lookup_url}openapi.json"]
     lines += ["", "## Our own bots", ""] + [f"- {b['name']}: {b['status']}" for b in data.get("own_bots", [])]
@@ -436,7 +442,7 @@ def build(site):
     card = {
         "name": cfg["title"],
         "description": "Static, machine-readable catalog of pay-per-call (x402) agent services with factual results of automated checks "
-                       "(reachability, latency, advertised vs quoted vs charged price, valid response). No grades. No funds held.",
+                       "(reachability, latency, advertised vs quoted vs charged price, valid response). No grades. No customer funds held.",
         "url": base,
         "version": "0.1.0",
         "provider": {"organization": cfg["brand"], "url": cfg["repo_url"]},
@@ -454,7 +460,8 @@ def build(site):
              "tags": ["x402", "catalog", "discovery"], "examples": ["web search under $0.01 that was reachable today"]},
             *([{"id": "lookup", "name": "Reliability lookup",
                  "description": "Is an endpoint reliable for task X at price <= Y? GET " + lookup_url + "v1/lookup?task=<task>&max_price=<usd>&n=5 "
-                                "returns matching services sorted by known-answer pass rate over the last n paid calls, then price, with receipts.",
+                                "returns matching services sorted by known-answer pass rate over the last n paid calls, then price, with receipts. "
+                                "5 free calls per client per UTC day, then $0.02 USDC on Base via x402; payment never changes results, sort order or listings.",
                  "tags": ["x402", "reliability", "lookup"], "examples": ["task=web-search&max_price=0.01"]}] if lookup_url else []),
             {"id": "get_service", "name": "Get one service",
              "description": "Full record for one service id, including the latest check and a raw log link.",

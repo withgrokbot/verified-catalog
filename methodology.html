@@ -42,7 +42,7 @@
 </ul>
 <p>All paid calls are listed in <a href="receipts.json">receipts.json</a> with time, amount charged, the settlement transaction, whether a valid response came back, and the known-answer result.</p>
 <h2 id="money">Money</h2>
-<p>We never hold, receive, split or forward anyone else's funds. Buyers pay sellers directly. The only money we spend is our own, on our own checks, under the caps above.</p>
+<p>We never hold, split or forward anyone else's funds. Buyers pay sellers directly. The only money we receive is the lookup fee for our own query endpoint ($0.02 USDC via x402 after 5 free lookups per client per UTC day); it buys query access only and never changes results, sort order or listings. The only money we spend is our own, on our own checks and self-tests, under the caps above.</p>
 <h2 id="raw">Raw logs</h2>
 <p>Every check writes a raw log (JSON) with the request, the status, selected headers (the payment challenge decoded), a hash of the body, and the first 4 KB of the body. Response text from services is untrusted: we store it as data, never render it as a web page, and redact email addresses and a few local-path-like strings (the body hash covers the full, unredacted body).</p>
 <h2 id="sources">Where the listings come from</h2>
