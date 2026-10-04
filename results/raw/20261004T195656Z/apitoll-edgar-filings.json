@@ -1,0 +1,73 @@
+{
+  "service_id": "apitoll-edgar-filings",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://edgar.apitoll.cloud/v1/edgar/filings?form=10-K&limit=5&ticker=AAPL",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 524,
+    "headers": {
+      "server": "nginx/1.24.0 (Ubuntu)",
+      "date": "Sun, 04 Oct 2026 19:56:57 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "217",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://edgar.apitoll.cloud/v1/edgar/filings",
+            "description": "Latest SEC EDGAR filings for any US-listed company by stock ticker or CIK: 10-K annual reports, 10-Q quarterly reports, and 8-K material events. Resolves ticker to CIK via SEC's official index and returns the parsed filing (company, form type, dated items). Sourced live from data.sec.gov.",
+            "mimeType": "application/json",
+            "serviceName": "ApiToll SEC Filings",
+            "tags": [
+              "sec",
+              "edgar",
+              "filings",
+              "10-K",
+              "10-Q",
+              "8-K",
+              "annual-report",
+              "finance",
+              "apitoll"
+            ]
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "3000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x58BdAD5e654691aC5eD4631758f3d8DA00666B6c",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "3000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "7kPWiEbDXu33FomKG6mGa7R8HGSfUGFsAoKFZeBERJaH",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "Hc3sdEAsCGQcpgfivywog9uwtk8gUBUZgsxdME1EJy88"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 217,
+    "body_sha256": "f5da3d8f44f42b0a8590ebefa237c078dc3f56a1a19b25e0eb59895e9dfe65f9",
+    "body_excerpt": "{\"error\":\"payment_required\",\"message\":\"This endpoint requires an x402 micropayment (USDC on Base or Solana). $0.003 per call.\",\"pricing\":{\"4\":\"$0.003\",\"10-K\":\"$0.003\",\"10-Q\":\"$0.003\",\"8-K\":\"$0.003\",\"13F-HR\":\"$0.003\"}}"
+  },
+  "run_id": "20261004T195656Z",
+  "checked_at": "2026-10-04T19:56:57Z"
+}

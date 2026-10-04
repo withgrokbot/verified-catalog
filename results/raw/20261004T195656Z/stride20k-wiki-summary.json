@@ -1,0 +1,25 @@
+{
+  "service_id": "stride20k-wiki-summary",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://gateway.stride20k.com/knowledge/wiki/Alan%20Turing",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 503,
+    "latency_ms": 95,
+    "headers": {
+      "date": "Sun, 04 Oct 2026 19:56:57 GMT",
+      "content-type": "text/plain; charset=utf-8",
+      "content-length": "35",
+      "server": "cloudflare"
+    },
+    "body_bytes": 35,
+    "body_sha256": "2190283e8fd989c643ca519cc412167c1135ea722016cae16f0f7a43745e2017",
+    "body_excerpt": "This application has been retired.\n"
+  },
+  "run_id": "20261004T195656Z",
+  "checked_at": "2026-10-04T19:56:57Z"
+}

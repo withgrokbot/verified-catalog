@@ -18,24 +18,24 @@
 
 ## Services
 
-- [OneSource ERC20 balance](https://withgrokbot.github.io/verified-catalog/services/onesource-erc20-balance.json): on-chain data; advertised $0.003 USDC; last check 2026-10-03 18:34:43 UTC: reachable yes, 402 price $0.003
-- [Exa search](https://withgrokbot.github.io/verified-catalog/services/exa-search.json): web search; advertised $0.007 USDC; last check 2026-10-03 18:34:43 UTC: reachable yes, 402 price $0.007
-- [Otto AI crypto news](https://withgrokbot.github.io/verified-catalog/services/otto-crypto-news.json): news; advertised $0.001 USDC; last check 2026-10-03 18:34:43 UTC: reachable yes, 402 price $0.001
-- [Bitrefill gift card search](https://withgrokbot.github.io/verified-catalog/services/bitrefill-gift-card-search.json): commerce search; advertised $0.002 USDC; last check 2026-10-03 18:34:44 UTC: reachable yes, 402 price $0.002
-- [x402 Atlas web search](https://withgrokbot.github.io/verified-catalog/services/x402atlas-web-search.json): web search; advertised $0.01 USDC; last check 2026-10-03 18:34:43 UTC: reachable yes, 402 price $0.01
-- [API Toll SEC EDGAR filings](https://withgrokbot.github.io/verified-catalog/services/apitoll-edgar-filings.json): public records; advertised $0.003 USDC; last check 2026-10-03 18:35:03 UTC: reachable no, 402 price n/a
-- [Oblique Markets paid time](https://withgrokbot.github.io/verified-catalog/services/oblique-paid-time.json): utility; advertised $0.01 USDC; last check 2026-10-03 18:34:44 UTC: reachable yes, 402 price $0.01
-- [CoinGecko on-chain pool search](https://withgrokbot.github.io/verified-catalog/services/coingecko-onchain-pool-search.json): on-chain data; advertised $0.01 USDC; last check 2026-10-03 18:34:43 UTC: reachable yes, 402 price $0.01
-- [You.com search](https://withgrokbot.github.io/verified-catalog/services/you-search.json): web search; advertised $0.005 USDC; last check 2026-10-03 18:34:44 UTC: reachable yes, 402 price $0.005
-- [Tavily search](https://withgrokbot.github.io/verified-catalog/services/tavily-search.json): web search; advertised $0.01 USDC; last check 2026-10-03 18:34:45 UTC: reachable yes, 402 price $0.01
-- [Glassnode MVRV metric](https://withgrokbot.github.io/verified-catalog/services/glassnode-mvrv.json): on-chain data; advertised $0.05 USDC; last check 2026-10-03 18:34:44 UTC: reachable yes, 402 price $0.05
-- [Minifetch URL preflight](https://withgrokbot.github.io/verified-catalog/services/minifetch-url-check.json): web tools; advertised $0.001 USDC; last check 2026-10-03 18:34:44 UTC: reachable yes, 402 price $0.001
-- [x402tap weather](https://withgrokbot.github.io/verified-catalog/services/x402tap-weather.json): weather; advertised $0.001 USDC; last check 2026-10-03 18:34:44 UTC: reachable yes, 402 price $0.001
-- [Massive ticker news](https://withgrokbot.github.io/verified-catalog/services/massive-ticker-news.json): news; advertised $0.01 USDC; last check 2026-10-03 18:34:44 UTC: reachable yes, 402 price $0.01
-- [x402scan merchant list](https://withgrokbot.github.io/verified-catalog/services/x402scan-merchants.json): x402 ecosystem data; advertised $0.01 USDC; last check 2026-10-03 18:34:44 UTC: reachable yes, 402 price $0.01
-- [Stride20k Wikipedia summary](https://withgrokbot.github.io/verified-catalog/services/stride20k-wiki-summary.json): reference; advertised $0.003 USDC; last check 2026-10-03 18:34:44 UTC: reachable yes, 402 price n/a
-- [x402 Atlas SSL check](https://withgrokbot.github.io/verified-catalog/services/x402atlas-ssl-check.json): web tools; advertised $0.01 USDC; last check 2026-10-03 18:34:44 UTC: reachable yes, 402 price $0.01
-- [Brasil Dados exchange rates](https://withgrokbot.github.io/verified-catalog/services/brasil-dados-cambio.json): reference; advertised $0.002 USDC; last check 2026-10-03 18:34:44 UTC: reachable yes, 402 price $0.002
+- [OneSource ERC20 balance](https://withgrokbot.github.io/verified-catalog/services/onesource-erc20-balance.json): on-chain data; advertised $0.003 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.003
+- [Exa search](https://withgrokbot.github.io/verified-catalog/services/exa-search.json): web search; advertised $0.007 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.007
+- [Otto AI crypto news](https://withgrokbot.github.io/verified-catalog/services/otto-crypto-news.json): news; advertised $0.001 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.001
+- [Bitrefill gift card search](https://withgrokbot.github.io/verified-catalog/services/bitrefill-gift-card-search.json): commerce search; advertised $0.002 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.002
+- [x402 Atlas web search](https://withgrokbot.github.io/verified-catalog/services/x402atlas-web-search.json): web search; advertised $0.01 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.01
+- [API Toll SEC EDGAR filings](https://withgrokbot.github.io/verified-catalog/services/apitoll-edgar-filings.json): public records; advertised $0.003 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.003
+- [Oblique Markets paid time](https://withgrokbot.github.io/verified-catalog/services/oblique-paid-time.json): utility; advertised $0.01 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.01
+- [CoinGecko on-chain pool search](https://withgrokbot.github.io/verified-catalog/services/coingecko-onchain-pool-search.json): on-chain data; advertised $0.01 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.01
+- [You.com search](https://withgrokbot.github.io/verified-catalog/services/you-search.json): web search; advertised $0.005 USDC; last check 2026-10-04 19:56:58 UTC: reachable yes, 402 price $0.005
+- [Tavily search](https://withgrokbot.github.io/verified-catalog/services/tavily-search.json): web search; advertised $0.01 USDC; last check 2026-10-04 19:56:59 UTC: reachable yes, 402 price $0.01
+- [Glassnode MVRV metric](https://withgrokbot.github.io/verified-catalog/services/glassnode-mvrv.json): on-chain data; advertised $0.05 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.05
+- [Minifetch URL preflight](https://withgrokbot.github.io/verified-catalog/services/minifetch-url-check.json): web tools; advertised $0.001 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.001
+- [x402tap weather](https://withgrokbot.github.io/verified-catalog/services/x402tap-weather.json): weather; advertised $0.001 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.001
+- [Massive ticker news](https://withgrokbot.github.io/verified-catalog/services/massive-ticker-news.json): news; advertised $0.01 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.01
+- [x402scan merchant list](https://withgrokbot.github.io/verified-catalog/services/x402scan-merchants.json): x402 ecosystem data; advertised $0.01 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.01
+- [Stride20k Wikipedia summary](https://withgrokbot.github.io/verified-catalog/services/stride20k-wiki-summary.json): reference; advertised $0.003 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price n/a
+- [x402 Atlas SSL check](https://withgrokbot.github.io/verified-catalog/services/x402atlas-ssl-check.json): web tools; advertised $0.01 USDC; last check 2026-10-04 19:56:58 UTC: reachable yes, 402 price $0.01
+- [Brasil Dados exchange rates](https://withgrokbot.github.io/verified-catalog/services/brasil-dados-cambio.json): reference; advertised $0.002 USDC; last check 2026-10-04 19:56:57 UTC: reachable yes, 402 price $0.002
 
 ## Paid receipts
 

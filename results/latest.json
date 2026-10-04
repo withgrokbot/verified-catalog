@@ -1,21 +1,21 @@
 {
   "schema": 1,
-  "generated_at": "2026-10-03T18:34:43Z",
-  "run_id": "20261003T183443Z",
+  "generated_at": "2026-10-04T19:56:56Z",
+  "run_id": "20261004T195656Z",
   "mode": "dry-run",
   "checker_version": "0.2.0",
   "summary": {
     "services_checked": 18,
     "checked_this_run": 18,
-    "reachable": 17,
-    "x402_challenge_ok": 16,
-    "price_matches_listing": 16,
+    "reachable": 18,
+    "x402_challenge_ok": 17,
+    "price_matches_listing": 17,
     "paid_calls": 0,
     "quality_pass": 0,
     "quality_fail": 0
   },
   "spend": {
-    "total_usd": "0.425",
+    "total_usd": "0.465",
     "today_usd": "0",
     "caps_usd": {
       "per_call": "0.1",
@@ -26,23 +26,40 @@
   "results": [
     {
       "service_id": "apitoll-edgar-filings",
-      "checked_at": "2026-10-03T18:35:03Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
         "method": "GET",
         "url": "https://edgar.apitoll.cloud/v1/edgar/filings?form=10-K&limit=5&ticker=AAPL"
       },
-      "reachable": false,
-      "http_status": null,
-      "latency_ms": 20140,
-      "error": "URLError: timed out",
-      "x402_challenge": false,
-      "x402_version": null,
+      "reachable": true,
+      "http_status": 402,
+      "latency_ms": 524,
+      "error": null,
+      "x402_challenge": true,
+      "x402_version": 2,
       "advertised_price_usd": "0.003",
-      "quoted_price_usd": null,
-      "price_matches_listing": null,
-      "payment_options": [],
+      "quoted_price_usd": "0.003",
+      "price_matches_listing": true,
+      "payment_options": [
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "USDC",
+          "amount_atomic": "3000",
+          "amount_usd": "0.003",
+          "pay_to": "0x58BdAD5e654691aC5eD4631758f3d8DA00666B6c"
+        },
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5Aufq",
+          "amount_atomic": "3000",
+          "amount_usd": null,
+          "pay_to": "7kPWiEbDXu33FomKG6mGa7R8HGSfUGFsAoKFZeBERJaH"
+        }
+      ],
       "paid": false,
       "charged_price_usd": null,
       "delivered_valid": null,
@@ -51,12 +68,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/apitoll-edgar-filings.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/apitoll-edgar-filings.json"
     },
     {
       "service_id": "bitrefill-gift-card-search",
-      "checked_at": "2026-10-03T18:34:44Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -65,7 +82,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 667,
+      "latency_ms": 655,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -114,12 +131,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/bitrefill-gift-card-search.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/bitrefill-gift-card-search.json"
     },
     {
       "service_id": "brasil-dados-cambio",
-      "checked_at": "2026-10-03T18:34:44Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -128,7 +145,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 170,
+      "latency_ms": 103,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -161,12 +178,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/brasil-dados-cambio.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/brasil-dados-cambio.json"
     },
     {
       "service_id": "coingecko-onchain-pool-search",
-      "checked_at": "2026-10-03T18:34:43Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -175,7 +192,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 150,
+      "latency_ms": 163,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -208,12 +225,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/coingecko-onchain-pool-search.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/coingecko-onchain-pool-search.json"
     },
     {
       "service_id": "exa-search",
-      "checked_at": "2026-10-03T18:34:43Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -222,7 +239,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 257,
+      "latency_ms": 223,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -295,12 +312,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/exa-search.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/exa-search.json"
     },
     {
       "service_id": "glassnode-mvrv",
-      "checked_at": "2026-10-03T18:34:44Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -309,7 +326,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 503,
+      "latency_ms": 557,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -334,12 +351,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/glassnode-mvrv.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/glassnode-mvrv.json"
     },
     {
       "service_id": "massive-ticker-news",
-      "checked_at": "2026-10-03T18:34:44Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -348,7 +365,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 218,
+      "latency_ms": 238,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -373,12 +390,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/massive-ticker-news.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/massive-ticker-news.json"
     },
     {
       "service_id": "minifetch-url-check",
-      "checked_at": "2026-10-03T18:34:44Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -387,7 +404,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 118,
+      "latency_ms": 134,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -420,12 +437,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/minifetch-url-check.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/minifetch-url-check.json"
     },
     {
       "service_id": "oblique-paid-time",
-      "checked_at": "2026-10-03T18:34:44Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -434,7 +451,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 374,
+      "latency_ms": 223,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -467,12 +484,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/oblique-paid-time.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/oblique-paid-time.json"
     },
     {
       "service_id": "onesource-erc20-balance",
-      "checked_at": "2026-10-03T18:34:43Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -481,7 +498,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 376,
+      "latency_ms": 438,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -514,12 +531,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/onesource-erc20-balance.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/onesource-erc20-balance.json"
     },
     {
       "service_id": "otto-crypto-news",
-      "checked_at": "2026-10-03T18:34:43Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -528,7 +545,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 302,
+      "latency_ms": 441,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -569,12 +586,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/otto-crypto-news.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/otto-crypto-news.json"
     },
     {
       "service_id": "stride20k-wiki-summary",
-      "checked_at": "2026-10-03T18:34:44Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -583,7 +600,7 @@
       },
       "reachable": true,
       "http_status": 503,
-      "latency_ms": 140,
+      "latency_ms": 95,
       "error": null,
       "x402_challenge": false,
       "x402_version": null,
@@ -599,12 +616,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/stride20k-wiki-summary.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/stride20k-wiki-summary.json"
     },
     {
       "service_id": "tavily-search",
-      "checked_at": "2026-10-03T18:34:45Z",
+      "checked_at": "2026-10-04T19:56:59Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -613,7 +630,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 1839,
+      "latency_ms": 2449,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -627,7 +644,7 @@
           "asset": "USDC",
           "amount_atomic": "10000",
           "amount_usd": "0.01",
-          "pay_to": "0x93ab826176a211f1ebfe5be226f9ff91e825f636"
+          "pay_to": "0x12d65d0f96ef7d64d158ba27f55e42dfa7b173d6"
         },
         {
           "scheme": "agent-pay",
@@ -646,12 +663,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/tavily-search.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/tavily-search.json"
     },
     {
       "service_id": "x402atlas-ssl-check",
-      "checked_at": "2026-10-03T18:34:44Z",
+      "checked_at": "2026-10-04T19:56:58Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -660,7 +677,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 169,
+      "latency_ms": 259,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -709,12 +726,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/x402atlas-ssl-check.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/x402atlas-ssl-check.json"
     },
     {
       "service_id": "x402atlas-web-search",
-      "checked_at": "2026-10-03T18:34:43Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -723,7 +740,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 199,
+      "latency_ms": 260,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -772,12 +789,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/x402atlas-web-search.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/x402atlas-web-search.json"
     },
     {
       "service_id": "x402scan-merchants",
-      "checked_at": "2026-10-03T18:34:44Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -786,7 +803,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 411,
+      "latency_ms": 262,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -811,12 +828,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/x402scan-merchants.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/x402scan-merchants.json"
     },
     {
       "service_id": "x402tap-weather",
-      "checked_at": "2026-10-03T18:34:44Z",
+      "checked_at": "2026-10-04T19:56:57Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -825,7 +842,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 227,
+      "latency_ms": 186,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -874,12 +891,12 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/x402tap-weather.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/x402tap-weather.json"
     },
     {
       "service_id": "you-search",
-      "checked_at": "2026-10-03T18:34:44Z",
+      "checked_at": "2026-10-04T19:56:58Z",
       "mode": "dry-run",
       "checker_version": "0.2.0",
       "request": {
@@ -888,7 +905,7 @@
       },
       "reachable": true,
       "http_status": 402,
-      "latency_ms": 1016,
+      "latency_ms": 863,
       "error": null,
       "x402_challenge": true,
       "x402_version": 2,
@@ -921,8 +938,8 @@
       "settlement_tx": null,
       "pay_to": null,
       "quality": null,
-      "run_id": "20261003T183443Z",
-      "raw_log": "results/raw/20261003T183443Z/you-search.json"
+      "run_id": "20261004T195656Z",
+      "raw_log": "results/raw/20261004T195656Z/you-search.json"
     }
   ]
 }
