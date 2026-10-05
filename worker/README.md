@@ -3,7 +3,7 @@
 One JSON endpoint on the Cloudflare Workers free plan. It answers "is endpoint E reliable for task X at price <= Y?"
 from the catalog's own data and counts distinct clients for the demand test. It stores no catalog data itself.
 
-**Pricing (0.3.0):** 5 free `/v1/lookup` calls per client per UTC day, then HTTP 402 with an x402 payment requirement of
+**Pricing (0.3.0+; products 0.5.0):** 5 free `/v1/lookup` calls per client per UTC day, then HTTP 402 with an x402 payment requirement of
 $0.02 USDC on Base. **Payment never changes results, sort order or listings**: it buys query access only, and free, paid
 and exempt lookups run the same `lookup()` on the same data (unit-tested: paid and free results are identical).
 
@@ -14,6 +14,8 @@ GET /v1/lookup?task=web-search&max_price=0.01&n=5     # n = paid receipts per se
 GET /v1/lookup/paid?task=...      # same lookup, always x402 $0.02 USDC on Base (no free quota); 402 has Bazaar metadata (0.4.0)
 POST /mcp                         # free remote MCP (Streamable HTTP, stateless JSON-RPC): search_catalog, get_service, lookup (0.4.0)
 GET /.well-known/x402             # x402 discovery fan-out (0.4.0)
+GET /v1/products/overnight-cos-pack  # Overnight CoS Setup Pack, always $9 USDC via x402 (0.5.0)
+                                     # MCP tool: get_overnight_cos_pack (paid; SELF_CLIENTS not exempt)
     optional: endpoint=<id or url>, limit=<services, default 10>, client=<your agent name>, payer=<0x wallet>,
               ref=<where you found it, e.g. via-readme>
 GET /v1/tasks          task names -> service ids

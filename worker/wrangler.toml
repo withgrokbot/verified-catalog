@@ -17,6 +17,9 @@ FREE_PER_DAY = "5"
 PRICE_ATOMIC = "20000"
 PAY_TO = "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
 FACILITATOR_URL = "https://facilitator.payai.network"
+# Product (0.5.0): Overnight Chief of Staff Setup Pack — always paid, $9 USDC (9000000 atomic).
+# SELF_CLIENTS do NOT get this free. PACK_PREVIEW=1 returns a stub without payment (local tests only).
+PACK_PRICE_ATOMIC = "9000000"
 
 # One data point per lookup (free plan: 100k writes/day, kept 3 months).
 [[analytics_engine_datasets]]
@@ -31,3 +34,8 @@ class_name = "QuotaCounter"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["QuotaCounter"]
+
+# Pack blobs (PDF guide). Prompts/template live in src/pack/overnight-cos-data.js.
+[[kv_namespaces]]
+binding = "PACK_BLOBS"
+id = "21ac2bd711dd4c01b2cd0ca1a8c14795"

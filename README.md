@@ -30,6 +30,13 @@ Results are sorted by known-answer pass rate over our last paid calls, then pric
 
 `GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup/paid?task=web-search&max_price=0.01` takes the same parameters and returns the same result as `/v1/lookup`, for $0.02 USDC on Base per call with no free quota. Its 402 carries x402 Bazaar discovery metadata (`extensions.bazaar`); it is also listed in `/openapi.json` (`x-payment-info`) and `/.well-known/x402`. Bad parameters get a 400 before anything is settled.
 
+
+## Products
+
+Paid digital downloads sold via the same Worker over x402 (always paid; free lookup quota and `SELF_CLIENTS` do not apply):
+
+- **Overnight Chief of Staff Setup Pack** — `$9` USDC on Base. `GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/products/overnight-cos-pack` (or MCP tool `get_overnight_cos_pack`). Unpaid calls return HTTP 402 with Bazaar discovery metadata. After payment: prompts, HTML morning-briefing template, and PDF guide.
+
 ## Files
 
 - `index.html`, `services/<id>.html`, `methodology.html`: the site (no JavaScript, no requests to other hosts)

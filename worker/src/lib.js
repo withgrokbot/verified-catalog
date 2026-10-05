@@ -19,8 +19,13 @@
 // Privacy: raw IPs are never stored. Without a `client` value the client id is a hash of the IP /24 (IPv6 /48)
 // plus the User-Agent, salted with a secret that changes every ISO week.
 // No runtime dependencies.
+import {
+  PACK_ID, PACK_TITLE, PACK_SERVICE_NAME, PACK_TAGS, PACK_DESCRIPTION,
+  PACK_PRICE_USD, PACK_DEFAULT_PRICE_ATOMIC, PACK_GUIDE_FILENAME, PACK_GUIDE_KV_KEY,
+  PACK_PROMPTS, PACK_TEMPLATES,
+} from "./pack/overnight-cos-data.js";
 
-export const VERSION = "0.4.0";
+export const VERSION = "0.5.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -323,6 +328,20 @@ export function cfg(env) {
   };
 }
 
+// Pack product config: same payTo/network/facilitator as lookups, dedicated PACK_PRICE_ATOMIC ($9).
+export function packCfg(env) {
+  const c = cfg(env);
+  const price = /^[0-9]{1,12}$/.test(String(env.PACK_PRICE_ATOMIC || ""))
+    ? String(env.PACK_PRICE_ATOMIC)
+    : PACK_DEFAULT_PRICE_ATOMIC;
+  return {
+    ...c,
+    priceAtomic: price,
+    priceUsd: (Number(price) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, ""),
+  };
+}
+
+
 export function utcDay(now = new Date()) {
   return now.toISOString().slice(0, 10);
 }
@@ -394,11 +413,14 @@ export async function takeFree(env, key, limit, now = new Date(), op = "take") {
   }
 }
 
-export function paymentRequirements(c, resourceUrl, version = 2, paidPath = false) {
+export function paymentRequirements(c, resourceUrl, version = 2, paidPathOrOpts = false) {
+  const opts = typeof paidPathOrOpts === "boolean" ? { paidPath: paidPathOrOpts } : paidPathOrOpts || {};
+  const paidPath = !!opts.paidPath;
   const extra = { name: "USD Coin", version: "2" };
-  const description = paidPath
-    ? `Verified catalog reliability lookup, paid per call (no free quota on this path). ${PAYMENT_POLICY}`
-    : `Verified catalog reliability lookup, one call after the ${c.freePerDay} free calls per UTC day. ${PAYMENT_POLICY}`;
+  const description = opts.description
+    || (paidPath
+      ? `Verified catalog reliability lookup, paid per call (no free quota on this path). ${PAYMENT_POLICY}`
+      : `Verified catalog reliability lookup, one call after the ${c.freePerDay} free calls per UTC day. ${PAYMENT_POLICY}`);
   if (version === 1)
     return {
       scheme: "exact",
@@ -489,6 +511,178 @@ export function paidPaymentRequired(c, resourceUrl, error) {
   };
 }
 
+
+// ------------------------------------------------------------------ Overnight CoS Setup Pack ($9, always paid)
+export function packBazaarExtension() {
+  return {
+    info: {
+      input: { type: "http", method: "GET" },
+      output: {
+        type: "json",
+        example: {
+          product: PACK_ID,
+          title: PACK_TITLE,
+          price_usdc: PACK_PRICE_USD,
+          files: {
+            prompts: { "00_overnight_cos_combiner.txt": "..." },
+            templates: { "morning_briefing_template.html": "..." },
+            guide: { filename: PACK_GUIDE_FILENAME, content_type: "application/pdf", encoding: "base64", data: "..." },
+          },
+          access: { tier: "paid", charged_usd: "9", tx: "0x..." },
+        },
+      },
+    },
+    schema: {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties: {
+        input: {
+          type: "object",
+          properties: {
+            type: { type: "string", const: "http" },
+            method: { type: "string", enum: ["GET", "POST"] },
+            headers: { type: "object", additionalProperties: { type: "string" } },
+          },
+          required: ["type", "method"],
+          additionalProperties: false,
+        },
+        output: {
+          type: "object",
+          properties: {
+            type: { type: "string" },
+            example: {
+              type: "object",
+              properties: {
+                product: { type: "string" },
+                title: { type: "string" },
+                price_usdc: { type: "number" },
+                files: {
+                  type: "object",
+                  properties: {
+                    prompts: { type: "object", additionalProperties: { type: "string" } },
+                    templates: { type: "object", additionalProperties: { type: "string" } },
+                    guide: {
+                      type: "object",
+                      properties: {
+                        filename: { type: "string" },
+                        content_type: { type: "string" },
+                        encoding: { type: "string" },
+                        data: { type: "string", description: "base64-encoded PDF" },
+                      },
+                    },
+                  },
+                },
+                access: { type: "object" },
+              },
+            },
+          },
+          required: ["type"],
+        },
+      },
+      required: ["input"],
+    },
+  };
+}
+
+export function packPaymentRequired(c, resourceUrl, error) {
+  return {
+    x402Version: 2,
+    error,
+    resource: {
+      url: resourceUrl,
+      description: PACK_DESCRIPTION,
+      mimeType: "application/json",
+      serviceName: PACK_SERVICE_NAME,
+      tags: PACK_TAGS,
+    },
+    accepts: [paymentRequirements(c, resourceUrl, 2, {
+      paidPath: true,
+      description: `${PACK_TITLE}: one-time download of prompts, HTML template, and PDF guide. ${c.priceUsd} USDC on Base.`,
+    })],
+    extensions: { bazaar: packBazaarExtension() },
+    price_usd: c.priceUsd,
+    asset: "USDC on Base (eip155:8453)",
+    product: PACK_ID,
+    how_to_pay:
+      "Retry the same request with a PAYMENT-SIGNATURE header (x402 v2; X-PAYMENT is also accepted) holding a signed USDC EIP-3009 authorization for the amount and payTo above. Bad or missing payment returns 402; nothing is delivered until settle succeeds.",
+  };
+}
+
+function bytesToBase64(buf) {
+  const bytes = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf;
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  return btoa(bin);
+}
+
+async function loadPackGuide(env) {
+  if (env.PACK_BLOBS && typeof env.PACK_BLOBS.get === "function") {
+    const raw = await env.PACK_BLOBS.get(PACK_GUIDE_KV_KEY, "arrayBuffer");
+    if (raw && raw.byteLength) return bytesToBase64(raw);
+  }
+  return null;
+}
+
+export async function buildPackResponse(env, settlement) {
+  const guideB64 = await loadPackGuide(env);
+  const guide = guideB64
+    ? { filename: PACK_GUIDE_FILENAME, content_type: "application/pdf", encoding: "base64", data: guideB64 }
+    : { filename: PACK_GUIDE_FILENAME, content_type: "application/pdf", encoding: "base64", data: "", error: "guide unavailable" };
+  return {
+    product: PACK_ID,
+    title: PACK_TITLE,
+    price_usdc: PACK_PRICE_USD,
+    files: { prompts: PACK_PROMPTS, templates: PACK_TEMPLATES, guide },
+    access: settlement,
+  };
+}
+
+// Always-paid product. SELF_CLIENTS are NOT exempt (this is a product sale, not lookup quota).
+// PACK_PREVIEW=1 returns a stub without payment (local/unit tests only; leave off in production).
+async function handleOvernightCosPack(req, env, ctx, url) {
+  const c = packCfg(env);
+  const resourceUrl = url.origin + url.pathname.replace(/\/+$/, "");
+  const deny = (error, kind = "payment-required") => {
+    const body = packPaymentRequired(c, resourceUrl, error);
+    return json(body, 402, { "payment-required": b64encode(body) });
+  };
+  if (String(env.PACK_PREVIEW || "") === "1") {
+    const stub = await buildPackResponse(
+      { ...env, PACK_BLOBS: { get: async () => new TextEncoder().encode("%PDF-1.4 stub").buffer } },
+      { tier: "preview", note: "PACK_PREVIEW=1: no payment settled" }
+    );
+    return json(stub, 200);
+  }
+  const hdr = paymentHeader(req);
+  if (!hdr) return deny(`Payment required: ${c.priceUsd} USDC on Base for the ${PACK_TITLE} via x402.`);
+  const payload = decodePaymentHeader(hdr);
+  if (!payload) return deny("payment header is not valid base64 JSON x402 payload", "payment-failed");
+  const bad = checkPayload(payload, c);
+  if (bad) return deny("payment rejected: " + bad, "payment-failed");
+  const r = await verifyAndSettle(c, payload, resourceUrl, {
+    paidPath: true,
+    description: `${PACK_TITLE}: one-time download. ${c.priceUsd} USDC on Base.`,
+  });
+  if (!r.ok) return deny("payment rejected: " + r.reason, "payment-failed");
+  const enc = b64encode(r.settle);
+  const settlement = {
+    tier: "paid",
+    charged_usd: c.priceUsd,
+    asset: "USDC on Base",
+    tx: r.settle.transaction,
+    basescan_url: "https://basescan.org/tx/" + r.settle.transaction,
+    payer: r.settle.payer || null,
+    settlement: r.settle,
+  };
+  const body = await buildPackResponse(env, settlement);
+  if (!body.files.guide.data) {
+    // Settle already happened; still return prompts/template and note the missing PDF.
+    body.files.guide.note = "PDF guide could not be loaded from storage; prompts and template are included. Contact support with your settlement tx.";
+  }
+  return json(body, 200, { "payment-response": enc, "x-payment-response": enc });
+}
+
 export function paymentRequired(c, url, error, used) {
   const resource = url.toString();
   return {
@@ -570,9 +764,9 @@ async function facilitatorCall(c, path, body) {
 }
 
 // verify, then settle. Returns {ok, settle?, reason}.
-export async function verifyAndSettle(c, payload, url, paidPath = false) {
+export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
   const v = Number(payload.x402Version || 1);
-  const body = { x402Version: v, paymentPayload: payload, paymentRequirements: paymentRequirements(c, url.toString(), v, paidPath) };
+  const body = { x402Version: v, paymentPayload: payload, paymentRequirements: paymentRequirements(c, url.toString(), v, paidPathOrOpts) };
   let vr;
   try {
     vr = await facilitatorCall(c, "/verify", body);
@@ -653,7 +847,7 @@ export function pricingDoc(c) {
     free_scope: "per client per UTC day; client = the client value when sent, otherwise a salted hash of your IP",
     then: `HTTP 402 x402 payment requirement: $${c.priceUsd} USDC on Base (eip155:8453), scheme exact, payTo ${c.payTo}`,
     facilitator: c.facilitator,
-    metered: "/v1/lookup after the free quota; /v1/lookup/paid always (same results). /mcp, /v1/tasks, /openapi.json, /health are free (the MCP lookup tool shares the vc-mcp free quota)",
+    metered: "/v1/lookup after the free quota; /v1/lookup/paid always (same results); /v1/products/overnight-cos-pack always $9 USDC. /mcp, /v1/tasks, /openapi.json, /health are free (the MCP lookup tool shares the vc-mcp free quota; get_overnight_cos_pack is paid)",
   };
 }
 
@@ -665,7 +859,7 @@ export function openapi(origin, env = {}) {
       title: "Verified catalog reliability lookup",
       version: VERSION,
       contact: { url: "https://github.com/withgrokbot/verified-catalog/issues" },
-      "x-guidance": `Ask GET /v1/lookup?task=<task>&max_price=<usd> (task names: /v1/tasks). ${c.freePerDay} free calls per client per UTC day, then the same path answers 402; /v1/lookup/paid is the always-paid twin ($${c.priceUsd} USDC on Base via x402) with identical results. Free MCP: POST /mcp.`,
+      "x-guidance": `Ask GET /v1/lookup?task=<task>&max_price=<usd> (task names: /v1/tasks). ${c.freePerDay} free calls per client per UTC day, then the same path answers 402; /v1/lookup/paid is the always-paid twin ($${c.priceUsd} USDC on Base via x402) with identical results. Products: GET /v1/products/overnight-cos-pack ($9 USDC). Free MCP: POST /mcp.`,
       description:
         `Is an x402 endpoint reliable for task X at price <= Y? Facts from our own paid calls: receipts with settlement tx, delivered yes/no and a known-answer pass/fail. Pricing: ${c.freePerDay} free lookups per client per UTC day, then HTTP 402 with an x402 payment requirement of $${c.priceUsd} USDC on Base per lookup. ${PAYMENT_POLICY} Not investment advice; we hold no customer funds.`,
     },
@@ -708,11 +902,37 @@ export function openapi(origin, env = {}) {
           },
         },
       },
+      "/v1/products/overnight-cos-pack": {
+        get: {
+          operationId: "getOvernightCosPack",
+          summary: "Overnight Chief of Staff Setup Pack: prompts, HTML template, and PDF guide ($9 USDC on Base via x402, always paid)",
+          "x-payment-info": {
+            price: { mode: "fixed", currency: "USD", amount: packCfg(env).priceUsd },
+            protocols: [{ x402: { scheme: "exact", network: packCfg(env).network, asset: USDC_BASE, payTo: packCfg(env).payTo } }],
+          },
+          responses: {
+            200: { description: "JSON with product, title, price_usdc, files.prompts, files.templates, files.guide (PDF base64), access/settlement" },
+            402: { description: "x402 v2 payment requirement ($9 USDC on Base) with Bazaar discovery metadata for the Overnight CoS Setup Pack" },
+          },
+        },
+        post: {
+          operationId: "getOvernightCosPackPost",
+          summary: "Same as GET /v1/products/overnight-cos-pack (POST accepted for discovery probes)",
+          "x-payment-info": {
+            price: { mode: "fixed", currency: "USD", amount: packCfg(env).priceUsd },
+            protocols: [{ x402: { scheme: "exact", network: packCfg(env).network, asset: USDC_BASE, payTo: packCfg(env).payTo } }],
+          },
+          responses: {
+            200: { description: "same as GET" },
+            402: { description: "same as GET" },
+          },
+        },
+      },
       "/mcp": {
         post: {
           operationId: "mcp",
           security: [],
-          summary: "Free remote MCP server (Streamable HTTP, stateless JSON-RPC 2.0): tools search_catalog, get_service, lookup (lookup shares the vc-mcp free quota)",
+          summary: "Free remote MCP server (Streamable HTTP, stateless JSON-RPC 2.0): tools search_catalog, get_service, lookup, get_overnight_cos_pack (lookup shares the vc-mcp free quota; pack is always paid via x402)",
           responses: { 200: { description: "JSON-RPC response" }, 202: { description: "notification accepted" } },
         },
       },
@@ -871,7 +1091,7 @@ async function handlePaidLookup(req, env, ctx, url) {
 // free quota (5 per UTC day) and reports, but never pays, the 402 after it.
 export const MCP_CLIENT = "vc-mcp";
 export const MCP_PROTOCOL = "2025-06-18";
-export const MCP_SERVER_INFO = { name: "verified-catalog", version: "0.2.0" };
+export const MCP_SERVER_INFO = { name: "verified-catalog", version: "0.5.0" };
 export const MCP_TOOLS = [
   {
     name: "search_catalog",
@@ -912,6 +1132,15 @@ export const MCP_TOOLS = [
         payer: { type: "string", description: "optional: your 0x wallet, so a later payment to a returned vendor can be confirmed on-chain" },
       },
     },
+  },
+  {
+    name: "get_overnight_cos_pack",
+    description:
+      "Buy and download the Overnight Chief of Staff Setup Pack ($9 USDC on Base via x402): 5 ready-to-paste bot prompts, " +
+      "an HTML morning-briefing template, and a PDF setup guide. Always paid — no free quota. " +
+      "Call without PAYMENT-SIGNATURE to receive payment requirements and the HTTP endpoint URL. " +
+      "Agents pay by retrying the HTTP endpoint (or this MCP call) with a PAYMENT-SIGNATURE header holding a signed USDC EIP-3009 authorization.",
+    inputSchema: { type: "object", properties: {} },
   },
 ];
 
@@ -1017,10 +1246,31 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
     const name = params.name;
     const args = params.arguments || {};
     const err = (text) => ({ content: [{ type: "text", text }], isError: true });
-    if (!["search_catalog", "get_service", "lookup"].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
+    if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack"].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
     let data;
     try {
-      if (name === "lookup") {
+      if (name === "get_overnight_cos_pack") {
+        const u = new URL(origin + "/v1/products/overnight-cos-pack");
+        const headers = { accept: "application/json", "user-agent": "verified-catalog-mcp/0.5" };
+        const pay = paymentHeader(req);
+        if (pay) headers["payment-signature"] = pay;
+        const ip = req.headers.get("cf-connecting-ip");
+        if (ip) headers["cf-connecting-ip"] = ip;
+        const r = await handleOvernightCosPack(new Request(u, { method: "GET", headers }), env, ctx, u);
+        let body = null;
+        try { body = await r.json(); } catch (_) { body = null; }
+        if (r.status === 200) {
+          data = body;
+        } else if (r.status === 402) {
+          return err(
+            "Payment required: $9 USDC on Base via x402 for the Overnight Chief of Staff Setup Pack. " +
+            "Pay at " + u.toString() + " with a PAYMENT-SIGNATURE header (x402 v2), or retry this MCP call with the same header. " +
+            "Requirements: " + JSON.stringify(body)
+          );
+        } else {
+          return err("pack endpoint returned HTTP " + r.status + (body && body.error ? ": " + body.error : ""));
+        }
+      } else if (name === "lookup") {
         const [d, e] = await mcpLookup(req, env, ctx, origin, args);
         if (e) return err(e);
         data = d;
@@ -1097,9 +1347,10 @@ export const handler = {
     if (path === "/mcp") return handleMcp(req, env, ctx, url);
     // POST is accepted on the paid path so method-probing discovery tools get the same 402.
     if (path === "/v1/lookup/paid" && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaidLookup(req, env, ctx, url);
+    if (path === "/v1/products/overnight-cos-pack" && ["GET", "HEAD", "POST"].includes(req.method)) return handleOvernightCosPack(req, env, ctx, url);
     if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405, { allow: "GET, OPTIONS" });
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
-    if (path === "/.well-known/x402") return json({ version: 1, resources: [url.origin + "/v1/lookup/paid"] });
+    if (path === "/.well-known/x402") return json({ version: 1, resources: [url.origin + "/v1/lookup/paid", url.origin + "/v1/products/overnight-cos-pack"] });
     if (path === "/v1/tasks") {
       try {
         const data = await loadData(env, ctx);
@@ -1116,6 +1367,14 @@ export const handler = {
         version: VERSION,
         usage: url.origin + "/v1/lookup?task=web-search&max_price=0.01&n=5",
         paid: url.origin + "/v1/lookup/paid?task=web-search&max_price=0.01&n=5",
+        products: {
+          "overnight-cos-pack": {
+            url: url.origin + "/v1/products/overnight-cos-pack",
+            title: PACK_TITLE,
+            price_usdc: PACK_PRICE_USD,
+            note: "Always paid via x402; SELF_CLIENTS are not exempt",
+          },
+        },
         mcp: url.origin + "/mcp",
         tasks: url.origin + "/v1/tasks",
         openapi: url.origin + "/openapi.json",
