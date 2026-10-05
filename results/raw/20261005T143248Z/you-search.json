@@ -1,0 +1,62 @@
+{
+  "service_id": "you-search",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.you.com/v1/search?count=10&query=x402+payment+protocol",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 636,
+    "headers": {
+      "date": "Mon, 05 Oct 2026 14:32:49 GMT",
+      "content-type": "application/problem+json",
+      "content-length": "201",
+      "server": "cloudflare",
+      "www-authenticate": "Payment id=\"uWknVoZmN-tdNZ5QSAJ7PImm8wbYL5m7yx5UX4iRBMA\", realm=\"api.you.com\", method=\"tempo\", intent=\"charge\", request=\"eyJhbW91bnQiOiIxMDAwMCIsImN1cnJlbmN5IjoiMHgyMGMwMDAwMDAwMDAwMDAwMDAwMDAwMDBiOTUzN2QxMWM2MGU4YjUwIiwibWV0aG9kRGV0YWlscyI6eyJjaGFpbklkIjo0MjE3fSwicmVjaXBpZW50IjoiMHgzZmQzNzRlMjU0NzFkZDBiM2IxNGFiMTMyZWE0NTAzZTA5Y2M2OGViIn0\", expires=\"2026-10-05T14:42:48Z\", description=\"You.com pay-per-call (Tempo USDC)\"",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://api.you.com/v1/search",
+            "description": "You.com Search API: real-time web search returning ranked results grouped by section (results.web, results.news), each with url, title and description; web results also carry snippets. Use when an agent needs fresh, citable web data (news, markets, company facts) to ground a decision. Query params: query (required), count 1-100 (default 10), livecrawl (web|news|all; fetches live page contents, charged per result), country, freshness. Paid per call in USDC.",
+            "mimeType": "application/json"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "5000",
+              "payTo": "0xc327D0aEb5f65B514b193b5e5A95cC6F4060815f",
+              "maxTimeoutSeconds": 600,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "amount": "5000",
+              "payTo": "GBQ2FrH49gvKXu1zg7tguoLwaofn5S4NnuMs5JSYQ5GX",
+              "maxTimeoutSeconds": 600,
+              "extra": {
+                "feePayer": "BENrLoUbndxoNMUS5JXApGMtNykLjFXXixMtpDwDR9SP"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 201,
+    "body_sha256": "49a8885a4dc53c7d6d99d4debcd329dffeb936cc5b7c18422c13e9c2bca05dee",
+    "body_excerpt": "{\"type\": \"https://paymentauth.org/problems/payment-required\", \"title\": \"Payment Required\", \"status\": 402, \"detail\": \"Payment is required.\", \"challengeId\": \"uWknVoZmN-tdNZ5QSAJ7PImm8wbYL5m7yx5UX4iRBMA\"}"
+  },
+  "run_id": "20261005T143248Z",
+  "checked_at": "2026-10-05T14:32:49Z"
+}

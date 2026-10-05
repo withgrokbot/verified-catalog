@@ -22,11 +22,11 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-28 09:34:55.243 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-04 19:56:57 UTC</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-05 14:32:48 UTC</td></tr>
 <tr><th scope="row">Check mode</th><td>dry-run</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>438 ms</td></tr>
+<tr><th scope="row">Latency</th><td>200 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.003 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.003</td></tr>
@@ -36,7 +36,7 @@
 <tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.003, batch-settlement on eip155:8453: $0.003.</p>
-<p>Evidence: <a href="../results/raw/20261004T195656Z/onesource-erc20-balance.json">raw log for this check</a>. Machine-readable: <a href="onesource-erc20-balance.json">onesource-erc20-balance.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261005T143248Z/onesource-erc20-balance.json">raw log for this check</a>. Machine-readable: <a href="onesource-erc20-balance.json">onesource-erc20-balance.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: USDT balance of vitalik.eth (0xd8da...6045) on Ethereum. Passes if: balance equals balanceOf from a free public Ethereum RPC at one of the 6 newest blocks when we check.</p>
 <h2>Paid calls</h2>
@@ -51,6 +51,7 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-05 14:32:48 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>200 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261005T143248Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-10-04 19:56:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>438 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261004T195656Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-10-03 18:34:43 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>376 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261003T183443Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-10-02 18:48:43 UTC</td><td>paid</td><td>yes</td><td>402</td><td>250 ms</td><td>$0.003</td><td>yes</td><td><a href="../results/raw/20261002T184842Z/onesource-erc20-balance.json">raw log</a></td></tr>
@@ -60,7 +61,6 @@
 <tr><td>2026-09-30 17:45:08 UTC</td><td>paid</td><td>yes</td><td>402</td><td>246 ms</td><td>$0.003</td><td>yes</td><td><a href="../results/raw/20260930T174508Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-09-30 17:18:53 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>149 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20260930T171853Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-09-30 01:03:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>216 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20260930T010357Z/onesource-erc20-balance.json">raw log</a></td></tr>
-<tr><td>2026-09-30 01:01:50 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>280 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20260930T010150Z/onesource-erc20-balance.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>
