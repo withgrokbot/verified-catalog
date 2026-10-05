@@ -24,8 +24,13 @@ import {
   PACK_PRICE_USD, PACK_DEFAULT_PRICE_ATOMIC, PACK_GUIDE_FILENAME, PACK_GUIDE_KV_KEY,
   PACK_PROMPTS, PACK_TEMPLATES,
 } from "./pack/overnight-cos-data.js";
+import {
+  SPOT_ID, SPOT_SERVICE_NAME, SPOT_TAGS, SPOT_DEFAULT_PRICE_ATOMIC, SPOT_DEFAULT_FREE_PER_DAY,
+  SPOT_PAID_PER_HOUR, SPOT_QUOTA_COUNTER, SPOT_RATE_COUNTER,
+  spotProbe, priceMatchesClaimed, utcHour, assertSafeUrl,
+} from "./spotcheck.js";
 
-export const VERSION = "0.5.1";
+export const VERSION = "0.6.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -341,6 +346,23 @@ export function packCfg(env) {
   };
 }
 
+// Spot-check product: $0.25 USDC, 1 free check per client per UTC day (separate DO counter).
+export function spotCfg(env) {
+  const c = cfg(env);
+  const price = /^[0-9]{1,12}$/.test(String(env.SPOT_PRICE_ATOMIC || ""))
+    ? String(env.SPOT_PRICE_ATOMIC)
+    : SPOT_DEFAULT_PRICE_ATOMIC;
+  const free = parseInt(env.SPOT_FREE_PER_DAY ?? "", 10);
+  const paidCap = parseInt(env.SPOT_PAID_PER_HOUR ?? "", 10);
+  return {
+    ...c,
+    priceAtomic: price,
+    priceUsd: (Number(price) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, ""),
+    freePerDay: Number.isFinite(free) && free >= 0 ? free : SPOT_DEFAULT_FREE_PER_DAY,
+    paidPerHour: Number.isFinite(paidCap) && paidCap > 0 ? paidCap : SPOT_PAID_PER_HOUR,
+  };
+}
+
 
 export function utcDay(now = new Date()) {
   return now.toISOString().slice(0, 10);
@@ -386,12 +408,13 @@ export class QuotaCounter {
     const u = new URL(req.url);
     const day = u.searchParams.get("day") || "";
     const limit = Math.max(0, parseInt(u.searchParams.get("limit") || "0", 10) || 0);
-    let rec = (await this.state.storage.get("q")) || { day, used: 0 };
+    const counter = u.searchParams.get("counter") || "q";
+    let rec = (await this.state.storage.get(counter)) || { day, used: 0 };
     if (rec.day !== day) rec = { day, used: 0 };
     if (u.pathname === "/peek") return Response.json({ free: rec.used < limit, used: rec.used, limit });
     if (rec.used < limit) {
       rec.used += 1;
-      await this.state.storage.put("q", rec);
+      await this.state.storage.put(counter, rec);
       return Response.json({ free: true, used: rec.used, limit });
     }
     return Response.json({ free: false, used: rec.used, limit });
@@ -400,12 +423,13 @@ export class QuotaCounter {
 
 // Returns {free, used, limit, error?}. If the counter is unavailable the call is served free (fail open):
 // counting must never break an answer.
-export async function takeFree(env, key, limit, now = new Date(), op = "take") {
+export async function takeFree(env, key, limit, now = new Date(), op = "take", counter = "q", period = null) {
   if (limit <= 0) return { free: false, used: 0, limit };
   try {
     if (!env.QUOTA || typeof env.QUOTA.idFromName !== "function") return { free: true, used: null, limit, error: "no-quota-binding" };
     const stub = env.QUOTA.get(env.QUOTA.idFromName(key));
-    const r = await stub.fetch(`https://quota.internal/${op}?day=${utcDay(now)}&limit=${limit}`);
+    const day = period != null ? period : utcDay(now);
+    const r = await stub.fetch(`https://quota.internal/${op}?day=${encodeURIComponent(day)}&limit=${limit}&counter=${encodeURIComponent(counter)}`);
     const j = await r.json();
     return { free: !!j.free, used: j.used, limit };
   } catch (e) {
@@ -503,6 +527,14 @@ export function hintFields(origin) {
       price_usdc: 9,
       url: origin + "/v1/products/overnight-cos-pack",
       note: "Always-paid x402 product: prompts + HTML template + PDF guide after $9 USDC on Base.",
+    },
+    also_available_spot_check: {
+      product: SPOT_ID,
+      title: SPOT_SERVICE_NAME,
+      price_usdc: 0.25,
+      free_per_day: 1,
+      url: origin + "/v1/products/endpoint-spot-check?url=https%3A%2F%2Fexample.com&client=YOUR_CLIENT_ID&ref=via-402-hint",
+      note: "1 free SSRF-safe x402 challenge probe per client per UTC day, then $0.25 USDC on Base. Never pays the target.",
     },
   };
 }
@@ -704,6 +736,254 @@ async function handleOvernightCosPack(req, env, ctx, url) {
   return json(body, 200, { "payment-response": enc, "x-payment-response": enc });
 }
 
+
+// ------------------------------------------------------------------ Endpoint Spot-Check ($0.25, 1 free/day)
+export function spotBazaarExtension() {
+  return {
+    info: {
+      input: {
+        type: "http",
+        method: "GET",
+        queryParams: { url: "https://x402.example.com/api", claimed_price: "0.001", client: "agent" },
+      },
+      output: {
+        type: "json",
+        example: {
+          product: SPOT_ID,
+          url: "https://x402.example.com/api",
+          reachable: true,
+          http_status: 402,
+          latency_ms: 120,
+          x402_challenge: true,
+          accepts: [{ scheme: "exact", network: "eip155:8453", asset: "0x8335…", amount: "1000", payTo: "0x…", amount_usd: 0.001 }],
+          quoted_price_usd: 0.001,
+          price_matches_claimed: true,
+          known_answer: true,
+          access: { tier: "free", free_per_day: 1, free_used_today: 1 },
+        },
+      },
+    },
+    schema: {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties: {
+        input: {
+          type: "object",
+          properties: {
+            type: { type: "string", const: "http" },
+            method: { type: "string", enum: ["GET", "POST"] },
+            queryParams: {
+              type: "object",
+              properties: {
+                url: { type: "string", description: "public http(s) URL to probe for an x402 challenge" },
+                task: { type: "string" },
+                claimed_price: { type: "string", description: "optional claimed USD price to compare" },
+                client: { type: "string" },
+                ref: { type: "string" },
+              },
+            },
+            headers: { type: "object", additionalProperties: { type: "string" } },
+          },
+          required: ["type", "method"],
+          additionalProperties: false,
+        },
+        output: { type: "object", properties: { type: { type: "string" }, example: { type: "object" } }, required: ["type"] },
+      },
+      required: ["input"],
+    },
+  };
+}
+
+export function spotPaymentRequired(c, resourceUrl, error, used) {
+  const origin = new URL(resourceUrl).origin;
+  return {
+    x402Version: 2,
+    error,
+    resource: {
+      url: resourceUrl,
+      description: `${SPOT_SERVICE_NAME}: SSRF-safe probe of a public URL for an x402 PAYMENT-REQUIRED challenge. Never pays the target. $${c.priceUsd} USDC on Base after ${c.freePerDay} free check per UTC day.`,
+      mimeType: "application/json",
+      serviceName: SPOT_SERVICE_NAME,
+      tags: SPOT_TAGS,
+    },
+    accepts: [paymentRequirements(c, resourceUrl, 2, {
+      paidPath: false,
+      description: `${SPOT_SERVICE_NAME}: one probe after the ${c.freePerDay} free check per UTC day. $${c.priceUsd} USDC on Base. Never pays the target under test.`,
+    })],
+    extensions: { bazaar: spotBazaarExtension() },
+    price_usd: c.priceUsd,
+    asset: "USDC on Base (eip155:8453)",
+    product: SPOT_ID,
+    free_per_day: c.freePerDay,
+    free_used_today: used,
+    free_resets: "00:00 UTC",
+    how_to_pay:
+      "Retry the same request with a PAYMENT-SIGNATURE header (x402 v2; X-PAYMENT is also accepted) holding a signed USDC EIP-3009 authorization for the amount and payTo above.",
+    ...hintFields(origin),
+  };
+}
+
+async function parseSpotQuery(req, url) {
+  const errors = [];
+  const p = url.searchParams;
+  let urlParam = p.get("url");
+  let task = p.get("task");
+  let claimed = p.get("claimed_price");
+  let clientRaw = p.get("client");
+  let refRaw = p.get("ref");
+  let body = {};
+  if (req.method === "POST") {
+    try {
+      const t = await req.text();
+      if (t) body = JSON.parse(t);
+    } catch (_) {
+      errors.push("body must be JSON");
+      body = {};
+    }
+  }
+  if (!urlParam && body.url) urlParam = body.url;
+  if (!task && body.task) task = body.task;
+  if ((claimed === null || claimed === "") && body.claimed_price != null) claimed = body.claimed_price;
+  if (!clientRaw && body.client) clientRaw = body.client;
+  if (!refRaw && body.ref) refRaw = body.ref;
+  const target = urlParam ? String(urlParam).trim().slice(0, 2000) : "";
+  if (!target) errors.push("url is required");
+  let claimed_price = null;
+  if (claimed !== null && claimed !== undefined && claimed !== "") {
+    claimed_price = Number(claimed);
+    if (!Number.isFinite(claimed_price) || claimed_price < 0) errors.push("claimed_price must be a non-negative number (USD)");
+  }
+  const client = clientRaw && /^[A-Za-z0-9._\-]{1,64}$/.test(String(clientRaw)) ? String(clientRaw).toLowerCase() : null;
+  if (clientRaw && !client) errors.push("client must be 1-64 characters: letters, digits, dot, dash, underscore");
+  const ref = refRaw && /^[A-Za-z0-9._\-]{1,64}$/.test(String(refRaw)) ? String(refRaw).toLowerCase() : "";
+  const taskSlug = task ? String(task).toLowerCase().trim().slice(0, 64) : null;
+  return { url: target, task: taskSlug, claimed_price, client, ref, errors };
+}
+
+async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
+  const c = spotCfg(env);
+  const resourceUrl = url.origin + url.pathname.replace(/\/+$/, "");
+  const q = await parseSpotQuery(req, url);
+  const qLike = { client: q.client, payer: null, errors: q.errors, task: q.task, endpoint: q.url, max_price: q.claimed_price, n: 1, limit: 1, ref: q.ref };
+  const cid = await clientId(req, qLike, env);
+  const ua = req.headers.get("user-agent") || "";
+  const referer = refererHost(req);
+
+  if (q.errors.length) {
+    writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-bad-params" }));
+    return json({ error: q.errors.join("; "), product: SPOT_ID, docs: url.origin + "/openapi.json", ...hintFields(url.origin) }, 400);
+  }
+
+  const buildResult = (probe, access) => ({
+    product: SPOT_ID,
+    url: q.url,
+    task: q.task,
+    claimed_price: q.claimed_price,
+    reachable: !!probe.reachable,
+    http_status: probe.http_status,
+    latency_ms: probe.latency_ms,
+    x402_challenge: !!probe.x402_challenge,
+    accepts: probe.accepts || [],
+    quoted_price_usd: probe.quoted_price_usd,
+    price_matches_claimed: priceMatchesClaimed(probe.quoted_price_usd, q.claimed_price),
+    known_answer: probe.known_answer,
+    ssrf_blocked: !!probe.ssrf_blocked,
+    error: probe.error || null,
+    body_truncated: !!probe.body_truncated,
+    access,
+    note: "Probe only: GET with no payment headers. This service never pays or settles to the URL under test.",
+  });
+
+  const deny = (error, used, kind = "payment-required") => {
+    const body = spotPaymentRequired(c, resourceUrl, error, used);
+    writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 0, ua, returnedPayTo: [], status: 402, referer, access: kind, freeUsed: used }));
+    return json(body, 402, { "payment-required": b64encode(body) });
+  };
+
+  // Early SSRF gate (no fetch for blocked literals/hosts): run probe only after access.
+  // Import assertSafeUrl inline via spotProbe short-circuit — call with a fake that never fetches? 
+  // Use spotProbe only after access; for SSRF-literal hosts spotProbe returns before fetch.
+  // To avoid paying then discovering SSRF: pre-check with assertSafeUrl by probing with resolve that we already have.
+  // Cheap pre-check: call spotProbe — if ssrf_blocked and no http_status and latency null-ish from immediate block, return 400 without quota.
+  // Problem: safe URLs would be fetched twice if we pre-probe. So import assertSafeUrl.
+  const safe = await assertSafeUrl(q.url, probeOpts);
+  if (!safe.ok) {
+    writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-ssrf" }));
+    return json({
+      error: safe.reason || "blocked",
+      product: SPOT_ID,
+      ssrf_blocked: true,
+      reachable: false,
+      url: q.url,
+      docs: url.origin + "/openapi.json",
+    }, 400);
+  }
+
+  let access;
+  const extraHeaders = {};
+  let freeUsed = null;
+
+  if (isExempt(qLike, env)) {
+    access = { tier: "exempt", note: "our own self-test client: not metered for free quota (SSRF rules still apply)" };
+  } else {
+    const key = await quotaKey(req, qLike, env);
+    const t = await takeFree(env, key, c.freePerDay, new Date(), "take", SPOT_QUOTA_COUNTER);
+    freeUsed = t.used;
+    if (t.free) {
+      access = {
+        tier: "free",
+        free_per_day: c.freePerDay,
+        free_used_today: t.used,
+        free_remaining_today: t.used === null ? null : Math.max(0, c.freePerDay - t.used),
+        then: `$${c.priceUsd} USDC on Base per spot-check via x402 (HTTP 402)`,
+      };
+    } else {
+      const hdr = paymentHeader(req);
+      if (!hdr) return deny(`Free spot-checks used up for today (${c.freePerDay} per UTC day). Pay $${c.priceUsd} USDC on Base via x402 to continue.`, t.used, "payment-required");
+      const payload = decodePaymentHeader(hdr);
+      if (!payload) return deny("payment header is not valid base64 JSON x402 payload", t.used, "payment-failed");
+      const bad = checkPayload(payload, c);
+      if (bad) return deny("payment rejected: " + bad, t.used, "payment-failed");
+      // Rate-limit paid checks by payer (from payment payload) before settle.
+      const authFrom = ((payload.payload && payload.payload.authorization) || {}).from || "";
+      const payerKey = /^0x[0-9a-fA-F]{40}$/.test(authFrom) ? "p:" + authFrom.toLowerCase() : "c:" + (q.client || cid.id);
+      const rl = await takeFree(env, payerKey, c.paidPerHour, new Date(), "take", SPOT_RATE_COUNTER, utcHour());
+      if (!rl.free) {
+        writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 0, ua, returnedPayTo: [], status: 429, referer, access: "spot-rate-limited", freeUsed: t.used }));
+        return json({
+          error: `paid spot-check rate limit: ${c.paidPerHour} per hour per payer`,
+          product: SPOT_ID,
+          retry_after_hint: "wait until the next UTC hour",
+        }, 429);
+      }
+      const r = await verifyAndSettle(c, payload, resourceUrl, {
+        paidPath: false,
+        description: `${SPOT_SERVICE_NAME}: one probe. $${c.priceUsd} USDC on Base.`,
+      });
+      if (!r.ok) return deny("payment rejected: " + r.reason, t.used, "payment-failed");
+      const enc = b64encode(r.settle);
+      extraHeaders["payment-response"] = enc;
+      extraHeaders["x-payment-response"] = enc;
+      access = {
+        tier: "paid",
+        charged_usd: c.priceUsd,
+        asset: "USDC on Base",
+        tx: r.settle.transaction,
+        basescan_url: "https://basescan.org/tx/" + r.settle.transaction,
+        payer: r.settle.payer || null,
+      };
+      freeUsed = t.used;
+      writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "paid", amountUsd: Number(c.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed }));
+      const probePaid = await spotProbe(q.url, probeOpts);
+      return json(buildResult(probePaid, access), 200, extraHeaders);
+    }
+  }
+
+  writePoint(env, dataPoint({ cid, q: qLike, excluded: isExempt(qLike, env) ? "self" : "", candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: access.tier, freeUsed }));
+  const probe = await spotProbe(q.url, probeOpts);
+  return json(buildResult(probe, access), 200, extraHeaders);
+}
+
 export function paymentRequired(c, url, error, used) {
   const resource = url.toString();
   return {
@@ -869,7 +1149,7 @@ export function pricingDoc(c) {
     free_scope: "per client per UTC day; client = the client value when sent, otherwise a salted hash of your IP",
     then: `HTTP 402 x402 payment requirement: $${c.priceUsd} USDC on Base (eip155:8453), scheme exact, payTo ${c.payTo}`,
     facilitator: c.facilitator,
-    metered: "/v1/lookup after the free quota; /v1/lookup/paid always (same results); /v1/products/overnight-cos-pack always $9 USDC. /mcp, /v1/tasks, /openapi.json, /health are free (the MCP lookup tool shares the vc-mcp free quota; get_overnight_cos_pack is paid)",
+    metered: "/v1/lookup after the free quota; /v1/lookup/paid always (same results); /v1/products/overnight-cos-pack always $9 USDC; /v1/products/endpoint-spot-check 1 free/day then $0.25 USDC. /mcp, /v1/tasks, /openapi.json, /health are free (MCP lookup shares vc-mcp quota; get_overnight_cos_pack paid; endpoint_spot_check shares spot-check quota)",
   };
 }
 
@@ -881,7 +1161,7 @@ export function openapi(origin, env = {}) {
       title: "Verified catalog reliability lookup",
       version: VERSION,
       contact: { url: "https://github.com/withgrokbot/verified-catalog/issues" },
-      "x-guidance": `Ask GET /v1/lookup?task=<task>&max_price=<usd> (task names: /v1/tasks). ${c.freePerDay} free calls per client per UTC day, then the same path answers 402; /v1/lookup/paid is the always-paid twin ($${c.priceUsd} USDC on Base via x402) with identical results. Products: GET /v1/products/overnight-cos-pack ($9 USDC). Free MCP: POST /mcp.`,
+      "x-guidance": `Ask GET /v1/lookup?task=<task>&max_price=<usd> (task names: /v1/tasks). ${c.freePerDay} free calls per client per UTC day, then the same path answers 402; /v1/lookup/paid is the always-paid twin ($${c.priceUsd} USDC on Base via x402) with identical results. Products: GET /v1/products/overnight-cos-pack ($9 USDC); GET /v1/products/endpoint-spot-check (1 free/day then $0.25 USDC, SSRF-safe x402 probe). Free MCP: POST /mcp.`,
       description:
         `Is an x402 endpoint reliable for task X at price <= Y? Facts from our own paid calls: receipts with settlement tx, delivered yes/no and a known-answer pass/fail. Pricing: ${c.freePerDay} free lookups per client per UTC day, then HTTP 402 with an x402 payment requirement of $${c.priceUsd} USDC on Base per lookup. ${PAYMENT_POLICY} Not investment advice; we hold no customer funds.`,
     },
@@ -950,11 +1230,43 @@ export function openapi(origin, env = {}) {
           },
         },
       },
+      "/v1/products/endpoint-spot-check": {
+        get: {
+          operationId: "endpointSpotCheck",
+          summary: "SSRF-safe x402 endpoint spot-check: probe a public URL for PAYMENT-REQUIRED (never pays the target). 1 free/client/UTC day, then $0.25 USDC on Base",
+          parameters: [
+            { name: "url", in: "query", required: true, schema: { type: "string" }, description: "public http(s) URL to probe" },
+            { name: "task", in: "query", schema: { type: "string" } },
+            { name: "claimed_price", in: "query", schema: { type: "number" }, description: "optional claimed USD price to compare against quoted challenge" },
+            { name: "client", in: "query", schema: { type: "string" } },
+            { name: "ref", in: "query", schema: { type: "string" } },
+          ],
+          "x-payment-info": {
+            price: { mode: "fixed", currency: "USD", amount: spotCfg(env).priceUsd },
+            protocols: [{ x402: { scheme: "exact", network: spotCfg(env).network, asset: USDC_BASE, payTo: spotCfg(env).payTo } }],
+          },
+          responses: {
+            200: { description: "spot-check result (reachable, http_status, latency_ms, x402_challenge, accepts, quoted_price_usd, price_matches_claimed, known_answer, access)" },
+            400: { description: "bad params or SSRF-blocked URL (no fetch)" },
+            402: { description: "free quota used: x402 v2 payment requirement ($0.25 USDC on Base)" },
+            429: { description: "paid rate limit (per payer per UTC hour)" },
+          },
+        },
+        post: {
+          operationId: "endpointSpotCheckPost",
+          summary: "Same as GET /v1/products/endpoint-spot-check (JSON body may carry url, task, claimed_price, client, ref)",
+          responses: {
+            200: { description: "same as GET" },
+            400: { description: "same as GET" },
+            402: { description: "same as GET" },
+          },
+        },
+      },
       "/mcp": {
         post: {
           operationId: "mcp",
           security: [],
-          summary: "Free remote MCP server (Streamable HTTP, stateless JSON-RPC 2.0): tools search_catalog, get_service, lookup, get_overnight_cos_pack (lookup shares the vc-mcp free quota; pack is always paid via x402)",
+          summary: "Free remote MCP server (Streamable HTTP, stateless JSON-RPC 2.0): tools search_catalog, get_service, lookup, get_overnight_cos_pack, endpoint_spot_check (lookup shares vc-mcp quota; pack always paid; spot-check 1 free/day then $0.25)",
           responses: { 200: { description: "JSON-RPC response" }, 202: { description: "notification accepted" } },
         },
       },
@@ -1164,6 +1476,23 @@ export const MCP_TOOLS = [
       "Agents pay by retrying the HTTP endpoint (or this MCP call) with a PAYMENT-SIGNATURE header holding a signed USDC EIP-3009 authorization.",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "endpoint_spot_check",
+    description:
+      "SSRF-safe spot-check of a public URL for an x402 PAYMENT-REQUIRED / 402 challenge. Returns reachable, http_status, latency_ms, " +
+      "parsed accepts summary, quoted_price_usd, and optional price_matches_claimed. Never pays the target (probe GET only). " +
+      "1 free check per client per UTC day (client=vc-mcp for this tool), then $0.25 USDC on Base via x402. " +
+      "Unpaid after free quota: returns payment instructions + free remaining. Forward PAYMENT-SIGNATURE to run a paid check.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "public http(s) URL to probe" },
+        task: { type: "string", description: "optional task label" },
+        claimed_price: { type: "number", description: "optional claimed USD price to compare" },
+      },
+      required: ["url"],
+    },
+  },
 ];
 
 class ToolInputError extends Error {}
@@ -1268,10 +1597,42 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
     const name = params.name;
     const args = params.arguments || {};
     const err = (text) => ({ content: [{ type: "text", text }], isError: true });
-    if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack"].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
+    if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check"].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
     let data;
     try {
-      if (name === "get_overnight_cos_pack") {
+      if (name === "endpoint_spot_check") {
+        if (!args.url) return err("url is required");
+        const qp = new URLSearchParams({ client: MCP_CLIENT, url: pyStr(args.url) });
+        if (args.task) qp.set("task", pyStr(args.task));
+        if (!blank(args.claimed_price)) {
+          const d = decStr(args.claimed_price);
+          if (d === null) return err("claimed_price must be a number");
+          qp.set("claimed_price", d);
+        }
+        const u = new URL(origin + "/v1/products/endpoint-spot-check?" + qp.toString());
+        const headers = { accept: "application/json", "user-agent": "verified-catalog-mcp/0.6" };
+        const pay = paymentHeader(req);
+        if (pay) headers["payment-signature"] = pay;
+        const ip = req.headers.get("cf-connecting-ip");
+        if (ip) headers["cf-connecting-ip"] = ip;
+        const r = await handleEndpointSpotCheck(new Request(u, { method: "GET", headers }), env, ctx, u);
+        let body = null;
+        try { body = await r.json(); } catch (_) { body = null; }
+        if (r.status === 200) {
+          data = body;
+        } else if (r.status === 402) {
+          const freeLeft = body && body.free_per_day != null ? Math.max(0, (body.free_per_day || 0) - (body.free_used_today || 0)) : 0;
+          return err(
+            "Payment required: $0.25 USDC on Base via x402 for endpoint_spot_check after free quota. " +
+            "Free remaining today (approx): " + freeLeft + ". Pay at " + u.toString() +
+            " with PAYMENT-SIGNATURE, or retry this MCP call with the same header. Requirements: " + JSON.stringify(body)
+          );
+        } else if (r.status === 400) {
+          return err((body && body.error) || "bad request");
+        } else {
+          return err("spot-check returned HTTP " + r.status + (body && body.error ? ": " + body.error : ""));
+        }
+      } else if (name === "get_overnight_cos_pack") {
         const u = new URL(origin + "/v1/products/overnight-cos-pack");
         const headers = { accept: "application/json", "user-agent": "verified-catalog-mcp/0.5" };
         const pay = paymentHeader(req);
@@ -1370,9 +1731,10 @@ export const handler = {
     // POST is accepted on the paid path so method-probing discovery tools get the same 402.
     if (path === "/v1/lookup/paid" && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaidLookup(req, env, ctx, url);
     if (path === "/v1/products/overnight-cos-pack" && ["GET", "HEAD", "POST"].includes(req.method)) return handleOvernightCosPack(req, env, ctx, url);
+    if (path === "/v1/products/endpoint-spot-check" && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointSpotCheck(req, env, ctx, url);
     if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405, { allow: "GET, OPTIONS" });
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
-    if (path === "/.well-known/x402") return json({ version: 1, resources: [url.origin + "/v1/lookup/paid", url.origin + "/v1/products/overnight-cos-pack"] });
+    if (path === "/.well-known/x402") return json({ version: 1, resources: [url.origin + "/v1/lookup/paid", url.origin + "/v1/products/overnight-cos-pack", url.origin + "/v1/products/endpoint-spot-check"] });
     if (path === "/v1/tasks") {
       try {
         const data = await loadData(env, ctx);
@@ -1395,6 +1757,13 @@ export const handler = {
             title: PACK_TITLE,
             price_usdc: PACK_PRICE_USD,
             note: "Always paid via x402; SELF_CLIENTS are not exempt",
+          },
+          "endpoint-spot-check": {
+            url: url.origin + "/v1/products/endpoint-spot-check",
+            title: SPOT_SERVICE_NAME,
+            price_usdc: 0.25,
+            free_per_day: 1,
+            note: "1 free SSRF-safe x402 challenge probe per client per UTC day, then $0.25 USDC; never pays the target. SELF_CLIENTS exempt from free quota only.",
           },
         },
         mcp: url.origin + "/mcp",

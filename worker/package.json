@@ -2,7 +2,7 @@
   "name": "verified-catalog-lookup",
   "private": true,
   "type": "module",
-  "description": "Reliability lookup + Overnight CoS Setup Pack Worker for the verified catalog (Cloudflare Workers free plan)",
+  "description": "Reliability lookup + products Worker for the verified catalog (Cloudflare Workers free plan)",
   "scripts": {
     "dev": "wrangler dev --local",
     "deploy": "wrangler deploy"
@@ -10,5 +10,5 @@
   "devDependencies": {
     "wrangler": "^4.145.0"
   },
-  "version": "0.5.1"
+  "version": "0.6.0"
 }

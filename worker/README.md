@@ -3,7 +3,7 @@
 One JSON endpoint on the Cloudflare Workers free plan. It answers "is endpoint E reliable for task X at price <= Y?"
 from the catalog's own data and counts distinct clients for the demand test. It stores no catalog data itself.
 
-**Pricing (0.3.0+; products 0.5.0):** 5 free `/v1/lookup` calls per client per UTC day, then HTTP 402 with an x402 payment requirement of
+**Pricing (0.3.0+; products 0.5.0 / spot-check 0.6.0):** 5 free `/v1/lookup` calls per client per UTC day, then HTTP 402 with an x402 payment requirement of
 $0.02 USDC on Base. **Payment never changes results, sort order or listings**: it buys query access only, and free, paid
 and exempt lookups run the same `lookup()` on the same data (unit-tested: paid and free results are identical).
 
@@ -16,6 +16,8 @@ POST /mcp                         # free remote MCP (Streamable HTTP, stateless 
 GET /.well-known/x402             # x402 discovery fan-out (0.4.0)
 GET /v1/products/overnight-cos-pack  # Overnight CoS Setup Pack, always $9 USDC via x402 (0.5.0)
                                      # MCP tool: get_overnight_cos_pack (paid; SELF_CLIENTS not exempt)
+GET /v1/products/endpoint-spot-check # x402 Endpoint Spot-Check, 1 free/day then $0.25 USDC (0.6.0)
+                                     # SSRF-safe probe; never pays the target. MCP: endpoint_spot_check
     optional: endpoint=<id or url>, limit=<services, default 10>, client=<your agent name>, payer=<0x wallet>,
               ref=<where you found it, e.g. via-readme>
 GET /v1/tasks          task names -> service ids

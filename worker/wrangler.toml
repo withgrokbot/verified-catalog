@@ -20,6 +20,11 @@ FACILITATOR_URL = "https://facilitator.payai.network"
 # Product (0.5.0): Overnight Chief of Staff Setup Pack — always paid, $9 USDC (9000000 atomic).
 # SELF_CLIENTS do NOT get this free. PACK_PREVIEW=1 returns a stub without payment (local tests only).
 PACK_PRICE_ATOMIC = "9000000"
+# Product (0.6.0): x402 Endpoint Spot-Check — 1 free/client/UTC day, then $0.25 USDC (250000 atomic).
+# SELF_CLIENTS exempt from free quota only (still SSRF-gated). Never pays the URL under test.
+SPOT_PRICE_ATOMIC = "250000"
+SPOT_FREE_PER_DAY = "1"
+SPOT_PAID_PER_HOUR = "30"
 
 # One data point per lookup (free plan: 100k writes/day, kept 3 months).
 [[analytics_engine_datasets]]
