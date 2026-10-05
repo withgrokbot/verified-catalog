@@ -25,7 +25,7 @@ import {
   PACK_PROMPTS, PACK_TEMPLATES,
 } from "./pack/overnight-cos-data.js";
 
-export const VERSION = "0.5.0";
+export const VERSION = "0.5.1";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -488,8 +488,28 @@ export function bazaarExtension() {
   };
 }
 
+// Additive human/agent-readable hints for 402 and bad-params 400 bodies (do not alter x402 accepts/resource/extensions).
+export function hintFields(origin) {
+  return {
+    try_free_lookup: {
+      description: "Same results as paid. 5 free calls per client per UTC day. Copy this URL (set your own client id).",
+      url: origin + "/v1/lookup?task=web-search&max_price=0.05&n=3&client=YOUR_CLIENT_ID&ref=via-402-hint",
+      ref: "via-402-hint",
+      mcp: origin + "/mcp",
+    },
+    also_available: {
+      product: "overnight-cos-pack",
+      title: "Overnight Chief of Staff Setup Pack",
+      price_usdc: 9,
+      url: origin + "/v1/products/overnight-cos-pack",
+      note: "Always-paid x402 product: prompts + HTML template + PDF guide after $9 USDC on Base.",
+    },
+  };
+}
+
 // The always-paid path: 402 for every unpaid call, with Bazaar discovery metadata so facilitators and x402scan can list it.
 export function paidPaymentRequired(c, resourceUrl, error) {
+  const origin = new URL(resourceUrl).origin;
   return {
     x402Version: 2,
     error,
@@ -508,6 +528,7 @@ export function paidPaymentRequired(c, resourceUrl, error) {
     free_alternative: "The same lookup is free for 5 calls per client per UTC day at /v1/lookup and via the free MCP server at /mcp. Payment never changes results.",
     how_to_pay:
       "Retry the same request with a PAYMENT-SIGNATURE header (x402 v2; X-PAYMENT is also accepted) holding a signed USDC EIP-3009 authorization for the amount and payTo above. Bad parameters get a 400 before anything is settled.",
+    ...hintFields(origin),
   };
 }
 
@@ -704,6 +725,7 @@ export function paymentRequired(c, url, error, used) {
     payment_policy: PAYMENT_POLICY,
     how_to_pay:
       "Retry the same request with a PAYMENT-SIGNATURE header (x402 v2; X-PAYMENT is also accepted) holding a signed USDC EIP-3009 authorization for the amount and payTo above. Settled through a public x402 facilitator; the settlement tx comes back in the PAYMENT-RESPONSE header and the body's access block.",
+    ...hintFields(url.origin),
   };
 }
 
@@ -982,7 +1004,7 @@ async function handleLookup(req, env, ctx, url) {
   }
   if (q.errors.length) {
     writePoint(env, dataPoint({ cid, q, excluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer }));
-    return json({ error: q.errors.join("; "), tasks: Object.keys(taskIndex(data.catalog)).sort(), docs: url.origin + "/openapi.json" }, 400);
+    return json({ error: q.errors.join("; "), tasks: Object.keys(taskIndex(data.catalog)).sort(), docs: url.origin + "/openapi.json", ...hintFields(url.origin) }, 400);
   }
   // The answer is computed before (and independently of) the access decision: payment never changes it.
   const out = lookup(data, q);
@@ -1068,7 +1090,7 @@ async function handlePaidLookup(req, env, ctx, url) {
   }
   if (q.errors.length) {
     point({ status: 400 });
-    return json({ error: q.errors.join("; ") + " (nothing was charged)", tasks: Object.keys(taskIndex(data.catalog)).sort(), docs: url.origin + "/openapi.json" }, 400);
+    return json({ error: q.errors.join("; ") + " (nothing was charged)", tasks: Object.keys(taskIndex(data.catalog)).sort(), docs: url.origin + "/openapi.json", ...hintFields(url.origin) }, 400);
   }
   const out = lookup(data, q);
   candidates = out.results.length + out.facts_only.length;
@@ -1091,7 +1113,7 @@ async function handlePaidLookup(req, env, ctx, url) {
 // free quota (5 per UTC day) and reports, but never pays, the 402 after it.
 export const MCP_CLIENT = "vc-mcp";
 export const MCP_PROTOCOL = "2025-06-18";
-export const MCP_SERVER_INFO = { name: "verified-catalog", version: "0.5.0" };
+export const MCP_SERVER_INFO = { name: "verified-catalog", version: VERSION };
 export const MCP_TOOLS = [
   {
     name: "search_catalog",

@@ -3,7 +3,7 @@
   "name": "io.github.withgrokbot/verified-catalog",
   "title": "Verified x402 Catalog",
   "description": "Which x402 pay-per-call endpoint delivered for a task at a price? Facts from our own paid calls.",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "websiteUrl": "https://withgrokbot.github.io/verified-catalog/",
   "repository": {
     "url": "https://github.com/withgrokbot/verified-catalog",
