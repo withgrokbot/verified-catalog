@@ -568,7 +568,7 @@ test("MCP /mcp: initialize, tools/list (catalog tools + products), ping, notific
   let r = await rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } } }, { envo: e });
   assert.equal(r.status, 200);
   assert.match(r.headers.get("content-type"), /application\/json/);
-  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "verified-catalog", version: "0.6.0" } } });
+  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "verified-catalog", version: "0.6.1" } } });
   assert.equal(r.headers.get("mcp-session-id"), null, "stateless: no session");
   r = await rpc({ jsonrpc: "2.0", method: "notifications/initialized" }, { envo: e });
   assert.equal(r.status, 202);
@@ -689,13 +689,13 @@ test("overnight-cos-pack: unpaid GET/POST return 402 with amount 9000000, payTo,
   const wk = (await send("/.well-known/x402", { envo: e })).body;
   assert.ok(wk.resources.includes("https://lookup.test" + PACK));
   const oa = (await send("/openapi.json", { envo: e })).body;
-  assert.equal(oa.info.version, "0.6.0");
+  assert.equal(oa.info.version, "0.6.1");
   const op = oa.paths[PACK].get;
   assert.deepEqual(op["x-payment-info"].price, { mode: "fixed", currency: "USD", amount: "9" });
   assert.equal(op["x-payment-info"].protocols[0].x402.payTo, PAY_TO);
   assert.ok(oa.paths[PACK].post);
   const health = (await send("/health", { envo: e })).body;
-  assert.equal(health.version, "0.6.0");
+  assert.equal(health.version, "0.6.1");
 });
 
 test("overnight-cos-pack: paid path with mocked facilitator returns prompts+template+guide; wrong amount rejected", async () => {
@@ -872,7 +872,7 @@ test("MCP endpoint_spot_check listed; unpaid after free returns pay instructions
   assert.equal(paidNeed.body.result.isError, true);
   assert.match(paidNeed.body.result.content[0].text, /Payment required: \$0\.25 USDC/);
   const health = (await send("/health", { envo: e })).body;
-  assert.equal(health.version, "0.6.0");
+  assert.equal(health.version, "0.6.1");
   const oa = (await send("/openapi.json", { envo: e })).body;
   assert.ok(oa.paths[SPOT]);
 });

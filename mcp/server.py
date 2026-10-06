@@ -107,31 +107,147 @@ def lookup(cat, args, lookup_url):
 
 
 TOOLS = [
-    {"name": "search_catalog",
-     "description": "Search pay-per-call (x402) agent services in the verified catalog. Returns factual latest-check results (reachable, latency, advertised vs quoted price). No grades.",
-     "inputSchema": {"type": "object", "properties": {
-         "query": {"type": "string", "description": "words to match in name, category, description"},
-         "category": {"type": "string"},
-         "max_price_usd": {"type": "number", "description": "maximum advertised price per call in USD"},
-         "reachable_only": {"type": "boolean", "description": "only services reachable in the latest check"},
-         "limit": {"type": "integer", "minimum": 1, "maximum": 100}}}},
-    {"name": "get_service",
-     "description": "Get the full catalog record for one service id, including its latest check and raw log link.",
-     "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}},
-    {"name": "lookup",
-     "description": "Is an x402 endpoint reliable for a task at a price? Asks the catalog's lookup service for services matching a task "
-                    "at or under max_price_usd, sorted by known-answer pass rate over the last n paid calls, then price. Each result has "
-                    "its paid receipts (time, tx, Basescan link, charged, delivered, pass/fail), last check time and a stale flag. "
-                    "Services broken on the seller's side come back under facts_only, not sorted. Sends client=vc-mcp: 5 free lookups per UTC day "
-                    "for that client name, then the service answers HTTP 402 (x402, $0.02 USDC on Base), which this tool reports but does not pay. "
-                    "Payment never changes results, sort order or listings.",
-     "inputSchema": {"type": "object", "properties": {
-         "task": {"type": "string", "description": "task name, e.g. web-search, crypto-news, weather, token-balance"},
-         "max_price_usd": {"type": "number", "description": "maximum listed price per call in USD"},
-         "n": {"type": "integer", "minimum": 1, "maximum": 20, "description": "paid receipts per service (default 5)"},
-         "limit": {"type": "integer", "minimum": 1, "maximum": 20, "description": "services returned (default 10)"},
-         "endpoint": {"type": "string", "description": "a service id or endpoint URL instead of a task"},
-         "payer": {"type": "string", "description": "optional: your 0x wallet, so a later payment to a returned vendor can be confirmed on-chain"}}}},
+  {
+    "name": "search_catalog",
+    "description": ("Browse or keyword-search the verified catalog of pay-per-call (x402) agent services. Use it when you don't "
+     "know the task name or want to see what exists; use lookup to rank endpoints for a known task at a max price, "
+     "and get_service for one id's full record. Read-only. No auth or API key; free, no quota or per-client limit: "
+     "it only reads the catalog snapshot (bundled catalog.json in the local server, the published catalog.json on "
+     "remote /mcp). Returns {count, results, generated_at, note, methodology_url}; results are in catalog order, "
+     "ungraded, each with id, name, category, endpoint, advertised_price_usd, page_url and latest (checked_at, "
+     "reachable, http_status, latency_ms, quoted_price_usd, price_matches_listing, charged_price_usd, "
+     "delivered_valid, raw_log_url). No match: count 0, empty results. A non-numeric max_price_usd or limit returns "
+     "an error."),
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": ("Optional. Space-separated words; every word must appear (case-insensitive) in the service id, name, category, "
+           "description or provider. Omit to list all. Examples: \"search\", \"crypto news\"."),
+        },
+        "category": {
+          "type": "string",
+          "description": ("Optional. Case-insensitive substring of the service category, e.g. \"web search\", \"news\", \"on-chain data\", "
+           "\"weather\", \"public records\", \"utility\"."),
+        },
+        "max_price_usd": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Optional. Keep services whose advertised price per call is at or below this many USD, e.g. 0.01.",
+        },
+        "reachable_only": {
+          "type": "boolean",
+          "default": False,
+          "description": "Optional (default false). If true, keep only services that were reachable in the latest check.",
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20,
+          "description": "Optional. Maximum number of results, 1-100 (default 20).",
+        },
+      },
+    },
+    "annotations": {
+      "title": "Search the x402 service catalog",
+      "readOnlyHint": True,
+      "destructiveHint": False,
+      "idempotentHint": True,
+      "openWorldHint": False,
+    },
+  },
+  {
+    "name": "get_service",
+    "description": ("Fetch the complete catalog record for one known service id (e.g. from search_catalog or lookup results). Use "
+     "search_catalog to find ids and lookup to rank services for a task; get_service has no per-call receipts, so "
+     "for receipts with tx and Basescan links call lookup with endpoint=<id>. Read-only. No auth or API key; free, "
+     "no quota (reads the same catalog snapshot as search_catalog). Returns the record as published: id, name, "
+     "provider, category, description, endpoint, advertised_price (USD, atomic, asset, network), sample_request, "
+     "tasks, quality_test (known-answer test, facts_only flag and reason), paid_receipts (count), latest (full last "
+     "check incl. x402_challenge, error, raw_log_url), history_summary and page_url. Unknown or missing id: error "
+     "\"no service with id ...\"."),
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": ("Exact, case-sensitive catalog service id as returned by search_catalog or lookup, e.g. \"exa-search\", "
+           "\"x402tap-weather\", \"onesource-erc20-balance\"."),
+        },
+      },
+      "required": ["id"],
+    },
+    "annotations": {
+      "title": "Get one catalog service record",
+      "readOnlyHint": True,
+      "destructiveHint": False,
+      "idempotentHint": True,
+      "openWorldHint": False,
+    },
+  },
+  {
+    "name": "lookup",
+    "description": ("Rank x402 endpoints for a known task at or under a price: \"which endpoint should I pay for task X at <= $Y?\". "
+     "Prefer it over search_catalog (keyword browsing, unranked) and get_service (one id's raw record). No auth or "
+     "API key. Calls the hosted lookup service as client=vc-mcp; all MCP users share that client's 5 free lookups "
+     "per UTC day (reset 00:00 UTC), after which the tool returns an error reporting the HTTP 402 ($0.02 USDC on "
+     "Base via x402) and never pays. Returns results sorted by known-answer pass_rate over the last n paid calls, "
+     "then price, each with price_usd, pass_rate, last_check_at, last_check, stale and receipts (time, tx, "
+     "basescan_url, charged_usd, delivered, quality); seller-broken services come unsorted under facts_only. No "
+     "match: empty results, matched 0. Needs task or endpoint; invalid params return an error. Payment never "
+     "changes results."),
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": ("Task name from /v1/tasks, e.g. web-search, crypto-news, news, weather, token-balance, sec-filings, fx-rates, "
+           "url-check. Case-insensitive; a known name matches exactly, an unknown one falls back to matching every word "
+           "in service text. Required unless endpoint is given."),
+        },
+        "max_price_usd": {
+          "type": "number",
+          "minimum": 0,
+          "description": ("Optional. Only services whose listed price per call is at or below this many USD, e.g. 0.01. Negative values "
+           "are rejected."),
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 5,
+          "description": ("Optional. Most recent paid receipts per service used for pass_rate and returned, 1-20 (default 5; "
+           "out-of-range values are clamped)."),
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 10,
+          "description": "Optional. Maximum ranked services in results, 1-20 (default 10; clamped). facts_only is not limited.",
+        },
+        "endpoint": {
+          "type": "string",
+          "description": ("A catalog service id (e.g. exa-search) or endpoint URL, to get one service's receipts instead of a whole "
+           "task. Required unless task is given; can be combined with task."),
+        },
+        "payer": {
+          "type": "string",
+          "description": ("Optional 0x wallet address (40 hex characters), recorded so a later payment from it to a returned vendor can "
+           "be matched on-chain. Nothing is charged; a malformed address returns an error."),
+        },
+      },
+    },
+    "annotations": {
+      "title": "Rank x402 endpoints for a task and price",
+      "readOnlyHint": True,
+      "destructiveHint": False,
+      "idempotentHint": False,
+      "openWorldHint": True,
+    },
+  },
 ]
 
 
@@ -140,7 +256,7 @@ def handle(msg, cat, lookup_url=None):
     if method == "initialize":
         return {"protocolVersion": params.get("protocolVersion") or PROTOCOL,
                 "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "verified-catalog", "version": "0.2.0"}}
+                "serverInfo": {"name": "verified-catalog", "version": "0.6.1"}}
     if method == "ping":
         return {}
     if method == "tools/list":
