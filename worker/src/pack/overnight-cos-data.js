@@ -1,4 +1,4 @@
-// Auto-generated from /workspace/products/overnight-cos-pack/pack — do not edit by hand.
+// Auto-generated from the Overnight CoS pack source files — do not edit by hand.
 // Prompts + template only (~14KB). PDF guide is stored in Cloudflare KV (PACK_BLOBS).
 export const PACK_ID = "overnight-cos-pack";
 export const PACK_TITLE = "Overnight Chief of Staff: Multi-Bot Setup Pack";
