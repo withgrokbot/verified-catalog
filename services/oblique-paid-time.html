@@ -22,11 +22,11 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 12:11:30.714 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-05 14:32:48 UTC</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-06 14:29:32 UTC</td></tr>
 <tr><th scope="row">Check mode</th><td>dry-run</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>613 ms</td></tr>
+<tr><th scope="row">Latency</th><td>448 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.01 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.01</td></tr>
@@ -36,7 +36,7 @@
 <tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.01, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 10000 units of EPjFWdd5Aufq.</p>
-<p>Evidence: <a href="../results/raw/20261005T143248Z/oblique-paid-time.json">raw log for this check</a>. Machine-readable: <a href="oblique-paid-time.json">oblique-paid-time.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261006T142932Z/oblique-paid-time.json">raw log for this check</a>. Machine-readable: <a href="oblique-paid-time.json">oblique-paid-time.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: none. Passes if: epoch within 5 s of our clock while the request was open; ISO time and epoch agree.</p>
 <h2>Paid calls</h2>
@@ -51,6 +51,7 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-06 14:29:32 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>448 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261006T142932Z/oblique-paid-time.json">raw log</a></td></tr>
 <tr><td>2026-10-05 14:32:48 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>613 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261005T143248Z/oblique-paid-time.json">raw log</a></td></tr>
 <tr><td>2026-10-04 19:56:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>223 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261004T195656Z/oblique-paid-time.json">raw log</a></td></tr>
 <tr><td>2026-10-03 18:34:44 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>374 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261003T183443Z/oblique-paid-time.json">raw log</a></td></tr>
@@ -60,7 +61,6 @@
 <tr><td>2026-09-30 20:54:17 UTC</td><td>paid</td><td>yes</td><td>402</td><td>92 ms</td><td>$0.01</td><td>yes</td><td><a href="../results/raw/20260930T205409Z/oblique-paid-time.json">raw log</a></td></tr>
 <tr><td>2026-09-30 17:45:22 UTC</td><td>paid</td><td>yes</td><td>402</td><td>358 ms</td><td>$0.01</td><td>yes</td><td><a href="../results/raw/20260930T174508Z/oblique-paid-time.json">raw log</a></td></tr>
 <tr><td>2026-09-30 17:18:53 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>455 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20260930T171853Z/oblique-paid-time.json">raw log</a></td></tr>
-<tr><td>2026-09-30 01:03:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>44 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20260930T010357Z/oblique-paid-time.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>
