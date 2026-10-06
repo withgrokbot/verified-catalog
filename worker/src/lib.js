@@ -27,10 +27,10 @@ import {
 import {
   SPOT_ID, SPOT_SERVICE_NAME, SPOT_TAGS, SPOT_DEFAULT_PRICE_ATOMIC, SPOT_DEFAULT_FREE_PER_DAY,
   SPOT_PAID_PER_HOUR, SPOT_QUOTA_COUNTER, SPOT_RATE_COUNTER,
-  spotProbe, priceMatchesClaimed, utcHour, assertSafeUrl,
+  spotProbe, priceMatchesClaimed, decideVerdict, utcHour, assertSafeUrl,
 } from "./spotcheck.js";
 
-export const VERSION = "0.6.1";
+export const VERSION = "0.6.2";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -749,16 +749,10 @@ export function spotBazaarExtension() {
       output: {
         type: "json",
         example: {
-          product: SPOT_ID,
-          url: "https://x402.example.com/api",
-          reachable: true,
-          http_status: 402,
-          latency_ms: 120,
-          x402_challenge: true,
-          accepts: [{ scheme: "exact", network: "eip155:8453", asset: "0x8335…", amount: "1000", payTo: "0x…", amount_usd: 0.001 }],
+          verdict: "pay",
+          reason: "price_ok",
           quoted_price_usd: 0.001,
-          price_matches_claimed: true,
-          known_answer: true,
+          claimed_price_usd: 0.001,
           access: { tier: "free", free_per_day: 1, free_used_today: 1 },
         },
       },
@@ -874,25 +868,16 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     return json({ error: q.errors.join("; "), product: SPOT_ID, docs: url.origin + "/openapi.json", ...hintFields(url.origin) }, 400);
   }
 
-  const buildResult = (probe, access) => ({
-    product: SPOT_ID,
-    url: q.url,
-    task: q.task,
-    claimed_price: q.claimed_price,
-    reachable: !!probe.reachable,
-    http_status: probe.http_status,
-    latency_ms: probe.latency_ms,
-    x402_challenge: !!probe.x402_challenge,
-    accepts: probe.accepts || [],
-    quoted_price_usd: probe.quoted_price_usd,
-    price_matches_claimed: priceMatchesClaimed(probe.quoted_price_usd, q.claimed_price),
-    known_answer: probe.known_answer,
-    ssrf_blocked: !!probe.ssrf_blocked,
-    error: probe.error || null,
-    body_truncated: !!probe.body_truncated,
-    access,
-    note: "Probe only: GET with no payment headers. This service never pays or settles to the URL under test.",
-  });
+  const buildResult = (probe, access) => {
+    const d = decideVerdict(probe, q.claimed_price);
+    return {
+      verdict: d.verdict,
+      reason: d.reason,
+      quoted_price_usd: probe.quoted_price_usd == null ? null : probe.quoted_price_usd,
+      claimed_price_usd: q.claimed_price,
+      access,
+    };
+  };
 
   const deny = (error, used, kind = "payment-required") => {
     const body = spotPaymentRequired(c, resourceUrl, error, used);
@@ -910,12 +895,10 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   if (!safe.ok) {
     writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-ssrf" }));
     return json({
-      error: safe.reason || "blocked",
-      product: SPOT_ID,
-      ssrf_blocked: true,
-      reachable: false,
-      url: q.url,
-      docs: url.origin + "/openapi.json",
+      verdict: "skip",
+      reason: "ssrf_blocked",
+      quoted_price_usd: null,
+      claimed_price_usd: q.claimed_price,
     }, 400);
   }
 
@@ -1233,7 +1216,7 @@ export function openapi(origin, env = {}) {
       "/v1/products/endpoint-spot-check": {
         get: {
           operationId: "endpointSpotCheck",
-          summary: "SSRF-safe x402 endpoint spot-check: probe a public URL for PAYMENT-REQUIRED (never pays the target). 1 free/client/UTC day, then $0.25 USDC on Base",
+          summary: "Decision-shaped x402 endpoint spot-check: probe a public URL for PAYMENT-REQUIRED (never pays the target). Returns verdict/reason/quoted vs claimed. 1 free/client/UTC day, then $0.25 USDC on Base",
           parameters: [
             { name: "url", in: "query", required: true, schema: { type: "string" }, description: "public http(s) URL to probe" },
             { name: "task", in: "query", schema: { type: "string" } },
@@ -1246,8 +1229,8 @@ export function openapi(origin, env = {}) {
             protocols: [{ x402: { scheme: "exact", network: spotCfg(env).network, asset: USDC_BASE, payTo: spotCfg(env).payTo } }],
           },
           responses: {
-            200: { description: "spot-check result (reachable, http_status, latency_ms, x402_challenge, accepts, quoted_price_usd, price_matches_claimed, known_answer, access)" },
-            400: { description: "bad params or SSRF-blocked URL (no fetch)" },
+            200: { description: "slim decision: verdict (pay|skip|recheck), reason, quoted_price_usd, claimed_price_usd, access" },
+            400: { description: "bad params, or SSRF-blocked URL as verdict=skip reason=ssrf_blocked (no fetch)" },
             402: { description: "free quota used: x402 v2 payment requirement ($0.25 USDC on Base)" },
             429: { description: "paid rate limit (per payer per UTC hour)" },
           },
@@ -1591,16 +1574,16 @@ export const MCP_TOOLS = [
   {
     name: "endpoint_spot_check",
     description:
-      "SSRF-safe spot-check of a public URL for an x402 PAYMENT-REQUIRED / 402 challenge. Returns reachable, http_status, latency_ms, " +
-      "parsed accepts summary, quoted_price_usd, and optional price_matches_claimed. Never pays the target (probe GET only). " +
-      "1 free check per client per UTC day (client=vc-mcp for this tool), then $0.25 USDC on Base via x402. " +
-      "Unpaid after free quota: returns payment instructions + free remaining. Forward PAYMENT-SIGNATURE to run a paid check.",
+      "Decision-shaped SSRF-safe spot-check of a public URL for an x402 PAYMENT-REQUIRED / 402 challenge. " +
+      "Returns only verdict (pay|skip|recheck), reason, quoted_price_usd, claimed_price_usd, and access. " +
+      "Never pays the target (probe GET only). 1 free check per client per UTC day (client=vc-mcp), then $0.25 USDC on Base via x402. " +
+      "Unpaid after free quota: payment instructions. Forward PAYMENT-SIGNATURE for a paid check.",
     inputSchema: {
       type: "object",
       properties: {
         url: { type: "string", description: "public http(s) URL to probe" },
-        task: { type: "string", description: "optional task label" },
-        claimed_price: { type: "number", description: "optional claimed USD price to compare" },
+        task: { type: "string", description: "optional task label (ignored in decision output)" },
+        claimed_price: { type: "number", description: "optional claimed USD price to compare vs quoted" },
       },
       required: ["url"],
     },

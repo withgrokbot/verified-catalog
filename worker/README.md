@@ -16,8 +16,8 @@ POST /mcp                         # free remote MCP (Streamable HTTP, stateless 
 GET /.well-known/x402             # x402 discovery fan-out (0.4.0)
 GET /v1/products/overnight-cos-pack  # Overnight CoS Setup Pack, always $9 USDC via x402 (0.5.0)
                                      # MCP tool: get_overnight_cos_pack (paid; SELF_CLIENTS not exempt)
-GET /v1/products/endpoint-spot-check # x402 Endpoint Spot-Check, 1 free/day then $0.25 USDC (0.6.0)
-                                     # SSRF-safe probe; never pays the target. MCP: endpoint_spot_check
+GET /v1/products/endpoint-spot-check # x402 Endpoint Spot-Check, 1 free/day then $0.25 USDC (0.6.2)
+                                     # Decision-shaped: verdict/reason/quoted vs claimed. Never pays target. MCP: endpoint_spot_check
     optional: endpoint=<id or url>, limit=<services, default 10>, client=<your agent name>, payer=<0x wallet>,
               ref=<where you found it, e.g. via-readme>
 GET /v1/tasks          task names -> service ids

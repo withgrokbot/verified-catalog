@@ -331,7 +331,7 @@ export async function spotProbe(rawUrl, opts = {}) {
           signal: ac.signal,
           headers: {
             accept: "application/json, text/plain, */*",
-            "user-agent": "verified-catalog-spotcheck/0.6",
+            "user-agent": "verified-catalog-spotcheck/0.6.2",
             // Explicitly do NOT send payment headers
           },
         });
@@ -457,6 +457,47 @@ export function priceMatchesClaimed(quoted, claimed) {
   const q = Number(quoted);
   if (!Number.isFinite(c) || !Number.isFinite(q)) return null;
   return Math.abs(c - q) < 1e-9 + Math.max(c, q) * 1e-6;
+}
+
+/**
+ * Map probe result → decision-shaped verdict.
+ * Deterministic rules (prefer skip over pay when unsure about safety;
+ * prefer recheck over pay when data incomplete):
+ * - skip + ssrf_blocked if SSRF
+ * - skip + unreachable / timeout if fetch fails
+ * - skip + no_x402 if reachable but no parseable x402/402 challenge
+ * - pay + price_ok if challenge parses and (no claimed_price OR quoted matches claimed within epsilon)
+ * - skip + price_mismatch if both prices present and differ
+ * - recheck + ambiguous / bad_challenge when challenge present but unparseable or partial
+ */
+export function decideVerdict(probe, claimedPrice) {
+  if (!probe || probe.ssrf_blocked) {
+    return { verdict: "skip", reason: "ssrf_blocked" };
+  }
+  if (!probe.reachable) {
+    const err = String(probe.error || "");
+    if (/timeout/i.test(err)) return { verdict: "skip", reason: "timeout" };
+    return { verdict: "skip", reason: "unreachable" };
+  }
+  if (!probe.x402_challenge) {
+    return { verdict: "skip", reason: "no_x402" };
+  }
+  // Challenge present but not a fully parseable shape → recheck
+  if (probe.known_answer !== true) {
+    const accepts = Array.isArray(probe.accepts) ? probe.accepts : [];
+    const partial = accepts.length > 0 || probe.quoted_price_usd != null;
+    return { verdict: "recheck", reason: partial ? "ambiguous" : "bad_challenge" };
+  }
+  // Fully parsed challenge
+  const claimed = claimedPrice;
+  if (claimed === null || claimed === undefined || claimed === "") {
+    return { verdict: "pay", reason: "price_ok" };
+  }
+  const match = priceMatchesClaimed(probe.quoted_price_usd, claimed);
+  if (match === true) return { verdict: "pay", reason: "price_ok" };
+  if (match === false) return { verdict: "skip", reason: "price_mismatch" };
+  // Claimed set but quoted missing/unusable → incomplete
+  return { verdict: "recheck", reason: "ambiguous" };
 }
 
 export function utcHour(now = new Date()) {

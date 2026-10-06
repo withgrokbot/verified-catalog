@@ -568,7 +568,7 @@ test("MCP /mcp: initialize, tools/list (catalog tools + products), ping, notific
   let r = await rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } } }, { envo: e });
   assert.equal(r.status, 200);
   assert.match(r.headers.get("content-type"), /application\/json/);
-  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "verified-catalog", version: "0.6.1" } } });
+  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "verified-catalog", version: "0.6.2" } } });
   assert.equal(r.headers.get("mcp-session-id"), null, "stateless: no session");
   r = await rpc({ jsonrpc: "2.0", method: "notifications/initialized" }, { envo: e });
   assert.equal(r.status, 202);
@@ -689,13 +689,13 @@ test("overnight-cos-pack: unpaid GET/POST return 402 with amount 9000000, payTo,
   const wk = (await send("/.well-known/x402", { envo: e })).body;
   assert.ok(wk.resources.includes("https://lookup.test" + PACK));
   const oa = (await send("/openapi.json", { envo: e })).body;
-  assert.equal(oa.info.version, "0.6.1");
+  assert.equal(oa.info.version, "0.6.2");
   const op = oa.paths[PACK].get;
   assert.deepEqual(op["x-payment-info"].price, { mode: "fixed", currency: "USD", amount: "9" });
   assert.equal(op["x-payment-info"].protocols[0].x402.payTo, PAY_TO);
   assert.ok(oa.paths[PACK].post);
   const health = (await send("/health", { envo: e })).body;
-  assert.equal(health.version, "0.6.1");
+  assert.equal(health.version, "0.6.2");
 });
 
 test("overnight-cos-pack: paid path with mocked facilitator returns prompts+template+guide; wrong amount rejected", async () => {
@@ -772,7 +772,7 @@ function spotEnv(extra = {}) {
   return e;
 }
 
-test("spot-check SSRF: localhost, 127.0.0.1, 169.254.169.254, 10.x → 400 blocked, no outbound fetch", async () => {
+test("spot-check SSRF: localhost, 127.0.0.1, 169.254.169.254, 10.x → 400 skip/ssrf_blocked, no outbound fetch", async () => {
   const e = spotEnv();
   lastSpotFetchInit = null;
   const blocked = [
@@ -786,8 +786,10 @@ test("spot-check SSRF: localhost, 127.0.0.1, 169.254.169.254, 10.x → 400 block
   for (const u of blocked) {
     const r = await send(SPOT + "?url=" + encodeURIComponent(u) + "&client=ssrf-a", { envo: e });
     assert.equal(r.status, 400, u);
-    assert.equal(r.body.ssrf_blocked, true, u);
-    assert.ok(r.body.error, u);
+    assert.equal(r.body.verdict, "skip", u);
+    assert.equal(r.body.reason, "ssrf_blocked", u);
+    assert.equal(r.body.quoted_price_usd, null, u);
+    assert.ok(!("ssrf_blocked" in r.body) || r.body.ssrf_blocked === undefined, "slim body only");
   }
   assert.equal(lastSpotFetchInit, null, "must not fetch blocked targets");
 });
@@ -799,13 +801,14 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=spot-free-1", { envo: e });
   assert.equal(r.status, 200);
   assert.equal(r.body.access.tier, "free");
-  assert.equal(r.body.reachable, true);
-  assert.equal(r.body.http_status, 402);
-  assert.equal(r.body.x402_challenge, true);
-  assert.ok(r.body.accepts.length >= 1);
+  assert.equal(r.body.verdict, "pay");
+  assert.equal(r.body.reason, "price_ok");
   assert.equal(r.body.quoted_price_usd, 0.001);
-  assert.equal(r.body.price_matches_claimed, true);
-  assert.equal(r.body.known_answer, true);
+  assert.equal(r.body.claimed_price_usd, 0.001);
+  // slim: only decision fields + access
+  for (const k of Object.keys(r.body)) {
+    assert.ok(["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "access"].includes(k), "unexpected field " + k);
+  }
   assert.ok(lastSpotFetchInit);
   const h = lastSpotFetchInit.headers || {};
   const hdrObj = h instanceof Headers ? Object.fromEntries(h.entries()) : h;
@@ -836,7 +839,10 @@ test("spot-check unpaid after free exhausted → 402 amount 250000; paid path wo
   assert.equal(paid.status, 200);
   assert.equal(paid.body.access.tier, "paid");
   assert.equal(paid.body.access.charged_usd, "0.25");
-  assert.equal(paid.body.x402_challenge, true);
+  assert.equal(paid.body.verdict, "pay");
+  assert.equal(paid.body.reason, "price_ok");
+  assert.equal(paid.body.quoted_price_usd, 0.001);
+  assert.equal(paid.body.claimed_price_usd, null);
   assert.deepEqual(facCalls.map((x) => x[0]), ["/verify", "/settle"]);
   const h = lastSpotFetchInit.headers || {};
   const hdrObj = h instanceof Headers ? Object.fromEntries(h.entries()) : h;
@@ -849,32 +855,54 @@ test("spot-check timeout and oversized body handled safely", async () => {
   const t = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/slow") + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(t.status, 200);
   assert.equal(t.body.access.tier, "exempt");
-  assert.equal(t.body.reachable, false);
-  assert.match(t.body.error || "", /timeout/);
+  assert.equal(t.body.verdict, "skip");
+  assert.equal(t.body.reason, "timeout");
+  assert.equal(t.body.quoted_price_usd, null);
   spotTargetMode = "huge";
   const h = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/huge") + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(h.status, 200);
-  assert.equal(h.body.reachable, true);
-  assert.equal(h.body.body_truncated, true);
+  assert.equal(h.body.verdict, "skip");
+  assert.equal(h.body.reason, "no_x402");
   spotTargetMode = "402";
 });
 
 test("MCP endpoint_spot_check listed; unpaid after free returns pay instructions", async () => {
   const e = spotEnv();
   const listed = await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" }, { envo: e });
-  assert.ok(listed.body.result.tools.some((t) => t.name === "endpoint_spot_check"));
+  const tool = listed.body.result.tools.find((t) => t.name === "endpoint_spot_check");
+  assert.ok(tool);
+  assert.match(tool.description, /verdict/);
   spotTargetMode = "402";
   const call = { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: "https://spot.target.test/api", claimed_price: 0.001 } } };
   const free = await rpc(call, { envo: e });
   assert.equal(free.body.result.isError, undefined);
-  assert.equal(free.body.result.structuredContent.x402_challenge, true);
+  assert.equal(free.body.result.structuredContent.verdict, "pay");
+  assert.equal(free.body.result.structuredContent.reason, "price_ok");
+  assert.equal(free.body.result.structuredContent.quoted_price_usd, 0.001);
   const paidNeed = await rpc(call, { envo: e });
   assert.equal(paidNeed.body.result.isError, true);
   assert.match(paidNeed.body.result.content[0].text, /Payment required: \$0\.25 USDC/);
   const health = (await send("/health", { envo: e })).body;
-  assert.equal(health.version, "0.6.1");
+  assert.equal(health.version, "0.6.2");
   const oa = (await send("/openapi.json", { envo: e })).body;
   assert.ok(oa.paths[SPOT]);
+  assert.match(oa.paths[SPOT].get.responses[200].description, /verdict/);
+});
+
+test("spot-check price_mismatch → skip; no claimed → pay when challenge ok", async () => {
+  const e = spotEnv();
+  spotTargetMode = "402";
+  const mismatch = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=9.99&client=withgrokbot-selftest", { envo: e });
+  assert.equal(mismatch.status, 200);
+  assert.equal(mismatch.body.verdict, "skip");
+  assert.equal(mismatch.body.reason, "price_mismatch");
+  assert.equal(mismatch.body.quoted_price_usd, 0.001);
+  assert.equal(mismatch.body.claimed_price_usd, 9.99);
+  const noclaim = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest", { envo: e });
+  assert.equal(noclaim.status, 200);
+  assert.equal(noclaim.body.verdict, "pay");
+  assert.equal(noclaim.body.reason, "price_ok");
+  assert.equal(noclaim.body.claimed_price_usd, null);
 });
 
 let passed = 0;
