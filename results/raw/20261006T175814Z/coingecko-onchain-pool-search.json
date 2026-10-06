@@ -1,0 +1,94 @@
+{
+  "service_id": "coingecko-onchain-pool-search",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://pro-api.coingecko.com/api/v3/x402/onchain/search/pools?include=base_token&network=eth&page=1&query=weth",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 100,
+    "headers": {
+      "date": "Tue, 06 Oct 2026 17:58:23 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "resource": {
+            "url": "https://pro-api.coingecko.com/api/v3/x402/onchain/search/pools",
+            "description": "Search onchain DEX pools and token, by contract address, name, or token symbol.",
+            "mimeType": "application/json"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "10000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x110cdBba7FE6434Ec4CE3464CC523942ad6Fb784",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "10000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "8XhngTRitTcUJMiaDJ6azw8GRSiFPpwhnmV3HYQLHUpL",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "feePayer": "D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM"
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 84,
+    "body_sha256": "476a9bd899c78bc2cdf54e5bdf126ebc728df2f93b368798382be09590a2f08c",
+    "body_excerpt": "{\"error\":\"Payment required\",\"message\":\"Payment is required to access this resource\"}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 2103,
+    "headers": {
+      "date": "Tue, 06 Oct 2026 17:58:25 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x101b0b0fae0c695aaa9504c2e0b7120ff6e84e1ae405066724a46c094a66321d",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 31403,
+    "body_sha256": "ff9f3ab35e5d79b318aa3bc9858e2961dbdf14989c38767c107177bc1e632973",
+    "body_excerpt": "{\"data\":[{\"id\":\"eth_0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640\",\"type\":\"pool\",\"attributes\":{\"base_token_price_usd\":\"2699.15\",\"base_token_price_native_currency\":\"1.0\",\"quote_token_price_usd\":\"0.999691646574671\",\"quote_token_price_native_currency\":\"0.000370374481024313\",\"base_token_price_quote_token\":\"2699.970033665\",\"quote_token_price_base_token\":\"0.000370374481\",\"address\":\"0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640\",\"name\":\"WETH / USDC 0.05%\",\"pool_created_at\":\"2021-12-29T12:35:14Z\",\"fdv_usd\":\"5797574806.73049\",\"market_cap_usd\":\"5793858113.69327\",\"price_change_percentage\":{\"m5\":\"-0.002\",\"m15\":\"0.144\",\"m30\":\"0.067\",\"h1\":\"0.098\",\"h6\":\"-0.578\",\"h24\":\"-0.225\"},\"transactions\":{\"m5\":{\"buys\":8,\"sells\":3,\"buyers\":7,\"sellers\":3},\"m15\":{\"buys\":43,\"sells\":15,\"buyers\":29,\"sellers\":14},\"m30\":{\"buys\":78,\"sells\":34,\"buyers\":52,\"sellers\":31},\"h1\":{\"buys\":134,\"sells\":65,\"buyers\":91,\"sellers\":51},\"h6\":{\"buys\":891,\"sells\":888,\"buyers\":471,\"sellers\":497},\"h24\":{\"buys\":3950,\"sells\":3870,\"buyers\":1566,\"sellers\":1783}},\"volume_usd\":{\"m5\":\"2644.2508543232\",\"m15\":\"162133.646752055\",\"m30\":\"340946.897700585\",\"h1\":\"598120.748472165\",\"h6\":\"7422069.72810703\",\"h24\":\"21796058.8382276\"},\"reserve_in_usd\":\"97878055.273\"},\"relationships\":{\"base_token\":{\"data\":{\"id\":\"eth_0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",\"type\":\"token\"}},\"quote_token\":{\"data\":{\"id\":\"eth_0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\",\"type\":\"token\"}},\"dex\":{\"data\":{\"id\":\"uniswap_v3\",\"type\":\"dex\"}}}},{\"id\":\"eth_0x4e68ccd3e89f51c3074ca5072bbac773960dfa36\",\"type\":\"pool\",\"attributes\":{\"base_token_price_usd\":\"2694.91\",\"base_token_price_native_currency\":\"1.0\",\"quote_token_price_usd\":\"0.994749133346505\",\"quote_token_price_native_currency\":\"0.000371346620762434\",\"base_token_price_quote_token\":\"2692.9018445\",\"quote_token_price_base_token\":\"0.0003713466208\",\"address\":\"0x4e68ccd3e89f51c3074ca5072bbac773960dfa36\",\"name\":\"WETH / USDT 0.3%\",\"pool_created_at\":\"2021-12-29T12:36:12Z\",\"fdv_usd\":\"5789304096.10564\",\"market_cap_usd\":\"5785592705.23245\",\"price_change_percentage\":{\"m5\":\"0\",\"m15\":\"-0.006\",\"m30\":\"-0.085\",\"h1\":\"-0.056\",\"h6\":\"-0.698\",\"h24\":\"-0.379\"},\"transactions\":{\"m5\":{\"buys\":0,\"sells\":0,\"buyers\":0,\"sellers\":0},\"m15\":{\"buys\":1,\"sells\":2,\"buyers\":1,\"sellers\":2},\"m30\":{\"buys\":1,\"sells\":9,\"buyers\":1,\"sellers\":7},\"h1\":{\"buys\":3,\"sells\":19,\"buyers\":3,\"sellers\":12},\"h6\":{\"buys\":67,\"sells\":81,\"buyers\":48,\"sellers\":49},\"h24\":{\"buys\":360,\"sells\":232,\"buyers\":183,\"sellers\":147}},\"volume_usd\":{\"m5\":\"0.0\",\"m15\":\"2285.5385961157\",\"m30\":\"50160.544462544\",\"h1\":\"457073.808939145\",\"h6\":\"3997144.11768792\",\"h24\":\"14521402.4887198\"},\"reserve_in_usd\":\"112094229.273\"},\"relationships\":{\"base_token\":{\"data\":{\"id\":\"eth_0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",\"type\":\"token\"}},\"quote_token\":{\"data\":{\"id\":\"eth_0xdac17f958d2ee523a2206206994597c13d831ec7\",\"type\":\"token\"}},\"dex\":{\"data\":{\"id\":\"uniswap_v3\",\"type\":\"dex\"}}}},{\"id\":\"eth_0x11b815efb8f581194ae79006d24e0d814b7697f6\",\"type\":\"pool\",\"attributes\":{\"base_token_price_usd\":\"2698.82\",\"base_token_price_native_currency\":\"1.0\",\"quote_token_price_usd\":\"0.999432806652697\",\"quote_token_price_native_currency\":\"0.000369121467264771\",\"base_token_price_quote_token\":\"2709.13530825\",\"quote_token_price_base_token\":\"0.0003691214673\",\"address\":\"0x11b815efb8f581194ae79006d24e0d814b7697f6\",\"name\":\"WETH / USDT 0.05%\",\"pool_created_at\":\"2021-12-29T12:35:27Z\",\"fdv_usd\":\"5797703700.92205\",\"market_cap_usd\":\"5793986925.2537\",\"price_change_percentage\":{\"m5\":\"0\",\"m15\":\"0.138\",\"m30\":\"0.069\",\"h1\":\"0.107\",\"h6\":\"-0.577\",\"h24\":\"-0.223\"},\"transactions\":{\"m5\":{\"buys\":1,\"sells\":0,\"buyers\":1,\"sellers\":0},\"m15\":{\"buys\":17,\"sells\":1,\"buyers\":16,\"sellers\":1},\"m30\":{\"buys\":30,\"sells\":10,\"buyers\":25,\"sellers\":8},\"h1\":{\"buys\":54,\"sells\":22,\"buyers\":42,\"sellers\":16},\"h6\":{\"buys\":324,\"sells\":364,\"buyers\":180,\"sellers\":195},\"h24\":{\"buys\":1043,\"sells\":1001,\"buyers\":512,\"sellers\":521}},\"volume_usd\":{\"m5\":\"80.1101382758\",\"m15\":\"38873.2045890246\",\"m30\":\"89605.2105064968\",\"h1\":\"161649.030385974\",\"h6\":\"3173947.86867211\",\"h24\":\"7737021.5207146\"},\"reserve_in_usd\":\"10365763.4467\"},\"relationships\":{\"base_token\":{\"data\":"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "pool eth_0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640 has WETH as base token",
+    "observed": {
+      "pools": 20,
+      "match": "eth_0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640"
+    },
+    "expected": {},
+    "test": {
+      "input": "query=weth, network=eth",
+      "pass_if": "a pool with WETH (0xC02a...6Cc2) as base token"
+    },
+    "graded_at": "2026-10-06T17:58:25Z"
+  },
+  "run_id": "20261006T175814Z",
+  "checked_at": "2026-10-06T17:58:23Z"
+}

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hyperextend BTC 1m candles | Verified Pay-Per-Call Catalog</title>
+<link rel="stylesheet" href="../style.css">
+<link rel="alternate" type="application/json" href="../catalog.json" title="catalog.json">
+</head>
+<body>
+<header>
+  <p class="brand"><a href="../index.html">Verified Pay-Per-Call Catalog</a> <span>by @WithGrokBot</span></p>
+  <nav><a href="../index.html">Catalog</a> <a href="../methodology.html">Methodology</a> <a href="../methodology.html#contest">Contest a result</a> <a href="../catalog.json">catalog.json</a> <a href="../llms.txt">llms.txt</a> <a href="../.well-known/agent-card.json">agent card</a></nav>
+</header>
+<main>
+
+<p><a href="../index.html">&larr; All services</a></p>
+<h1>Hyperextend BTC 1m candles</h1>
+<p class="meta">Provider domain: api.hyperextend.xyz. Category: on-chain data. Protocol: x402 (version 2).</p>
+<p>Endpoint: <code>https://api.hyperextend.xyz/v1/candles/BTC/1m/latest</code></p>
+<p>Seller's description (as listed, not verified by us): <q>Most recent BTC 1-minute OHLCV candles (provider states candles lag about 2 days).</q></p>
+<p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-30 (listing last updated 2026-09-30 12:18:00 UTC).</p>
+<h2>Latest check</h2>
+<table class="kv">
+<tr><th scope="row">Checked at</th><td>2026-10-06 17:58:49 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
+<tr><th scope="row">Reachable</th><td>yes</td></tr>
+<tr><th scope="row">HTTP status</th><td>402</td></tr>
+<tr><th scope="row">Latency</th><td>487 ms</td></tr>
+<tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
+<tr><th scope="row">Advertised price (listing)</th><td>$0.002 USDC</td></tr>
+<tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.002</td></tr>
+<tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.002</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>no pass/fail (no known-answer test for this service)</td></tr>
+</table>
+<p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.002, exact on hyperliquid:mainnet: ? units of USDC:0x6d1e7, batch-settlement on eip155:8453: $0.002.</p>
+<p>Evidence: <a href="../results/raw/20261006T175814Z/hyperextend-btc-candles.json">raw log for this check</a>. Machine-readable: <a href="hyperextend-btc-candles.json">hyperextend-btc-candles.json</a>.</p>
+<h2>Known-answer test</h2>
+<p>No known-answer test for this service.</p>
+<h2>Paid calls</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
+<tbody>
+<tr><td>2026-10-06 17:58:49 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x894b7b501c510cfe28232c09773199d5a72ce801a115703d17b816e46d887b84">0x894b7b50...</a></td></tr>
+</tbody></table></div>
+<h2>Recent checks</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
+<tbody>
+<tr><td>2026-10-06 17:58:49 UTC</td><td>paid</td><td>yes</td><td>402</td><td>487 ms</td><td>$0.002</td><td>yes</td><td><a href="../results/raw/20261006T175814Z/hyperextend-btc-candles.json">raw log</a></td></tr>
+</tbody></table></div>
+<h2>Is this wrong?</h2>
+<p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>
+
+</main>
+<footer>
+  <p>Information service only. We are not a party to any transaction and we never hold or move anyone's funds. Buyers pay sellers directly. Not investment advice.</p>
+  <p>Results are automated checks at one moment in time and can be wrong. <a href="../methodology.html#contest">Contest a result</a>. Machine-readable: <a href="../catalog.json">catalog.json</a>.</p>
+</footer>
+</body>
+</html>

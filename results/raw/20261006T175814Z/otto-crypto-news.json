@@ -1,0 +1,120 @@
+{
+  "service_id": "otto-crypto-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://x402.ottoai.services/crypto-news",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 352,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 06 Oct 2026 17:58:18 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://x402.ottoai.services/crypto-news",
+            "description": "Importance-ranked crypto headlines with per-article source links and publish times, plus a sentiment-scored market brief. Regenerated hourly; meta carries the snapshot's age and a fresh/stale verdict.",
+            "mimeType": "application/json",
+            "serviceName": "Otto AI",
+            "tags": [
+              "crypto news",
+              "market news",
+              "sentiment analysis",
+              "breaking headlines"
+            ],
+            "iconUrl": "https://x402.ottoai.services/assets/otto-icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "assetTransferMethod": "permit2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "1000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "Hc3sdEAsCGQcpgfivywog9uwtk8gUBUZgsxdME1EJy88"
+              }
+            }
+          ]
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "1517"
+    },
+    "body_bytes": 1517,
+    "body_sha256": "9d80a7bcfd72f0e1fb781508357c0fb242a316a4e6d9882429050b6384626456",
+    "body_excerpt": "{\"error\":\"payment_required\",\"hint\":\"This is a pay-per-call x402 endpoint. The payment terms are the accepts[] array in this body -- mirrored verbatim from the base64 PAYMENT-REQUIRED response header, which remains the x402 v2 protocol contract. Pay one of them with an x402 client, then retry to receive the data.\",\"price\":\"$0.001\",\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"assetTransferMethod\":\"permit2\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"amount\":\"1000\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"payTo\":\"6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5\",\"maxTimeoutSeconds\":300,\"extra\":{\"feePayer\":\"Hc3sdEAsCGQcpgfivywog9uwtk8gUBUZgsxdME1EJy88\"}}],\"docs\":\"https://docs.useotto.xyz/getting-started/agent-quickstart\",\"contact\":{\"email\":\"[email redacted]\",\"telegram\":\"https://t.me/DeFAI_Capital\",\"twitter\":\"https://twitter.com/useOttoAI\",\"feedback\":\"POST https://x402.ottoai.services/feedback ($0.001) -- money-back guarantee on Otto-recommended services and Full Auto; feature requests welcome (email/Telegram are free).\"},\"x402Version\":2}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1418,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 06 Oct 2026 17:58:19 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x40a885115669ab04856d03558145e8c1b521bfca6903f56566cb90019fd73a54",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "8358"
+    },
+    "body_bytes": 8358,
+    "body_sha256": "0ed93c5d700399afecf2da1b8e27b821fe7c0309ee1d254467401b240f3c8ef7",
+    "body_excerpt": "{\"status\":\"success\",\"data\":{\"report\":\"_Report generated 2026-10-06 17:00 UTC_\\n\\n## MARKET BRIEF\\n\\nOverview: Ethereum's Glamsterdam upgrade has launched on the Sepolia testnet, marking a major step toward the network's next layer-1 scaling overhaul.\\n\\nMarket Sentiment:\\nOverall Bull/Bear Score: 72\\n\\n---\\n\\n## KEY STORIES\\n\\n1. **Ethereum's Glamsterdam upgrade launches on Sepolia testnet** - A major step toward Ethereum's next L1 scaling overhaul, with enshrined PBS, block-level access lists, parallel processing, and a much higher gas limit floor. Mainnet timing and successful testing could materially affect ETH fundamentals, L2 economics, and validator/MEV dynamics.\\n\\n2. **OKX exchange raises fresh capital at $25B valuation** - Strategic backing from Standard Chartered, Circle, Ripple, and QRT strengthens OKX's push into payments, tokenized assets, and regulated global fintech. The ICE-backed tokenized US stock platform could be a significant bridge between crypto exchanges and traditional markets.\\n\\n3. **Circle, Ripple and Hedge Fund QRT Back Crypto Exchange OKX at $25 Billion Valuation** - Confirms high-profile institutional investment into a major exchange and highlights the OKXICE joint venture's plan for tokenized US equities under an SEC innovation exemption. This is directly relevant to tokenization, stablecoin trading pairs, and exchange competition.\\n\\n4. **Polymarket overhauls smart contracts with new Protocol V2 rollout** - Replacing legacy Gnosis-based infrastructure with a unified ERC-1155 positions contract and pUSD collateral could improve efficiency, reduce friction, and lay groundwork for cross-chain expansion. Important for prediction markets, DeFi infrastructure, and onchain trading venues.\\n\\n5. **Paxos' $3B USDG stablecoin launches on Arbitrum** - Brings a major regulated stablecoin natively to Arbitrum with integrations across Fluid, Morpho, GMX, Maple, Kraken, and Stargate, plus a proposed 100M ARB incentive program. Significant for stablecoin distribution wars, L2 liquidity, and reserve economics.\\n\\n---\\n\\n## QUICK HITS\\n\\n- Ripple expands Brevan Howard deal with prime brokerage services\\n- Winklevoss group seeks to launch Zcash ETF with 0.25% fee, proposed WINK ticker\\n- Ether.fi Is Launching Its Own Stablecoin, With Ethena Running the Reserves\\n- Ondo's New Tokenized Notes Tie Payouts to an Unnamed Pre-IPO AI Company\\n- Arbitrum joins Paxos-led stablecoin group Global Dollar to capture digital dollar growth\\n\\nInformational only -- not investment advice.\\n\\n[Powered by $OTTO AI | @useOttoAI]\",\"headlines\":[{\"rank\":1,\"title\":\"Ethereum's Glamsterdam upgrade launches on Sepolia testnet\",\"whyItMatters\":\"A major step toward Ethereum's next L1 scaling overhaul, with enshrined PBS, block-level access lists, parallel processing, and a much higher gas limit floor. Mainnet timing and successful testing could materially affect ETH fundamentals, L2 economics, and validator/MEV dynamics.\",\"url\":\"https://cointelegraph.com/news/ethereums-glamsterdam-upgrade-launches-on-sepolia-testnet\",\"publishedAt\":\"2026-10-06T14:00:00.000Z\",\"source\":\"Cointelegraph\",\"match\":\"exact\"},{\"rank\":2,\"title\":\"OKX exchange raises fresh capital at $25B valuation\",\"whyItMatters\":\"Strategic backing from Standard Chartered, Circle, Ripple, and QRT strengthens OKX's push into payments, tokenized assets, and regulated global fintech. The ICE-backed tokenized US stock platform could be a significant bridge between crypto exchanges and traditional markets.\",\"url\":\"https://cointelegraph.com/news/okx-exchange-raises-capital-25b-valuation\",\"publishedAt\":\"2026-10-06T13:32:32.000Z\",\"source\":\"Cointelegraph\",\"match\":\"exact\"},{\"rank\":3,\"title\":\"Circle, Ripple and Hedge Fund QRT Back Crypto Exchange OKX at $25 Billion Valuation\",\"whyItMatters\":\"Confirms high-profile institutional investment into a major exchange and highlights the OKXICE joint venture's plan for tokenized US equities under an SEC innovation exemption. This is directly relevant to tokenization, stablecoin trading pairs, and exchange competition.\",\"url\":\"https://unchainedcrypto.com"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "10 items with source URLs; newest 1.2 h old",
+    "observed": {
+      "items": 10,
+      "items_with_url": 10,
+      "newest": "2026-10-06T16:43:41Z",
+      "newest_age_hours": 1.24
+    },
+    "expected": {},
+    "test": {
+      "input": "none",
+      "pass_if": "at least 5 items, each with a source URL; newest item under 3 h old (the listing says hourly)"
+    },
+    "graded_at": "2026-10-06T17:58:19Z"
+  },
+  "run_id": "20261006T175814Z",
+  "checked_at": "2026-10-06T17:58:18Z"
+}

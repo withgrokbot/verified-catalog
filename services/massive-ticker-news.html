@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 12:45:26.692 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-06 14:29:33 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-06 17:58:38 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>216 ms</td></tr>
+<tr><th scope="row">Latency</th><td>192 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.01 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.01</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.01</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>passed (all 10 items tag AAPL; newest 0.1 days old)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.01.</p>
-<p>Evidence: <a href="../results/raw/20261006T142932Z/massive-ticker-news.json">raw log for this check</a>. Machine-readable: <a href="massive-ticker-news.json">massive-ticker-news.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261006T175814Z/massive-ticker-news.json">raw log for this check</a>. Machine-readable: <a href="massive-ticker-news.json">massive-ticker-news.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: ticker=AAPL, newest first. Passes if: every item tags AAPL; newest item at most 7 days old.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-10-06 17:58:38 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>passed (all 10 items tag AAPL; newest 0.1 days old)</td><td><a href="https://basescan.org/tx/0x859cbe12ba58f9351eab6d2831e81b5c4cd613c8899b16805e4b4aef8c7de514">0x859cbe12...</a></td></tr>
 <tr><td>2026-10-02 18:49:06 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>passed (all 10 items tag AAPL; newest 0.1 days old)</td><td><a href="https://basescan.org/tx/0xd9690cafca196ca19059292e25a92bc58f61a9c93dad16e2b5fc61841228b751">0xd9690caf...</a></td></tr>
 <tr><td>2026-09-30 20:54:30 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>passed (all 10 items tag AAPL; newest 0.1 days old)</td><td><a href="https://basescan.org/tx/0x9706e1a73df110033dc499890268c23d36a0e18dae7ff8054882441657306de6">0x9706e1a7...</a></td></tr>
 <tr><td>2026-09-30 17:45:39 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>no pass/fail (this paid call was made before the known-answer tests existed)</td><td><a href="https://basescan.org/tx/0xe7fc70950e3c701590e0397a067ecda5b41f41de4affcf6f1c678f879639e893">0xe7fc7095...</a></td></tr>
@@ -51,6 +52,7 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-06 17:58:38 UTC</td><td>paid</td><td>yes</td><td>402</td><td>192 ms</td><td>$0.01</td><td>yes</td><td><a href="../results/raw/20261006T175814Z/massive-ticker-news.json">raw log</a></td></tr>
 <tr><td>2026-10-06 14:29:33 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>216 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261006T142932Z/massive-ticker-news.json">raw log</a></td></tr>
 <tr><td>2026-10-05 14:32:48 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>53 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261005T143248Z/massive-ticker-news.json">raw log</a></td></tr>
 <tr><td>2026-10-04 19:56:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>238 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261004T195656Z/massive-ticker-news.json">raw log</a></td></tr>
@@ -60,7 +62,6 @@
 <tr><td>2026-10-01 14:30:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>125 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261001T143056Z/massive-ticker-news.json">raw log</a></td></tr>
 <tr><td>2026-09-30 20:54:30 UTC</td><td>paid</td><td>yes</td><td>402</td><td>250 ms</td><td>$0.01</td><td>yes</td><td><a href="../results/raw/20260930T205409Z/massive-ticker-news.json">raw log</a></td></tr>
 <tr><td>2026-09-30 17:45:39 UTC</td><td>paid</td><td>yes</td><td>402</td><td>201 ms</td><td>$0.01</td><td>yes</td><td><a href="../results/raw/20260930T174508Z/massive-ticker-news.json">raw log</a></td></tr>
-<tr><td>2026-09-30 17:18:53 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>117 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20260930T171853Z/massive-ticker-news.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

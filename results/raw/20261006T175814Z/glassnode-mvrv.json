@@ -1,0 +1,100 @@
+{
+  "service_id": "glassnode-mvrv",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://x402.glassnode.com/v1/metrics/market/mvrv?a=BTC&i=24h",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 142,
+    "headers": {
+      "date": "Tue, 06 Oct 2026 17:58:32 GMT",
+      "content-type": "application/json",
+      "content-length": "4",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://x402.glassnode.com/v1/metrics/market/mvrv?a=BTC&i=24h",
+            "description": "Market Value to Realized Value Ratio (MVRV) \u2014 Market Value to Realized Value (MVRV) is the ratio between market cap and realized cap. Data by Glassnode.",
+            "mimeType": "application/json",
+            "serviceName": "Glassnode",
+            "tags": [
+              "glassnode",
+              "crypto",
+              "on-chain",
+              "analytics",
+              "metrics",
+              "valuation",
+              "profit_loss",
+              "unrealized_profit_loss"
+            ],
+            "iconUrl": "https://x402.glassnode.com/glassnode-com.svg"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "50000",
+              "payTo": "0x1f81da453901D15296c1710af83e0Bc0371D39f1",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 4,
+    "body_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "body_excerpt": "null"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1214,
+    "headers": {
+      "date": "Tue, 06 Oct 2026 17:58:34 GMT",
+      "content-type": "application/json",
+      "content-length": "558",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0xcf404c6d4c08a45294383d5e3d866c220cabecac0b629e05d2ac47aa253e3290",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 558,
+    "body_sha256": "63fa014d50bbd47b0683890c1446c0d08fa983cf5445113e88a02a77fe1f051e",
+    "body_excerpt": "[{\"t\":1790035200,\"v\":1.6109353882370614},{\"t\":1790121600,\"v\":1.576886966146535},{\"t\":1790208000,\"v\":1.5761407997194172},{\"t\":1790294400,\"v\":1.5699838597859386},{\"t\":1790380800,\"v\":1.5760243702843288},{\"t\":1790467200,\"v\":1.5764624946366697},{\"t\":1790553600,\"v\":1.5574224225773907},{\"t\":1790640000,\"v\":1.5595376640534042},{\"t\":1790726400,\"v\":1.55807062363181},{\"t\":1790812800,\"v\":1.5813706191194081},{\"t\":1790899200,\"v\":1.5736374037554475},{\"t\":1790985600,\"v\":1.5776728932500919},{\"t\":1791072000,\"v\":1.6098449819003702},{\"t\":1791158400,\"v\":1.5946010887073947}]"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "newest point 42.0 h old, value 1.595",
+    "observed": {
+      "points": 14,
+      "newest_t": "2026-10-05T00:00:00Z",
+      "newest_age_hours": 41.98,
+      "newest_value": 1.5946010887073947
+    },
+    "expected": {},
+    "test": {
+      "input": "a=BTC, i=24h",
+      "pass_if": "newest point at most 48 h old and value between 0.3 and 6 (sanity check only, the weakest test)"
+    },
+    "graded_at": "2026-10-06T17:58:34Z"
+  },
+  "run_id": "20261006T175814Z",
+  "checked_at": "2026-10-06T17:58:32Z"
+}

@@ -598,6 +598,190 @@
       "tasks": [
         "fx-rates"
       ]
+    },
+    {
+      "id": "kronos-btc-liquidations",
+      "name": "Kronos BTC liquidation map",
+      "provider": "kronossignals.com",
+      "category": "on-chain data",
+      "description": "Estimated liquidation price levels by leverage band plus recent liquidation prints.",
+      "endpoint": "https://kronossignals.com/api/v1/liquidations/btc",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.02",
+        "atomic": "20000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET"
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-29T13:06:00Z",
+        "retrieved": "2026-09-30"
+      },
+      "tasks": [
+        "crypto-liquidations",
+        "crypto-market-metrics"
+      ],
+      "added": "2026-10-06"
+    },
+    {
+      "id": "hyperextend-btc-candles",
+      "name": "Hyperextend BTC 1m candles",
+      "provider": "api.hyperextend.xyz",
+      "category": "on-chain data",
+      "description": "Most recent BTC 1-minute OHLCV candles (provider states candles lag about 2 days).",
+      "endpoint": "https://api.hyperextend.xyz/v1/candles/BTC/1m/latest",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.002",
+        "atomic": "2000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET"
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-30T12:18:00Z",
+        "retrieved": "2026-09-30"
+      },
+      "tasks": [
+        "ohlcv-candles",
+        "crypto-market-data"
+      ],
+      "added": "2026-10-06"
+    },
+    {
+      "id": "hypernatt-liq-radar",
+      "name": "HyperNatt liquidation radar",
+      "provider": "hypernatt.com",
+      "category": "on-chain data",
+      "description": "Forced-order (liquidation) map for major crypto assets.",
+      "endpoint": "https://hypernatt.com/api/m2m/liq-radar",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.001",
+        "atomic": "1000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET"
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-30T09:19:00Z",
+        "retrieved": "2026-09-30"
+      },
+      "tasks": [
+        "crypto-liquidations"
+      ],
+      "added": "2026-10-06"
+    },
+    {
+      "id": "rubric-hedera-exchange-rate",
+      "name": "Rubric Protocol Hedera exchange rate",
+      "provider": "rubric-protocol.com",
+      "category": "reference",
+      "description": "HBAR exchange rate from attested Hedera network facts.",
+      "endpoint": "https://rubric-protocol.com/v1/x402/hedera-facts/exchange-rate",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.001",
+        "atomic": "1000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET"
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-28T14:16:00Z",
+        "retrieved": "2026-09-30"
+      },
+      "tasks": [
+        "fx-rates",
+        "on-chain-data"
+      ],
+      "added": "2026-10-06"
+    },
+    {
+      "id": "402rates-ping",
+      "name": "402rates payment ping",
+      "provider": "api.402rates.com",
+      "category": "web tools",
+      "description": "Payment integration check; returns time, rail, network mode and capabilities (no external data).",
+      "endpoint": "https://api.402rates.com/v1/ping",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.001",
+        "atomic": "1000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET"
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-30T13:42:00Z",
+        "retrieved": "2026-09-30"
+      },
+      "tasks": [
+        "payment-test"
+      ],
+      "added": "2026-10-06"
+    },
+    {
+      "id": "quartermaster-base-gas",
+      "name": "Quartermaster Base gas prices",
+      "provider": "quartermaster.surewhynot.app",
+      "category": "on-chain data",
+      "description": "Current Base gas prices and a simple-transfer cost estimate.",
+      "endpoint": "https://quartermaster.surewhynot.app/v1/gas",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.001",
+        "atomic": "1000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET"
+      },
+      "source": {
+        "name": "CDP x402 Bazaar (public discovery API)",
+        "url": "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources",
+        "listing_last_updated": "2026-09-26T10:40:00Z",
+        "retrieved": "2026-09-30"
+      },
+      "tasks": [
+        "gas-prices",
+        "on-chain-data"
+      ],
+      "added": "2026-10-06"
     }
   ],
   "own_bots": [

@@ -1,0 +1,133 @@
+{
+  "service_id": "x402tap-weather",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://x402tap.com/api/weather?city=Austin",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 202,
+    "headers": {
+      "content-type": "application/json",
+      "date": "Tue, 06 Oct 2026 17:58:35 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://x402tap.com/api/weather",
+            "description": "Live current weather conditions for any city, sourced from Open-Meteo",
+            "mimeType": "application/json",
+            "serviceName": "x402 Weather API",
+            "tags": [
+              "weather",
+              "forecast",
+              "api",
+              "data",
+              "live"
+            ],
+            "iconUrl": "https://x402tap.com/icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0xB810B599bc730Aa85800BABe7f5d160524322C86",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:137",
+              "amount": "1000",
+              "asset": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+              "payTo": "0xB810B599bc730Aa85800BABe7f5d160524322C86",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:42161",
+              "amount": "1000",
+              "asset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+              "payTo": "0xB810B599bc730Aa85800BABe7f5d160524322C86",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "1000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "9fqXniDAn8hNMYC5C9waGv5u126bkwjU6qGgAoQeoWyo",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "BENrLoUbndxoNMUS5JXApGMtNykLjFXXixMtpDwDR9SP"
+              }
+            }
+          ]
+        }
+      },
+      "server": "Vercel"
+    },
+    "body_bytes": 2,
+    "body_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "body_excerpt": "{}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1929,
+    "headers": {
+      "content-type": "application/json",
+      "date": "Tue, 06 Oct 2026 17:58:37 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0xdf9e9043690848645c004898b6c72e3513704d62475d7d6ffaeade37457e9f99",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "Vercel"
+    },
+    "body_bytes": 202,
+    "body_sha256": "dfd48cafd02ad9a2494fa4b9dd653837e4d66686e9c6ce21808561d7b9fc57a3",
+    "body_excerpt": "{\"location\":\"Austin, Texas, United States\",\"observedAt\":\"2026-10-06T12:45\",\"report\":{\"weather\":\"mainly clear\",\"temperature\":86,\"feelsLike\":88,\"humidityPercent\":31,\"windMph\":4},\"source\":\"open-meteo.com\"}"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "within 0.1 C of open-meteo.com",
+    "observed": {
+      "temperature": 86.0,
+      "unit": "F",
+      "temperature_c": 30.0
+    },
+    "expected": {
+      "reference_c": 29.9,
+      "reference_time": "2026-10-06T17:45",
+      "reference_source": "open-meteo.com"
+    },
+    "test": {
+      "input": "city=Austin",
+      "pass_if": "temperature within 3 C of the free Open-Meteo current temperature for Austin, TX (fallback: US National Weather Service station KAUS)"
+    },
+    "graded_at": "2026-10-06T17:58:38Z"
+  },
+  "run_id": "20261006T175814Z",
+  "checked_at": "2026-10-06T17:58:35Z"
+}

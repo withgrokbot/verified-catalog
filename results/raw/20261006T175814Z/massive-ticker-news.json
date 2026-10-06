@@ -1,0 +1,93 @@
+{
+  "service_id": "massive-ticker-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://agent.massive.com/v2/reference/news?limit=10&order=desc&sort=published_utc&ticker=AAPL",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 192,
+    "headers": {
+      "content-type": "application/json",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://agent.massive.com/v2/reference/news?limit=10&order=desc&sort=published_utc&ticker=AAPL",
+            "description": "Get the most recent news articles relating to a stock ticker symbol, including a summary of the article and a link to the original source. Can't find what you're looking for? POST feedback to /feedback, no charge.",
+            "mimeType": "application/json",
+            "serviceName": "Massive",
+            "tags": [
+              "news",
+              "articles",
+              "stocks"
+            ],
+            "iconUrl": "https://agent.massive.com/icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "10000",
+              "payTo": "0x525f6dDcE9aF7a7179D7696aaBfCd5FCd15a21e6",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "date": "Tue, 06 Oct 2026 17:58:38 GMT",
+      "content-length": "96"
+    },
+    "body_bytes": 96,
+    "body_sha256": "0a32141aa8c76c645d9ddb3d0fd78adc0e2076ce57832aef40013d4d41c33d5c",
+    "body_excerpt": "{\"message\":\"See the PAYMENT-REQUIRED header for the payment terms.\",\"status\":\"PAYMENT_REQUIRED\"}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1811,
+    "headers": {
+      "content-length": "28874",
+      "content-type": "application/json",
+      "date": "Tue, 06 Oct 2026 17:58:39 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x859cbe12ba58f9351eab6d2831e81b5c4cd613c8899b16805e4b4aef8c7de514",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 28874,
+    "body_sha256": "39ae97ce197f9eb11d6fbc01b006c185a43d8a77a1b0479030ee23145e6c996a",
+    "body_excerpt": "{\"results\":[{\"id\":\"670de86571f90bc6835a18787a5cbb4e353a3a21894ef32acfb2de30df091376\",\"publisher\":{\"name\":\"The Motley Fool\",\"homepage_url\":\"https://www.fool.com/\",\"logo_url\":\"https://s3.massive.com/public/assets/news/logos/themotleyfool.svg\",\"favicon_url\":\"https://s3.massive.com/public/assets/news/favicons/themotleyfool.ico\"},\"title\":\"Not Nvidia. Not Micron. If I Could Buy and Hold Only 1 Artificial Intelligence (AI) Chip Stock Through 2030, It Would be This One.\",\"author\":\"Adam Spatacco\",\"published_utc\":\"2026-10-06T15:15:00Z\",\"article_url\":\"https://www.fool.com/investing/2026/10/06/this-artificial-intelligence-ai-chip-stock-is-behi/?source=iedfolrf0000001\",\"tickers\":[\"TSM\",\"NVDA\",\"MU\",\"AMD\",\"INTC\",\"AAPL\"],\"image_url\":\"https://g.foolcdn.com/image/?url=https%3A%2F%2Fg.foolcdn.com%2Feditorial%2Fimages%2F890143%2Fgettyimages-179653150-1280x854-f43835d.jpg&w=1200&op=resize\",\"description\":\"While Nvidia and Micron dominate AI chip headlines, Taiwan Semiconductor Manufacturing (TSMC) is positioned as the superior long-term AI infrastructure play. TSMC controls ~73% of the foundry market and ~90% of advanced-node capacity, making it the critical bottleneck in AI chip production. With AI-accelerator revenue expected to compound at 50%+ through 2030, strong financial growth (36% YoY revenue growth in 2025), expanding margins, and a forward P/E of 28, TSMC offers better value than chip designers while maintaining a durable competitive moat.\",\"keywords\":[\"AI chip manufacturing\",\"semiconductor foundry\",\"TSMC competitive advantage\",\"AI infrastructure supercycle\",\"advanced-node capacity\",\"chip supply chain\"],\"insights\":[{\"ticker\":\"TSM\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Positioned as the best single AI chip stock to hold through 2030. Controls dominant market share (73% foundry, 90% advanced nodes), benefits from AI infrastructure supercycle with 50%+ AI-accelerator revenue growth expected, demonstrates strong financial performance (36% YoY revenue growth, expanding margins), and maintains durable competitive moat that competitors cannot easily replicate.\"},{\"ticker\":\"NVDA\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"While recognized as a major AI chip designer with significant narrative premium and visibility, the article argues TSMC is the better long-term hold. Nvidia depends on TSMC's manufacturing capacity and does not control the supply chain bottleneck, making it less attractive than the foundry operator for a single long-term holding.\"},{\"ticker\":\"MU\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Mentioned as benefiting from the AI memory upcycle but explicitly excluded from the author's recommendation. The article suggests Micron will 'ride the memory upcycle' but positions TSMC as the more fundamental and durable investment due to its control of manufacturing capacity.\"},{\"ticker\":\"AMD\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Recognized as a GPU designer competing with Nvidia, but like Nvidia, depends on TSMC's manufacturing capacity. The article notes both AMD and Nvidia design chips but outsource manufacturing, making them less strategically positioned than TSMC.\"},{\"ticker\":\"INTC\",\"sentiment\":\"negative\",\"sentiment_reasoning\":\"Mentioned as a competitor spending heavily on foundry scaling but similarly unable to match TSMC's capabilities at advanced nodes needed for current and next-generation AI accelerators.\"},{\"ticker\":\"AAPL\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Mentioned as TSMC's former largest customer, recently displaced by Nvidia. Serves as evidence of TSMC's critical role in the AI infrastructure cycle but is not the focus of the investment thesis.\"}]},{\"id\":\"f84db7fb4de5ac2f7cb4ec178a2d7c9e2840ebe0a95830b8e48bb7e550b27e2f\",\"publisher\":{\"name\":\"Zacks Investment Research\",\"homepage_url\":\"https://www.zacks.com/\",\"logo_url\":\"https://s3.massive.com/public/assets/news/logos/zacks.png\",\"favicon_url\":\"https://s3.massive.com/public/assets/news/favicons/zacks.ico\"},\"title\":\"Is iShares MSCI USA Quality Factor ETF (QUAL) a Strong ETF Right Now?\",\"author\":\"Na\",\"published_utc\":\"2026-10-06T09:20:03Z\",\"artic"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "all 10 items tag AAPL; newest 0.1 days old",
+    "observed": {
+      "items": 10,
+      "items_without_ticker": 0,
+      "newest": "2026-10-06T15:15:00Z",
+      "newest_age_days": 0.11
+    },
+    "expected": {},
+    "test": {
+      "input": "ticker=AAPL, newest first",
+      "pass_if": "every item tags AAPL; newest item at most 7 days old"
+    },
+    "graded_at": "2026-10-06T17:58:40Z"
+  },
+  "run_id": "20261006T175814Z",
+  "checked_at": "2026-10-06T17:58:38Z"
+}

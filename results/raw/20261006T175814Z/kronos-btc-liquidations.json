@@ -1,0 +1,87 @@
+{
+  "service_id": "kronos-btc-liquidations",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://kronossignals.com/api/v1/liquidations/btc",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 221,
+    "headers": {
+      "content-type": "application/json",
+      "date": "Tue, 06 Oct 2026 17:58:46 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://kronossignals.com/api/v1/liquidations/btc",
+            "description": "Forward liquidation cluster map + recent prints for all 17 crypto assets. Part A: estimated liq price levels for 5x/10x/25x/50x leverage bands, modeled from open interest and mark price \u2014 no new upstream source. Part B: real liquidation prints from OKX public API (no auth). Returns cluster map, nearest_long/short clusters, squeeze_bias, and honest disclaimers. Supports BTC/ETH/SOL/BNB/XRP/DOGE/ADA/AVAX/LINK/DOT/LTC/TRX/BCH/ATOM/NEAR/APT/HYPE-USD. Pay-per-call via x402.",
+            "mimeType": "application/json",
+            "serviceName": "Kronos Crypto Data & Forecasts",
+            "tags": [
+              "liquidations",
+              "liquidation-heatmap",
+              "squeeze",
+              "stop-hunt",
+              "derivatives",
+              "crypto"
+            ]
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "20000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x36038e1d712c5e39f35952164ec58ec2b96caee7",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "Vercel"
+    },
+    "body_bytes": 3593,
+    "body_sha256": "121f3f2a4238a5110660f60bd20b0372d756c68c233b9ec41084b0281671b138",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{\"url\":\"https://kronossignals.com/api/v1/liquidations/btc\",\"description\":\"Forward liquidation cluster map + recent prints for all 17 crypto assets. Part A: estimated liq price levels for 5x/10x/25x/50x leverage bands, modeled from open interest and mark price \u2014 no new upstream source. Part B: real liquidation prints from OKX public API (no auth). Returns cluster map, nearest_long/short clusters, squeeze_bias, and honest disclaimers. Supports BTC/ETH/SOL/BNB/XRP/DOGE/ADA/AVAX/LINK/DOT/LTC/TRX/BCH/ATOM/NEAR/APT/HYPE-USD. Pay-per-call via x402.\",\"mimeType\":\"application/json\",\"serviceName\":\"Kronos Crypto Data & Forecasts\",\"tags\":[\"liquidations\",\"liquidation-heatmap\",\"squeeze\",\"stop-hunt\",\"derivatives\",\"crypto\"]},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"20000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x36038e1d712c5e39f35952164ec58ec2b96caee7\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}],\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"type\":\"http\",\"queryParams\":{},\"method\":\"GET\",\"pathParams\":{}},\"output\":{\"type\":\"json\",\"example\":{\"available\":true,\"asset\":\"BTC-USD\",\"as_of\":\"2026-01-01T00:15:00.000Z\",\"mark_price\":107500,\"open_interest\":84320.15,\"funding_rate\":0.0001,\"cluster_map\":{\"disclaimer\":\"ESTIMATED clusters from OI + leverage-band modeling. NOT confirmed orders.\",\"model_note\":\"OI distributed: 5x=35%, 10x=30%, 25x=25%, 50x=10%. Long/short split adjusted by funding rate.\",\"long_clusters\":[{\"leverage\":50,\"liq_price\":106425,\"distance_pct\":-0.98,\"estimated_oi_fraction\":0.051},{\"leverage\":25,\"liq_price\":103375,\"distance_pct\":-3.84,\"estimated_oi_fraction\":0.1275}],\"short_clusters\":[{\"leverage\":50,\"liq_price\":108575,\"distance_pct\":1,\"estimated_oi_fraction\":0.049},{\"leverage\":25,\"liq_price\":111625,\"distance_pct\":3.84,\"estimated_oi_fraction\":0.1225}],\"nearest_long_liq_cluster\":{\"liq_price\":106425,\"distance_pct\":-0.98},\"nearest_short_liq_cluster\":{\"liq_price\":108575,\"distance_pct\":1},\"squeeze_bias\":\"long_squeeze_risk\",\"total_long_oi_estimate\":44571,\"total_short_oi_estimate\":39749.15},\"recent_prints\":{\"available\":true,\"source\":\"okx-public\",\"count\":5,\"prints\":[{\"side\":\"buy\",\"pos_side\":\"short\",\"size\":10.1,\"price\":107600.5,\"time\":\"2026-01-01T00:00:00.000Z\"}],\"note\":\"side:buy = short position liquidated (forced buy to close); side:sell = long position liquidated (forced sell to close).\"},\"disclaimer\":\"Cluster map is estimated from OI and leverage-band modeling \u2014 NOT a live order book. Not financial advice.\"},\"example_kind\":\"illustrative_schema_only\",\"example_note\":\"Placeholder values and timestamps, not market data.\"}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"GET\"]},\"queryParams\":{\"type\":\"object\",\"properties\":{}},\"pathParams\":{\"type\":\"object\"}},\"required\":[\"type\",\"method\"],\"additionalProperties\":false},\"output\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\"},\"example\":{\"type\":\"object\"}},\"required\":[\"type\"]}},\"required\":[\"input\"]},\"routeTemplate\":\":var1\"}},\"evaluate_before_paying\":{\"response_shape\":\"extensions.bazaar.info.output.example in this response is the exact shape you receive \u2014 inspect it before paying.\",\"never_fabricated\":\"Unreachable upstreams return available:false with a reason. Kronos does not synthesise data to fill a paid response.\",\"free_to_verify\":[\"https://kronossignals.com/api/stats\",\"https://kronossignals.com/api/v1/track-record\"]}}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 2222,
+    "headers": {
+      "content-type": "application/json",
+      "date": "Tue, 06 Oct 2026 17:58:48 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0xe0b322a075fed748207369fb33492efdf1badef3c127c2beff5e01d4f831cd4f",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "Vercel"
+    },
+    "body_bytes": 4946,
+    "body_sha256": "00acd78fcde1ba843495ca3dc0e4875701b2694a789619270be4e7ff74db3889",
+    "body_excerpt": "{\"available\":true,\"asset\":\"BTC-USD\",\"as_of\":\"2026-10-06T17:55:11.443+00:00\",\"as_of_age_seconds\":216,\"stale\":false,\"cached\":false,\"methodology\":\"Liquidation clusters estimated from open interest + leverage-band model using OKX data from Kronos market_signals (5-min cron). Long/short OI split adjusted by funding rate; liq price: long=entry\u00d7(1\u22121/lev+0.5%), short=entry\u00d7(1+1/lev\u22120.5%). Recent prints from OKX public API (no auth, no fabrication).\",\"usage_hint\":\"Identify forward liquidation price levels, nearest long/short squeeze clusters, and squeeze bias for any of 17 assets.\",\"mark_price\":85710.3,\"open_interest\":3005059.47000001,\"funding_rate\":0.0000382904105686,\"cluster_map\":{\"disclaimer\":\"ESTIMATED liquidation clusters from OI + leverage-band modeling. NOT confirmed order book data. Actual liquidation levels depend on each trader's individual entry price, leverage, and margin \u2014 this model treats mark price as a uniform entry proxy, which is a significant simplification.\",\"model_note\":\"OI distributed across leverage bands: 5x=35%, 10x=30%, 25x=25%, 50x=10% (retail-biased weighting; lower leverage assumed more prevalent). Long/short split heuristic: long_fraction = 0.5 + clamp(funding_rate\u00d7100, \u22120.2, +0.2) (positive funding \u2192 more longs assumed; adjustment capped at \u00b120% of OI). Liquidation price: long_liq = entry\u00d7(1\u22121/lev+0.005), short_liq = entry\u00d7(1+1/lev\u22120.005). Entry proxy = mark price. Maintenance margin = 0.5%.\",\"long_clusters\":[{\"leverage\":50,\"liq_price\":84424.65,\"distance_pct\":-1.5,\"estimated_oi_fraction\":0.0504},{\"leverage\":25,\"liq_price\":82710.44,\"distance_pct\":-3.5,\"estimated_oi_fraction\":0.126},{\"leverage\":10,\"liq_price\":77567.82,\"distance_pct\":-9.5,\"estimated_oi_fraction\":0.1511},{\"leverage\":5,\"liq_price\":68996.79,\"distance_pct\":-19.5,\"estimated_oi_fraction\":0.1763}],\"short_clusters\":[{\"leverage\":50,\"liq_price\":86995.95,\"distance_pct\":1.5,\"estimated_oi_fraction\":0.0496},{\"leverage\":25,\"liq_price\":88710.16,\"distance_pct\":3.5,\"estimated_oi_fraction\":0.124},{\"leverage\":10,\"liq_price\":93852.78,\"distance_pct\":9.5,\"estimated_oi_fraction\":0.1489},{\"leverage\":5,\"liq_price\":102423.81,\"distance_pct\":19.5,\"estimated_oi_fraction\":0.1737}],\"nearest_long_liq_cluster\":{\"liq_price\":84424.65,\"distance_pct\":-1.5},\"nearest_short_liq_cluster\":{\"liq_price\":86995.95,\"distance_pct\":1.5},\"squeeze_bias\":\"balanced\",\"total_long_oi_estimate\":1514036.23,\"total_short_oi_estimate\":1491023.24},\"recent_prints\":{\"available\":true,\"source\":\"okx-public\",\"count\":20,\"prints\":[{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":2.22,\"price\":85443.3,\"time\":\"2026-10-06T17:20:38.231Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":2.24,\"price\":85451.9,\"time\":\"2026-10-06T17:20:37.969Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":17.94,\"price\":85458,\"time\":\"2026-10-06T17:20:36.386Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":0.31,\"price\":85463.7,\"time\":\"2026-10-06T17:20:10.127Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":0.06,\"price\":85466.2,\"time\":\"2026-10-06T17:20:05.148Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":1.7,\"price\":85477.8,\"time\":\"2026-10-06T17:12:58.893Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":0.8,\"price\":85477.8,\"time\":\"2026-10-06T17:12:58.845Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":5,\"price\":85480.5,\"time\":\"2026-10-06T17:12:46.720Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":3.76,\"price\":85483.2,\"time\":\"2026-10-06T17:12:41.035Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":22.4,\"price\":85486.5,\"time\":\"2026-10-06T17:12:36.110Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":1.73,\"price\":85491.1,\"time\":\"2026-10-06T17:04:53.941Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":0.66,\"price\":85491.1,\"time\":\"2026-10-06T17:04:53.938Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":0.19,\"price\":85491.1,\"time\":\"2026-10-06T17:04:53.917Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":0.22,\"price\":85491.1,\"time\":\"2026-10-06T17:04:53.908Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":8.09,\"price\":85491.1,\"time\":\"2026-10-06T17:04:53.896Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":1.22,\"price\":85491.1,\"time\":\"2026-10-06T17:04:53.885Z\"},{\"side\":\"sell\",\"pos_side\":\"long\",\"size\":0.21,\"price\":85491.1,\"time\":\"2026-"
+  },
+  "quality": {
+    "result": "not_graded",
+    "reason": "no known-answer test for this service",
+    "observed": {},
+    "expected": {},
+    "test": null,
+    "graded_at": "2026-10-06T17:58:48Z"
+  },
+  "run_id": "20261006T175814Z",
+  "checked_at": "2026-10-06T17:58:46Z"
+}

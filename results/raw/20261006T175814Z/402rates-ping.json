@@ -1,0 +1,122 @@
+{
+  "service_id": "402rates-ping",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.402rates.com/v1/ping",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 426,
+    "headers": {
+      "content-length": "2",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 06 Oct 2026 17:58:55 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://api.402rates.com/v1/ping",
+            "description": "Payment integration check for 0.001 USDC; no external data lookup. Returns time, rail, network mode and free/paid capabilities. HTTP payment options can include Base, Polygon, Arbitrum and XDC; the challenge lists currently available networks for each transport. The receipt identifies the paid network and transaction. Business/professional use only. Terms: https://402rates.com/data-terms/",
+            "mimeType": "application/json",
+            "serviceName": "402rates.com",
+            "tags": [
+              "x402",
+              "integration",
+              "smoke-test",
+              "payment-rail",
+              "usdc"
+            ]
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0xf567Cfe0FDb87A1D6Ca330e3f30f0D3DA0F7cb98",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:137",
+              "amount": "1000",
+              "asset": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+              "payTo": "0xf567Cfe0FDb87A1D6Ca330e3f30f0D3DA0F7cb98",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:42161",
+              "amount": "1000",
+              "asset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+              "payTo": "0xf567Cfe0FDb87A1D6Ca330e3f30f0D3DA0F7cb98",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:50",
+              "amount": "1000",
+              "asset": "0xfA2958CB79b0491CC627c1557F441eF849Ca8eb1",
+              "payTo": "0xedb1a894761F0a142d80D09F82Ff7CF99158Bb19",
+              "maxTimeoutSeconds": 120,
+              "extra": {
+                "name": "USDC",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 2,
+    "body_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "body_excerpt": "{}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1592,
+    "headers": {
+      "content-length": "3898",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 06 Oct 2026 17:58:57 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x5a44ed40739706261459bde467dd1b05617557cef14097920b84040d28e45eaa",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 3898,
+    "body_sha256": "a994b9102c896450f16d5e3a772f2c3e5af50ce837db7dc946af460ec06d9898",
+    "body_excerpt": "{\"pong\":true,\"time\":\"2026-10-06T17:58:56.551Z\",\"rail\":\"cdp-v2\",\"mode\":\"mainnet\",\"next\":{\"free\":[{\"capability\":\"compass.rwa.market_coverage\",\"url\":\"https://api.402rates.com/v1/rwa/market-coverage\",\"note\":\"Market-data coverage and serving availability\"},{\"capability\":\"compass.tests.payment_terms_compare\",\"url\":\"https://api.402rates.com/v1/tests/payment-terms/compare\",\"method\":\"POST\",\"note\":\"Compare previous and current x402 payment terms\"},{\"capability\":\"compass.settlement.estimate\",\"url\":\"https://api.402rates.com/v1/settlement/estimate\",\"method\":\"POST\",\"note\":\"Calculate workload costs from supplied payment profiles\"},{\"capability\":\"compass.rwa.updates\",\"url\":\"https://api.402rates.com/v1/rwa/updates\",\"method\":\"POST\",\"note\":\"Read observed Treasury changes since a saved cursor\"},{\"capability\":\"compass.rwa.benchmark\",\"url\":\"https://api.402rates.com/v1/rwa/benchmark\",\"method\":\"POST\",\"note\":\"Compare a supplied USD Treasury return with a matching benchmark\"},{\"capability\":\"compass.tests.preflight\",\"url\":\"https://api.402rates.com/v1/tests/preflight\",\"method\":\"POST\",\"note\":\"Inspect x402 payment terms without making a payment\"},{\"capability\":\"compass.rwa.changes\",\"url\":\"https://api.402rates.com/v1/rwa/changes\",\"method\":\"POST\",\"note\":\"Compare yield and divergence fields in two saved Treasury responses\"},{\"capability\":\"compass.tests.cases\",\"url\":\"https://api.402rates.com/v1/tests/cases\",\"note\":\"List the synthetic agent test cases\"},{\"capability\":\"compass.tests.case\",\"url\":\"https://api.402rates.com/v1/tests/case\",\"note\":\"Describe a synthetic agent test\"},{\"capability\":\"compass.tests.run\",\"url\":\"https://api.402rates.com/v1/tests/run\",\"method\":\"POST\",\"note\":\"Start or repeat a synthetic agent test\"},{\"capability\":\"compass.tests.action\",\"url\":\"https://api.402rates.com/v1/tests/action\",\"method\":\"POST\",\"note\":\"Execute a synthetic test action\"},{\"capability\":\"compass.tests.state\",\"url\":\"https://api.402rates.com/v1/tests/state\",\"method\":\"POST\",\"note\":\"Read synthetic task state\"},{\"capability\":\"compass.tests.report\",\"url\":\"https://api.402rates.com/v1/tests/report\",\"method\":\"POST\",\"note\":\"Read or finalize an agent test timeline\"},{\"capability\":\"compass.rwa.coverage\",\"url\":\"https://api.402rates.com/v1/rwa/coverage\",\"note\":\"What the RWA yield data covers, and what it does not\"},{\"capability\":\"compass.rwa.filter\",\"url\":\"https://api.402rates.com/v1/rwa/filter\",\"note\":\"Published instrument constraints compared with supplied facts\"},{\"capability\":\"compass.rwa.instrument\",\"url\":\"https://api.402rates.com/v1/rwa/instrument\",\"note\":\"Full evidence-backed state for one tokenized treasury\"},{\"capability\":\"compass.rwa.history\",\"url\":\"https://api.402rates.com/v1/rwa/history\",\"note\":\"Normalized history for one reconstructible RWA source\"},{\"capability\":\"compass.discovery\",\"url\":\"https://api.402rates.com/v1/discovery\",\"note\":\"Search the x402 catalogue with usage figures\"},{\"capability\":\"compass.manifest\",\"url\":\"https://api.402rates.com/v1/manifest\",\"note\":\"Service manifest\"},{\"capability\":\"compass.health\",\"url\":\"https://api.402rates.com/health\",\"note\":\"Liveness probe\"},{\"capability\":\"compass.ready\",\"url\":\"https://api.402rates.com/ready\",\"note\":\"Readiness probe\"}],\"paid\":[{\"capability\":\"compass.settlement.costs\",\"price_usdc\":\"0.01\",\"url\":\"https://api.402rates.com/v1/settlement/costs\",\"note\":\"Measured cost of a USDC transfer per chain, cheapest first\"},{\"capability\":\"compass.rwa.yields\",\"price_usdc\":\"0.03\",\"url\":\"https://api.402rates.com/v1/rwa/yields\",\"note\":\"Realised 30-day yields of tokenized treasuries, recomputable\"},{\"capability\":\"compass.rwa.instruments.all\",\"price_usdc\":\"5\",\"url\":\"https://api.402rates.com/v1/rwa/instruments\",\"note\":\"Complete evidence snapshot for all tracked tokenized treasuries\"},{\"capability\":\"compass.ping\",\"price_usdc\":\"0.001\",\"url\":\"https://api.402rates.com/v1/ping\",\"note\":\"Payment integration check\"}],\"mcp\":\"https://api.402rates.com/mcp\"}}"
+  },
+  "quality": {
+    "result": "not_graded",
+    "reason": "no known-answer test for this service",
+    "observed": {},
+    "expected": {},
+    "test": null,
+    "graded_at": "2026-10-06T17:58:57Z"
+  },
+  "run_id": "20261006T175814Z",
+  "checked_at": "2026-10-06T17:58:55Z"
+}
