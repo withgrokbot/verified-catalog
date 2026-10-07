@@ -31,36 +31,31 @@
   "quality_test": null,
   "paid_receipts": 1,
   "latest": {
-    "checked_at": "2026-10-06T17:58:55Z",
-    "mode": "paid",
+    "checked_at": "2026-10-07T14:29:43Z",
+    "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 426,
+    "latency_ms": 425,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001",
     "quoted_price_usd": "0.001",
     "price_matches_listing": true,
-    "paid": true,
-    "charged_price_usd": "0.001",
-    "delivered_valid": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
     "payment_refused_reason": null,
     "error": null,
-    "quality": {
-      "result": "not_graded",
-      "reason": "no known-answer test for this service",
-      "facts_only": false,
-      "graded_at": "2026-10-06T17:58:57Z"
-    },
-    "raw_log": "results/raw/20261006T175814Z/402rates-ping.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261006T175814Z/402rates-ping.json"
+    "quality": null,
+    "raw_log": "results/raw/20261007T142942Z/402rates-ping.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261007T142942Z/402rates-ping.json"
   },
   "history_summary": {
-    "checks": 1,
-    "reachable": 1,
-    "x402_challenge_ok": 1,
+    "checks": 2,
+    "reachable": 2,
+    "x402_challenge_ok": 2,
     "paid_checks": 1,
     "first_checked": "2026-10-06T17:58:55Z",
-    "last_checked": "2026-10-06T17:58:55Z"
+    "last_checked": "2026-10-07T14:29:43Z"
   }
 }

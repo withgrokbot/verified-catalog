@@ -1,0 +1,62 @@
+{
+  "service_id": "glassnode-mvrv",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://x402.glassnode.com/v1/metrics/market/mvrv?a=BTC&i=24h",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 394,
+    "headers": {
+      "date": "Wed, 07 Oct 2026 14:29:42 GMT",
+      "content-type": "application/json",
+      "content-length": "4",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://x402.glassnode.com/v1/metrics/market/mvrv?a=BTC&i=24h",
+            "description": "Market Value to Realized Value Ratio (MVRV) \u2014 Market Value to Realized Value (MVRV) is the ratio between market cap and realized cap. Data by Glassnode.",
+            "mimeType": "application/json",
+            "serviceName": "Glassnode",
+            "tags": [
+              "glassnode",
+              "crypto",
+              "on-chain",
+              "analytics",
+              "metrics",
+              "valuation",
+              "profit_loss",
+              "unrealized_profit_loss"
+            ],
+            "iconUrl": "https://x402.glassnode.com/glassnode-com.svg"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "50000",
+              "payTo": "0x1f81da453901D15296c1710af83e0Bc0371D39f1",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 4,
+    "body_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "body_excerpt": "null"
+  },
+  "run_id": "20261007T142942Z",
+  "checked_at": "2026-10-07T14:29:42Z"
+}
