@@ -1,0 +1,79 @@
+{
+  "service_id": "rubric-hedera-exchange-rate",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://rubric-protocol.com/v1/x402/hedera-facts/exchange-rate",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 129,
+    "headers": {
+      "server": "nginx",
+      "date": "Thu, 08 Oct 2026 14:31:56 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "3220",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "PAYMENT-SIGNATURE header is required",
+          "resource": {
+            "url": "https://rubric-protocol.com/v1/x402/hedera-facts/exchange-rate",
+            "description": "Attested Hedera network facts: HBAR exchange rate, gas fees, supply, node roster, throughput, topic state. Each response carries the ML-DSA-65 attestation ID of the served snapshot \u2014 tamper-evident reference data for agents that must prove what they knew when they acted.",
+            "mimeType": "application/json",
+            "serviceName": "TenPrint",
+            "tags": [
+              "hedera",
+              "oracle",
+              "data"
+            ],
+            "iconUrl": "https://rubric-protocol.com/favicon.ico"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0xaB6731A0BcDf511c2842C768a03448075aB654ca",
+              "maxTimeoutSeconds": 120,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "1000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "GBfJMhGiGJeWDcve1G673hEp8DLmMFomvSEHMzRfmcJu",
+              "maxTimeoutSeconds": 120,
+              "extra": {
+                "feePayer": "BFK9TLC3edb13K6v4YyH3DwPb5DSUpkWvb7XnqCL9b4F"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=",
+              "amount": "1000",
+              "asset": "31566704",
+              "payTo": "TNUZJJ3JQCGA4QNYDW4VW5CVZ4FWBTGBBEVSFLN6PJT4YEEUSSOX6EXVBM",
+              "maxTimeoutSeconds": 120,
+              "extra": {
+                "feePayer": "ZMFK2OI7ZBD2U27ISERZC4S6LKM6WMFJPZQ4MYNJDZ2VNBNMBA67RA22AA"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 3220,
+    "body_sha256": "6e28379e35ecaa57b7945c1ffce53bf36235a15122a52bef1a9923c4416743bb",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"PAYMENT-SIGNATURE header is required\",\"probers\":{\"note\":\"Probing these endpoints? Attest your verdicts on TenPrint. Free tier for probers and monitors.\",\"contact\":\"[email redacted]\"},\"resource\":{\"url\":\"https://rubric-protocol.com/v1/x402/hedera-facts/exchange-rate\",\"description\":\"Attested Hedera network facts: HBAR exchange rate, gas fees, supply, node roster, throughput, topic state. Each response carries the ML-DSA-65 attestation ID of the served snapshot \u2014 tamper-evident reference data for agents that must prove what they knew when they acted.\",\"mimeType\":\"application/json\",\"serviceName\":\"TenPrint\",\"tags\":[\"hedera\",\"oracle\",\"data\"],\"iconUrl\":\"https://rubric-protocol.com/favicon.ico\"},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0xaB6731A0BcDf511c2842C768a03448075aB654ca\",\"maxTimeoutSeconds\":120,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"amount\":\"1000\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"payTo\":\"GBfJMhGiGJeWDcve1G673hEp8DLmMFomvSEHMzRfmcJu\",\"maxTimeoutSeconds\":120,\"extra\":{\"feePayer\":\"BFK9TLC3edb13K6v4YyH3DwPb5DSUpkWvb7XnqCL9b4F\"}},{\"scheme\":\"exact\",\"network\":\"algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=\",\"amount\":\"1000\",\"asset\":\"31566704\",\"payTo\":\"TNUZJJ3JQCGA4QNYDW4VW5CVZ4FWBTGBBEVSFLN6PJT4YEEUSSOX6EXVBM\",\"maxTimeoutSeconds\":120,\"extra\":{\"feePayer\":\"ZMFK2OI7ZBD2U27ISERZC4S6LKM6WMFJPZQ4MYNJDZ2VNBNMBA67RA22AA\"}}],\"free_demo\":\"https://rubric-protocol.com/v1/x402/demo/hedera-facts\",\"contact\":\"/contact?topic=x402\",\"gateway\":\"/docs.html#specifications\",\"extensions\":{\"bazaar\":{\"discoverable\":true,\"docs\":\"https://rubric-protocol.com/docs.html#x402-endpoints\",\"info\":{\"input\":{\"type\":\"http\",\"method\":\"GET\",\"pathParams\":{\"fact\":\"path segment (required) - one of exchange-rate|gas-fees|supply|nodes|latest-tx|throughput|staking|usdc-supply|hcs-activity|treasury-balance|anchor-cost|rubric-activity|topic-state\"}},\"output\":{\"type\":\"json\",\"example\":{\"success\":true,\"paid\":true,\"settled\":true,\"fact\":\"supply\",\"value\":{\"released\":\"4379109625135465505\",\"total\":\"5000000000000000000\"},\"attestationId\":\"f734f3ac-0d02-4214-9aca-2961f8fffd58\",\"verifyUrl\":\"https://rubric-protocol.com/v1/verify/f734f3ac-0d02-4214-9aca-2961f8fffd58\",\"cacheWindowSeconds\":3600,\"operator\":\"TenPrint\",\"vsr\":{\"vsrVersion\":\"0.4-draft\",\"hashProfile\":\"vsr/v0.4/sha3-256\",\"spec\":\"https://rubric-protocol.com/specs/vsr-v0.4.md\"}}}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"required\":[\"input\"],\"properties\":{\"input\":{\"type\":\"object\",\"required\":[\"type\",\"method\"],\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"GET\"]},\"pathParams\":{\"type\":\"object\",\"properties\":{\"fact\":{\"type\":\"string\"}},\"required\":[\"fact\"]}},\"additionalProperties\":false},\"output\":{\"type\":\"object\",\"required\":[\"type\"],\"properties\":{\"type\":{\"type\":\"string\"},\"format\":{\"type\":\"string\"},\"example\":{}},\"additionalProperties\":false}}}}},\"outputSchema\":{\"type\":\"object\",\"properties\":{\"success\":{\"type\":\"boolean\"},\"paid\":{\"type\":\"boolean\"},\"settled\":{\"type\":\"boolean\"}}}}"
+  },
+  "run_id": "20261008T143155Z",
+  "checked_at": "2026-10-08T14:31:56Z"
+}

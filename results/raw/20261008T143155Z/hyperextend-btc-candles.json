@@ -1,0 +1,87 @@
+{
+  "service_id": "hyperextend-btc-candles",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.hyperextend.xyz/v1/candles/BTC/1m/latest",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 367,
+    "headers": {
+      "content-length": "3580",
+      "content-type": "application/json",
+      "date": "Thu, 08 Oct 2026 14:31:56 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "payment required",
+          "resource": {
+            "url": "https://api.hyperextend.xyz/v1/candles/BTC/1m/latest",
+            "description": "The most-recent N OHLCV candles (\u22645000). Same per-row pricing as the windowed read ($0.00001 base for main/spot, $0.000025 premium for HIP-3/HIP-4); candles lag ~2 days.",
+            "mimeType": "application/json",
+            "serviceName": "hyperextend",
+            "tags": [
+              "hyperliquid",
+              "market-data",
+              "candles",
+              "open-interest",
+              "hip-3",
+              "hip-4",
+              "trades",
+              "liquidations"
+            ],
+            "iconUrl": "https://hyperextend.xyz/favicon.svg"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "2000",
+              "payTo": "0x548fC289526ab2F0391D562a723cdA64Bbf1abc4",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "hyperliquid:mainnet",
+              "asset": "USDC:0x6d1e7cde53ba9467b783cb7c530ce054",
+              "amount": "0.002",
+              "payTo": "0x548fC289526ab2F0391D562a723cdA64Bbf1abc4",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "destinationDex": "spot"
+              }
+            },
+            {
+              "scheme": "batch-settlement",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "2000",
+              "payTo": "0x548fC289526ab2F0391D562a723cdA64Bbf1abc4",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "receiverAuthorizer": "0x3721824a31197dcDD2984cF43b92B6cc8A87c0Fb",
+                "withdrawDelay": 86400,
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "uvicorn"
+    },
+    "body_bytes": 3580,
+    "body_sha256": "ce27d9a6ab3a9655e92d240b35d67a0d50c493b7fdf8bcf09b6a3ec63201a7ab",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"payment required\",\"resource\":{\"url\":\"https://api.hyperextend.xyz/v1/candles/BTC/1m/latest\",\"description\":\"The most-recent N OHLCV candles (\u22645000). Same per-row pricing as the windowed read ($0.00001 base for main/spot, $0.000025 premium for HIP-3/HIP-4); candles lag ~2 days.\",\"mimeType\":\"application/json\",\"serviceName\":\"hyperextend\",\"tags\":[\"hyperliquid\",\"market-data\",\"candles\",\"open-interest\",\"hip-3\",\"hip-4\",\"trades\",\"liquidations\"],\"iconUrl\":\"https://hyperextend.xyz/favicon.svg\"},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"amount\":\"2000\",\"payTo\":\"0x548fC289526ab2F0391D562a723cdA64Bbf1abc4\",\"maxTimeoutSeconds\":60,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"hyperliquid:mainnet\",\"asset\":\"USDC:0x6d1e7cde53ba9467b783cb7c530ce054\",\"amount\":\"0.002\",\"payTo\":\"0x548fC289526ab2F0391D562a723cdA64Bbf1abc4\",\"maxTimeoutSeconds\":60,\"extra\":{\"destinationDex\":\"spot\"}},{\"scheme\":\"batch-settlement\",\"network\":\"eip155:8453\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"amount\":\"2000\",\"payTo\":\"0x548fC289526ab2F0391D562a723cdA64Bbf1abc4\",\"maxTimeoutSeconds\":300,\"extra\":{\"receiverAuthorizer\":\"0x3721824a31197dcDD2984cF43b92B6cc8A87c0Fb\",\"withdrawDelay\":86400,\"name\":\"USD Coin\",\"version\":\"2\"}}],\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"type\":\"http\",\"queryParams\":{\"n\":100,\"dex\":\"main\"},\"method\":\"GET\"},\"output\":{\"type\":\"json\",\"example\":{\"interval\":\"1m\",\"open_time\":1700000000000,\"close_time\":1700000059999,\"o\":\"42000.0\",\"h\":\"42100.0\",\"l\":\"41950.0\",\"c\":\"42080.0\",\"v\":\"12.5\",\"n\":340}}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"GET\",\"HEAD\",\"DELETE\"]},\"queryParams\":{\"type\":\"object\",\"properties\":{\"n\":{\"type\":\"integer\"},\"dex\":{\"type\":\"string\"}},\"required\":[]},\"pathParams\":{\"type\":\"object\",\"properties\":{\"coin\":{\"type\":\"string\",\"description\":\"Asset symbol, e.g. BTC\"},\"interval\":{\"type\":\"string\",\"description\":\"Candle interval, e.g. 1m\"}},\"required\":[\"coin\",\"interval\"]}},\"required\":[\"type\",\"method\"],\"additionalProperties\":false},\"output\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\"},\"example\":{\"type\":\"object\"}},\"required\":[\"type\"]}},\"required\":[\"input\"]}}},\"instructions\":{\"summary\":\"Payment is required via the x402 protocol (v2). The 402 `accepts` lists the available payment rails - pay with any ONE of them: read the PAYMENT-REQUIRED header, sign, and retry with a PAYMENT-SIGNATURE header. (1) Base (EVM): use Coinbase's official x402 client (`pip install \\\"x402[evm]\\\"`) from a Base-mainnet USDC wallet - a plain EOA, not a smart wallet. It signs an EIP-3009 USDC authorisation; you need USDC, not ETH (the facilitator broadcasts and pays the gas). (2) Hyperliquid (HyperCore): pay directly with the SAME USDC you trade and open positions with on Hyperliquid - no bridging, no separate wallet. Sign a HyperliquidTransaction:SendAsset action (gasless, no facilitator) and the server settles it on-chain.\",\"client\":\"https://github.com/coinbase/x402\",\"docs\":\"https://hyperextend.xyz/docs\",\"batchSettlement\":\"The batch-settlement scheme needs a channel with a non-zero payerAuthorizer, the address of the key that signs your vouchers. A private-key wallet complies automatically; a smart-contract wallet must pass a voucher_signer (voucherSigner in TypeScript). Otherwise pay with the exact scheme on Base or HyperCore. Details: https://hyperextend.xyz/docs#payer-authorizer\"}}"
+  },
+  "run_id": "20261008T143155Z",
+  "checked_at": "2026-10-08T14:31:56Z"
+}

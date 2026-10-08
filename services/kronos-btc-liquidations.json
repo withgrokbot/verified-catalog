@@ -32,11 +32,11 @@
   "quality_test": null,
   "paid_receipts": 1,
   "latest": {
-    "checked_at": "2026-10-07T14:29:43Z",
+    "checked_at": "2026-10-08T14:31:56Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 451,
+    "latency_ms": 265,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.02",
@@ -48,15 +48,15 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261007T142942Z/kronos-btc-liquidations.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261007T142942Z/kronos-btc-liquidations.json"
+    "raw_log": "results/raw/20261008T143155Z/kronos-btc-liquidations.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261008T143155Z/kronos-btc-liquidations.json"
   },
   "history_summary": {
-    "checks": 2,
-    "reachable": 2,
-    "x402_challenge_ok": 2,
+    "checks": 3,
+    "reachable": 3,
+    "x402_challenge_ok": 3,
     "paid_checks": 1,
     "first_checked": "2026-10-06T17:58:46Z",
-    "last_checked": "2026-10-07T14:29:43Z"
+    "last_checked": "2026-10-08T14:31:56Z"
   }
 }
