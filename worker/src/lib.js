@@ -31,7 +31,7 @@ import {
 } from "./spotcheck.js";
 
 import { handleSkips, handleReceipts } from "./skips.js";
-export const VERSION = "0.6.3";
+export const VERSION = "0.6.4";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -754,13 +754,10 @@ export function spotBazaarExtension() {
       },
       output: {
         type: "json",
-        example: {
-          verdict: "pay",
-          reason: "price_ok",
-          quoted_price_usd: 0.001,
-          claimed_price_usd: 0.001,
-          access: { tier: "free", free_per_day: 1, free_used_today: 1 },
-        },
+        // A Bazaar listing describes the paid call, so the example is the real paid body. The free tier
+        // (1/client/UTC day) returns only verdict + a plain-words reason + access: see SPOT_FREE_EXAMPLE.
+        example: SPOT_PAID_EXAMPLE,
+        free_example: SPOT_FREE_EXAMPLE,
       },
     },
     schema: {
@@ -787,12 +784,64 @@ export function spotBazaarExtension() {
           required: ["type", "method"],
           additionalProperties: false,
         },
-        output: { type: "object", properties: { type: { type: "string" }, example: { type: "object" } }, required: ["type"] },
+        output: {
+          type: "object",
+          properties: {
+            type: { type: "string" },
+            example: SPOT_PAID_SCHEMA,
+            free_example: SPOT_FREE_SCHEMA,
+          },
+          required: ["type"],
+        },
       },
       required: ["input"],
     },
   };
 }
+
+// Real response shapes (kept in step with buildResult in handleEndpointSpotCheck; unit-tested).
+export const SPOT_PAID_EXAMPLE = {
+  verdict: "pay",
+  reason: "price_ok",
+  quoted_price_usd: 0.05,
+  claimed_price_usd: 0.05,
+  pay_to: "0x1111111111111111111111111111111111111111",
+  network: "eip155:8453",
+  asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
+};
+export const SPOT_FREE_EXAMPLE = {
+  verdict: "pay",
+  reason: "listed $0.05, payment request matches, details locked",
+  access: { tier: "free", free_per_day: 1, free_used_today: 1, free_remaining_today: 0, then: "$0.01 USDC on Base for the full check of this endpoint via x402 (HTTP 402)" },
+};
+const SPOT_VERDICT_SCHEMA = { type: "string", enum: ["pay", "skip", "recheck"] };
+export const SPOT_PAID_SCHEMA = {
+  type: "object",
+  description: "paid response: decision plus the facts behind it",
+  properties: {
+    verdict: SPOT_VERDICT_SCHEMA,
+    reason: { type: "string", enum: ["price_ok", "price_mismatch", "no_x402", "timeout", "unreachable", "ambiguous", "bad_challenge", "ssrf_blocked"] },
+    quoted_price_usd: { type: ["number", "null"], description: "price in the target's live 402 challenge" },
+    claimed_price_usd: { type: ["number", "null"], description: "the claimed_price you sent" },
+    pay_to: { type: ["string", "null"] },
+    network: { type: ["string", "null"] },
+    asset: { type: ["string", "null"] },
+    access: { type: "object", properties: { tier: { const: "paid" }, charged_usd: { type: "string" }, tx: { type: "string" } } },
+  },
+  required: ["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "access"],
+};
+export const SPOT_FREE_SCHEMA = {
+  type: "object",
+  description: "free response (1 per client per UTC day): verdict and a plain-words reason only",
+  properties: {
+    verdict: SPOT_VERDICT_SCHEMA,
+    reason: { type: "string", description: "plain words, e.g. 'listed $0.01, no payment request, details locked'" },
+    access: { type: "object", properties: { tier: { const: "free" } } },
+  },
+  required: ["verdict", "reason", "access"],
+  additionalProperties: false,
+};
 
 export function spotPaymentRequired(c, resourceUrl, error, used) {
   const origin = new URL(resourceUrl).origin;
@@ -817,17 +866,19 @@ export function spotPaymentRequired(c, resourceUrl, error, used) {
     free_per_day: c.freePerDay,
     free_used_today: used,
     free_resets: "00:00 UTC",
-    paid_fields: ["quoted_price_usd", "claimed_price_usd", "pay_to"],
+    paid_fields: ["quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset"],
     paid_example: {
-      url: "https://frog03-20494.wykr.es/api/signals/paid",
       verdict: "skip",
       reason: "no_x402",
       quoted_price_usd: null,
       claimed_price_usd: 0.01,
       pay_to: null,
-      note: "Listed as a $0.01 x402 endpoint; live probe gets HTTP 200 with no 402 challenge, so there is nothing safe to pay.",
-      receipt: origin + "/v1/receipts/ae218e0fb7",
+      network: null,
+      asset: null,
+      access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
     },
+    paid_example_note: "Real case: https://frog03-20494.wykr.es/api/signals/paid is listed as a $0.01 x402 endpoint; the live probe gets HTTP 200 with no 402 challenge, so there is nothing safe to pay. Receipt: " + origin + "/v1/receipts/ae218e0fb7",
+    free_example: SPOT_FREE_EXAMPLE,
     skips_page: origin + "/v1/skips",
     how_to_pay:
       "Retry the same request with a PAYMENT-SIGNATURE header (x402 v2; X-PAYMENT is also accepted) holding a signed USDC EIP-3009 authorization for the amount and payTo above.",
@@ -1044,7 +1095,9 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         payer: r.settle.payer || null,
       };
       freeUsed = t.used;
-      writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "paid", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed }));
+      const selfPaid = String(r.settle.payer || authFrom || "").toLowerCase() === c.payTo.toLowerCase();
+      if (selfPaid) access.self_test = true;
+      writePoint(env, dataPoint({ cid, q: qLike, excluded: selfPaid ? "self" : "", candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "paid", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed }));
       return json(buildResult(probe, access), 200, extraHeaders);
     }
   }
@@ -1315,7 +1368,7 @@ export function openapi(origin, env = {}) {
             protocols: [{ x402: { scheme: "exact", network: spotCfg(env).network, asset: USDC_BASE, payTo: spotCfg(env).payTo } }],
           },
           responses: {
-            200: { description: "slim decision: verdict (pay|skip|recheck), reason, quoted_price_usd, claimed_price_usd, access" },
+            200: { description: "free tier: verdict (pay|skip|recheck), a plain-words reason, access. Paid tier: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, access (with settlement tx)", content: { "application/json": { schema: { oneOf: [SPOT_PAID_SCHEMA, SPOT_FREE_SCHEMA] }, examples: { paid: { value: SPOT_PAID_EXAMPLE }, free: { value: SPOT_FREE_EXAMPLE } } } } },
             400: { description: "bad params, or SSRF-blocked URL as verdict=skip reason=ssrf_blocked (no fetch)" },
             402: { description: "free quota used: x402 v2 payment requirement ($0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base)" },
             429: { description: "paid rate limit (per payer per UTC hour)" },
@@ -1677,7 +1730,7 @@ export const MCP_TOOLS = [
     name: "endpoint_spot_check",
     description:
       "Decision-shaped SSRF-safe spot-check of a public URL for an x402 PAYMENT-REQUIRED / 402 challenge. " +
-      "Returns only verdict (pay|skip|recheck), reason, quoted_price_usd, claimed_price_usd, and access. " +
+      "Free: verdict (pay|skip|recheck), a plain-words reason, and access. Paid: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, and access with the settlement tx. " +
       "Never pays the target (probe GET only). 1 free check per client per UTC day (client=vc-mcp), then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402. " +
       "Unpaid after free quota: payment instructions. Forward PAYMENT-SIGNATURE for a paid check.",
     inputSchema: {

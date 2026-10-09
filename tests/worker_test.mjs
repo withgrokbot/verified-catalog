@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import worker from "../worker/src/index.js";
-import { _resetCache, isoWeek, ipPrefix, saltPeriod, QuotaCounter, takeFree, quotaKey, PAYMENT_POLICY } from "../worker/src/lib.js";
+import { VERSION, _resetCache, isoWeek, ipPrefix, saltPeriod, QuotaCounter, takeFree, quotaKey, PAYMENT_POLICY } from "../worker/src/lib.js";
 
 const BASE = "https://data.test/vc/";
 const H = 3600000;
@@ -55,6 +55,7 @@ let fetches = 0;
 const FAC = "https://facilitator.test";
 const facCalls = [];
 let facMode = "ok"; // ok | invalid | settle-fail
+let facPayer = "0x" + "11".repeat(20);
 const TX = "0x" + "cd".repeat(32);
 let spotTargetMode = "402"; // 402 | timeout | huge | echo-init
 let lastSpotFetchInit = null;
@@ -66,7 +67,7 @@ globalThis.fetch = async (url, init = {}) => {
     if (u.endsWith("/verify"))
       return Response.json(facMode === "invalid" ? { isValid: false, invalidReason: "insufficient_funds" } : { isValid: true, payer: "0x" + "11".repeat(20) });
     if (u.endsWith("/settle"))
-      return Response.json(facMode === "settle-fail" ? { success: false, errorReason: "transaction_failed" } : { success: true, transaction: TX, network: "eip155:8453", payer: "0x" + "11".repeat(20) });
+      return Response.json(facMode === "settle-fail" ? { success: false, errorReason: "transaction_failed" } : { success: true, transaction: TX, network: "eip155:8453", payer: facPayer });
   }
   // DoH for SSRF resolve (spot-check)
   if (u.startsWith("https://cloudflare-dns.com/dns-query")) {
@@ -568,7 +569,7 @@ test("MCP /mcp: initialize, tools/list (catalog tools + products), ping, notific
   let r = await rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } } }, { envo: e });
   assert.equal(r.status, 200);
   assert.match(r.headers.get("content-type"), /application\/json/);
-  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "verified-catalog", version: "0.6.3" } } });
+  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "verified-catalog", version: VERSION } } });
   assert.equal(r.headers.get("mcp-session-id"), null, "stateless: no session");
   r = await rpc({ jsonrpc: "2.0", method: "notifications/initialized" }, { envo: e });
   assert.equal(r.status, 202);
@@ -689,13 +690,13 @@ test("overnight-cos-pack: unpaid GET/POST return 402 with amount 9000000, payTo,
   const wk = (await send("/.well-known/x402", { envo: e })).body;
   assert.ok(wk.resources.includes("https://lookup.test" + PACK));
   const oa = (await send("/openapi.json", { envo: e })).body;
-  assert.equal(oa.info.version, "0.6.3");
+  assert.equal(oa.info.version, VERSION);
   const op = oa.paths[PACK].get;
   assert.deepEqual(op["x-payment-info"].price, { mode: "fixed", currency: "USD", amount: "9" });
   assert.equal(op["x-payment-info"].protocols[0].x402.payTo, PAY_TO);
   assert.ok(oa.paths[PACK].post);
   const health = (await send("/health", { envo: e })).body;
-  assert.equal(health.version, "0.6.3");
+  assert.equal(health.version, VERSION);
 });
 
 test("overnight-cos-pack: paid path with mocked facilitator returns prompts+template+guide; wrong amount rejected", async () => {
@@ -882,7 +883,7 @@ test("MCP endpoint_spot_check listed; unpaid after free returns pay instructions
   assert.equal(paidNeed.body.result.isError, true);
   assert.match(paidNeed.body.result.content[0].text, /Payment required: \$0\.01 to \$0\.25 USDC/);
   const health = (await send("/health", { envo: e })).body;
-  assert.equal(health.version, "0.6.3");
+  assert.equal(health.version, VERSION);
   const oa = (await send("/openapi.json", { envo: e })).body;
   assert.ok(oa.paths[SPOT]);
   assert.match(oa.paths[SPOT].get.responses[200].description, /verdict/);
@@ -935,6 +936,60 @@ test("spot-check aliases: endpoint= and claimed_price_usd= accepted (0.6.3); /v1
   const one = await send("/v1/receipts/" + sk.body.featured_mismatch.split("/").pop(), { envo: e });
   assert.equal(one.status, 200);
   assert.equal(one.body.verdict, "skip");
+});
+
+test("spot-check Bazaar/402 examples match the real paid and free response shapes (0.6.4)", async () => {
+  const e = spotEnv();
+  spotTargetMode = "402";
+  facMode = "ok";
+  const target = "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=shape-1";
+  const free = await send(target, { envo: e });
+  const unpaid = await send(target, { envo: e });
+  const paid = await send(target, { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
+  assert.equal(free.body.access.tier, "free");
+  assert.equal(unpaid.status, 402);
+  assert.equal(paid.body.access.tier, "paid");
+  const bz = unpaid.body.extensions.bazaar;
+  const keys = (o) => Object.keys(o).sort();
+  assert.deepEqual(keys(bz.info.output.example), keys(paid.body), "bazaar example = real paid shape");
+  assert.deepEqual(keys(bz.info.output.example.access).filter((k) => k in paid.body.access), keys(bz.info.output.example.access));
+  assert.equal(bz.info.output.example.access.tier, "paid");
+  assert.deepEqual(keys(bz.info.output.free_example), keys(free.body), "free example = real free shape");
+  assert.ok(!("quoted_price_usd" in bz.info.output.free_example), "free example must not show quoted_price");
+  assert.deepEqual(keys(unpaid.body.paid_example), keys(paid.body));
+  assert.deepEqual(keys(unpaid.body.free_example), keys(free.body));
+  for (const f of unpaid.body.paid_fields) assert.ok(f in paid.body && !(f in free.body), f);
+  for (const k of bz.schema.properties.output.properties.example.required) assert.ok(k in paid.body, k);
+  for (const k of bz.schema.properties.output.properties.free_example.required) assert.ok(k in free.body, k);
+  const oa = (await send("/openapi.json", { envo: e })).body;
+  const ex = oa.paths[SPOT].get.responses[200].content["application/json"].examples;
+  assert.deepEqual(keys(ex.free.value), keys(free.body));
+  assert.deepEqual(keys(ex.paid.value), keys(paid.body));
+});
+
+test("spot-check paid by our own wallet (payer = payTo) is recorded as self, not outside", async () => {
+  const e = spotEnv();
+  spotTargetMode = "402";
+  facMode = "ok";
+  const target = "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=selfpay-1";
+  await send(target, { envo: e });
+  facPayer = PAY_TO;
+  try {
+    const paid = await send(target, { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
+    assert.equal(paid.status, 200);
+    assert.equal(paid.body.access.self_test, true);
+    const pt = e.points.filter((p) => p.blobs[12] === "paid").pop();
+    assert.equal(pt.blobs[5], "self");
+    assert.equal(pt.doubles[0], 0);
+  } finally {
+    facPayer = "0x" + "11".repeat(20);
+  }
+  const outside = await send(target.replace("selfpay-1", "selfpay-2"), { envo: e });
+  const paid2 = await send(target.replace("selfpay-1", "selfpay-2"), { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
+  assert.equal(outside.status, 200);
+  assert.equal(paid2.status, 200);
+  assert.equal(paid2.body.access.self_test, undefined);
+  assert.equal(e.points.filter((p) => p.blobs[12] === "paid").pop().blobs[5], "");
 });
 
 let passed = 0;
