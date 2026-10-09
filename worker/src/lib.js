@@ -30,9 +30,9 @@ import {
   spotProbe, priceMatchesClaimed, decideVerdict, utcHour, assertSafeUrl,
 } from "./spotcheck.js";
 
-import { handleSkips, handleReceipts } from "./skips.js";
+import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skips.js";
 import { RECEIPTS } from "./receipts-data.js";
-export const VERSION = "0.10.0";
+export const VERSION = "0.11.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -307,12 +307,34 @@ export async function clientId(req, q, env, now = new Date()) {
   return { id: "h:" + h.slice(0, 20), source: "ip24_ua_hash" };
 }
 
-export function exclusion(req, q, env) {
+// 0.11.0 bot tags (analytics only; never changes an answer). See ANALYTICS_2026-10-09.md: ~95% of outside traffic
+// is one scanner sweep (4 endpoints, same second, no params / example.com) plus named x402 indexers.
+export const INDEXER_RE = /(bazaar|indexer|index-bot|probe|verifier|scout|x402watch|collector|doctor|x402lens|lens\b|conformance|discovery|registry|trustindex|agenstry|brickblue|pennywise|allow402|easy402|x402scan|settled|observer|touchstone|catalog-bot|directory)/i;
+const EXAMPLE_HOST_RE = /^(?:[^/]*\.)?(?:example\.(?:com|org|net)|[^/]+\.example|[^/]+\.test|[^/]+\.invalid|localhost)$/i;
+export function isExampleTarget(u) {
+  try {
+    return EXAMPLE_HOST_RE.test(new URL(String(u || "")).hostname);
+  } catch (_) {
+    return false;
+  }
+}
+export function botReason(req, q, url) {
+  const ua = req.headers.get("user-agent") || "";
+  if (INDEXER_RE.test(ua)) return "indexer";
+  if (q.ref || q.client) return ""; // an attributed or named caller is never auto-tagged as a bot
+  const paying = req.headers.get("payment-signature") || req.headers.get("x-payment");
+  const target = q.url || q.endpoint;
+  if (url && !url.search && !q.task && !target && !paying) return "scanner"; // bare call, no params at all
+  if (target && isExampleTarget(target)) return "example-param";
+  if (!target && q.task === "web-search" && Number(q.max_price) === 0.01) return "example-param"; // the documented example verbatim
+  return "";
+}
+export function exclusion(req, q, env, url = null) {
   const ua = req.headers.get("user-agent") || "";
   if (isExempt(q, env) || SELF_UA_RE.test(ua)) return "self";
   if (UPTIME_RE.test(ua)) return "uptime";
   if (CRAWLER_RE.test(ua)) return "crawler";
-  return "";
+  return botReason(req, q, url);
 }
 
 function uaFamily(ua) {
@@ -979,6 +1001,10 @@ export function listingFor(u) {
   }
   return LISTINGS.get(String(u || "")) || null;
 }
+// Full-coverage lookup (0.11.0): bundled page first, then the weekly crawl in CRAWL_KV (normalized URL).
+export async function listingForAsync(env, u) {
+  return listingFor(u) || (await crawlReceiptForUrl(env, u).catch(() => null));
+}
 // PAY STEP (0.8.0): the exact payment a router may sign, taken from the target's live 402 and checked against the
 // expectation (caller's listing, else our crawl's listing). Only USDC is approved where we know the USDC contract.
 export const USDC_BY_NETWORK = {
@@ -1077,7 +1103,7 @@ async function handleLiveReceipts(req, env, url, path) {
     if (!target) return rj({ error: 'Missing "url". Example: ' + url.origin + "/v1/receipts/by-url?url=https://api.402rates.com/v1/ping", field: "url" }, 400);
     let live = null;
     try { live = await latestLiveReceipt(env, target); } catch (_) { return rj({ error: "receipt store unavailable, try again shortly" }, 503); }
-    const crawl = listingFor(target);
+    const crawl = await listingForAsync(env, target);
     if (!live && !crawl) return rj({ error: "no receipt for this url yet", url: target, check_now: url.origin + "/v1/products/endpoint-spot-check?url=" + encodeURIComponent(target) }, 404);
     return rj({
       url: target,
@@ -1212,13 +1238,14 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const cid = await clientId(req, qLike, env);
   const ua = req.headers.get("user-agent") || "";
   const referer = refererHost(req);
+  const spotExcluded = exclusion(req, { ...qLike, url: q.url }, env, url); // same self/uptime/crawler/bot filter as /v1/lookup
 
   if (q.errors.length) {
-    writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-bad-params" }));
+    writePoint(env, dataPoint({ cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-bad-params" }));
     return json(spotBadRequest(url.origin, q.errors[0].field, q.errors[0].problem), 400);
   }
 
-  const listing = listingFor(q.url);
+  const listing = await listingForAsync(env, q.url);
   const exp = {
     claimed: q.claimed_price !== null ? q.claimed_price : listing && listing.claimed_price_usd != null ? Number(listing.claimed_price_usd) : null,
     pay_to: q.pay_to || (listing && listing.listed_pay_to) || null,
@@ -1265,7 +1292,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     body.pricing = typeof isRouter !== "undefined" && isRouter
       ? "router tier: $0.001 per check, billed per pack of checks in one settlement"
       : "one tenth of this endpoint's quoted x402 price, minimum $0.01, cap $0.25";
-    writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 0, ua, returnedPayTo: [], status: 402, referer, access: kind, freeUsed: used }));
+    writePoint(env, dataPoint({ cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 402, referer, access: kind, freeUsed: used }));
     return json(body, 402, { "payment-required": b64encode(body) });
   };
 
@@ -1277,7 +1304,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   // Problem: safe URLs would be fetched twice if we pre-probe. So import assertSafeUrl.
   const safe = await assertSafeUrl(q.url, probeOpts);
   if (!safe.ok) {
-    writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-ssrf" }));
+    writePoint(env, dataPoint({ cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-ssrf" }));
     return json({
       verdict: "skip",
       reason: "ssrf_blocked",
@@ -1328,7 +1355,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         const sp = await routerCredits(env, q.client, "spend");
         if (sp.ok) {
           access = { tier: "router-prepaid", price_per_check_usd: rcfg.perCheckAtomic / 1e6, credits_remaining: sp.balance, note: "router tier: prepaid checks from your last pack" };
-          writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "router-prepaid", freeUsed: t.used }));
+          writePoint(env, dataPoint({ cid, q: qLike, excluded: spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "router-prepaid", freeUsed: t.used }));
           return json(await buildResult(probe, access), 200, extraHeaders);
         }
       }
@@ -1356,7 +1383,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       const payerKey = /^0x[0-9a-fA-F]{40}$/.test(authFrom) ? "p:" + authFrom.toLowerCase() : "c:" + (q.client || cid.id);
       const rl = await takeFree(env, payerKey, c.paidPerHour, new Date(), "take", SPOT_RATE_COUNTER, utcHour());
       if (!rl.free) {
-        writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 0, ua, returnedPayTo: [], status: 429, referer, access: "spot-rate-limited", freeUsed: t.used }));
+        writePoint(env, dataPoint({ cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 429, referer, access: "spot-rate-limited", freeUsed: t.used }));
         return json({
           error: `paid spot-check rate limit: ${c.paidPerHour} per hour per payer`,
           product: SPOT_ID,
@@ -1390,12 +1417,12 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         access.credits_added = n;
         access.credits_remaining = cr.balance;
       }
-      writePoint(env, dataPoint({ cid, q: qLike, excluded: selfPaid ? "self" : "", candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "paid", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed }));
+      writePoint(env, dataPoint({ cid, q: qLike, excluded: selfPaid ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "paid", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed }));
       return json(await buildResult(probe, access), 200, extraHeaders);
     }
   }
 
-  writePoint(env, dataPoint({ cid, q: qLike, excluded: isExempt(qLike, env) ? "self" : "", candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: access.tier === "partner" ? "partner" : access.tier, freeUsed: partner ? partner.used : freeUsed }));
+  writePoint(env, dataPoint({ cid, q: qLike, excluded: isExempt(qLike, env) ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: access.tier === "partner" ? "partner" : access.tier, freeUsed: partner ? partner.used : freeUsed }));
   return json(await buildResult(probe, access), 200, extraHeaders);
 }
 
@@ -1754,7 +1781,7 @@ function lookupBody(q, data, out, access) {
 async function handleLookup(req, env, ctx, url) {
   const q = parseQuery(url);
   const cid = await clientId(req, q, env);
-  const excluded = exclusion(req, q, env);
+  const excluded = exclusion(req, q, env, url);
   const ua = req.headers.get("user-agent") || "";
   const referer = refererHost(req);
   const c = cfg(env);
@@ -1829,7 +1856,7 @@ async function handleLookup(req, env, ctx, url) {
 async function handlePaidLookup(req, env, ctx, url) {
   const q = parseQuery(url);
   const cid = await clientId(req, q, env);
-  const excluded = exclusion(req, q, env);
+  const excluded = exclusion(req, q, env, url);
   const ua = req.headers.get("user-agent") || "";
   const referer = refererHost(req);
   const c = cfg(env);
@@ -2181,7 +2208,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         if (args.id) { path = "/v1/receipts/" + encodeURIComponent(pyStr(args.id)); u = new URL(origin + path); }
         else if (args.url) { path = "/v1/receipts/by-url"; u = new URL(origin + path + "?url=" + encodeURIComponent(pyStr(args.url))); }
         else return err("give id or url");
-        const r = /^\/v1\/receipts\/(by-url|sc-)/.test(path) ? await handleLiveReceipts(req, env, u, decodeURIComponent(path)) : handleReceipts(u);
+        const r = /^\/v1\/receipts\/(by-url|sc-)/.test(path) ? await handleLiveReceipts(req, env, u, decodeURIComponent(path)) : await handleReceipts(u, env);
         const body = await r.json();
         if (r.status !== 200) return err((body && body.error) || "HTTP " + r.status);
         data = body;
@@ -2313,6 +2340,48 @@ export const handler = {
         },
       });
     const path = url.pathname.replace(/\/+$/, "") || "/";
+    const view = viewName(path);
+    if (view) {
+      const res = await routeInner(req, env, ctx, url, path);
+      ctx && ctx.waitUntil ? ctx.waitUntil(viewPoint(req, env, url, view, res.status)) : await viewPoint(req, env, url, view, res.status);
+      return res;
+    }
+    return routeInner(req, env, ctx, url, path);
+  },
+};
+
+// 0.11.0: one cheap Analytics Engine point per hit on the routes that had none (pack, skips, receipts, docs).
+// access = "view-<name>", blob4 = path (+ ?page / id), double3 = status. Same client id + bot tags as metered routes.
+export function viewName(path) {
+  if (path === "/v1/products/overnight-cos-pack") return "pack";
+  if (path === "/v1/skips" || path === "/v1/skips.json") return "skips";
+  if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return "receipts";
+  if (path === "/openapi.json") return "docs-openapi";
+  if (path === "/llms.txt") return "docs-llms";
+  if (path === "/.well-known/x402") return "docs-wellknown";
+  if (path === "/") return "docs-home";
+  return "";
+}
+async function viewPoint(req, env, url, view, status) {
+  try {
+    if (view === "pack" && status !== 402 && status !== 200) return; // the pack handler's own errors
+    const q = parseQuery(url);
+    const cid = await clientId(req, q, env);
+    const ua = req.headers.get("user-agent") || "";
+    const excluded = exclusion(req, q, env, view === "pack" ? url : null);
+    const qv = { ...q, errors: [], endpoint: (url.pathname + (url.searchParams.get("page") ? "?page=" + url.searchParams.get("page") : "")).slice(0, 200) };
+    const access = "view-" + view + (view === "pack" ? (status === 402 ? "-402" : "-paid") : "");
+    const dp = dataPoint({ cid, q: qv, excluded, candidates: 0, ua, returnedPayTo: [], status, referer: refererHost(req), access });
+    dp.blobs[5] = excluded || ""; // views: blob6 = bot tag only ("" = possibly real); never qualifying
+    dp.doubles[0] = 0;
+    writePoint(env, dp);
+  } catch (_) {
+    // counting must never break an answer
+  }
+}
+
+const routeInnerHolder = {
+  async routeInner(req, env, ctx, url, path) {
     if (path === "/mcp") return handleMcp(req, env, ctx, url);
     // POST is accepted on the paid path so method-probing discovery tools get the same 402.
     if (path === "/v1/lookup/paid" && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaidLookup(req, env, ctx, url);
@@ -2321,9 +2390,9 @@ export const handler = {
     if (path === "/v1/products/endpoint-spot-check")
       return json(spotBadRequest(url.origin, "method", `Unsupported method ${String(req.method).slice(0, 10)}; use GET or POST`), 400);
     if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405, { allow: "GET, OPTIONS" });
-    if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url);
+    if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env);
     if (path === "/v1/receipts/by-url" || /^\/v1\/receipts\/sc-/.test(path)) return handleLiveReceipts(req, env, url, path);
-    if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return handleReceipts(url);
+    if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return handleReceipts(url, env);
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
     if (path === "/.well-known/x402") return json({ version: 1, resources: [url.origin + "/v1/lookup/paid", url.origin + "/v1/products/overnight-cos-pack", url.origin + "/v1/products/endpoint-spot-check"] });
     if (path === "/v1/tasks") {
@@ -2374,3 +2443,4 @@ export const handler = {
     return json({ error: "not found", usage: url.origin + "/v1/lookup?task=web-search&max_price=0.01&n=5" }, 404);
   },
 };
+const routeInner = (req, env, ctx, url, path) => routeInnerHolder.routeInner(req, env, ctx, url, path);

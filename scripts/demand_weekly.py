@@ -25,6 +25,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import sys
 from decimal import Decimal
 
@@ -42,9 +43,10 @@ PAYER_WINDOW_S = 30 * 60
 
 def sql_rows(since):
     return f"""SELECT blob1 AS client, blob7 AS payer, blob8 AS pay_to, double1 AS qualifying, blob11 AS ref, blob12 AS referer,
+  blob6 AS reason, blob3 AS task, blob4 AS endpoint, blob5 AS max_price, blob9 AS ua, blob13 AS access,
   toUInt32(timestamp) AS ts, _sample_interval AS weight
 FROM {DATASET}
-WHERE timestamp >= toDateTime('{since.strftime('%Y-%m-%d %H:%M:%S')}') AND double1 = 1
+WHERE timestamp >= toDateTime('{since.strftime('%Y-%m-%d %H:%M:%S')}')
 ORDER BY ts
 LIMIT 100000"""
 
@@ -84,10 +86,70 @@ def query_ae(since, sql=sql_rows):
     if not (acct and tok):
         raise SystemExit("set CF_ACCOUNT_ID and CF_API_TOKEN, or pass --rows")
     url = f"https://api.cloudflare.com/client/v4/accounts/{acct}/analytics_engine/sql"
-    r = xp.http_call("POST", url, sql(since).encode(), {"Authorization": "Bearer " + tok, "Content-Type": "text/plain"}, timeout=60)
-    if not r.get("ok") or r["status"] != 200:
-        raise SystemExit(f"Analytics Engine query failed: {r.get('error') or r.get('status')}")
-    return json.loads(r["body"].decode("utf-8")).get("data", [])
+    import urllib.request, urllib.error  # no body cap: a week of rows is several MB
+    req = urllib.request.Request(url, data=sql(since).encode(), headers={"Authorization": "Bearer " + tok, "Content-Type": "text/plain"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.loads(resp.read().decode("utf-8")).get("data", [])
+    except urllib.error.URLError as e:
+        raise SystemExit(f"Analytics Engine query failed: {e}")
+
+
+# Bots are not demand (ANALYTICS_2026-10-09.md). Worker 0.11.0+ tags them in blob6; older rows get the same rules here.
+NOT_REAL = {"self", "uptime", "crawler", "scanner", "example-param", "indexer", "ssrf-probe"}
+INDEXER_UA = re.compile(r"(bazaar|indexer|index-bot|probe|verifier|scout|x402watch|collector|doctor|x402lens|lens\b|conformance|discovery|registry|trustindex|agenstry|brickblue|pennywise|allow402|easy402|x402scan|settled|observer|touchstone|catalog-bot|directory)", re.I)
+EXAMPLE_HOST = re.compile(r"^(?:[^/]*\.)?(?:example\.(?:com|org|net)|[^/]+\.example|[^/]+\.test|[^/]+\.invalid|localhost)$", re.I)
+OUR_CLIENT = re.compile(r"^c:(wgb-|router-selftest|mx|maxverify|hermes-probe|withgrokbot|discovery-seed|sam-selftest|agent$|hint-|ship-|beacon|daily-review|selftest|test)")
+OUR_REF = re.compile(r"^(selftest|e2e-test|discovery-seed|ship-|x402-spotcheck$)")  # our own test refs (via-x402-spotcheck is real use)
+KNOWN_INDEXER_CLIENT = {"c:payapi"}  # marketplace listing verifier + its monitors (ANALYTICS_2026-10-09.md)
+
+
+def bot_tag(r):
+    """'' for a possibly real caller, else why not (self/uptime/crawler/scanner/example-param/indexer)."""
+    reason = r.get("reason") or ""
+    if reason in NOT_REAL:
+        return reason
+    if OUR_CLIENT.match(r.get("client") or "") or OUR_REF.match(r.get("ref") or ""):
+        return "self"
+    if (r.get("access") or "") == "spot-ssrf":
+        return "ssrf-probe"
+    if (r.get("client") or "") == "c:vc-mcp" and (r.get("reason") or "") == "bad-params":
+        return "indexer"  # registry inspection of our MCP package (task=x402-probe)
+    if INDEXER_UA.search(r.get("ua") or "") or (r.get("client") or "") in KNOWN_INDEXER_CLIENT:
+        return "indexer"
+    if r.get("ref") or str(r.get("client") or "").startswith("c:"):
+        return ""
+    ep = r.get("endpoint") or ""
+    if ep:
+        try:
+            from urllib.parse import urlparse
+            if EXAMPLE_HOST.match(urlparse(ep).hostname or ""):
+                return "example-param"
+        except ValueError:
+            pass
+    elif (r.get("task") or "") == "web-search" and str(r.get("max_price") or "") in ("0.01", "0.010"):
+        return "example-param"
+    if not ep and not (r.get("task") or "") and reason in ("bad-params", "missing-task-or-price", "payment-required", "spot-bad-params") or (r.get("access") or "") == "spot-bad-params" and not ep:
+        return "scanner"
+    return ""
+
+
+def real_clients(rows, start):
+    """Distinct real (non-bot, non-self) clients per PT-agnostic UTC test day, and in total."""
+    by_day, tags, views = {}, {}, {}
+    for r in rows:
+        t = bot_tag(r)
+        if (r.get("access") or "").startswith("view-"):  # page/doc views (0.11.0+): reported, not clients
+            if not t:
+                views[r["access"]] = views.get(r["access"], 0) + 1
+            continue
+        tags[t or "real"] = tags.get(t or "real", 0) + 1
+        if t:
+            continue
+        by_day.setdefault(dt.datetime.fromtimestamp(float(r["ts"]), dt.timezone.utc).date().isoformat(), set()).add(r["client"])
+    allc = set().union(*by_day.values()) if by_day else set()
+    return {"real_clients_total": len(allc), "real_clients_by_utc_day": {d: len(c) for d, c in sorted(by_day.items())},
+            "rows_by_tag": dict(sorted(tags.items())), "real_views": dict(sorted(views.items())), "real_client_ids": sorted(allc)[:50]}
 
 
 def test_day(ts, start):
@@ -213,19 +275,22 @@ def main(argv=None):
         paid = []
     else:
         paid = query_ae(dt.datetime.combine(start, dt.time(), dt.timezone.utc), sql_paid)
+    real = real_clients(rows, start)
+    rows = [r for r in rows if not bot_tag(r)]  # everything below counts real clients only
     spend = spend_since(os.path.join(a.site, "results", "spend_ledger.json"), start)
     report = {"schema": 1, "generated_at": xp.iso_z(), "start": start.isoformat(),
               "note": "Distinct qualifying clients of the reliability lookup. Client ids are weekly-salted hashes or self-chosen names; no raw IPs.",
-              **evaluate(rows, start, today, spend), "by_source": by_source(rows), "paid": paid_summary(paid, start)}
+              **evaluate(rows, start, today, spend), "real": real, "by_source": by_source([r for r in rows if int(float(r.get("qualifying", 1))) == 1]), "paid": paid_summary(paid, start)}
     if not a.no_payer_check:
         try:
-            report["payer_check"] = payer_confirmations(rows, BaseRpc())
+            report["payer_check"] = payer_confirmations([r for r in rows if int(float(r.get("qualifying", 1))) == 1], BaseRpc())
         except RuntimeError as e:
             report["payer_check_error"] = str(e)
     out = a.out or os.path.join(a.site, "results", "demand_weekly.json")
     with open(out, "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2)
     print(json.dumps({**{k: report[k] for k in ("test_day", "week1", "week2", "verdict", "why")},
+                      "real_clients_total": real["real_clients_total"], "real_clients_by_utc_day": real["real_clients_by_utc_day"],
                       "paid_lookups": report["paid"]["outside"]["paid_lookups"], "revenue_usd": report["paid"]["outside"]["revenue_usd"],
                       "self_test_paid_lookups": report["paid"]["self_test"]["paid_lookups"]}))
     return 0

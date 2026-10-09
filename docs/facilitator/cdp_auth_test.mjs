@@ -1,0 +1,31 @@
+// Local test of the CDP facilitator auth path: a throwaway Ed25519 key, no network.
+import assert from "node:assert/strict";
+import { generateKeyPairSync, verify, createPublicKey } from "node:crypto";
+import { cdpJwt, cfg, verifyAndSettle } from "../../worker/src/lib.js";
+const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+const jwk = privateKey.export({ format: "jwk" });
+const secret = Buffer.concat([Buffer.from(jwk.d, "base64url"), Buffer.from(jwk.x, "base64url")]).toString("base64");
+const auth = { keyId: "00000000-0000-4000-8000-000000000000", secret };
+const tok = await cdpJwt(auth, "POST", "https://api.cdp.coinbase.com/platform/v2/x402/settle", 1800000000);
+const [h, p, s] = tok.split(".");
+const H = JSON.parse(Buffer.from(h, "base64url")), P = JSON.parse(Buffer.from(p, "base64url"));
+assert.equal(H.alg, "EdDSA"); assert.equal(H.kid, auth.keyId); assert.match(H.nonce, /^[0-9a-f]{32}$/);
+assert.deepEqual(P, { sub: auth.keyId, iss: "cdp", aud: ["cdp_service"], nbf: 1800000000, exp: 1800000120, uri: "POST api.cdp.coinbase.com/platform/v2/x402/settle" });
+assert.ok(verify(null, Buffer.from(h + "." + p), publicKey, Buffer.from(s, "base64url")), "signature verifies with the public key");
+console.log("PASS cdpJwt structure + Ed25519 signature");
+// The Worker sends it on /verify and /settle when the secrets are set (fake facilitator, fake payment).
+const seen = [];
+globalThis.fetch = async (u, init = {}) => { seen.push([String(u), init.headers && init.headers.authorization]); return Response.json({ isValid: false, invalidReason: "test" }); };
+const env = { FACILITATOR_URL: "https://api.cdp.coinbase.com/platform/v2/x402", CDP_API_KEY_ID: auth.keyId, CDP_API_KEY_SECRET: secret, SELF_CLIENTS: "", PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674" };
+const payload = { x402Version: 2, accepted: { scheme: "exact", network: "eip155:8453", amount: "20000", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: env.PAY_TO, maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" } }, payload: { signature: "0x" + "00".repeat(65), authorization: { from: "0x" + "11".repeat(20), to: env.PAY_TO, value: "20000", validAfter: "0", validBefore: "9999999999", nonce: "0x" + "22".repeat(32) } } };
+const u = new URL("https://lookup.test/v1/lookup/paid");
+const out = await verifyAndSettle(cfg(env), payload, u);
+const hit = seen.find(([x]) => x === "https://api.cdp.coinbase.com/platform/v2/x402/verify");
+assert.ok(hit, JSON.stringify(seen));
+assert.match(hit[1], /^Bearer [\w-]+\.[\w-]+\.[\w-]+$/);
+assert.equal(out.ok, false);
+console.log("PASS verifyAndSettle -> CDP /verify with a Bearer JWT (fake facilitator said:", out.reason + ")");
+seen.length = 0;
+await verifyAndSettle(cfg({ ...env, CDP_API_KEY_ID: "", CDP_API_KEY_SECRET: "", FACILITATOR_URL: "" }), payload, u);
+assert.ok(seen[0][0] === "https://facilitator.payai.network/verify" && !seen[0][1]);
+console.log("PASS unset -> PayAI default, no auth header");

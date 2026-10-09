@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 // Unit tests for worker/src/index.js with a stubbed fetch and a stubbed Analytics Engine binding.
 // All data here is synthetic. Run: node tests/worker_test.mjs   (Node 18+; no dependencies)
 import assert from "node:assert/strict";
@@ -8,6 +9,8 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import worker from "../worker/src/index.js";
+import { normUrl, receiptIdFor } from "../worker/src/skips.js";
+import { RECEIPTS_META } from "../worker/src/receipts-data.js";
 import { VERSION, listingFor, pickPayment, termsSha256, applyPayment, _resetCache, isoWeek, ipPrefix, saltPeriod, QuotaCounter, takeFree, quotaKey, PAYMENT_POLICY } from "../worker/src/lib.js";
 
 const BASE = "https://data.test/vc/";
@@ -194,7 +197,7 @@ test("endpoint lookup by id or URL, and unknown task falls back to text match", 
 });
 
 test("qualifying lookup is counted once with a hashed client id and no raw IP", async () => {
-  const r = await call("/v1/lookup?task=web-search&max_price=0.01", { ip: "198.51.100.23" });
+  const r = await call("/v1/lookup?task=web-search&max_price=0.02", { ip: "198.51.100.23" });
   assert.equal(r.points.length, 1);
   const p = r.points[0];
   assert.equal(p.doubles[0], 1, "qualifying");
@@ -254,7 +257,7 @@ test("not qualifying: self, crawler, uptime bot, missing price, no candidates, b
   assert.ok(r2.body.tasks.includes("web-search"));
   assert.ok(r2.body.try_free_lookup.url.includes("ref=via-402-hint"));
   assert.match(r2.body.also_available.url, /\/v1\/products\/overnight-cos-pack$/);
-  p = await q("/v1/lookup?task=web-search&max_price=0.01", { ua: "curl/8.5.0" });
+  p = await q("/v1/lookup?task=web-search&max_price=0.02", { ua: "curl/8.5.0" });
   assert.equal(p.doubles[0], 1, "an agent with a generic UA still counts");
 });
 
@@ -1231,6 +1234,78 @@ test("router tier: allowlisted router pays $0.01 for a 10-check pack ($0.001/che
   assert.match(other.body.pricing, /one tenth/);
 });
 
+test("weekly crawl coverage (0.11.0): normUrl matches crawl_probe.py; KV-backed receipts, skip pages, by-url and spot-check listing", async () => {
+  const urls = ["HTTPS://Api.X.com:443/a/b/?z=1&a=2#f", "http://x.com", "https://x.com/", "https://u:p@x.com:8443/a//", "https://x.com/a?b", "https://h.test/p?x=%2F&&a=1", "not a url"];
+  const py = spawnSync("python3", ["-c", "import sys,json;sys.path.insert(0,sys.argv[1]);from crawl_probe import norm_url;print(json.dumps([norm_url(u) for u in json.loads(sys.argv[2])]))", [new URL("../../receipts/scripts", import.meta.url).pathname, new URL("../scripts/weekly-crawl", import.meta.url).pathname].find((d) => existsSync(d + "/crawl_probe.py")), JSON.stringify(urls)], { encoding: "utf8" });
+  assert.deepEqual(urls.map(normUrl), JSON.parse(py.stdout), "JS and Python normalizers agree");
+  const ext = "https://spot.target.test/kv-thing";
+  const id = await receiptIdFor(ext + "/");
+  assert.equal(id, await receiptIdFor("HTTPS://SPOT.target.test:443/kv-thing"));
+  const rec = { id, url: ext, verdict: "skip", reason: "payTo differs from listing (0x" + "11".repeat(20) + " listed, 0x" + "22".repeat(20) + " in 402)", listed_pay_to: "0x" + "11".repeat(20), listed_network: "eip155:8453", claimed_price_usd: 0.002, source_list: "agent-tools-cloud", also_listed_in: ["payapi-market"], timestamp: "2026-10-09T20:00:00Z" };
+  const store = new Map([["c:" + id.slice(0, 2), JSON.stringify({ [id]: rec })], ["s:2", JSON.stringify([rec])]]);
+  const kv = { async get(k, o) { const v = store.get(k); return v == null ? null : o && o.type === "json" ? JSON.parse(v) : v; } };
+  const e = spotEnv({ CRAWL_KV: kv });
+  const r = await send("/v1/receipts/" + id, { envo: e });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.url, ext);
+  const by = await send("/v1/receipts/by-url?url=" + encodeURIComponent(ext + "/"), { envo: e });
+  assert.equal(by.status, 200);
+  assert.equal(by.body.latest_crawl.id, id);
+  const sk = await send("/v1/skips.json", { envo: e });
+  assert.equal(sk.body.endpoints_covered, RECEIPTS_META.endpoints_covered ?? RECEIPTS_META.total);
+  assert.ok("new_this_week" in sk.body);
+  assert.equal(sk.body.page, 1);
+  if ((RECEIPTS_META.skip_pages || 1) >= 2) {
+    const p2 = await send("/v1/skips.json?page=2", { envo: e });
+    assert.equal(p2.body.page, 2);
+    assert.equal(p2.body.skips[0].id, id);
+  }
+  const hres = await worker.fetch(new Request("https://lookup.test/v1/skips", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} });
+  const html = await hres.text();
+  assert.match(html, /endpoints covered/);
+  assert.match(html, /new this week/);
+  // the spot-check uses the KV listing as the expectation (pay_to/network) for URLs not in the bundle
+  const sc = await send(SPOT + "?url=" + encodeURIComponent(ext) + "&client=withgrokbot-selftest", { envo: e });
+  assert.equal(sc.body.expected_source, "listing");
+  assert.equal(sc.body.expected_pay_to, rec.listed_pay_to);
+  // KV missing or down: no crash
+  assert.equal((await send("/v1/receipts/" + id, { envo: spotEnv() })).status, 404);
+  const broken = spotEnv({ CRAWL_KV: { get: async () => { throw new Error("kv down"); } } });
+  assert.equal((await send("/v1/receipts/" + id, { envo: broken })).status, 404);
+});
+
+test("bot tags (0.11.0): scanner, example-param, indexer on lookup + spot; views on pack/skips/receipts/docs are counted", async () => {
+  const pts = async (path, o = {}) => {
+    const e = spotEnv();
+    const req = new Request("https://lookup.test" + path, { method: o.method || "GET", headers: { "user-agent": o.ua || "node", "cf-connecting-ip": "203.0.113.9", ...(o.headers || {}) } });
+    const waits = [];
+    const res = await worker.fetch(req, e.env, { waitUntil(p) { waits.push(p); } });
+    await Promise.all(waits);
+    return { status: res.status, points: e.points };
+  };
+  const reason = (r) => r.points.map((p) => p.blobs[5]);
+  assert.deepEqual(reason(await pts("/v1/lookup")), ["scanner"]);
+  assert.deepEqual(reason(await pts("/v1/lookup/paid")), ["scanner"]);
+  assert.deepEqual(reason(await pts(SPOT)), ["scanner"]);
+  assert.deepEqual(reason(await pts(SPOT + "?url=" + encodeURIComponent("https://example.com/api/paid"))), ["example-param"]);
+  assert.deepEqual(reason(await pts("/v1/lookup?task=web-search&max_price=0.01")), ["example-param"]);
+  assert.deepEqual(reason(await pts("/v1/lookup?task=web-search&max_price=0.01&ref=via-cdp")), [""], "an attributed caller is never auto-tagged");
+  assert.deepEqual(reason(await pts("/v1/lookup?task=web-search&max_price=0.02", { ua: "PayAI-Bazaar/1.0" })), ["indexer"]);
+  assert.deepEqual(reason(await pts(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api"), { ua: "x402-observer/2" })), ["indexer"]);
+  assert.deepEqual(reason(await pts(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api"), { ua: "Googlebot/2.1" })), ["crawler"], "spot route now runs the crawler filter");
+  const real = await pts(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&ref=via-x402-spotcheck");
+  assert.deepEqual(reason(real), [""]);
+  assert.equal(real.points[0].blobs[10], "via-x402-spotcheck", "spot ref " + JSON.stringify(real.points[0].blobs));
+  for (const [path, access] of [["/v1/skips", "view-skips"], ["/v1/skips.json?page=1", "view-skips"], ["/v1/receipts", "view-receipts"], ["/openapi.json", "view-docs-openapi"], ["/llms.txt", "view-docs-llms"], ["/.well-known/x402", "view-docs-wellknown"], ["/", "view-docs-home"], ["/v1/products/overnight-cos-pack", "view-pack-402"]]) {
+    const r = await pts(path);
+    assert.equal(r.points.length, 1, path);
+    assert.equal(r.points[0].blobs[12], access, path + " " + JSON.stringify(r.points[0].blobs));
+  }
+  const v = await pts("/v1/skips?ref=via-x402scan", { ua: "Mozilla/5.0" });
+  assert.equal(v.points[0].blobs[10], "via-x402scan", JSON.stringify(v.points[0].blobs));
+  assert.equal(v.points[0].blobs[5], "");
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {
@@ -1238,7 +1313,7 @@ for (const [name, fn] of T) {
     passed++;
     console.log("PASS " + name);
   } catch (e) {
-    console.log("FAIL " + name + "\n  " + (e && e.stack ? e.stack.split("\n").slice(0, 3).join("\n  ") : e));
+    console.log("FAIL " + name + "\n  " + (e && e.stack ? e.stack.split("\n").slice(0, 12).join("\n  ") : e));
   }
 }
 console.log(`${passed}/${T.length} worker tests passed`);

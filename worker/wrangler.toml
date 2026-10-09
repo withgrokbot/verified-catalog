@@ -34,6 +34,10 @@ FREE_PER_DAY = "5"
 PRICE_ATOMIC = "20000"
 PAY_TO = "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
 FACILITATOR_URL = "https://facilitator.payai.network"
+# Fallback (NOT active; see FACILITATOR_FALLBACK.md). Config-only, no key, $0 fee per their docs:
+#   FACILITATOR_URL = "https://x402.dexter.cash"      # or "https://facilitator.xpay.sh"
+# Coinbase CDP (1,000 settlements/month free, then $0.001): apply patches/cdp-facilitator.patch, then
+#   FACILITATOR_URL = "https://api.cdp.coinbase.com/platform/v2/x402"  + secrets CDP_API_KEY_ID, CDP_API_KEY_SECRET
 # Product (0.5.0): Overnight Chief of Staff Setup Pack — always paid, $9 USDC (9000000 atomic).
 # SELF_CLIENTS do NOT get this free. PACK_PREVIEW=1 returns a stub without payment (local tests only).
 PACK_PRICE_ATOMIC = "9000000"
@@ -63,6 +67,12 @@ binding = "PACK_BLOBS"
 id = "21ac2bd711dd4c01b2cd0ca1a8c14795"
 
 # Public live Spot-Check receipts (0.9.0). Free plan: 5M reads/day, 100k writes/day, 5 GB. Schema: migrations/.
+# Weekly crawl receipts (0.11.0): every listed endpoint, sharded c:<id[0:2]> (256 keys) + skip pages s:<n> + meta.
+# Written only by receipts/scripts (wrangler kv bulk put, changed keys only; free plan: 1k writes/day, 1 GB).
+[[kv_namespaces]]
+binding = "CRAWL_KV"
+id = "b752270a00ef41e58fbffebe0be5d323"
+
 [[d1_databases]]
 binding = "RECEIPTS_DB"
 database_name = "vc-spot-receipts"
