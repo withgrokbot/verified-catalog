@@ -1194,6 +1194,43 @@ test("public receipts: store outage never breaks an answer; no DB -> receipt fie
   assert.equal(n.body.receipt_url, null);
 });
 
+test("router tier: allowlisted router pays $0.01 for a 10-check pack ($0.001/check), one settlement; credits then spent; others unchanged", async () => {
+  const e = spotEnv({ SPOT_ROUTER_CLIENTS: "router-test-1", SPOT_PARTNER_CLIENTS: "router-test-1:1" });
+  facCalls.length = 0;
+  facMode = "ok";
+  spotTargetMode = "402";
+  const T = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=router-test-1";
+  assert.equal((await send(T, { envo: e })).body.access.tier, "partner", "partner pool first");
+  assert.equal((await send(T, { envo: e })).body.access.tier, "free", "then the daily free check");
+  const unpaid = await send(T, { envo: e });
+  assert.equal(unpaid.status, 402);
+  assert.equal(unpaid.body.accepts[0].amount, "10000");
+  assert.match(unpaid.body.error, /buys 10 checks \(\$0\.001\/check\)/);
+  assert.match(unpaid.body.pricing, /router tier/);
+  const paid = await send(T, { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
+  assert.equal(paid.status, 200);
+  assert.equal(paid.body.access.tier, "router-pack");
+  assert.equal(paid.body.access.credits_added, 9);
+  assert.equal(paid.body.access.credits_remaining, 9);
+  assert.equal(facCalls.filter((x) => x[0] === "/settle").length, 1);
+  for (let i = 8; i >= 0; i--) {
+    const r = await send(T, { envo: e });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.access.tier, "router-prepaid");
+    assert.equal(r.body.access.credits_remaining, i);
+    assert.equal(r.body.verdict, "pay");
+    assert.ok(r.body.payment, "prepaid checks get the full paid shape");
+  }
+  assert.equal((await send(T, { envo: e })).status, 402, "pack used up -> next pack");
+  assert.equal(facCalls.filter((x) => x[0] === "/settle").length, 1, "10 checks, one settlement");
+  // a higher signed amount is not accepted on the router tier (exact pack price only)
+  assert.equal((await send(T, { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } })).status, 402);
+  // non-router clients keep the 1/10-of-quote price
+  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=not-a-router", { envo: e });
+  const other = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=not-a-router", { envo: e });
+  assert.match(other.body.pricing, /one tenth/);
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {

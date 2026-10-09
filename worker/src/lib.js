@@ -32,7 +32,7 @@ import {
 
 import { handleSkips, handleReceipts } from "./skips.js";
 import { RECEIPTS } from "./receipts-data.js";
-export const VERSION = "0.9.0";
+export const VERSION = "0.10.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -414,6 +414,14 @@ export class QuotaCounter {
     let rec = (await this.state.storage.get(counter)) || { day, used: 0 };
     if (rec.day !== day) rec = { day, used: 0 };
     if (u.pathname === "/peek") return Response.json({ free: rec.used < limit, used: rec.used, limit });
+    if (u.pathname === "/credit" || u.pathname === "/spend" || u.pathname === "/balance") {
+      // Prepaid router credits: a balance that never resets (day is ignored).
+      const b = (await this.state.storage.get(counter + ":bal")) || { bal: 0 };
+      if (u.pathname === "/credit") b.bal += Math.max(0, parseInt(u.searchParams.get("n") || "0", 10) || 0);
+      else if (u.pathname === "/spend") { if (b.bal <= 0) return Response.json({ ok: false, balance: b.bal }); b.bal -= 1; }
+      if (u.pathname !== "/balance") await this.state.storage.put(counter + ":bal", b);
+      return Response.json({ ok: true, balance: b.bal });
+    }
     if (rec.used < limit) {
       rec.used += 1;
       await this.state.storage.put(counter, rec);
@@ -421,6 +429,29 @@ export class QuotaCounter {
     }
     return Response.json({ free: false, used: rec.used, limit });
   }
+}
+
+// Router credits (fail closed: if the counter is down, the router just pays per pack as usual).
+export const SPOT_ROUTER_COUNTER = "spot-router";
+export async function routerCredits(env, cid, op, n = 0) {
+  try {
+    if (!env.QUOTA || typeof env.QUOTA.idFromName !== "function") return { ok: false, balance: null };
+    const stub = env.QUOTA.get(env.QUOTA.idFromName("router:" + cid));
+    const r = await stub.fetch(`https://quota.internal/${op}?counter=${SPOT_ROUTER_COUNTER}&n=${n}`);
+    return await r.json();
+  } catch (_) {
+    return { ok: false, balance: null };
+  }
+}
+// Router tier (0.10.0): allowlisted router client ids pay $0.001/check, billed in packs (default 10 checks = $0.01,
+// one settlement). PayAI charges the payee ~2.2 credits ($0.0022) per Base settlement after its free allowance,
+// so a single $0.001 settlement would lose money; one settlement per pack keeps the per-check price at $0.001.
+// Config: SPOT_ROUTER_CLIENTS = "id,id2" (Worker secret), SPOT_ROUTER_PACK_CHECKS (default 10), SPOT_ROUTER_CHECK_ATOMIC (default 1000).
+export function spotRouterCfg(env) {
+  const ids = new Set(String(env.SPOT_ROUTER_CLIENTS || "").split(",").map((x) => x.trim().toLowerCase()).filter((x) => /^[a-z0-9._\-]{1,64}$/.test(x)));
+  const per = Math.max(1, parseInt(env.SPOT_ROUTER_CHECK_ATOMIC || "1000", 10) || 1000);
+  const pack = Math.max(1, Math.min(250, parseInt(env.SPOT_ROUTER_PACK_CHECKS || "10", 10) || 10));
+  return { ids, perCheckAtomic: per, packChecks: pack, packAtomic: Math.max(10000, per * pack) };
 }
 
 // Returns {free, used, limit, error?}. If the counter is unavailable the call is served free (fail open):
@@ -1231,7 +1262,9 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   let cd = c; // per-request priced config, set after the probe
   const deny = (error, used, kind = "payment-required") => {
     const body = spotPaymentRequired(cd, resourceUrl, error, used);
-    body.pricing = "one tenth of this endpoint's quoted x402 price, minimum $0.01, cap $0.25";
+    body.pricing = typeof isRouter !== "undefined" && isRouter
+      ? "router tier: $0.001 per check, billed per pack of checks in one settlement"
+      : "one tenth of this endpoint's quoted x402 price, minimum $0.01, cap $0.25";
     writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 0, ua, returnedPayTo: [], status: 402, referer, access: kind, freeUsed: used }));
     return json(body, 402, { "payment-required": b64encode(body) });
   };
@@ -1260,6 +1293,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   let freeUsed = null;
 
   const partnerLimit = q.client ? spotPartners(env).get(q.client) : undefined;
+  const rcfg = spotRouterCfg(env);
+  const isRouter = !!(q.client && rcfg.ids.has(q.client) && !isExempt(qLike, env));
   let partner = null;
   if (partnerLimit && !isExempt(qLike, env)) {
     partner = await takeFree(env, "partner:" + q.client, partnerLimit, new Date(), "take", SPOT_PARTNER_COUNTER, "all");
@@ -1289,6 +1324,22 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       };
     } else {
       const hdr = paymentHeader(req);
+      if (isRouter && !hdr) {
+        const sp = await routerCredits(env, q.client, "spend");
+        if (sp.ok) {
+          access = { tier: "router-prepaid", price_per_check_usd: rcfg.perCheckAtomic / 1e6, credits_remaining: sp.balance, note: "router tier: prepaid checks from your last pack" };
+          writePoint(env, dataPoint({ cid, q: qLike, excluded: "", candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "router-prepaid", freeUsed: t.used }));
+          return json(await buildResult(probe, access), 200, extraHeaders);
+        }
+      }
+      if (isRouter) {
+        const usd = (rcfg.packAtomic / 1e6).toString();
+        cd = { ...cd, priceAtomic: String(rcfg.packAtomic), priceUsd: usd };
+        if (!hdr) {
+          const res = deny(`Router tier: $${usd} USDC on Base buys ${Math.floor(rcfg.packAtomic / rcfg.perCheckAtomic)} checks ($${rcfg.perCheckAtomic / 1e6}/check): this one now, the rest prepaid for your next calls with client=${q.client}.`, t.used, "payment-required");
+          return res;
+        }
+      }
       if (!hdr) return deny(`Free spot-checks used up for today (${c.freePerDay} per UTC day). Pay $${cd.priceUsd} USDC on Base via x402 to continue.`, t.used, "payment-required");
       const payload = decodePaymentHeader(hdr);
       if (!payload) return deny("payment header is not valid base64 JSON x402 payload", t.used, "payment-failed");
@@ -1296,7 +1347,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         // Price race guard: if the target's quote moved between our 402 and the retry, accept any signed amount
         // between the current dynamic price and the $0.25 cap instead of rejecting the buyer.
         const amt = String((payload.accepted || {}).amount ?? ((payload.payload || {}).authorization || {}).value ?? "");
-        if (/^[0-9]{1,12}$/.test(amt) && Number(amt) >= Number(cd.priceAtomic) && Number(amt) <= 250000) cd = { ...cd, priceAtomic: amt, priceUsd: (Number(amt) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, "") };
+        if (!isRouter && /^[0-9]{1,12}$/.test(amt) && Number(amt) >= Number(cd.priceAtomic) && Number(amt) <= 250000) cd = { ...cd, priceAtomic: amt, priceUsd: (Number(amt) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, "") };
       }
       const bad = checkPayload(payload, cd);
       if (bad) return deny("payment rejected: " + bad, t.used, "payment-failed");
@@ -1331,6 +1382,14 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       freeUsed = t.used;
       const selfPaid = String(r.settle.payer || authFrom || "").toLowerCase() === c.payTo.toLowerCase();
       if (selfPaid) access.self_test = true;
+      if (isRouter) {
+        const n = Math.floor(Number(cd.priceAtomic) / rcfg.perCheckAtomic) - 1;
+        const cr = await routerCredits(env, q.client, "credit", n);
+        access.tier = "router-pack";
+        access.price_per_check_usd = rcfg.perCheckAtomic / 1e6;
+        access.credits_added = n;
+        access.credits_remaining = cr.balance;
+      }
       writePoint(env, dataPoint({ cid, q: qLike, excluded: selfPaid ? "self" : "", candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "paid", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed }));
       return json(await buildResult(probe, access), 200, extraHeaders);
     }
