@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import worker from "../worker/src/index.js";
-import { VERSION, _resetCache, isoWeek, ipPrefix, saltPeriod, QuotaCounter, takeFree, quotaKey, PAYMENT_POLICY } from "../worker/src/lib.js";
+import { VERSION, listingFor, _resetCache, isoWeek, ipPrefix, saltPeriod, QuotaCounter, takeFree, quotaKey, PAYMENT_POLICY } from "../worker/src/lib.js";
 
 const BASE = "https://data.test/vc/";
 const H = 3600000;
@@ -1056,6 +1056,8 @@ test("spot-check expected pay_to / network: mismatches are skip; our crawl's lis
   assert.equal(bad.status, 400);
   assert.equal(bad.body.field, "pay_to");
   // Real /v1/skips case b5e13e8271: listed on Base Sepolia, live 402 asks for Base mainnet USDC.
+  // (Only while the weekly crawl still has this listing; the request-side checks above always run.)
+  if (!listingFor("https://topagentx402.vercel.app/api/send-token")) return;
   const real = await send(SPOT + "?url=" + encodeURIComponent("https://topagentx402.vercel.app/api/send-token") + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(real.body.verdict, "skip");
   assert.equal(real.body.reason, "network_mismatch");
