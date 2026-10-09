@@ -585,7 +585,7 @@ test("MCP /mcp: initialize, tools/list (catalog tools + products), ping, notific
   const pyTools = JSON.parse(py.stdout).result.tools;
   const workerTools = r.body.result.tools;
   assert.deepEqual(workerTools.slice(0, 3), pyTools, "first 3 tools match mcp/server.py");
-  assert.deepEqual(workerTools.map((t) => t.name), ["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check"]);
+  assert.deepEqual(workerTools.map((t) => t.name), ["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "get_receipt", "endpoint_spot_check"]);
   assert.deepEqual((await rpc({ jsonrpc: "2.0", id: 3, method: "ping" }, { envo: e })).body, { jsonrpc: "2.0", id: 3, result: {} });
   assert.equal((await rpc({ jsonrpc: "2.0", id: 4, method: "nope" }, { envo: e })).body.error.code, -32601);
   assert.equal((await rpc({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "nope" } }, { envo: e })).body.error.message, "unknown tool 'nope'");
@@ -811,7 +811,7 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   assert.equal(r.body.verdict, "pay");
   assert.equal(r.body.reason, "listed $0.001, payment request matches, details locked");
   // free tier: verdict + plain reason + access only (quoted/claimed price, pay_to, network, asset are paid)
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "payment_terms_sha256", "reason", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "payment_terms_sha256", "reason", "receipt_id", "receipt_url", "verdict"]);
   assert.match(r.body.payment_terms_sha256, /^[0-9a-f]{64}$/);
   assert.ok(lastSpotFetchInit);
   const h = lastSpotFetchInit.headers || {};
@@ -1104,6 +1104,94 @@ test("PAY STEP: picks the accept matching the expectation; non-USDC asset is ski
   assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pickPayment({ accepts: [usdc] }, {}), { claimed: 0.02 }), { verdict: "skip", reason: "price_mismatch" });
   assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, null, {}), { verdict: "recheck", reason: "ambiguous" });
   assert.equal(pickPayment({ accepts: [{ scheme: "upto", network: "eip155:8453", amount: "1", payTo: "0x1" }] }, {}), null);
+});
+
+// In-memory D1 stand-in (prepare/bind/run/first) for the receipts table.
+function fakeD1() {
+  const rows = [];
+  return {
+    rows,
+    prepare(sql) {
+      return {
+        bind(...a) {
+          return {
+            async run() { if (/^INSERT/.test(sql)) { if (rows.some((r) => r.id === a[0])) throw new Error("UNIQUE"); rows.push({ id: a[0], url: a[1], created_at: a[2], verdict: a[3], reason: a[4], body: a[5] }); } return { success: true }; },
+            async first() {
+              if (/WHERE id = \?/.test(sql)) return rows.find((r) => r.id === a[0]) || null;
+              if (/WHERE url = \?/.test(sql)) return rows.filter((r) => r.url === a[0]).sort((x, y) => (x.created_at < y.created_at ? 1 : x.created_at > y.created_at ? -1 : 0))[0] || null;
+              return null;
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
+test("public receipts: every delivered decision is stored; GET by id and by-url are free; no client id stored", async () => {
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db });
+  spotTargetMode = "402";
+  const t = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=rcpt-client-1";
+  const free = await send(t, { envo: e });
+  assert.match(free.body.receipt_id, /^sc-[0-9a-f]{16}$/);
+  assert.equal(free.body.receipt_url, "https://lookup.test/v1/receipts/" + free.body.receipt_id);
+  assert.equal(db.rows.length, 1);
+  assert.ok(!db.rows[0].body.includes("rcpt-client-1"), "receipts never carry the client id");
+  const unpaid = await send(t, { envo: e });
+  assert.equal(unpaid.status, 402);
+  assert.equal(db.rows.length, 1, "a 402 (no decision delivered) stores nothing");
+  const got = await send("/v1/receipts/" + free.body.receipt_id, { envo: e });
+  assert.equal(got.status, 200);
+  assert.equal(got.body.url, "https://spot.target.test/api");
+  assert.equal(got.body.verdict, "pay");
+  assert.equal(got.body.reason, "price_ok");
+  assert.match(got.body.checked_at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+  assert.deepEqual(got.body.live_402.accepts[0], { scheme: "exact", network: "eip155:8453", asset: USDC, amount_atomic: "1000", pay_to: PAY_TO });
+  assert.equal(got.body.approved_payment.amount_atomic, "1000");
+  assert.equal(got.body.payment_terms_sha256, free.body.payment_terms_sha256);
+  // a later decision for the same URL becomes the latest
+  await new Promise((r) => setTimeout(r, 1100));
+  const later = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=9&client=withgrokbot-selftest", { envo: e });
+  const by = await send("/v1/receipts/by-url?url=" + encodeURIComponent("https://spot.target.test/api"), { envo: e });
+  assert.equal(by.status, 200);
+  assert.equal(by.body.latest_live.id, later.body.receipt_id);
+  assert.equal(by.body.latest_live.verdict, "skip");
+  assert.equal(by.body.latest_crawl, null);
+  // crawl-only URL: by-url returns the crawl receipt; unknown: 404 with a check_now link; missing url: 400
+  const sk = (await send("/v1/skips?format=json", { envo: e })).body.skips[0];
+  const crawl = await send("/v1/receipts/by-url?url=" + encodeURIComponent(sk.url), { envo: e });
+  assert.equal(crawl.body.latest_live, null);
+  assert.equal(crawl.body.latest_crawl.id, sk.id);
+  const none = await send("/v1/receipts/by-url?url=https%3A%2F%2Fnever.test%2Fx", { envo: e });
+  assert.equal(none.status, 404);
+  assert.match(none.body.check_now, /endpoint-spot-check\?url=/);
+  assert.equal((await send("/v1/receipts/by-url", { envo: e })).status, 400);
+  assert.equal((await send("/v1/receipts/sc-0000000000000000", { envo: e })).status, 404);
+  // old crawl ids still resolve
+  assert.equal((await send("/v1/receipts/" + sk.id, { envo: e })).status, 200);
+  // SSRF-blocked targets: 400, nothing fetched, nothing stored
+  const n = db.rows.length;
+  assert.equal((await send(SPOT + "?url=" + encodeURIComponent("http://127.0.0.1/") + "&client=withgrokbot-selftest", { envo: e })).status, 400);
+  assert.equal(db.rows.length, n);
+  // MCP get_receipt
+  const m = await rpc({ jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "get_receipt", arguments: { id: free.body.receipt_id } } }, { envo: e });
+  assert.equal(m.body.result.structuredContent.id, free.body.receipt_id);
+  const mu = await rpc({ jsonrpc: "2.0", id: 10, method: "tools/call", params: { name: "get_receipt", arguments: { url: "https://spot.target.test/api" } } }, { envo: e });
+  assert.equal(mu.body.result.structuredContent.latest_live.id, later.body.receipt_id);
+  const oa = (await send("/openapi.json", { envo: e })).body;
+  assert.ok(oa.paths["/v1/receipts/by-url"] && oa.paths["/v1/receipts/{id}"]);
+});
+
+test("public receipts: store outage never breaks an answer; no DB -> receipt fields null", async () => {
+  const broken = { prepare() { return { bind() { return { run: async () => { throw new Error("D1 down"); }, first: async () => { throw new Error("D1 down"); } }; } }; } };
+  const e = spotEnv({ RECEIPTS_DB: broken });
+  spotTargetMode = "402";
+  const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest", { envo: e });
+  assert.equal(r.status, 200);
+  assert.equal((await send("/v1/receipts/sc-0000000000000000", { envo: e })).status, 503);
+  const n = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest", { envo: spotEnv() });
+  assert.equal(n.body.receipt_url, null);
 });
 
 let passed = 0;

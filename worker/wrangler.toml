@@ -61,3 +61,10 @@ new_sqlite_classes = ["QuotaCounter"]
 [[kv_namespaces]]
 binding = "PACK_BLOBS"
 id = "21ac2bd711dd4c01b2cd0ca1a8c14795"
+
+# Public live Spot-Check receipts (0.9.0). Free plan: 5M reads/day, 100k writes/day, 5 GB. Schema: migrations/.
+[[d1_databases]]
+binding = "RECEIPTS_DB"
+database_name = "vc-spot-receipts"
+database_id = "35d1d852-ad3f-471e-9fc6-5b9a9d341e08"
+migrations_dir = "migrations"

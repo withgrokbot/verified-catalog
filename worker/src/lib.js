@@ -32,7 +32,7 @@ import {
 
 import { handleSkips, handleReceipts } from "./skips.js";
 import { RECEIPTS } from "./receipts-data.js";
-export const VERSION = "0.8.0";
+export const VERSION = "0.9.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -817,12 +817,16 @@ export const SPOT_PAID_EXAMPLE = {
   expected_source: "request",
   payment: { scheme: "exact", network: "eip155:8453", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", asset_is_usdc: true, amount_atomic: "50000", amount_usd: 0.05, pay_to: "0x1111111111111111111111111111111111111111" },
   payment_terms_sha256: "<sha256 of network|asset|amount_atomic|pay_to, lower-case>",
+  receipt_id: "sc-0123456789abcdef",
+  receipt_url: "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/receipts/sc-0123456789abcdef",
   access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
 };
 export const SPOT_FREE_EXAMPLE = {
   verdict: "pay",
   reason: "listed $0.05, payment request matches, details locked",
   payment_terms_sha256: "<sha256 of network|asset|amount_atomic|pay_to, lower-case>",
+  receipt_id: "sc-0123456789abcdef",
+  receipt_url: "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/receipts/sc-0123456789abcdef",
   access: { tier: "free", free_per_day: 1, free_used_today: 1, free_remaining_today: 0, then: "$0.01 USDC on Base for the full check of this endpoint via x402 (HTTP 402)" },
 };
 const SPOT_VERDICT_SCHEMA = { type: "string", enum: ["pay", "skip", "recheck"] };
@@ -846,9 +850,11 @@ export const SPOT_PAID_SCHEMA = {
       properties: { scheme: { type: "string" }, network: { type: "string" }, asset: { type: "string" }, asset_is_usdc: { type: ["boolean", "null"] }, amount_atomic: { type: "string" }, amount_usd: { type: ["number", "null"] }, pay_to: { type: "string" } },
     },
     payment_terms_sha256: { type: ["string", "null"], description: "sha256 hex of lower-case network|asset|amount_atomic|pay_to (null unless pay)" },
+    receipt_id: { type: ["string", "null"], description: "public receipt id for this decision (sc-...)" },
+    receipt_url: { type: ["string", "null"], description: "free, public: GET it to show as the reason for paying or aborting" },
     access: { type: "object", properties: { tier: { const: "paid" }, charged_usd: { type: "string" }, tx: { type: "string" } } },
   },
-  required: ["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source", "payment", "payment_terms_sha256", "access"],
+  required: ["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source", "payment", "payment_terms_sha256", "receipt_id", "receipt_url", "access"],
 };
 export const SPOT_FREE_SCHEMA = {
   type: "object",
@@ -857,9 +863,11 @@ export const SPOT_FREE_SCHEMA = {
     verdict: SPOT_VERDICT_SCHEMA,
     reason: { type: "string", description: "plain words, e.g. 'listed $0.01, no payment request, details locked'" },
     payment_terms_sha256: { type: ["string", "null"], description: "sha256 hex of lower-case network|asset|amount_atomic|pay_to of the approved payment (null unless pay)" },
+    receipt_id: { type: ["string", "null"], description: "public receipt id for this decision (sc-...)" },
+    receipt_url: { type: ["string", "null"], description: "free, public: GET it to show as the reason for paying or aborting" },
     access: { type: "object", properties: { tier: { const: "free" } } },
   },
-  required: ["verdict", "reason", "payment_terms_sha256", "access"],
+  required: ["verdict", "reason", "payment_terms_sha256", "receipt_id", "receipt_url", "access"],
   additionalProperties: false,
 };
 
@@ -900,6 +908,8 @@ export function spotPaymentRequired(c, resourceUrl, error, used) {
       expected_source: "request",
       payment: null,
       payment_terms_sha256: null,
+      receipt_id: "sc-0123456789abcdef",
+      receipt_url: "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/receipts/sc-0123456789abcdef",
       access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
     },
     paid_example_note: "Real case: https://frog03-20494.wykr.es/api/signals/paid is listed as a $0.01 x402 endpoint; the live probe gets HTTP 200 with no 402 challenge, so there is nothing safe to pay. Receipt: " + origin + "/v1/receipts/ae218e0fb7",
@@ -975,6 +985,81 @@ export function applyPayment(d, pm, exp) {
   if (pm.asset_is_usdc === false) return { verdict: "skip", reason: "asset_not_usdc" };
   if (exp.claimed != null && pm.amount_usd != null && priceMatchesClaimed(pm.amount_usd, exp.claimed) === false) return { verdict: "skip", reason: "price_mismatch" };
   return d;
+}
+
+// ---------------------------------------------------------------- public live receipts (0.9.0, D1)
+// Every delivered Spot-Check decision is stored as a public receipt: listing URL, live 402 terms, verdict, reason,
+// timestamp, id. Reading is free (GET /v1/receipts/<id>, GET /v1/receipts/by-url?url=). No client ids/IPs/payers stored.
+export const LIVE_RECEIPT_RE = /^sc-[0-9a-f]{16}$/;
+export function newReceiptId() {
+  const b = new Uint8Array(8);
+  crypto.getRandomValues(b);
+  return "sc-" + [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText, pm, termsHash, exp, now = new Date() }) {
+  return {
+    id,
+    url,
+    method,
+    checked_at: now.toISOString().replace(/\.\d{3}Z$/, "Z"),
+    check_type: "live spot-check (unpaid probe of the target; never pays it)",
+    verdict: d.verdict,
+    reason: d.reason,
+    reason_text: reasonText,
+    live_402: {
+      http_status: probe.http_status ?? null,
+      x402_challenge: !!probe.x402_challenge,
+      accepts: (probe.accepts || []).map((a) => ({ scheme: a.scheme, network: a.network, asset: a.asset, amount_atomic: a.amount, pay_to: a.payTo })),
+      error: probe.error || null,
+    },
+    expected: { claimed_price_usd: exp.claimed, pay_to: exp.pay_to, network: exp.network, source: exp.source },
+    approved_payment: pm,
+    payment_terms_sha256: termsHash,
+    worker_version: VERSION,
+    permalink: origin + "/v1/receipts/" + id,
+  };
+}
+export async function saveLiveReceipt(env, r) {
+  if (!env.RECEIPTS_DB) return false;
+  try {
+    await env.RECEIPTS_DB.prepare("INSERT INTO spot_receipts (id, url, created_at, verdict, reason, body) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(r.id, r.url, r.checked_at, r.verdict, r.reason, JSON.stringify(r)).run();
+    return true;
+  } catch (_) {
+    return false; // storing must never break an answer
+  }
+}
+export async function getLiveReceipt(env, id) {
+  if (!env.RECEIPTS_DB || !LIVE_RECEIPT_RE.test(id)) return null;
+  const row = await env.RECEIPTS_DB.prepare("SELECT body FROM spot_receipts WHERE id = ?").bind(id).first();
+  return row ? JSON.parse(row.body) : null;
+}
+export async function latestLiveReceipt(env, url) {
+  if (!env.RECEIPTS_DB) return null;
+  const row = await env.RECEIPTS_DB.prepare("SELECT body FROM spot_receipts WHERE url = ? ORDER BY created_at DESC LIMIT 1").bind(url).first();
+  return row ? JSON.parse(row.body) : null;
+}
+const rj = (o, status = 200) => new Response(JSON.stringify(o, null, 2), { status, headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": status === 200 ? "public, max-age=60" : "no-store" } });
+async function handleLiveReceipts(req, env, url, path) {
+  if (path === "/v1/receipts/by-url") {
+    const target = String(url.searchParams.get("url") || "").trim().slice(0, 2000);
+    if (!target) return rj({ error: 'Missing "url". Example: ' + url.origin + "/v1/receipts/by-url?url=https://api.402rates.com/v1/ping", field: "url" }, 400);
+    let live = null;
+    try { live = await latestLiveReceipt(env, target); } catch (_) { return rj({ error: "receipt store unavailable, try again shortly" }, 503); }
+    const crawl = listingFor(target);
+    if (!live && !crawl) return rj({ error: "no receipt for this url yet", url: target, check_now: url.origin + "/v1/products/endpoint-spot-check?url=" + encodeURIComponent(target) }, 404);
+    return rj({
+      url: target,
+      latest_live: live,
+      latest_crawl: crawl ? { ...crawl, permalink: url.origin + "/v1/receipts/" + crawl.id } : null,
+      note: "Stored receipts are free to read. A fresh live check is the paid Spot-Check (1 free per client per UTC day).",
+      check_now: url.origin + "/v1/products/endpoint-spot-check?url=" + encodeURIComponent(target),
+    });
+  }
+  const id = path.slice("/v1/receipts/".length);
+  let r = null;
+  try { r = await getLiveReceipt(env, id); } catch (_) { return rj({ error: "receipt store unavailable, try again shortly" }, 503); }
+  return r ? rj(r) : rj({ error: "no live receipt with id " + id.slice(0, 40) }, 404);
 }
 
 // Compare a verdict "pay" against the expected pay_to / network: a 402 that pays a different wallet or runs on a
@@ -1114,9 +1199,16 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const d = applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pm0, exp);
     const pm = d.verdict === "pay" ? pm0 : null; // only a "pay" verdict approves terms
     const termsHash = await termsSha256(pm);
+    const rid = env.RECEIPTS_DB ? newReceiptId() : null;
+    const receiptFields = { receipt_id: rid, receipt_url: rid ? url.origin + "/v1/receipts/" + rid : null };
+    if (rid) {
+      const rec = buildLiveReceipt({ id: rid, origin: url.origin, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm, termsHash, exp });
+      const p = saveLiveReceipt(env, rec);
+      if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(p); else await p;
+    }
     // Free tier: verdict + plain reason + a hash of the approved terms (enough for x402-spotcheck to refuse a
     // different payment); the terms themselves, quoted/claimed price and pay-to are behind the paid 402.
-    if (access && access.tier === "free") return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), payment_terms_sha256: termsHash, access };
+    if (access && access.tier === "free") return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), payment_terms_sha256: termsHash, ...receiptFields, access };
     const acc = Array.isArray(probe.accepts) ? probe.accepts.find((a) => a && a.payTo) : null;
     return {
       verdict: d.verdict,
@@ -1131,6 +1223,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       expected_source: exp.source,
       payment: pm,
       payment_terms_sha256: termsHash,
+      ...receiptFields,
       access,
     };
   };
@@ -1536,6 +1629,24 @@ export function openapi(origin, env = {}) {
           responses: { 200: { description: "HTML or JSON list of skip receipts with totals and crawl time" } },
         },
       },
+      "/v1/receipts/by-url": {
+        get: {
+          operationId: "receiptByUrl",
+          security: [],
+          summary: "Free: latest public receipt for a URL: latest_live (last live Spot-Check decision: live 402 terms, verdict, reason, timestamp, id) and latest_crawl (weekly self-checked crawl). A fresh live check is the paid Spot-Check.",
+          parameters: [{ name: "url", in: "query", required: true, schema: { type: "string" }, description: "the listing/endpoint URL exactly as checked" }],
+          responses: { 200: { description: "receipts" }, 400: { description: "missing url" }, 404: { description: "no receipt for this url yet (check_now link included)" } },
+        },
+      },
+      "/v1/receipts/{id}": {
+        get: {
+          operationId: "receiptById",
+          security: [],
+          summary: "Free: one receipt. sc-<16 hex> = a live Spot-Check decision (url, method, checked_at, verdict, reason, live_402 accepts, expected, approved_payment, payment_terms_sha256); 10-hex ids = weekly crawl receipts.",
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          responses: { 200: { description: "receipt JSON" }, 404: { description: "unknown id" } },
+        },
+      },
       "/v1/receipts": {
         get: {
           operationId: "receipts",
@@ -1871,6 +1982,15 @@ export const MCP_TOOLS = [
     inputSchema: { type: "object", properties: {} },
   },
   {
+    name: "get_receipt",
+    description:
+      "Free: read a public Spot-Check receipt. Give id (sc-... from endpoint_spot_check's receipt_id, or a 10-hex crawl id) or url " +
+      "(latest live + crawl receipt for that URL). Receipts hold the listing URL, the live 402 terms, verdict, reason, timestamp. " +
+      "Does not run a fresh check (use endpoint_spot_check for that).",
+    inputSchema: { type: "object", properties: { id: { type: "string", description: "receipt id" }, url: { type: "string", description: "endpoint URL exactly as checked" } } },
+    annotations: { title: "Read a Spot-Check receipt", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
     name: "endpoint_spot_check",
     description:
       "Decision-shaped SSRF-safe spot-check of a public URL for an x402 PAYMENT-REQUIRED / 402 challenge. " +
@@ -1994,10 +2114,19 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
     const name = params.name;
     const args = params.arguments || {};
     const err = (text) => ({ content: [{ type: "text", text }], isError: true });
-    if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check"].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
+    if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check", "get_receipt"].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
     let data;
     try {
-      if (name === "endpoint_spot_check") {
+      if (name === "get_receipt") {
+        let path, u;
+        if (args.id) { path = "/v1/receipts/" + encodeURIComponent(pyStr(args.id)); u = new URL(origin + path); }
+        else if (args.url) { path = "/v1/receipts/by-url"; u = new URL(origin + path + "?url=" + encodeURIComponent(pyStr(args.url))); }
+        else return err("give id or url");
+        const r = /^\/v1\/receipts\/(by-url|sc-)/.test(path) ? await handleLiveReceipts(req, env, u, decodeURIComponent(path)) : handleReceipts(u);
+        const body = await r.json();
+        if (r.status !== 200) return err((body && body.error) || "HTTP " + r.status);
+        data = body;
+      } else if (name === "endpoint_spot_check") {
         if (!args.url) return err("url is required");
         const qp = new URLSearchParams({ client: MCP_CLIENT, url: pyStr(args.url) });
         if (args.task) qp.set("task", pyStr(args.task));
@@ -2134,6 +2263,7 @@ export const handler = {
       return json(spotBadRequest(url.origin, "method", `Unsupported method ${String(req.method).slice(0, 10)}; use GET or POST`), 400);
     if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405, { allow: "GET, OPTIONS" });
     if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url);
+    if (path === "/v1/receipts/by-url" || /^\/v1\/receipts\/sc-/.test(path)) return handleLiveReceipts(req, env, url, path);
     if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return handleReceipts(url);
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
     if (path === "/.well-known/x402") return json({ version: 1, resources: [url.origin + "/v1/lookup/paid", url.origin + "/v1/products/overnight-cos-pack", url.origin + "/v1/products/endpoint-spot-check"] });
@@ -2149,7 +2279,7 @@ export const handler = {
     if (path === "/health") return json({ ok: true, version: VERSION });
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${url.origin}/sitemap.xml\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/v1/skips", "/v1/skips.json", "/v1/receipts", "/", "/openapi.json", "/llms.txt"].map((u) => `<url><loc>${url.origin}${u}</loc><changefreq>daily</changefreq></url>`).join("")}</urlset>\n`, { headers: { "content-type": "application/xml; charset=utf-8" } });
-    if (path === "/llms.txt") return new Response(`# x402 Verified Catalog + Spot-Check\n\n- Skips page (free): ${url.origin}/v1/skips (JSON: ${url.origin}/v1/skips.json). 500 self-checked x402 endpoints; the skip list shows which ones disagree with their listing.\n- All receipts: ${url.origin}/v1/receipts\n- Check before you pay: GET ${url.origin}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck. 1 free/day, then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402.\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${url.origin}/openapi.json  MCP: ${url.origin}/mcp\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
+    if (path === "/llms.txt") return new Response(`# x402 Verified Catalog + Spot-Check\n\n- Skips page (free): ${url.origin}/v1/skips (JSON: ${url.origin}/v1/skips.json). 500 self-checked x402 endpoints; the skip list shows which ones disagree with their listing.\n- All receipts: ${url.origin}/v1/receipts  (live Spot-Check receipts: ${url.origin}/v1/receipts/sc-<id>; latest for a URL: ${url.origin}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${url.origin}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck. 1 free/day, then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402.\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${url.origin}/openapi.json  MCP: ${url.origin}/mcp\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (path === "/")
       return json({
         name: "Verified catalog reliability lookup",
