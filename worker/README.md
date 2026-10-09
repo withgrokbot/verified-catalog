@@ -35,6 +35,11 @@ GET /openapi.json      OpenAPI 3.1
   the client id, so many people clicking one tagged link still count as distinct clients. Links we publish carry
   `ref=via-readme`, `via-awesome-x402`, `via-awesome-mcp-servers`, `via-x`, `via-gh-issue`. Untagged browser clicks fall back to
   the Referer host (e.g. github.com); agents and curl usually send none.
+  Per-router refs (0.11.0, Spot-Check): `via-cdp`, `via-x402scan`, `via-agentkit`, `via-lucid`, `via-payai`; the
+  x402-spotcheck guard (0.2.1+) sends `via-x402-spotcheck` unless the integrator passes its own `ref`. Any ref is accepted.
+  Bot tags (0.11.0, blob6): `scanner` (bare call, no params), `example-param` (example.com target or the documented
+  web-search/0.01 example, without ref/client), `indexer` (named x402 indexer UAs), plus `self`/`uptime`/`crawler`.
+  Views (access `view-*`) are counted on the $9 pack, /v1/skips, /v1/receipts and the docs routes.
 - Free quota: one SQLite-backed Durable Object (`QuotaCounter`, binding `QUOTA`, free plan) per client key holds
   `{day, used}`. Key = `c:<client>` when `client` is sent, else `ip:` + SHA-256 of `CLIENT_SALT`, the UTC day and the IP
   (IPv6 /64). The User-Agent is not part of the quota key. Bad requests (400) never use the quota. If the counter is
