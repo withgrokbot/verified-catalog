@@ -1,0 +1,72 @@
+{
+  "service_id": "onesource-erc20-balance",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.onesource.io/api/chain/erc20-balance?address=0xd8da6bf26964af9d7eed9e03e53415d37aa96045&contract=0xdac17f958d2ee523a2206206994597c13d831ec7&network=ethereum",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 235,
+    "headers": {
+      "date": "Fri, 09 Oct 2026 14:32:38 GMT",
+      "content-type": "application/json",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://api.onesource.io/api/chain/erc20-balance?address=0xd8da6bf26964af9d7eed9e03e53415d37aa96045&contract=0xdac17f958d2ee523a2206206994597c13d831ec7&network=ethereum",
+            "description": "ERC20 token balance for any Ethereum wallet - USDC, USDT, DAI, or any token - via balanceOf (eth_call) on OneSource live Ethereum RPC",
+            "mimeType": "application/json"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "currency": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "3000",
+              "maxAmountRequired": "3000",
+              "payTo": "0x52E29e0d2Aa49bfBfC548C0A9F2196F4aa51f3ea",
+              "recipient": "0x52E29e0d2Aa49bfBfC548C0A9F2196F4aa51f3ea",
+              "maxTimeoutSeconds": 3600,
+              "extra": {
+                "credentialTypes": [
+                  "authorization"
+                ],
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "batch-settlement",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "currency": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "3000",
+              "maxAmountRequired": "3000",
+              "payTo": "0x52E29e0d2Aa49bfBfC548C0A9F2196F4aa51f3ea",
+              "recipient": "0x52E29e0d2Aa49bfBfC548C0A9F2196F4aa51f3ea",
+              "maxTimeoutSeconds": 3600,
+              "extra": {
+                "name": "USD Coin",
+                "receiverAuthorizer": "0x11dF9F6280632aB8F12926b3f569E493EaEcf81b",
+                "version": "2",
+                "withdrawDelay": 86400
+              }
+            }
+          ]
+        }
+      },
+      "www-authenticate": "Payment id=\"RjP2Fstx5iJkz3a-C3OrYGG8x_tV_9Gmu5RXfkk9Lnc\", realm=\"api.onesource.io\", method=\"tempo\", intent=\"session\", request=\"eyJhbW91bnQiOiIzMDAwIiwiY3VycmVuY3kiOiIweDIwQzAwMDAwMDAwMDAwMDAwMDAwMDAwMGI5NTM3ZDExYzYwRThiNTAiLCJkZXNjcmlwdGlvbiI6IkVSQzIwIHRva2VuIGJhbGFuY2UgZm9yIGFueSBFdGhlcmV1bSB3YWxsZXQgLSBVU0RDLCBVU0RULCBEQUksIG9yIGFueSB0b2tlbiAtIHZpYSBiYWxhbmNlT2YgKGV0aF9jYWxsKSBvbiBPbmVTb3VyY2UgbGl2ZSBFdGhlcmV1bSBSUEMiLCJtZXRob2REZXRhaWxzIjp7ImNoYWluSWQiOjQyMTcsImVzY3Jvd0NvbnRyYWN0IjoiMHgzM2I5M"
+    },
+    "body_bytes": 4162,
+    "body_sha256": "186638edfcb42f547dc66f40ea3a59adbf45fe0b0e50cfa48cd54fabf0e333ed",
+    "body_excerpt": "{\"x402Version\":2,\"resource\":{\"url\":\"https://api.onesource.io/api/chain/erc20-balance?address=0xd8da6bf26964af9d7eed9e03e53415d37aa96045\\u0026contract=0xdac17f958d2ee523a2206206994597c13d831ec7\\u0026network=ethereum\",\"description\":\"ERC20 token balance for any Ethereum wallet - USDC, USDT, DAI, or any token - via balanceOf (eth_call) on OneSource live Ethereum RPC\",\"mimeType\":\"application/json\"},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"currency\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"amount\":\"3000\",\"maxAmountRequired\":\"3000\",\"payTo\":\"0x52E29e0d2Aa49bfBfC548C0A9F2196F4aa51f3ea\",\"recipient\":\"0x52E29e0d2Aa49bfBfC548C0A9F2196F4aa51f3ea\",\"maxTimeoutSeconds\":3600,\"extra\":{\"credentialTypes\":[\"authorization\"],\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"batch-settlement\",\"network\":\"eip155:8453\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"currency\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"amount\":\"3000\",\"maxAmountRequired\":\"3000\",\"payTo\":\"0x52E29e0d2Aa49bfBfC548C0A9F2196F4aa51f3ea\",\"recipient\":\"0x52E29e0d2Aa49bfBfC548C0A9F2196F4aa51f3ea\",\"maxTimeoutSeconds\":3600,\"extra\":{\"name\":\"USD Coin\",\"receiverAuthorizer\":\"0x11dF9F6280632aB8F12926b3f569E493EaEcf81b\",\"version\":\"2\",\"withdrawDelay\":86400}}],\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"method\":\"GET\",\"queryParams\":{\"address\":\"0xd8da6bf26964af9d7eed9e03e53415d37aa96045\",\"contract\":\"0xdac17f958d2ee523a2206206994597c13d831ec7\",\"network\":\"ethereum\"},\"type\":\"http\"},\"output\":{\"example\":{\"data\":{\"account\":\"0xd8da6bf26964af9d7eed9e03e53415d37aa96045\",\"balance\":\"1234567890\",\"contract_address\":\"0xdac17f958d2ee523a2206206994597c13d831ec7\",\"decimals\":6,\"name\":\"Tether USD\",\"symbol\":\"USDT\"},\"meta\":{\"cost_usdc\":\"0.001\",\"endpoint\":\"/api/chain/erc20-balance\",\"payment_chain\":\"base\",\"payment_token\":\"USDC\",\"request_id\":\"00000000abcdef01\"}},\"type\":\"json\"}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"properties\":{\"input\":{\"additionalProperties\":false,\"properties\":{\"method\":{\"enum\":[\"GET\",\"HEAD\",\"DELETE\"],\"type\":\"string\"},\"queryParams\":{\"properties\":{\"address\":{\"pattern\":\"^0x[a-fA-F0-9]{40}$\",\"type\":\"string\"},\"contract\":{\"pattern\":\"^0x[a-fA-F0-9]{40}$\",\"type\":\"string\"},\"network\":{\"default\":\"ethereum\",\"enum\":[\"ethereum\",\"sepolia\",\"robinhood\"],\"type\":\"string\"}},\"required\":[\"address\",\"contract\"],\"type\":\"object\"},\"type\":{\"const\":\"http\",\"type\":\"string\"}},\"required\":[\"type\",\"method\"],\"type\":\"object\"},\"output\":{\"properties\":{\"example\":{\"properties\":{\"data\":{\"description\":\"Endpoint-specific response payload\",\"properties\":{\"account\":{\"type\":\"string\"},\"balance\":{\"type\":\"string\"},\"contract_address\":{\"type\":\"string\"},\"decimals\":{\"type\":\"integer\"},\"name\":{\"type\":\"string\"},\"symbol\":{\"type\":\"string\"}},\"type\":\"object\"},\"error\":{\"properties\":{\"code\":{\"type\":\"integer\"},\"message\":{\"type\":\"string\"}},\"type\":[\"object\",\"null\"]},\"meta\":{\"properties\":{\"cost_usdc\":{\"type\":\"string\"},\"endpoint\":{\"type\":\"string\"},\"payment_chain\":{\"type\":\"string\"},\"payment_token\":{\"type\":\"string\"},\"request_id\":{\"type\":\"string\"}},\"required\":[\"endpoint\",\"request_id\"],\"type\":\"object\"}},\"required\":[\"data\",\"meta\"],\"type\":\"object\"},\"type\":{\"type\":\"string\"}},\"required\":[\"type\"],\"type\":\"object\"}},\"required\":[\"input\"],\"type\":\"object\"}}},\"error\":\"Payment required\",\"meta\":{\"cost_usdc\":\"0.003\",\"endpoint\":\"/api/chain/erc20-balance\",\"network\":\"eip155:8453\"},\"payment_rails\":[{\"assets\":[\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\"],\"chain\":\"eip155:8453\",\"rail\":\"x402\",\"recipient\":\"0x52E29e0d2Aa49bfBfC548C0A9F2196F4aa51f3ea\"},{\"assets\":[\"0x20c000000000000000000000b9537d11c60e8b50\",\"0x20c0000000000000000000000000000000000000\"],\"chain\":\"tempo:4217\",\"rail\":\"mpp\",\"recipient\":\"0x19B8e99079A5558ff4460357b0a78e14a7F600B7\"}],\"api_key_subscription\":{\"description\":\"Alternative to paying per call: a flat-rate monthly subscription authenticated with `Authorization: Bearer \\u003ckey\\u003e`. No wallet, stablecoin, or on-chain settlement required. Use this if the client cannot custody a private key, if billing must be invoiced, or if per-call pricing costs more than a flat fee"
+  },
+  "run_id": "20261009T143237Z",
+  "checked_at": "2026-10-09T14:32:38Z"
+}

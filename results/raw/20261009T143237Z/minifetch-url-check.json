@@ -1,0 +1,70 @@
+{
+  "service_id": "minifetch-url-check",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://minifetch.com/api/v1/x402/preflight/url-check?url=https%3A%2F%2Fexample.com",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 42,
+    "headers": {
+      "server": "nginx/1.28.0 (Ubuntu)",
+      "date": "Fri, 09 Oct 2026 14:32:38 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "2",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://minifetch.com/api/v1/x402/preflight/url-check?url=https%3A%2F%2Fexample.com",
+            "description": "Cheap robots.txt preflight before you call the Minifetch /extract and /run/seo-page-audit endpoints: returns whether the Minifetch user agent may fetch a target URL (allow/deny) plus its crawl-delay. If blocked or setting a crawl delay read https://minifetch.com/tutorials/unblock-minifetch . Checks the URL as given \u2014 does not follow redirects. Supports GET & POST",
+            "mimeType": "application/json",
+            "serviceName": "Minifetch: Search, Scrape, Extract & SEO Audit web pages",
+            "tags": [
+              "seo",
+              "robots-txt",
+              "preflight",
+              "crawlability",
+              "indexability"
+            ],
+            "iconUrl": "https://minifetch.com/favicon-96x96.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0xffA9155A0e4B3d8d42351Da226cC1feEe449686f",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "1000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "46vMcwuC4sK11sB3gkLhyA7J7GEwfkhn5rFyDtihBwqe",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 2,
+    "body_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "body_excerpt": "{}"
+  },
+  "run_id": "20261009T143237Z",
+  "checked_at": "2026-10-09T14:32:38Z"
+}
