@@ -11,6 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 CRAWL = os.path.join(ROOT, "crawl")
 TIMEOUT, WORKERS, LANES, SPACING = 5, 48, 3, 0.34
+LANE_BUDGET_S = int(os.environ.get("CRAWL_LANE_BUDGET_S", "2400"))  # per host lane; the rest is "not probed this run"
 CRAWL = os.environ.get("CRAWL_DIR", CRAWL)
 USDC = {"eip155:8453": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
         "eip155:84532": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
@@ -174,9 +175,13 @@ def probe(c):
     if 400 <= r.status_code < 500 and r.status_code != 402 and c["query"] and "?" not in url:
         # some sellers validate params before the 402: retry once with the listing's own example params
         r2 = fetch(url + "?" + urlencode({k: (json.dumps(v) if isinstance(v, (dict, list)) else v) for k, v in c["query"].items()}), c, done)
+        r.close()
         if isinstance(r2, dict): return r2
         r = r2
-    return judge(r, rec, lead, claimed, done)
+    try:
+        return judge(r, rec, lead, claimed, done)
+    finally:
+        r.close()
 
 def fetch(url, c, done):
     hdrs = {"accept": "application/json", "user-agent": "verified-catalog-spotcheck/0.11 (weekly self-checked crawl; never pays)"}
@@ -204,7 +209,12 @@ def judge(r, rec, lead, claimed, done):
         rec["http_status"] = r.status_code
         if r.status_code >= 500: return done("recheck", f"HTTP {r.status_code} (server error)")
         if r.status_code != 402: return done("skip", f"no 402 challenge (HTTP {r.status_code})")
-        r._content = r.raw.read(65536, decode_content=True)
+        buf, t_end = b"", time.monotonic() + 8  # hard wall-clock cap: a trickling server can't hold a lane
+        while len(buf) < 65536 and time.monotonic() < t_end:
+            chunk = r.raw.read(4096, decode_content=True)
+            if not chunk: break
+            buf += chunk
+        r._content = buf
         accs = decode_402(r)
         if not accs: return done("skip", "malformed 402 (no parseable accepts)")
         want_net = net(lead.get("network")) if "network" in lead else None
@@ -230,9 +240,14 @@ def judge(r, rec, lead, claimed, done):
         return done("recheck", "connection error: " + type(e).__name__)
 
 def run_lane(cands):
-    out = []
+    out, t_lane = [], time.monotonic() + LANE_BUDGET_S
     for c in cands:
         t0 = time.monotonic()
+        if t0 > t_lane:
+            out.append(dict(id=rid(c["norm"]), url=c["url"], norm_url=c["norm"], also_listed_in=c["also"], verdict="recheck",
+                            reason="not probed this run (per-host time budget; next run)", source_list=c["source_list"], check_type="self-checked",
+                            method=c["method"], timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")))
+            continue
         try: out.append(probe(c))
         except Exception as e:  # never lose a candidate
             out.append(dict(id=rid(c["norm"]), url=c["url"], norm_url=c["norm"], also_listed_in=c["also"], verdict="recheck",
@@ -254,14 +269,19 @@ if __name__ == "__main__":
     lanes.sort(key=len, reverse=True)  # biggest hosts start first
     print(f"candidates {len(cands)} hosts {len(by_host)} lanes {len(lanes)} biggest {len(lanes[0]) if lanes else 0}", flush=True)
     started = datetime.datetime.now(datetime.timezone.utc)
-    recs = []
-    with ThreadPoolExecutor(WORKERS) as ex:
-        for i, r in enumerate(ex.map(run_lane, lanes)): recs += r
     stamp = started.strftime("%Y%m%dT%H%M%SZ")
     prev = open(os.path.join(ROOT, "latest.txt")).read().strip() if os.path.exists(os.path.join(ROOT, "latest.txt")) else ""
     path = os.path.join(ROOT, f"receipts-{stamp}.jsonl")
-    with open(path + ".tmp", "w") as f:
-        for r in recs: f.write(json.dumps(r) + "\n")
+    recs, next_report = [], 5000
+    from concurrent.futures import as_completed
+    with ThreadPoolExecutor(WORKERS) as ex, open(path + ".tmp", "w") as f:  # written as lanes finish (progress survives)
+        for fut in as_completed([ex.submit(run_lane, l) for l in lanes]):
+            for r in fut.result():
+                f.write(json.dumps(r) + "\n")
+                recs.append(r)
+            f.flush()
+            if len(recs) >= next_report:
+                print(f"progress {len(recs)}/{len(cands)} {datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M:%SZ')}", flush=True); next_report += 5000
     os.replace(path + ".tmp", path)
     if prev and prev != os.path.basename(path):
         with open(os.path.join(ROOT, "previous.txt"), "w") as f: f.write(prev + "\n")

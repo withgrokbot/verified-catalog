@@ -74,6 +74,6 @@ if git diff --cached --quiet; then echo "repo already up to date"; else
 fi
 
 # 8) PayAI free credits left (read-only estimate) + the one-line summary
-CRED=$(python3 "$S/payai_credits.py" | python3 -c "import json,sys;j=json.load(sys.stdin);print(f\"payai_credits_left~{j['payai_credits_left_est']} (~{j['settlements_left_at_rate_est']} Base settlements; {j['settlements_to_pay_to']} so far)\")" || echo "payai_credits_left=unknown")
+CRED=$(python3 "$S/payai_credits.py" | python3 -c "import json,sys;j=json.load(sys.stdin);print(f\"payai_credits_left~{j['payai_credits_left_est']} (~{j['settlements_left_at_rate_est']} Base settlements; {j['settlements_to_pay_to']} so far; PayAI stats 30d: {j.get('payai_stats_settlements_30d')})\")" || echo "payai_credits_left=unknown")
 echo "== done $STAMP"
 echo "$COV $CRED"

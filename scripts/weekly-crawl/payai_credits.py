@@ -1,9 +1,9 @@
-"""Read-only estimate of PayAI free credits left for our receiving wallet (PAY_TO). PayAI documents no per-wallet
-balance endpoint for the free allowance, so: 1,000 lifetime credits minus our settlements to PAY_TO, each weighted
+"""Read-only estimate of PayAI free credits left for our receiving wallet (PAY_TO). PayAI has no per-wallet
+balance endpoint (its /openapi.json lists none, Oct 9) for the free allowance, so: 1,000 lifetime credits minus our settlements to PAY_TO, each weighted
 at PayAI's live Base rate (GET /pricing; settlements before 2026-09-21 count 1 credit).
 Settlements = our own self-test payments in the spend ledger (service ids verified-catalog-lookup*) + outside paid
 calls from Analytics Engine (needs CF_API_TOKEN analytics-read; skipped if absent). Prints one JSON line. Never pays."""
-import json, os, sys, datetime, urllib.request
+import json, os, sys, datetime, urllib.request, urllib.parse, urllib.error
 JOB = "/workspace/factory/jobs/BM-001-verified-catalog"
 ACCOUNT = os.environ.get("CF_ACCOUNT_ID", "aa4453a0042a949537d2fcae99590a5f")
 ALLOWANCE, CUTOVER = 1000.0, "2026-09-21"
@@ -33,6 +33,23 @@ def ae_outside():
     except Exception:
         return None
 
+def payai_stats():
+    """Cross-check from PayAI itself (read-only, public): GET /discovery/resources/{resource}/stats per paid resource.
+    Only covers settlements PayAI attributes to a Bazaar resource (not direct /settle tests); last30d is exact."""
+    base = "https://verified-catalog-lookup.withgrokbot.workers.dev"
+    n = 0
+    try:
+        for path in ("/v1/lookup/paid", "/v1/lookup", "/v1/products/endpoint-spot-check", "/v1/products/overnight-cos-pack"):
+            u = "https://facilitator.payai.network/discovery/resources/" + urllib.parse.quote(base + path, safe="") + "/stats"
+            try:
+                j = json.load(urllib.request.urlopen(urllib.request.Request(u, headers={"user-agent": "verified-catalog-credits-check"}), timeout=20))
+            except urllib.error.HTTPError:
+                continue
+            n += int((j.get("settlements") or {}).get("last30d") or 0)
+        return n
+    except Exception:
+        return None
+
 rate = base_rate()
 led, ae = ledger_self(), ae_outside()
 txs = {tx: ts for tx, ts in led.items()}
@@ -45,5 +62,6 @@ out = {"payai_credits_left_est": round(ALLOWANCE - used, 1), "settlements_to_pay
        "outside": None if outs is None else len(outs), "base_rate_credits": rate,
        "settlements_left_at_rate_est": int((ALLOWANCE - used) // (rate or 2.31)),
        "simple_1000_minus_settlements": int(ALLOWANCE - len(all_ts)),
+       "payai_stats_settlements_30d": payai_stats(),
        "note": "estimate; PayAI exposes no allowance balance API. Cloudflare egress IPs may also draw a shared-host pool."}
 print(json.dumps(out))
