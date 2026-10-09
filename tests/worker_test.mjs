@@ -1,13 +1,14 @@
 // Unit tests for worker/src/index.js with a stubbed fetch and a stubbed Analytics Engine binding.
 // All data here is synthetic. Run: node tests/worker_test.mjs   (Node 18+; no dependencies)
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import worker from "../worker/src/index.js";
-import { VERSION, listingFor, _resetCache, isoWeek, ipPrefix, saltPeriod, QuotaCounter, takeFree, quotaKey, PAYMENT_POLICY } from "../worker/src/lib.js";
+import { VERSION, listingFor, pickPayment, termsSha256, applyPayment, _resetCache, isoWeek, ipPrefix, saltPeriod, QuotaCounter, takeFree, quotaKey, PAYMENT_POLICY } from "../worker/src/lib.js";
 
 const BASE = "https://data.test/vc/";
 const H = 3600000;
@@ -810,7 +811,8 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   assert.equal(r.body.verdict, "pay");
   assert.equal(r.body.reason, "listed $0.001, payment request matches, details locked");
   // free tier: verdict + plain reason + access only (quoted/claimed price, pay_to, network, asset are paid)
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "reason", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "payment_terms_sha256", "reason", "verdict"]);
+  assert.match(r.body.payment_terms_sha256, /^[0-9a-f]{64}$/);
   assert.ok(lastSpotFetchInit);
   const h = lastSpotFetchInit.headers || {};
   const hdrObj = h instanceof Headers ? Object.fromEntries(h.entries()) : h;
@@ -1068,6 +1070,40 @@ test("spot-check expected pay_to / network: mismatches are skip; our crawl's lis
   const free = await send(SPOT + "?url=" + encodeURIComponent("https://topagentx402.vercel.app/api/send-token") + "&client=free-real-1", { envo: e });
   assert.equal(free.body.access.tier, "free");
   assert.equal(free.body.reason, "listed $0.001, asks for a different network than expected, details locked");
+});
+
+test("PAY STEP: paid pay verdict returns the exact signable payment; hash commits to it; skip approves nothing", async () => {
+  const e = spotEnv();
+  spotTargetMode = "402";
+  const ok = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=withgrokbot-selftest", { envo: e });
+  assert.equal(ok.body.verdict, "pay");
+  assert.deepEqual(ok.body.payment, { scheme: "exact", network: "eip155:8453", asset: USDC, asset_is_usdc: true, amount_atomic: "1000", amount_usd: 0.001, pay_to: PAY_TO });
+  const h = createHash("sha256").update(["eip155:8453", USDC.toLowerCase(), "1000", PAY_TO.toLowerCase()].join("|")).digest("hex");
+  assert.equal(ok.body.payment_terms_sha256, h);
+  assert.equal(await termsSha256(ok.body.payment), h);
+  const skip = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=9&client=withgrokbot-selftest", { envo: e });
+  assert.equal(skip.body.verdict, "skip");
+  assert.equal(skip.body.payment, null);
+  assert.equal(skip.body.payment_terms_sha256, null);
+  // free tier carries the same hash, never the terms
+  const free = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=paystep-free", { envo: e });
+  assert.equal(free.body.payment_terms_sha256, h);
+  assert.equal(free.body.payment, undefined);
+});
+
+test("PAY STEP: picks the accept matching the expectation; non-USDC asset is skip/asset_not_usdc; amount vs claimed", async () => {
+  const usdc = { scheme: "exact", network: "eip155:8453", asset: USDC, amount: "10000", payTo: "0x" + "aa".repeat(20), amount_usd: 0.01 };
+  const sep = { scheme: "exact", network: "eip155:84532", asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", amount: "10000", payTo: "0x" + "bb".repeat(20), amount_usd: 0.01 };
+  assert.equal(pickPayment({ accepts: [usdc, sep] }, { network: "eip155:84532" }).pay_to, sep.payTo);
+  const weird = { ...usdc, asset: "0x" + "99".repeat(20) };
+  assert.equal(pickPayment({ accepts: [weird, usdc] }, {}).asset, USDC, "prefers the USDC accept when nothing is expected");
+  const pm = pickPayment({ accepts: [weird] }, {});
+  assert.equal(pm.asset_is_usdc, false);
+  assert.equal(pm.amount_usd, null);
+  assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pm, {}), { verdict: "skip", reason: "asset_not_usdc" });
+  assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pickPayment({ accepts: [usdc] }, {}), { claimed: 0.02 }), { verdict: "skip", reason: "price_mismatch" });
+  assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, null, {}), { verdict: "recheck", reason: "ambiguous" });
+  assert.equal(pickPayment({ accepts: [{ scheme: "upto", network: "eip155:8453", amount: "1", payTo: "0x1" }] }, {}), null);
 });
 
 let passed = 0;

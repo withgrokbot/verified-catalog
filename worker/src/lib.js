@@ -32,7 +32,7 @@ import {
 
 import { handleSkips, handleReceipts } from "./skips.js";
 import { RECEIPTS } from "./receipts-data.js";
-export const VERSION = "0.7.0";
+export const VERSION = "0.8.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -815,11 +815,14 @@ export const SPOT_PAID_EXAMPLE = {
   expected_pay_to: "0x1111111111111111111111111111111111111111",
   expected_network: "eip155:8453",
   expected_source: "request",
+  payment: { scheme: "exact", network: "eip155:8453", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", asset_is_usdc: true, amount_atomic: "50000", amount_usd: 0.05, pay_to: "0x1111111111111111111111111111111111111111" },
+  payment_terms_sha256: "<sha256 of network|asset|amount_atomic|pay_to, lower-case>",
   access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
 };
 export const SPOT_FREE_EXAMPLE = {
   verdict: "pay",
   reason: "listed $0.05, payment request matches, details locked",
+  payment_terms_sha256: "<sha256 of network|asset|amount_atomic|pay_to, lower-case>",
   access: { tier: "free", free_per_day: 1, free_used_today: 1, free_remaining_today: 0, then: "$0.01 USDC on Base for the full check of this endpoint via x402 (HTTP 402)" },
 };
 const SPOT_VERDICT_SCHEMA = { type: "string", enum: ["pay", "skip", "recheck"] };
@@ -828,7 +831,7 @@ export const SPOT_PAID_SCHEMA = {
   description: "paid response: decision plus the facts behind it",
   properties: {
     verdict: SPOT_VERDICT_SCHEMA,
-    reason: { type: "string", enum: ["price_ok", "price_mismatch", "network_mismatch", "pay_to_mismatch", "no_x402", "timeout", "unreachable", "ambiguous", "bad_challenge", "ssrf_blocked"] },
+    reason: { type: "string", enum: ["price_ok", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "no_x402", "timeout", "unreachable", "ambiguous", "bad_challenge", "ssrf_blocked"] },
     quoted_price_usd: { type: ["number", "null"], description: "price in the target's live 402 challenge" },
     claimed_price_usd: { type: ["number", "null"], description: "the claimed_price you sent" },
     pay_to: { type: ["string", "null"] },
@@ -837,9 +840,15 @@ export const SPOT_PAID_SCHEMA = {
     expected_pay_to: { type: ["string", "null"], description: "the pay_to you sent, else the listing's (from our crawl), else null" },
     expected_network: { type: ["string", "null"] },
     expected_source: { type: ["string", "null"], enum: ["request", "listing", null] },
+    payment: {
+      type: ["object", "null"],
+      description: "verdict pay only: the exact payment a router may sign, from the live 402, checked against the listing. Sign nothing else.",
+      properties: { scheme: { type: "string" }, network: { type: "string" }, asset: { type: "string" }, asset_is_usdc: { type: ["boolean", "null"] }, amount_atomic: { type: "string" }, amount_usd: { type: ["number", "null"] }, pay_to: { type: "string" } },
+    },
+    payment_terms_sha256: { type: ["string", "null"], description: "sha256 hex of lower-case network|asset|amount_atomic|pay_to (null unless pay)" },
     access: { type: "object", properties: { tier: { const: "paid" }, charged_usd: { type: "string" }, tx: { type: "string" } } },
   },
-  required: ["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source", "access"],
+  required: ["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source", "payment", "payment_terms_sha256", "access"],
 };
 export const SPOT_FREE_SCHEMA = {
   type: "object",
@@ -847,9 +856,10 @@ export const SPOT_FREE_SCHEMA = {
   properties: {
     verdict: SPOT_VERDICT_SCHEMA,
     reason: { type: "string", description: "plain words, e.g. 'listed $0.01, no payment request, details locked'" },
+    payment_terms_sha256: { type: ["string", "null"], description: "sha256 hex of lower-case network|asset|amount_atomic|pay_to of the approved payment (null unless pay)" },
     access: { type: "object", properties: { tier: { const: "free" } } },
   },
-  required: ["verdict", "reason", "access"],
+  required: ["verdict", "reason", "payment_terms_sha256", "access"],
   additionalProperties: false,
 };
 
@@ -876,7 +886,7 @@ export function spotPaymentRequired(c, resourceUrl, error, used) {
     free_per_day: c.freePerDay,
     free_used_today: used,
     free_resets: "00:00 UTC",
-    paid_fields: ["quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source"],
+    paid_fields: ["quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source", "payment"],
     paid_example: {
       verdict: "skip",
       reason: "no_x402",
@@ -888,6 +898,8 @@ export function spotPaymentRequired(c, resourceUrl, error, used) {
       expected_pay_to: null,
       expected_network: null,
       expected_source: "request",
+      payment: null,
+      payment_terms_sha256: null,
       access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
     },
     paid_example_note: "Real case: https://frog03-20494.wykr.es/api/signals/paid is listed as a $0.01 x402 endpoint; the live probe gets HTTP 200 with no 402 challenge, so there is nothing safe to pay. Receipt: " + origin + "/v1/receipts/ae218e0fb7",
@@ -926,6 +938,45 @@ export function listingFor(u) {
   }
   return LISTINGS.get(String(u || "")) || null;
 }
+// PAY STEP (0.8.0): the exact payment a router may sign, taken from the target's live 402 and checked against the
+// expectation (caller's listing, else our crawl's listing). Only USDC is approved where we know the USDC contract.
+export const USDC_BY_NETWORK = {
+  "eip155:8453": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+  "eip155:84532": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+  "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp": "epjfwdd5aufqsqem2qn1xzybapc8g4wegggkzwytdt1v",
+};
+const lc = (v) => String(v ?? "").toLowerCase();
+export function pickPayment(probe, exp = {}) {
+  const accepts = (Array.isArray(probe && probe.accepts) ? probe.accepts : []).filter((a) => a && a.network && a.payTo && a.amount != null && /^[0-9]{1,30}$/.test(String(a.amount)) && (!a.scheme || a.scheme === "exact"));
+  if (!accepts.length) return null;
+  const usdc = (a) => USDC_BY_NETWORK[lc(a.network)] ? USDC_BY_NETWORK[lc(a.network)] === lc(a.asset) : null;
+  const score = (a) => (exp.network && lc(a.network) === lc(exp.network) ? 4 : 0) + (exp.pay_to && lc(a.payTo) === lc(exp.pay_to) ? 2 : 0) + (usdc(a) === true ? 1 : 0);
+  const a = [...accepts].sort((x, y) => score(y) - score(x))[0];
+  const isUsdc = usdc(a);
+  return {
+    scheme: a.scheme || "exact",
+    network: a.network,
+    asset: a.asset || null,
+    asset_is_usdc: isUsdc,
+    amount_atomic: String(a.amount),
+    amount_usd: isUsdc ? Number(a.amount) / 1e6 : null,
+    pay_to: a.payTo,
+  };
+}
+// Commitment to the approved terms, so the free tier can enforce them without the terms in the body.
+export async function termsSha256(pm) {
+  if (!pm) return null;
+  return sha256hex([lc(pm.network), lc(pm.asset), String(pm.amount_atomic), lc(pm.pay_to)].join("|"));
+}
+// After decideVerdict + applyExpected: a "pay" needs one signable USDC payment whose amount matches the claimed price.
+export function applyPayment(d, pm, exp) {
+  if (!d || d.verdict !== "pay") return d;
+  if (!pm) return { verdict: "recheck", reason: "ambiguous" };
+  if (pm.asset_is_usdc === false) return { verdict: "skip", reason: "asset_not_usdc" };
+  if (exp.claimed != null && pm.amount_usd != null && priceMatchesClaimed(pm.amount_usd, exp.claimed) === false) return { verdict: "skip", reason: "price_mismatch" };
+  return d;
+}
+
 // Compare a verdict "pay" against the expected pay_to / network: a 402 that pays a different wallet or runs on a
 // different network than expected is a skip.
 export function applyExpected(d, probe, exp) {
@@ -1031,6 +1082,7 @@ export function spotLossReason(d, claimed) {
     price_ok: "payment request matches",
     network_mismatch: "asks for a different network than expected",
     pay_to_mismatch: "pays a different wallet than expected",
+    asset_not_usdc: "asks for a token other than USDC",
   }[d.reason] || d.reason;
   if (d.reason === "price_ok" && listed === "price unlisted") return "payment request found, pass claimed_price to compare, details locked";
   return `${listed}, ${what}, details locked`;
@@ -1057,10 +1109,14 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     network: q.network || (listing && listing.listed_network) || null,
     source: q.pay_to || q.network || q.claimed_price !== null ? "request" : listing ? "listing" : null,
   };
-  const buildResult = (probe, access) => {
-    const d = applyExpected(decideVerdict(probe, exp.claimed), probe, exp);
-    // Free tier: verdict + reason only. Quoted/claimed price and pay-to are behind the paid 402.
-    if (access && access.tier === "free") return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), access };
+  const buildResult = async (probe, access) => {
+    const pm0 = pickPayment(probe, exp);
+    const d = applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pm0, exp);
+    const pm = d.verdict === "pay" ? pm0 : null; // only a "pay" verdict approves terms
+    const termsHash = await termsSha256(pm);
+    // Free tier: verdict + plain reason + a hash of the approved terms (enough for x402-spotcheck to refuse a
+    // different payment); the terms themselves, quoted/claimed price and pay-to are behind the paid 402.
+    if (access && access.tier === "free") return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), payment_terms_sha256: termsHash, access };
     const acc = Array.isArray(probe.accepts) ? probe.accepts.find((a) => a && a.payTo) : null;
     return {
       verdict: d.verdict,
@@ -1073,6 +1129,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       expected_pay_to: exp.pay_to,
       expected_network: exp.network,
       expected_source: exp.source,
+      payment: pm,
+      payment_terms_sha256: termsHash,
       access,
     };
   };
@@ -1181,12 +1239,12 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       const selfPaid = String(r.settle.payer || authFrom || "").toLowerCase() === c.payTo.toLowerCase();
       if (selfPaid) access.self_test = true;
       writePoint(env, dataPoint({ cid, q: qLike, excluded: selfPaid ? "self" : "", candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "paid", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed }));
-      return json(buildResult(probe, access), 200, extraHeaders);
+      return json(await buildResult(probe, access), 200, extraHeaders);
     }
   }
 
   writePoint(env, dataPoint({ cid, q: qLike, excluded: isExempt(qLike, env) ? "self" : "", candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: access.tier === "partner" ? "partner" : access.tier, freeUsed: partner ? partner.used : freeUsed }));
-  return json(buildResult(probe, access), 200, extraHeaders);
+  return json(await buildResult(probe, access), 200, extraHeaders);
 }
 
 export function paymentRequired(c, url, error, used) {
@@ -1454,7 +1512,7 @@ export function openapi(origin, env = {}) {
             protocols: [{ x402: { scheme: "exact", network: spotCfg(env).network, asset: USDC_BASE, payTo: spotCfg(env).payTo } }],
           },
           responses: {
-            200: { description: "free tier: verdict (pay|skip|recheck), a plain-words reason, access. Paid tier: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, access (with settlement tx)", content: { "application/json": { schema: { oneOf: [SPOT_PAID_SCHEMA, SPOT_FREE_SCHEMA] }, examples: { paid: { value: SPOT_PAID_EXAMPLE }, free: { value: SPOT_FREE_EXAMPLE } } } } },
+            200: { description: "free tier: verdict (pay|skip|recheck), a plain-words reason, access. Paid tier: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, payment (the exact signable payment when verdict is pay), payment_terms_sha256, access (with settlement tx). Free tier also carries payment_terms_sha256", content: { "application/json": { schema: { oneOf: [SPOT_PAID_SCHEMA, SPOT_FREE_SCHEMA] }, examples: { paid: { value: SPOT_PAID_EXAMPLE }, free: { value: SPOT_FREE_EXAMPLE } } } } },
             400: { description: "bad params, or SSRF-blocked URL as verdict=skip reason=ssrf_blocked (no fetch)" },
             402: { description: "free quota used: x402 v2 payment requirement ($0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base)" },
             429: { description: "paid rate limit (per payer per UTC hour)" },
@@ -1816,7 +1874,7 @@ export const MCP_TOOLS = [
     name: "endpoint_spot_check",
     description:
       "Decision-shaped SSRF-safe spot-check of a public URL for an x402 PAYMENT-REQUIRED / 402 challenge. " +
-      "Free: verdict (pay|skip|recheck), a plain-words reason, and access. Paid: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, and access with the settlement tx. " +
+      "Free: verdict (pay|skip|recheck), a plain-words reason, payment_terms_sha256 (hash of the approved payment), and access. Paid: verdict, reason code, quoted/claimed price, pay_to, network, asset, and payment = the exact {network, asset, amount_atomic, amount_usd, pay_to} a router may sign (verdict pay only), plus access with the settlement tx. " +
       "Never pays the target (probe GET only). 1 free check per client per UTC day (client=vc-mcp), then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402. " +
       "Unpaid after free quota: payment instructions. Forward PAYMENT-SIGNATURE for a paid check.",
     inputSchema: {
