@@ -366,7 +366,7 @@ test("402 shape: x402 v2 PAYMENT-REQUIRED header and body, $0.02 USDC on Base to
   assert.ok(r.body.try_free_lookup.url.includes("ref=via-402-hint"));
   assert.match(r.body.also_available.url, /\/v1\/products\/overnight-cos-pack$/);
   assert.match(r.body.also_available_spot_check.url, /\/v1\/products\/endpoint-spot-check/);
-  assert.equal(r.body.also_available_spot_check.price_usdc, 0.25);
+  assert.equal(r.body.also_available_spot_check.price_usdc, "0.01-0.25");
   assert.match(r.headers.get("access-control-expose-headers"), /PAYMENT-REQUIRED/);
   // OpenAPI and the help page document the 402 and the policy
   const oa = (await call("/openapi.json", { envo: e })).body;
@@ -568,7 +568,7 @@ test("MCP /mcp: initialize, tools/list (catalog tools + products), ping, notific
   let r = await rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } } }, { envo: e });
   assert.equal(r.status, 200);
   assert.match(r.headers.get("content-type"), /application\/json/);
-  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "verified-catalog", version: "0.6.2" } } });
+  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "verified-catalog", version: "0.6.3" } } });
   assert.equal(r.headers.get("mcp-session-id"), null, "stateless: no session");
   r = await rpc({ jsonrpc: "2.0", method: "notifications/initialized" }, { envo: e });
   assert.equal(r.status, 202);
@@ -689,13 +689,13 @@ test("overnight-cos-pack: unpaid GET/POST return 402 with amount 9000000, payTo,
   const wk = (await send("/.well-known/x402", { envo: e })).body;
   assert.ok(wk.resources.includes("https://lookup.test" + PACK));
   const oa = (await send("/openapi.json", { envo: e })).body;
-  assert.equal(oa.info.version, "0.6.2");
+  assert.equal(oa.info.version, "0.6.3");
   const op = oa.paths[PACK].get;
   assert.deepEqual(op["x-payment-info"].price, { mode: "fixed", currency: "USD", amount: "9" });
   assert.equal(op["x-payment-info"].protocols[0].x402.payTo, PAY_TO);
   assert.ok(oa.paths[PACK].post);
   const health = (await send("/health", { envo: e })).body;
-  assert.equal(health.version, "0.6.2");
+  assert.equal(health.version, "0.6.3");
 });
 
 test("overnight-cos-pack: paid path with mocked facilitator returns prompts+template+guide; wrong amount rejected", async () => {
@@ -802,27 +802,23 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   assert.equal(r.status, 200);
   assert.equal(r.body.access.tier, "free");
   assert.equal(r.body.verdict, "pay");
-  assert.equal(r.body.reason, "price_ok");
-  assert.equal(r.body.quoted_price_usd, 0.001);
-  assert.equal(r.body.claimed_price_usd, 0.001);
-  // slim: only decision fields + access
-  for (const k of Object.keys(r.body)) {
-    assert.ok(["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "access"].includes(k), "unexpected field " + k);
-  }
+  assert.equal(r.body.reason, "listed $0.001, payment request matches, details locked");
+  // free tier: verdict + plain reason + access only (quoted/claimed price, pay_to, network, asset are paid)
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "reason", "verdict"]);
   assert.ok(lastSpotFetchInit);
   const h = lastSpotFetchInit.headers || {};
   const hdrObj = h instanceof Headers ? Object.fromEntries(h.entries()) : h;
   const keys = Object.keys(hdrObj).map((k) => k.toLowerCase());
   assert.ok(!keys.includes("payment-signature") && !keys.includes("x-payment"), "never send payment headers outbound");
-  // second call same day → 402 for $0.25
+  // second call same day → 402 priced at 1/10 of the $0.001 quote, floored at $0.01
   const r2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-free-1", { envo: e });
   assert.equal(r2.status, 402);
-  assert.equal(r2.body.accepts[0].amount, "250000");
-  assert.equal(r2.body.price_usd, "0.25");
+  assert.equal(r2.body.accepts[0].amount, "10000");
+  assert.equal(r2.body.price_usd, "0.01");
   assert.equal(r2.body.product, "endpoint-spot-check");
 });
 
-test("spot-check unpaid after free exhausted → 402 amount 250000; paid path works; never pays target", async () => {
+test("spot-check unpaid after free exhausted → 402 amount 10000 (1/10 of quote, min $0.01); paid path works; never pays target", async () => {
   const e = spotEnv();
   facCalls.length = 0;
   facMode = "ok";
@@ -830,15 +826,18 @@ test("spot-check unpaid after free exhausted → 402 amount 250000; paid path wo
   await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", { envo: e });
   const unpaid = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", { envo: e });
   assert.equal(unpaid.status, 402);
-  assert.equal(unpaid.body.accepts[0].amount, "250000");
+  assert.equal(unpaid.body.accepts[0].amount, "10000");
   lastSpotFetchInit = null;
   const paid = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", {
     envo: e,
-    headers: { "payment-signature": spotPayment() },
+    headers: { "payment-signature": spotPayment({ amount: "10000" }) },
   });
   assert.equal(paid.status, 200);
   assert.equal(paid.body.access.tier, "paid");
-  assert.equal(paid.body.access.charged_usd, "0.25");
+  assert.equal(paid.body.access.charged_usd, "0.01");
+  assert.equal(paid.body.pay_to, PAY_TO);
+  assert.equal(paid.body.network, "eip155:8453");
+  assert.equal(paid.body.asset, USDC);
   assert.equal(paid.body.verdict, "pay");
   assert.equal(paid.body.reason, "price_ok");
   assert.equal(paid.body.quoted_price_usd, 0.001);
@@ -877,13 +876,13 @@ test("MCP endpoint_spot_check listed; unpaid after free returns pay instructions
   const free = await rpc(call, { envo: e });
   assert.equal(free.body.result.isError, undefined);
   assert.equal(free.body.result.structuredContent.verdict, "pay");
-  assert.equal(free.body.result.structuredContent.reason, "price_ok");
-  assert.equal(free.body.result.structuredContent.quoted_price_usd, 0.001);
+  assert.match(free.body.result.structuredContent.reason, /details locked/);
+  assert.equal(free.body.result.structuredContent.quoted_price_usd, undefined);
   const paidNeed = await rpc(call, { envo: e });
   assert.equal(paidNeed.body.result.isError, true);
-  assert.match(paidNeed.body.result.content[0].text, /Payment required: \$0\.25 USDC/);
+  assert.match(paidNeed.body.result.content[0].text, /Payment required: \$0\.01 to \$0\.25 USDC/);
   const health = (await send("/health", { envo: e })).body;
-  assert.equal(health.version, "0.6.2");
+  assert.equal(health.version, "0.6.3");
   const oa = (await send("/openapi.json", { envo: e })).body;
   assert.ok(oa.paths[SPOT]);
   assert.match(oa.paths[SPOT].get.responses[200].description, /verdict/);
@@ -903,6 +902,39 @@ test("spot-check price_mismatch → skip; no claimed → pay when challenge ok",
   assert.equal(noclaim.body.verdict, "pay");
   assert.equal(noclaim.body.reason, "price_ok");
   assert.equal(noclaim.body.claimed_price_usd, null);
+});
+
+test("spot-check aliases: endpoint= and claimed_price_usd= accepted (0.6.3); /v1/skips + /v1/receipts serve", async () => {
+  const e = spotEnv();
+  spotTargetMode = "402";
+  const a = await send(SPOT + "?endpoint=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price_usd=9.99&client=withgrokbot-selftest", { envo: e });
+  assert.equal(a.status, 200);
+  assert.equal(a.body.verdict, "skip");
+  assert.equal(a.body.claimed_price_usd, 9.99);
+  const none = await send(SPOT + "?client=withgrokbot-selftest", { envo: e });
+  assert.equal(none.status, 400);
+  assert.deepEqual(Object.keys(none.body), ["error", "field", "example"]);
+  assert.equal(none.body.field, "url");
+  assert.ok(none.body.error.startsWith('Missing "url". Example: ') && !none.body.error.includes("\n"));
+  const wrong = await send(SPOT + "?link=https://a.test/x", { envo: e });
+  assert.equal(wrong.status, 400);
+  assert.ok(wrong.body.error.includes('unknown param "link"'));
+  const bad = await send(SPOT + "?url=notaurl", { envo: e });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.field, "url");
+  assert.ok(bad.body.error.startsWith('Invalid "url"'));
+  const badBody = await send(SPOT, { method: "POST", body: "nope", envo: e });
+  assert.equal(badBody.status, 400);
+  assert.equal(badBody.body.field, "body");
+  const put = await send(SPOT, { method: "PUT", envo: e });
+  assert.equal(put.status, 400);
+  assert.equal(put.body.field, "method");
+  const sk = await send("/v1/skips?format=json", { envo: e });
+  assert.equal(sk.status, 200);
+  assert.ok(sk.body.total_receipts > 0 && sk.body.skips.every((r) => r.verdict === "skip"));
+  const one = await send("/v1/receipts/" + sk.body.featured_mismatch.split("/").pop(), { envo: e });
+  assert.equal(one.status, 200);
+  assert.equal(one.body.verdict, "skip");
 });
 
 let passed = 0;

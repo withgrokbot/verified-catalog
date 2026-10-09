@@ -3,6 +3,23 @@ name = "verified-catalog-lookup"
 main = "src/index.js"
 compatibility_date = "2026-09-01"
 workers_dev = true
+# Ported from the dashboard upload of 2026-10-08 (version b8ef527d): preview URLs + Workers Logs/Traces on.
+preview_urls = true
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true
+persist = true
+head_sampling_rate = 1
 
 [vars]
 DATA_BASE_URL = "https://withgrokbot.github.io/verified-catalog/"
@@ -22,7 +39,7 @@ FACILITATOR_URL = "https://facilitator.payai.network"
 PACK_PRICE_ATOMIC = "9000000"
 # Product (0.6.0): x402 Endpoint Spot-Check — 1 free/client/UTC day, then $0.25 USDC (250000 atomic).
 # SELF_CLIENTS exempt from free quota only (still SSRF-gated). Never pays the URL under test.
-SPOT_PRICE_ATOMIC = "250000"
+SPOT_PRICE_ATOMIC = "250000"  # legacy flat price; 0.6.3+ prices per target: 1/10 of its quote, min $0.01, cap $0.25
 SPOT_FREE_PER_DAY = "1"
 SPOT_PAID_PER_HOUR = "30"
 

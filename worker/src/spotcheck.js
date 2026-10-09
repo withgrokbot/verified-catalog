@@ -331,7 +331,7 @@ export async function spotProbe(rawUrl, opts = {}) {
           signal: ac.signal,
           headers: {
             accept: "application/json, text/plain, */*",
-            "user-agent": "verified-catalog-spotcheck/0.6.2",
+            "user-agent": "verified-catalog-spotcheck/0.6.3",
             // Explicitly do NOT send payment headers
           },
         });
