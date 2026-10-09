@@ -81,6 +81,11 @@ globalThis.fetch = async (url, init = {}) => {
     return Response.json({ Answer: [{ type: 5, data: "cdn.example.test." }] });
   }
   // Spot-check probe targets (never expect payment headers)
+  if (u.startsWith("https://topagentx402.vercel.app/api/send-token")) {
+    // the live 402 seen in our 2026-10-07 crawl: Base mainnet, while the listing says Base Sepolia
+    const accepts = [{ scheme: "exact", network: "eip155:8453", amount: "1000", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: "0xb1f64fc8689a17014Cf0748e8EeaD58C5457Ec74" }];
+    return new Response(JSON.stringify({ x402Version: 2, accepts }), { status: 402, headers: { "content-type": "application/json" } });
+  }
   if (u.startsWith("https://spot.target.test/") || u.startsWith("https://x402.example.test/")) {
     lastSpotFetchInit = init || {};
     if (spotTargetMode === "timeout") {
@@ -990,6 +995,77 @@ test("spot-check paid by our own wallet (payer = payTo) is recorded as self, not
   assert.equal(paid2.status, 200);
   assert.equal(paid2.body.access.self_test, undefined);
   assert.equal(e.points.filter((p) => p.blobs[12] === "paid").pop().blobs[5], "");
+});
+
+test("first-router pool: allowlisted client gets N free full checks (config-driven), then normal daily free + 402", async () => {
+  const e = spotEnv({ SPOT_PARTNER_CLIENTS: "router-abc123:3, bad id:5, other.router:2" });
+  spotTargetMode = "402";
+  const t = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=Router-ABC123";
+  for (let i = 1; i <= 3; i++) {
+    const r = await send(t, { envo: e });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.access.tier, "partner");
+    assert.equal(r.body.access.partner_free_total, 3);
+    assert.equal(r.body.access.partner_used, i);
+    assert.equal(r.body.access.partner_remaining, 3 - i);
+    assert.equal(r.body.quoted_price_usd, 0.001, "partner checks are full checks");
+    assert.equal(r.body.pay_to, PAY_TO);
+    assert.equal(r.body.reason, "price_ok");
+  }
+  assert.equal(e.points.filter((p) => p.blobs[12] === "partner").length, 3);
+  const daily = await send(t, { envo: e });
+  assert.equal(daily.body.access.tier, "free", "pool used up: back to the normal 1 free/day");
+  const after = await send(t, { envo: e });
+  assert.equal(after.status, 402);
+  // pools are per id; unlisted ids and malformed entries get nothing
+  assert.equal((await send(t.replace("Router-ABC123", "other.router"), { envo: e })).body.access.tier, "partner");
+  assert.equal((await send(t.replace("Router-ABC123", "router-abc124"), { envo: e })).body.access.tier, "free");
+  const none = spotEnv();
+  assert.equal((await send(t, { envo: none })).body.access.tier, "free", "no config, no pool");
+});
+
+test("spot-check method=POST probes the target with POST and an empty JSON body; bad method is a 400", async () => {
+  const e = spotEnv();
+  spotTargetMode = "402";
+  lastSpotFetchInit = null;
+  const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&method=post&client=withgrokbot-selftest", { envo: e });
+  assert.equal(r.status, 200);
+  assert.equal(lastSpotFetchInit.method, "POST");
+  assert.equal(lastSpotFetchInit.body, "{}");
+  assert.ok(!Object.keys(lastSpotFetchInit.headers).some((k) => /payment/i.test(k)));
+  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest", { envo: e });
+  assert.equal(lastSpotFetchInit.method, "GET");
+  const bad = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&method=DELETE", { envo: e });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.field, "method");
+});
+
+test("spot-check expected pay_to / network: mismatches are skip; our crawl's listing is the default expectation", async () => {
+  const e = spotEnv();
+  spotTargetMode = "402";
+  const base = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest";
+  const ok = await send(base + "&pay_to=" + PAY_TO.toLowerCase() + "&network=eip155:8453", { envo: e });
+  assert.equal(ok.body.verdict, "pay");
+  assert.equal(ok.body.expected_pay_to, PAY_TO.toLowerCase());
+  assert.equal(ok.body.expected_source, "request");
+  const wallet = await send(base + "&pay_to=0x" + "ab".repeat(20), { envo: e });
+  assert.deepEqual([wallet.body.verdict, wallet.body.reason], ["skip", "pay_to_mismatch"]);
+  const net = await send(base + "&network=eip155:84532", { envo: e });
+  assert.deepEqual([net.body.verdict, net.body.reason], ["skip", "network_mismatch"]);
+  const bad = await send(base + "&pay_to=not%20a%20wallet", { envo: e });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.field, "pay_to");
+  // Real /v1/skips case b5e13e8271: listed on Base Sepolia, live 402 asks for Base mainnet USDC.
+  const real = await send(SPOT + "?url=" + encodeURIComponent("https://topagentx402.vercel.app/api/send-token") + "&client=withgrokbot-selftest", { envo: e });
+  assert.equal(real.body.verdict, "skip");
+  assert.equal(real.body.reason, "network_mismatch");
+  assert.equal(real.body.expected_network, "eip155:84532");
+  assert.equal(real.body.expected_source, "listing");
+  assert.equal(real.body.claimed_price_usd, 0.001);
+  // free tier states it in plain words
+  const free = await send(SPOT + "?url=" + encodeURIComponent("https://topagentx402.vercel.app/api/send-token") + "&client=free-real-1", { envo: e });
+  assert.equal(free.body.access.tier, "free");
+  assert.equal(free.body.reason, "listed $0.001, asks for a different network than expected, details locked");
 });
 
 let passed = 0;

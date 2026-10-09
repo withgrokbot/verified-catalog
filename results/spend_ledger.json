@@ -585,7 +585,7 @@
     {
       "ts": "2026-10-09T19:17:22Z",
       "day": "2026-10-09",
-      "service_id": "self-v1-products-endpoint-spot-check",
+      "service_id": "verified-catalog-lookup-spot-selftest",
       "amount_usd": "0.01",
       "status": "settled",
       "tx": "0x3501f981c0c1d599912e12fda64ff6d04dcf26e1c5e74d16b56986f5dded89f6"

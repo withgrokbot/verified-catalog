@@ -31,7 +31,8 @@ import {
 } from "./spotcheck.js";
 
 import { handleSkips, handleReceipts } from "./skips.js";
-export const VERSION = "0.6.4";
+import { RECEIPTS } from "./receipts-data.js";
+export const VERSION = "0.7.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -775,6 +776,9 @@ export function spotBazaarExtension() {
                 url: { type: "string", description: "public http(s) URL to probe for an x402 challenge" },
                 task: { type: "string" },
                 claimed_price: { type: "string", description: "optional claimed USD price to compare" },
+                method: { type: "string", enum: ["GET", "POST"], description: "probe method for the target (default GET)" },
+                pay_to: { type: "string", description: "optional expected pay-to wallet" },
+                network: { type: "string", description: "optional expected CAIP-2 network" },
                 client: { type: "string" },
                 ref: { type: "string" },
               },
@@ -808,6 +812,9 @@ export const SPOT_PAID_EXAMPLE = {
   pay_to: "0x1111111111111111111111111111111111111111",
   network: "eip155:8453",
   asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  expected_pay_to: "0x1111111111111111111111111111111111111111",
+  expected_network: "eip155:8453",
+  expected_source: "request",
   access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
 };
 export const SPOT_FREE_EXAMPLE = {
@@ -821,15 +828,18 @@ export const SPOT_PAID_SCHEMA = {
   description: "paid response: decision plus the facts behind it",
   properties: {
     verdict: SPOT_VERDICT_SCHEMA,
-    reason: { type: "string", enum: ["price_ok", "price_mismatch", "no_x402", "timeout", "unreachable", "ambiguous", "bad_challenge", "ssrf_blocked"] },
+    reason: { type: "string", enum: ["price_ok", "price_mismatch", "network_mismatch", "pay_to_mismatch", "no_x402", "timeout", "unreachable", "ambiguous", "bad_challenge", "ssrf_blocked"] },
     quoted_price_usd: { type: ["number", "null"], description: "price in the target's live 402 challenge" },
     claimed_price_usd: { type: ["number", "null"], description: "the claimed_price you sent" },
     pay_to: { type: ["string", "null"] },
     network: { type: ["string", "null"] },
     asset: { type: ["string", "null"] },
+    expected_pay_to: { type: ["string", "null"], description: "the pay_to you sent, else the listing's (from our crawl), else null" },
+    expected_network: { type: ["string", "null"] },
+    expected_source: { type: ["string", "null"], enum: ["request", "listing", null] },
     access: { type: "object", properties: { tier: { const: "paid" }, charged_usd: { type: "string" }, tx: { type: "string" } } },
   },
-  required: ["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "access"],
+  required: ["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source", "access"],
 };
 export const SPOT_FREE_SCHEMA = {
   type: "object",
@@ -866,7 +876,7 @@ export function spotPaymentRequired(c, resourceUrl, error, used) {
     free_per_day: c.freePerDay,
     free_used_today: used,
     free_resets: "00:00 UTC",
-    paid_fields: ["quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset"],
+    paid_fields: ["quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source"],
     paid_example: {
       verdict: "skip",
       reason: "no_x402",
@@ -875,6 +885,9 @@ export function spotPaymentRequired(c, resourceUrl, error, used) {
       pay_to: null,
       network: null,
       asset: null,
+      expected_pay_to: null,
+      expected_network: null,
+      expected_source: "request",
       access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
     },
     paid_example_note: "Real case: https://frog03-20494.wykr.es/api/signals/paid is listed as a $0.01 x402 endpoint; the live probe gets HTTP 200 with no 402 challenge, so there is nothing safe to pay. Receipt: " + origin + "/v1/receipts/ae218e0fb7",
@@ -901,7 +914,42 @@ export function spotBadRequest(origin, field, problem) {
     example,
   };
 }
-const SPOT_KNOWN_PARAMS = new Set([...SPOT_URL_ALIASES, ...SPOT_PRICE_ALIASES, "task", "client", "ref", "format"]);
+const SPOT_KNOWN_PARAMS = new Set([...SPOT_URL_ALIASES, ...SPOT_PRICE_ALIASES, "task", "client", "ref", "format", "method", "pay_to", "network"]);
+
+// Listing facts from our self-checked crawl (/v1/receipts), by exact URL. Used as the expected pay_to / network / price
+// when the caller does not send its own (0.7.0).
+let LISTINGS = null;
+export function listingFor(u) {
+  if (!LISTINGS) {
+    LISTINGS = new Map();
+    for (const r of RECEIPTS || []) if (r && r.url) LISTINGS.set(String(r.url), r);
+  }
+  return LISTINGS.get(String(u || "")) || null;
+}
+// Compare a verdict "pay" against the expected pay_to / network: a 402 that pays a different wallet or runs on a
+// different network than expected is a skip.
+export function applyExpected(d, probe, exp) {
+  if (!d || d.verdict !== "pay") return d;
+  const accepts = Array.isArray(probe.accepts) ? probe.accepts : [];
+  if (exp.network && accepts.length && !accepts.some((a) => String(a.network || "").toLowerCase() === exp.network.toLowerCase()))
+    return { verdict: "skip", reason: "network_mismatch" };
+  if (exp.pay_to && accepts.length && !accepts.some((a) => String(a.payTo || "").toLowerCase() === exp.pay_to.toLowerCase()))
+    return { verdict: "skip", reason: "pay_to_mismatch" };
+  return d;
+}
+
+// First-router program (0.7.0): allowlisted client ids get their own one-time pool of free full checks.
+// Config: SPOT_PARTNER_CLIENTS = "id:1000,other-id:500" (a Worker secret, so ids never land in the public repo).
+export const SPOT_PARTNER_COUNTER = "spot-partner";
+export function spotPartners(env) {
+  const out = new Map();
+  for (const part of String(env.SPOT_PARTNER_CLIENTS || "").split(",")) {
+    const [id, n] = part.trim().split(":");
+    const lim = parseInt(n ?? "1000", 10);
+    if (id && /^[A-Za-z0-9._\-]{1,64}$/.test(id) && Number.isFinite(lim) && lim > 0) out.set(id.toLowerCase(), lim);
+  }
+  return out;
+}
 
 async function parseSpotQuery(req, url) {
   const errors = []; // [{ field, problem }] — first one is reported
@@ -951,7 +999,16 @@ async function parseSpotQuery(req, url) {
   if (clientRaw && !client) errors.push({ field: "client", problem: 'Invalid "client": 1-64 letters, digits, dot, dash, underscore' });
   const ref = refRaw && /^[A-Za-z0-9._\-]{1,64}$/.test(String(refRaw)) ? String(refRaw).toLowerCase() : "";
   const taskSlug = task ? String(task).toLowerCase().trim().slice(0, 64) : null;
-  return { url: target, task: taskSlug, claimed_price, client, ref, errors };
+  const payToRaw = p.get("pay_to") || body.pay_to || null;
+  const pay_to = payToRaw ? String(payToRaw).trim().slice(0, 100) : null;
+  if (pay_to && !/^[A-Za-z0-9]{20,100}$/.test(pay_to)) errors.push({ field: "pay_to", problem: 'Invalid "pay_to": the wallet you expect to pay (0x... or base58)' });
+  const netRaw = p.get("network") || body.network || null;
+  const network = netRaw ? String(netRaw).trim().slice(0, 80) : null;
+  if (network && !/^[A-Za-z0-9:_\-]{2,80}$/.test(network)) errors.push({ field: "network", problem: 'Invalid "network": a CAIP-2 id like eip155:8453' });
+  let methodRaw = p.get("method") || body.method || "GET";
+  const method = String(methodRaw).toUpperCase();
+  if (!["GET", "POST"].includes(method)) errors.push({ field: "method", problem: 'Invalid "method": GET or POST (how to probe the target)' });
+  return { url: target, task: taskSlug, claimed_price, client, ref, method, pay_to, network, errors };
 }
 
 // Paid spot-check price: one tenth of the target's quoted x402 price, min $0.01, cap $0.25 (no quote -> $0.01).
@@ -972,6 +1029,8 @@ export function spotLossReason(d, claimed) {
     ambiguous: "payment request unclear",
     bad_challenge: "payment request unreadable",
     price_ok: "payment request matches",
+    network_mismatch: "asks for a different network than expected",
+    pay_to_mismatch: "pays a different wallet than expected",
   }[d.reason] || d.reason;
   if (d.reason === "price_ok" && listed === "price unlisted") return "payment request found, pass claimed_price to compare, details locked";
   return `${listed}, ${what}, details locked`;
@@ -991,19 +1050,29 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     return json(spotBadRequest(url.origin, q.errors[0].field, q.errors[0].problem), 400);
   }
 
+  const listing = listingFor(q.url);
+  const exp = {
+    claimed: q.claimed_price !== null ? q.claimed_price : listing && listing.claimed_price_usd != null ? Number(listing.claimed_price_usd) : null,
+    pay_to: q.pay_to || (listing && listing.listed_pay_to) || null,
+    network: q.network || (listing && listing.listed_network) || null,
+    source: q.pay_to || q.network || q.claimed_price !== null ? "request" : listing ? "listing" : null,
+  };
   const buildResult = (probe, access) => {
-    const d = decideVerdict(probe, q.claimed_price);
+    const d = applyExpected(decideVerdict(probe, exp.claimed), probe, exp);
     // Free tier: verdict + reason only. Quoted/claimed price and pay-to are behind the paid 402.
-    if (access && access.tier === "free") return { verdict: d.verdict, reason: spotLossReason(d, q.claimed_price), access };
+    if (access && access.tier === "free") return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), access };
     const acc = Array.isArray(probe.accepts) ? probe.accepts.find((a) => a && a.payTo) : null;
     return {
       verdict: d.verdict,
       reason: d.reason,
       quoted_price_usd: probe.quoted_price_usd == null ? null : probe.quoted_price_usd,
-      claimed_price_usd: q.claimed_price,
+      claimed_price_usd: exp.claimed,
       pay_to: (acc && acc.payTo) || probe.pay_to || null,
       network: (acc && acc.network) || null,
       asset: (acc && acc.asset) || null,
+      expected_pay_to: exp.pay_to,
+      expected_network: exp.network,
+      expected_source: exp.source,
       access,
     };
   };
@@ -1033,14 +1102,28 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     }, 400);
   }
 
-  const probe = await spotProbe(q.url, probeOpts);
+  const probe = await spotProbe(q.url, { ...probeOpts, method: q.method });
   cd = spotDynCfg(c, probe.quoted_price_usd);
   let access;
   const extraHeaders = {};
   let freeUsed = null;
 
+  const partnerLimit = q.client ? spotPartners(env).get(q.client) : undefined;
+  let partner = null;
+  if (partnerLimit && !isExempt(qLike, env)) {
+    partner = await takeFree(env, "partner:" + q.client, partnerLimit, new Date(), "take", SPOT_PARTNER_COUNTER, "all");
+    if (!partner.free) partner = null;
+  }
   if (isExempt(qLike, env)) {
     access = { tier: "exempt", note: "our own self-test client: not metered for free quota (SSRF rules still apply)" };
+  } else if (partner) {
+    access = {
+      tier: "partner",
+      note: "first-router program: full checks free from a one-time pool, then the normal 1 free/day + x402 price",
+      partner_free_total: partnerLimit,
+      partner_used: partner.used,
+      partner_remaining: partner.used === null ? null : Math.max(0, partnerLimit - partner.used),
+    };
   } else {
     const key = await quotaKey(req, qLike, env);
     const t = await takeFree(env, key, c.freePerDay, new Date(), "take", SPOT_QUOTA_COUNTER);
@@ -1102,7 +1185,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     }
   }
 
-  writePoint(env, dataPoint({ cid, q: qLike, excluded: isExempt(qLike, env) ? "self" : "", candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: access.tier, freeUsed }));
+  writePoint(env, dataPoint({ cid, q: qLike, excluded: isExempt(qLike, env) ? "self" : "", candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: access.tier === "partner" ? "partner" : access.tier, freeUsed: partner ? partner.used : freeUsed }));
   return json(buildResult(probe, access), 200, extraHeaders);
 }
 
@@ -1360,6 +1443,9 @@ export function openapi(origin, env = {}) {
             { name: "url", in: "query", required: true, schema: { type: "string" }, description: "public http(s) URL to probe" },
             { name: "task", in: "query", schema: { type: "string" } },
             { name: "claimed_price", in: "query", schema: { type: "number" }, description: "optional claimed USD price to compare against quoted challenge" },
+            { name: "method", in: "query", schema: { type: "string", enum: ["GET", "POST"], default: "GET" }, description: "how to probe the target (POST sends an empty JSON body; for POST-only x402 endpoints)" },
+            { name: "pay_to", in: "query", schema: { type: "string" }, description: "optional wallet you expect to pay (from your listing); a 402 paying elsewhere is skip/pay_to_mismatch. Defaults to the listing in our crawl when we have one" },
+            { name: "network", in: "query", schema: { type: "string" }, description: "optional CAIP-2 network you expect (e.g. eip155:8453); a 402 on another network is skip/network_mismatch" },
             { name: "client", in: "query", schema: { type: "string" } },
             { name: "ref", in: "query", schema: { type: "string" } },
           ],
@@ -1739,6 +1825,9 @@ export const MCP_TOOLS = [
         url: { type: "string", description: "public http(s) URL to probe" },
         task: { type: "string", description: "optional task label (ignored in decision output)" },
         claimed_price: { type: "number", description: "optional claimed USD price to compare vs quoted" },
+        method: { type: "string", enum: ["GET", "POST"], description: "optional: probe the target with POST (empty JSON body) for POST-only endpoints" },
+        pay_to: { type: "string", description: "optional: the wallet you expect to pay (from your listing)" },
+        network: { type: "string", description: "optional: the CAIP-2 network you expect, e.g. eip155:8453" },
       },
       required: ["url"],
     },
@@ -1854,6 +1943,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         if (!args.url) return err("url is required");
         const qp = new URLSearchParams({ client: MCP_CLIENT, url: pyStr(args.url) });
         if (args.task) qp.set("task", pyStr(args.task));
+        for (const k of ["method", "pay_to", "network"]) if (args[k]) qp.set(k, pyStr(args[k]));
         if (!blank(args.claimed_price)) {
           const d = decStr(args.claimed_price);
           if (d === null) return err("claimed_price must be a number");
@@ -2001,7 +2091,7 @@ export const handler = {
     if (path === "/health") return json({ ok: true, version: VERSION });
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${url.origin}/sitemap.xml\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/v1/skips", "/v1/skips.json", "/v1/receipts", "/", "/openapi.json", "/llms.txt"].map((u) => `<url><loc>${url.origin}${u}</loc><changefreq>daily</changefreq></url>`).join("")}</urlset>\n`, { headers: { "content-type": "application/xml; charset=utf-8" } });
-    if (path === "/llms.txt") return new Response(`# x402 Verified Catalog + Spot-Check\n\n- Skips page (free): ${url.origin}/v1/skips (JSON: ${url.origin}/v1/skips.json). 500 self-checked x402 endpoints; the skip list shows which ones disagree with their listing.\n- All receipts: ${url.origin}/v1/receipts\n- Check before you pay: GET ${url.origin}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck. 1 free/day, then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402.\n- OpenAPI: ${url.origin}/openapi.json  MCP: ${url.origin}/mcp\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
+    if (path === "/llms.txt") return new Response(`# x402 Verified Catalog + Spot-Check\n\n- Skips page (free): ${url.origin}/v1/skips (JSON: ${url.origin}/v1/skips.json). 500 self-checked x402 endpoints; the skip list shows which ones disagree with their listing.\n- All receipts: ${url.origin}/v1/receipts\n- Check before you pay: GET ${url.origin}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck. 1 free/day, then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402.\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${url.origin}/openapi.json  MCP: ${url.origin}/mcp\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (path === "/")
       return json({
         name: "Verified catalog reliability lookup",
@@ -2024,6 +2114,7 @@ export const handler = {
           },
         },
         mcp: url.origin + "/mcp",
+        guard: { repo: "https://github.com/withgrokbot/x402-spotcheck", one_line: "const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);", note: "checks Spot-Check right before your x402 client pays; skip blocks the payment" },
         skips: url.origin + "/v1/skips",
         receipts: url.origin + "/v1/receipts",
         tasks: url.origin + "/v1/tasks",

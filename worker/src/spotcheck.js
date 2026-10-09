@@ -284,6 +284,8 @@ export async function spotProbe(rawUrl, opts = {}) {
   const resolveHostFn = opts.resolveHostFn || resolveHost;
   const timeoutMs = opts.timeoutMs ?? SPOT_FETCH_TIMEOUT_MS;
   const maxBody = opts.maxBody ?? SPOT_MAX_BODY;
+  // 0.7.0: POST-only x402 endpoints answer GET with 404/405, so callers may ask for a POST probe (empty JSON body).
+  const method = String(opts.method || "GET").toUpperCase() === "POST" ? "POST" : "GET";
 
   const safe0 = await assertSafeUrl(rawUrl, { resolveHostFn, fetchImpl });
   if (!safe0.ok) {
@@ -325,16 +327,17 @@ export async function spotProbe(rawUrl, opts = {}) {
       const timer = setTimeout(() => ac.abort("timeout"), timeoutMs);
       let resp;
       try {
-        resp = await fetchImpl(current.toString(), {
-          method: "GET",
-          redirect: "manual",
-          signal: ac.signal,
-          headers: {
-            accept: "application/json, text/plain, */*",
-            "user-agent": "verified-catalog-spotcheck/0.6.3",
-            // Explicitly do NOT send payment headers
-          },
-        });
+        const headers = {
+          accept: "application/json, text/plain, */*",
+          "user-agent": "verified-catalog-spotcheck/0.7.0",
+          // Explicitly do NOT send payment headers
+        };
+        const init = { method, redirect: "manual", signal: ac.signal, headers };
+        if (method === "POST") {
+          headers["content-type"] = "application/json";
+          init.body = "{}";
+        }
+        resp = await fetchImpl(current.toString(), init);
       } catch (e) {
         clearTimeout(timer);
         const msg = String(e && e.message ? e.message : e);
