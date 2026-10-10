@@ -34,7 +34,7 @@ import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skip
 import { RECEIPTS } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
 export { landingHtml };
-export const VERSION = "0.16.0";
+export const VERSION = "0.16.1";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";

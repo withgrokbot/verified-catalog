@@ -1561,7 +1561,7 @@ test("landing page (0.16.0): HTML to browsers on payscout.dev only, real counts,
   assert.equal(html.status, 200);
   assert.match(html.headers.get("content-type"), /text\/html/);
   const t = await html.text();
-  for (const re of [/<h1>Check before your <span class="grad">agent pays<\/span><\/h1>/, /og:title/, /rel="canonical" href="https:\/\/payscout.dev\/"/, /id="try"/, /wrapFetchWithPayment\(spotCheckFetch\(fetch\), client\)/, /wrapAxiosWithPayment\(spotCheckAxios\(axios.create\(\)\), client\)/, /\$0\.01–\$0\.25/, /\$0\.001/, /packs of 10/, /First router integration gets 1,000 free checks/, /withgrokbot\/x402-spotcheck\/issues\/new/, /href="\/mcp"/, /href="\/llms.txt"/, /href="\/openapi.json"/, /href="\/v1\/skips"/])
+  for (const re of [/<h1>Check before your <span class="grad">agent pays<\/span><\/h1>/, /og:title/, /rel="canonical" href="https:\/\/payscout.dev\/"/, /id="try"/, /wrapFetchWithPayment\(spotCheckFetch\(fetch\), client\)/, /wrapAxiosWithPayment\(spotCheckAxios\(axios.create\(\)\), client\)/, /class="bigprice">Free to try, paid checks from \$0\.01<\/h2>/, /1\/10 of the target\x27s price<\/b>, \$0\.01 min to \$0\.25 max/, /\$0\.001\/check<\/b> in packs of 10/, /<details class="sample" id="resp">\s*<summary>Show response<\/summary>/, /Stops your agent paying dead, mispriced or wrong-network endpoints/, /First router integration gets 1,000 free checks/, /withgrokbot\/x402-spotcheck\/issues\/new/, /href="\/mcp"/, /href="\/llms.txt"/, /href="\/openapi.json"/, /href="\/v1\/skips"/])
     assert.match(t, re);
   assert.ok(t.includes(`>${RECEIPTS_META.skip}</div><div class="l">skip`), "skip count is the real crawl number");
   assert.ok(t.includes(`>${RECEIPTS_META.pay}</div><div class="l">pay`));
