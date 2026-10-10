@@ -2,11 +2,16 @@
 // NEVER sends PAYMENT-SIGNATURE / X-PAYMENT / settles to the target. Probe only (GET/HEAD).
 
 export const SPOT_ID = "endpoint-spot-check";
-export const SPOT_SERVICE_NAME = "PayScout (formerly x402 Endpoint Spot-Check)";
-export const BRAND = "PayScout";
-export const BRAND_HOSTS = ["https://payscout.dev", "https://api.payscout.dev"];
+export const SPOT_SERVICE_NAME = "402xAgent (formerly Spot-Check)";
+export const BRAND = "402xAgent";
+// 0.17.0: 402xagent.com is canonical (links, docs, discovery). Every host serves the same Worker and payments.
+export const CANON_ORIGIN = "https://402xagent.com";
+export const API_ORIGIN = "https://api.402xagent.com";
+export const BRAND_HOSTS = [API_ORIGIN, CANON_ORIGIN];
 export const LEGACY_ORIGIN = "https://verified-catalog-lookup.withgrokbot.workers.dev";
-export const SPOT_TAGS = ["x402", "payscout", "spot-check", "probe", "catalog", "agents"];
+// Older hosts (internal list, never printed): browser page views 301 to 402xagent.com, API/x402/MCP keep answering.
+export const OLD_HOSTNAMES = ["payscout.dev", "api.payscout.dev", "verified-catalog-lookup.withgrokbot.workers.dev"];
+export const SPOT_TAGS = ["x402", "402xagent", "spot-check", "probe", "catalog", "agents"];
 export const SPOT_DEFAULT_PRICE_ATOMIC = "250000"; // $0.25 USDC
 export const SPOT_DEFAULT_FREE_PER_DAY = 1;
 export const SPOT_PAID_PER_HOUR = 30;

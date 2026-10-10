@@ -1,23 +1,23 @@
-// PayScout landing page (0.16.0): browser view of https://payscout.dev only. Single file: inline CSS/JS, no external
+// 402xAgent landing page (0.16.0; rebranded 0.17.0): browser view of https://402xagent.com only. Single file: inline CSS/JS, no external
 // fonts, scripts or images. Every example below is a real live answer (re-checked before each release).
 import { RECEIPTS_META } from "./receipts-data.js";
 
 const esc = (x) => String(x ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-// Real targets and what PayScout answered for them (exempt self-test client, twice each, Oct 10 2026).
+// Real targets and what 402xAgent answered for them (exempt self-test client, twice each, Oct 10 2026).
 export const LANDING_EXAMPLES = [
   { url: "https://api.402rates.com/v1/ping", label: "402rates ping", expect: "pay" },
   { url: "https://api.automaton-sovereign.workers.dev/v2/oracle/base", label: "oracle (2 schemes)", expect: "pay" },
   { url: "https://topagentx402.vercel.app/api/send-token", label: "testnet listing, mainnet 402", expect: "skip" },
   { url: "https://kr-intel-agent-production.up.railway.app/api/briefing", label: "listed, no paywall", expect: "skip" },
 ];
-// A real free-tier answer from payscout.dev for the default Try-it URL (receipt sc-d1e1b9b528323991, Oct 10 2026 PT), verbatim.
+// A real free-tier answer from api.402xagent.com for the default Try-it URL (receipt sc-f6c1a95579f0e930, Oct 10 2026 PT), verbatim.
 export const LANDING_SAMPLE = {
   "verdict": "pay",
   "reason": "listed $0.001, payment request matches, details locked",
   "payment_terms_sha256": "6ddcc14caebdf8cf0f7eb183c0916b2dc2d36500875d99d039c81e4ea5f2844e",
-  "receipt_id": "sc-d1e1b9b528323991",
-  "receipt_url": "https://payscout.dev/v1/receipts/sc-d1e1b9b528323991",
+  "receipt_id": "sc-f6c1a95579f0e930",
+  "receipt_url": "https://402xagent.com/v1/receipts/sc-f6c1a95579f0e930",
   "access": {
     "tier": "free",
     "free_per_day": 1,
@@ -33,12 +33,12 @@ export function landingHtml(origin, meta = RECEIPTS_META) {
   const m = meta || {};
   const covered = m.endpoints_covered ?? m.total ?? 0;
   const crawled = String(m.crawled_at || "").slice(0, 10);
-  const curl = `curl "${origin}/v1/products/endpoint-spot-check?url=https://api.402rates.com/v1/ping"`;
+  const curl = `curl "https://api.402xagent.com/v1/products/endpoint-spot-check?url=https://api.402rates.com/v1/ping"`;
   const tabs = [
     { id: "fetch", label: "@x402/fetch", code: `import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
 import { spotCheckFetch } from "x402-spotcheck";
 
-// one line: PayScout checks the target right before your client pays
+// one line: 402xAgent checks the target right before your client pays
 const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);
 
 const res = await pay("https://some-x402-seller.example/api/data"); // throws SpotCheckBlockedError on skip` },
@@ -50,30 +50,30 @@ const api = wrapAxiosWithPayment(spotCheckAxios(axios.create()), client);` },
     { id: "curl", label: "curl", code: `${curl}
 
 # free dry run: nothing signed or paid, stored as a public receipt
-curl "${origin}/v1/products/endpoint-spot-check?url=https://api.402rates.com/v1/ping&mode=dry-run"` },
+curl "https://api.402xagent.com/v1/products/endpoint-spot-check?url=https://api.402rates.com/v1/ping&mode=dry-run"` },
   ];
-  const desc = "PayScout checks an x402 endpoint right before your agent pays: one unpaid probe, compared with the listing, answers pay, skip or recheck with the exact payment to sign. Never pays the target.";
+  const desc = "402xAgent checks an x402 endpoint right before your agent pays: one unpaid probe, compared with the listing, answers pay, skip or recheck with the exact payment to sign. Never pays the target.";
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PayScout: check before your agent pays</title>
+<title>402xAgent: check before your agent pays</title>
 <meta name="description" content="${esc(desc)}">
-<link rel="canonical" href="https://payscout.dev/">
+<link rel="canonical" href="https://402xagent.com/">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="PayScout">
-<meta property="og:title" content="PayScout: check before your agent pays">
+<meta property="og:site_name" content="402xAgent">
+<meta property="og:title" content="402xAgent: check before your agent pays">
 <meta property="og:description" content="${esc(desc)}">
-<meta property="og:url" content="https://payscout.dev/">
+<meta property="og:url" content="https://402xagent.com/">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="PayScout: check before your agent pays">
+<meta name="twitter:title" content="402xAgent: check before your agent pays">
 <meta name="twitter:description" content="${esc(desc)}">
 <link rel="icon" href="data:image/svg+xml,${encodeURIComponent(WORDMARK.replace('class="mark" ', "").replace("var(--accent)", "#5b5bf7").replace(' aria-hidden="true" focusable="false"', ' xmlns="http://www.w3.org/2000/svg"'))}">
-<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "PayScout", alternateName: "Spot-Check", applicationCategory: "DeveloperApplication", operatingSystem: "Any", url: "https://payscout.dev/", description: desc, offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "1 free check per client per UTC day" } })}</script>
+<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "402xAgent", alternateName: "Spot-Check", applicationCategory: "DeveloperApplication", operatingSystem: "Any", url: "https://402xagent.com/", description: desc, offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "1 free check per client per UTC day" } })}</script>
 <style>
 :root{--bg:#ffffff;--bg2:#f6f7f9;--fg:#0b0d12;--muted:#5b6170;--line:#e4e6eb;--accent:#5b5bf7;--accent2:#7c5cff;--code:#0f1117;--codefg:#e6e8ee;--pay:#0e8a4f;--skip:#c2410c;--recheck:#a16207;--card:#ffffff;--shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.06)}
 @media (prefers-color-scheme:dark){:root{--bg:#0b0d12;--bg2:#11141b;--fg:#eef0f4;--muted:#9aa1b1;--line:#232835;--accent:#7b7bff;--accent2:#9d84ff;--code:#0d1016;--codefg:#e6e8ee;--pay:#34d399;--skip:#fb923c;--recheck:#facc15;--card:#12151d;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35)}}
@@ -152,21 +152,21 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="top"><div class="wrap nav">
-  <a class="brand" href="/" aria-label="PayScout home">${WORDMARK}<span>PayScout</span><small>formerly Spot-Check</small></a>
+  <a class="brand" href="/" aria-label="402xAgent home">${WORDMARK}<span>402xAgent</span><small>formerly Spot-Check</small></a>
   <nav aria-label="Primary"><a href="#try">Try it</a><a class="hide-sm" href="#code">Code</a><a class="hide-sm" href="#pricing">Pricing</a><a href="https://github.com/withgrokbot/x402-spotcheck">GitHub</a></nav>
 </div></header>
 <main id="main">
 <div class="hero"><div class="wrap">
   <span class="eyebrow"><span class="dot" aria-hidden="true"></span>${esc(covered)} x402 endpoints self-checked · ${esc(crawled)}</span>
   <h1>Check before your <span class="grad">agent pays</span></h1>
-  <p class="sub">PayScout probes an x402 endpoint once, unpaid, compares the live 402 with its listing, and tells your agent to pay, skip or recheck, with the exact payment to sign.</p>
+  <p class="sub">402xAgent probes an x402 endpoint once, unpaid, compares the live 402 with its listing, and tells your agent to pay, skip or recheck, with the exact payment to sign.</p>
   <p class="saves">Stops your agent paying dead, mispriced or wrong-network endpoints, or the wrong token or payee.</p>
   <div class="cta"><a class="btn primary" href="#try">Try it</a><a class="btn" href="https://github.com/withgrokbot/x402-spotcheck"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a></div>
 </div></div>
 
 <section id="try" aria-labelledby="try-h"><div class="wrap">
   <h2 id="try-h">Try it</h2>
-  <p class="lead">Paste a paid x402 URL. This runs the real free check on payscout.dev: one per day per network, then a free dry run (nothing signed or paid, never an approval).</p>
+  <p class="lead">Paste a paid x402 URL. This runs the real free check on 402xagent.com: one per day per network, then a free dry run (nothing signed or paid, never an approval).</p>
   <div class="card try">
     <form id="f" class="row" novalidate>
       <label class="sr" for="u">Endpoint URL</label>
@@ -178,7 +178,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
   </div>
   <details class="sample" id="resp">
     <summary>Show response</summary>
-    <p class="cap" id="respcap">A real free answer from payscout.dev (receipt <a href="/v1/receipts/${esc(LANDING_SAMPLE.receipt_id)}">${esc(LANDING_SAMPLE.receipt_id)}</a>). Paid checks add the payment object: network, canonical USDC, amount, pay_to, deadline.</p>
+    <p class="cap" id="respcap">A real free answer from api.402xagent.com (receipt <a href="/v1/receipts/${esc(LANDING_SAMPLE.receipt_id)}">${esc(LANDING_SAMPLE.receipt_id)}</a>). Paid checks add the payment object: network, canonical USDC, amount, pay_to, deadline.</p>
     <pre class="samplepre" tabindex="0"><code id="respcode">${esc(JSON.stringify(LANDING_SAMPLE, null, 2))}</code></pre>
   </details>
 </div></section>
@@ -187,7 +187,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
   <h2 id="how-h">How it works</h2>
   <p class="lead">Three steps, right before the payment leaves your agent.</p>
   <div class="steps">
-    <div class="card step"><span class="num">1</span><b>Probe</b><p>One unpaid, SSRF-safe request to the target. PayScout never pays it. The probe is reused for 5 minutes, so two checks in a row agree.</p></div>
+    <div class="card step"><span class="num">1</span><b>Probe</b><p>One unpaid, SSRF-safe request to the target. 402xAgent never pays it. The probe is reused for 5 minutes, so two checks in a row agree.</p></div>
     <div class="card step"><span class="num">2</span><b>Compare</b><p>The live 402 against the listing: price, network (supported mainnets), the canonical USDC contract and pay_to.</p></div>
     <div class="card step"><span class="num">3</span><b>Decide</b><p><strong class="t-pay">pay</strong> with the exact terms to sign, <strong class="t-skip">skip</strong> on a mismatch or no paywall, <strong class="t-recheck">recheck</strong> only for timeouts, 5xx or an active free trial. Every check leaves a public receipt.</p></div>
   </div>
@@ -227,14 +227,14 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 
 <section aria-labelledby="offer-h"><div class="wrap">
   <div class="card offer">
-    <div><h2 id="offer-h">First router integration gets 1,000 free checks</h2><p>Building a router or agent framework on x402? The first one to integrate PayScout gets 1,000 full checks (paid-tier detail, no payment). Tell us on GitHub and we'll set you up privately.</p></div>
+    <div><h2 id="offer-h">First router integration gets 1,000 free checks</h2><p>Building a router or agent framework on x402? The first one to integrate 402xAgent gets 1,000 full checks (paid-tier detail, no payment). Tell us on GitHub and we'll set you up privately.</p></div>
     <a class="btn primary" href="https://github.com/withgrokbot/x402-spotcheck/issues/new?title=Router%20integration%3A%20free%20checks">Open an issue</a>
   </div>
 </div></section>
 </main>
 <footer><div class="wrap">
   <nav aria-label="Footer"><a href="https://github.com/withgrokbot/x402-spotcheck">GitHub</a><a href="/mcp" title="Remote MCP endpoint (POST JSON-RPC)">MCP (/mcp)</a><a href="/llms.txt">llms.txt</a><a href="/openapi.json">OpenAPI</a><a href="/v1/skips">Skips</a></nav>
-  <span>Made by <a href="https://github.com/withgrokbot">withgrokbot</a> · API: <span class="mono">api.payscout.dev</span></span>
+  <span>Made by <a href="https://github.com/withgrokbot">withgrokbot</a> · API: <span class="mono">api.402xagent.com</span></span>
 </div></footer>
 <script>
 (()=>{const $=(s)=>document.querySelector(s),out=$("#out"),u=$("#u"),go=$("#go");
@@ -242,7 +242,7 @@ const E=(s)=>String(s??"").replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"
 const setResp=(j,dry)=>{document.getElementById("respcode").textContent=JSON.stringify(j,null,2);document.getElementById("respcap").textContent=dry?"Raw response from this free dry run.":"Raw response from this check.";};
 const show=(j,extra)=>{const v=String(j.verdict||"");out.className="result filled";out.innerHTML='<span class="verdict v-'+E(v)+'">'+E(v)+'</span><span>'+E(j.reason)+'</span>'+(j.receipt_url?'<div class="note">Receipt: <a href="'+E(new URL(j.receipt_url).pathname)+'">'+E(j.receipt_id||j.receipt_url)+'</a></div>':'')+(extra?'<div class="note">'+extra+'</div>':'');};
 const msg=(t)=>{out.className="result filled";out.innerHTML=t;};
-const call=async(url,dry)=>{const q=new URLSearchParams({url});if(dry)q.set("mode","dry-run");else q.set("ref","via-payscout-site");return fetch("/v1/products/endpoint-spot-check?"+q,{headers:{accept:"application/json"}});};
+const call=async(url,dry)=>{const q=new URLSearchParams({url});if(dry)q.set("mode","dry-run");else q.set("ref","via-402xagent-site");return fetch("/v1/products/endpoint-spot-check?"+q,{headers:{accept:"application/json"}});};
 async function run(e){if(e)e.preventDefault();const url=u.value.trim();if(!/^https?:\\/\\//i.test(url)){msg("Enter a full http(s) URL.");u.focus();return;}
 go.disabled=true;msg("Checking…");try{let r=await call(url,false);let j=await r.json().catch(()=>({}));
 if(r.status===200){setResp(j,false);show(j,j.access&&j.access.tier==="free"?"Free check: "+E(j.access.free_remaining_today)+" left today. Full detail and the payment object are in the paid check.":"");}
@@ -250,7 +250,7 @@ else if(r.status===402){const r2=await call(url,true),j2=await r2.json().catch((
 if(r2.status===200){setResp(j2,true);show(j2,"Today's free check is used, so this is a free dry run: nothing signed or paid, and not an approval to pay. A full check costs "+E(j.price_usd?"$"+j.price_usd:"$0.01+")+" in USDC on Base via x402.");}
 else if(r2.status===429)msg("Today's free check and dry runs are used up from this network. They reset at 00:00 UTC.");else msg(E(j2.error||("Dry run failed: HTTP "+r2.status)));}
 else if(r.status===400)msg(E(j.error||("Bad request: "+(j.reason||r.status))));
-else msg("Unexpected answer: HTTP "+r.status);}catch(err){msg("Could not reach PayScout. Try again.");}finally{go.disabled=false;}}
+else msg("Unexpected answer: HTTP "+r.status);}catch(err){msg("Could not reach 402xAgent. Try again.");}finally{go.disabled=false;}}
 $("#f").addEventListener("submit",run);
 document.querySelectorAll(".chip").forEach((b)=>b.addEventListener("click",()=>{u.value=b.dataset.u;run();}));
 const tabs=[...document.querySelectorAll(".tab")];const sel=(t)=>{tabs.forEach((x)=>{const on=x===t;x.setAttribute("aria-selected",on);x.tabIndex=on?0:-1;document.getElementById(x.getAttribute("aria-controls")).hidden=!on;});t.focus();};
