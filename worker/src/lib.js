@@ -32,7 +32,7 @@ import {
 
 import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skips.js";
 import { RECEIPTS } from "./receipts-data.js";
-export const VERSION = "0.12.0";
+export const VERSION = "0.12.1";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -2405,6 +2405,7 @@ async function viewPoint(req, env, url, view, status) {
   }
 }
 
+export const SPOT_ALIASES = new Set(["/endpoint-spot-check", "/v1/endpoint-spot-check", "/spot-check", "/v1/spot-check", "/v1/products/spot-check", "/v1/lookup/endpoint-spot-check"]);
 const routeInnerHolder = {
   async routeInner(req, env, ctx, url, path) {
     if (path === "/mcp") return handleMcp(req, env, ctx, url);
@@ -2412,6 +2413,11 @@ const routeInnerHolder = {
     if (path === "/v1/lookup/paid" && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaidLookup(req, env, ctx, url);
     if (path === "/v1/products/overnight-cos-pack" && ["GET", "HEAD", "POST"].includes(req.method)) return handleOvernightCosPack(req, env, ctx, url);
     if (path === "/v1/products/endpoint-spot-check" && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointSpotCheck(req, env, ctx, url);
+    // 0.12.1: guessed short paths for Spot-Check get a 308 to the canonical route (query kept; method + body kept by 308).
+    if (SPOT_ALIASES.has(path)) {
+      const to = url.origin + "/v1/products/endpoint-spot-check" + url.search;
+      return json({ error: "moved", moved_to: to, note: "Spot-Check lives at /v1/products/endpoint-spot-check" }, 308, { location: to, "cache-control": "no-store" });
+    }
     if (path === "/v1/products/endpoint-spot-check")
       return json(spotBadRequest(url.origin, "method", `Unsupported method ${String(req.method).slice(0, 10)}; use GET or POST`), 400);
     if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405, { allow: "GET, OPTIONS" });
@@ -2465,7 +2471,7 @@ const routeInnerHolder = {
         payment_policy: PAYMENT_POLICY,
         privacy: "Raw IPs are never stored. Lookups are counted by a weekly-salted hash of IP /24 + User-Agent, or by the client value you send. The free quota is counted by the client value, or by a daily-salted hash of the IP.",
       });
-    return json({ error: "not found", usage: url.origin + "/v1/lookup?task=web-search&max_price=0.01&n=5" }, 404);
+    return json({ error: "not found", usage: url.origin + "/v1/lookup?task=web-search&max_price=0.01&n=5", spot_check: url.origin + "/v1/products/endpoint-spot-check?url=<endpoint>", docs: url.origin + "/openapi.json" }, 404);
   },
 };
 const routeInner = (req, env, ctx, url, path) => routeInnerHolder.routeInner(req, env, ctx, url, path);

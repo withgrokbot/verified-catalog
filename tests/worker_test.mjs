@@ -1362,6 +1362,19 @@ test("bot tags (0.11.0): scanner, example-param, indexer on lookup + spot; views
   assert.equal(v.points[0].blobs[5], "");
 });
 
+test("guessed Spot-Check paths 308 to /v1/products/endpoint-spot-check with the query; 404 names the spot-check route (0.12.1)", async () => {
+  const e = spotEnv();
+  for (const p of ["/endpoint-spot-check", "/v1/endpoint-spot-check", "/spot-check", "/v1/spot-check"]) {
+    const r = await send(p + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest", { envo: e });
+    assert.equal(r.status, 308, p);
+    assert.equal(r.headers.get("location"), "https://lookup.test/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest", p);
+    assert.equal(r.body.moved_to, r.headers.get("location"));
+  }
+  const nf = await send("/nope", { envo: e });
+  assert.equal(nf.status, 404);
+  assert.match(nf.body.spot_check, /\/v1\/products\/endpoint-spot-check\?url=/);
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {
