@@ -1,0 +1,93 @@
+{
+  "service_id": "402rates-ping",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.402rates.com/v1/ping",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 480,
+    "headers": {
+      "content-length": "2",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Sat, 10 Oct 2026 14:25:18 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://api.402rates.com/v1/ping",
+            "description": "Payment integration check for 0.001 USDC; no external data lookup. Returns time, rail, network mode and free/paid capabilities. HTTP payment options can include Base, Polygon, Arbitrum and XDC; the challenge lists currently available networks for each transport. The receipt identifies the paid network and transaction. Business/professional use only. Terms: https://402rates.com/data-terms/",
+            "mimeType": "application/json",
+            "serviceName": "402rates.com",
+            "tags": [
+              "x402",
+              "integration",
+              "smoke-test",
+              "payment-rail",
+              "usdc"
+            ]
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0xf567Cfe0FDb87A1D6Ca330e3f30f0D3DA0F7cb98",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:137",
+              "amount": "1000",
+              "asset": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+              "payTo": "0xf567Cfe0FDb87A1D6Ca330e3f30f0D3DA0F7cb98",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:42161",
+              "amount": "1000",
+              "asset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+              "payTo": "0xf567Cfe0FDb87A1D6Ca330e3f30f0D3DA0F7cb98",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:50",
+              "amount": "1000",
+              "asset": "0xfA2958CB79b0491CC627c1557F441eF849Ca8eb1",
+              "payTo": "0xedb1a894761F0a142d80D09F82Ff7CF99158Bb19",
+              "maxTimeoutSeconds": 120,
+              "extra": {
+                "name": "USDC",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 2,
+    "body_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "body_excerpt": "{}"
+  },
+  "run_id": "20261010T142516Z",
+  "checked_at": "2026-10-10T14:25:18Z"
+}

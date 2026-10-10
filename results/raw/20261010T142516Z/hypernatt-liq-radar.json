@@ -1,0 +1,78 @@
+{
+  "service_id": "hypernatt-liq-radar",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://hypernatt.com/api/m2m/liq-radar",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 426,
+    "headers": {
+      "server": "nginx",
+      "date": "Sat, 10 Oct 2026 14:25:18 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "3770",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "X-PAYMENT header required. Pay $0.001 USDC exact via x402 on Base (eip155:8453, EIP-3009) OR Solana (SVM exact). Solana x402 is SVM exact, not an EVM signature. No @x402/svm -> pay accepts[0] Base. SVM tx expires in ~90s (blockhash); sign immediately. feePayer MUST equal extra.feePayer from this 402; amount MUST equal accepts[].amount.",
+          "resource": {
+            "url": "https://hypernatt.com/api/m2m/liq-radar",
+            "description": "Forced-order map. If cluster_grammar is present, read it before liq_radar. class=noise (<3%) is high-leverage bait - ignore. class=true (~7%+) is the low-leverage stack. Terrain, not a signal. Whitelist BTC ETH SOL BNB XRP HYPE ZEC (omit = BTC).",
+            "mimeType": "application/json",
+            "serviceName": "HyperNatt Terminal",
+            "tags": [
+              "bitcoin",
+              "hyperliquid",
+              "trading",
+              "market maker",
+              "liquidations"
+            ]
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "maxAmountRequired": "1000",
+              "amount": "1000",
+              "payTo": "0x5a78ace5dd133316c8aaf7e156fbfc57e1209cf9",
+              "maxTimeoutSeconds": 60,
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "decimals": 6
+              },
+              "resource": "https://hypernatt.com/api/m2m/liq-radar",
+              "description": "Pay $0.001 USDC to access: Forced-order map. If cluster_grammar is present, read it before liq_radar. class=noise (<3%) is high-leverage bait - ignore. class=true (~7%+) is the low-leverage stack. Terrain, not a signal. Whitelist BTC ETH SOL BNB XRP HYPE ZEC (omit = BTC).",
+              "mimeType": "application/json"
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "maxAmountRequired": "1000",
+              "amount": "1000",
+              "payTo": "2hAXt3sb2GZrtXx4ae4Ywc7enqrE191nktyL5k2nWSfg",
+              "maxTimeoutSeconds": 60,
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "extra": {
+                "feePayer": "D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM"
+              },
+              "resource": "https://hypernatt.com/api/m2m/liq-radar",
+              "description": "Pay $0.001 USDC to access: Forced-order map. If cluster_grammar is present, read it before liq_radar. class=noise (<3%) is high-leverage bait - ignore. class=true (~7%+) is the low-leverage stack. Terrain, not a signal. Whitelist BTC ETH SOL BNB XRP HYPE ZEC (omit = BTC).",
+              "mimeType": "application/json"
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 3770,
+    "body_sha256": "a118937f24d2543562d18894ca792a26b0d17cf101fefe77bbf5b41690e8ecb5",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"X-PAYMENT header required. Pay $0.001 USDC exact via x402 on Base (eip155:8453, EIP-3009) OR Solana (SVM exact). Solana x402 is SVM exact, not an EVM signature. No @x402/svm -> pay accepts[0] Base. SVM tx expires in ~90s (blockhash); sign immediately. feePayer MUST equal extra.feePayer from this 402; amount MUST equal accepts[].amount.\",\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"maxAmountRequired\":\"1000\",\"amount\":\"1000\",\"payTo\":\"0x5a78ace5dd133316c8aaf7e156fbfc57e1209cf9\",\"maxTimeoutSeconds\":60,\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"decimals\":6},\"resource\":\"https://hypernatt.com/api/m2m/liq-radar\",\"description\":\"Pay $0.001 USDC to access: Forced-order map. If cluster_grammar is present, read it before liq_radar. class=noise (<3%) is high-leverage bait - ignore. class=true (~7%+) is the low-leverage stack. Terrain, not a signal. Whitelist BTC ETH SOL BNB XRP HYPE ZEC (omit = BTC).\",\"mimeType\":\"application/json\"},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"maxAmountRequired\":\"1000\",\"amount\":\"1000\",\"payTo\":\"2hAXt3sb2GZrtXx4ae4Ywc7enqrE191nktyL5k2nWSfg\",\"maxTimeoutSeconds\":60,\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"extra\":{\"feePayer\":\"D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM\"},\"resource\":\"https://hypernatt.com/api/m2m/liq-radar\",\"description\":\"Pay $0.001 USDC to access: Forced-order map. If cluster_grammar is present, read it before liq_radar. class=noise (<3%) is high-leverage bait - ignore. class=true (~7%+) is the low-leverage stack. Terrain, not a signal. Whitelist BTC ETH SOL BNB XRP HYPE ZEC (omit = BTC).\",\"mimeType\":\"application/json\"}],\"resource\":{\"url\":\"https://hypernatt.com/api/m2m/liq-radar\",\"description\":\"Forced-order map. If cluster_grammar is present, read it before liq_radar. class=noise (<3%) is high-leverage bait - ignore. class=true (~7%+) is the low-leverage stack. Terrain, not a signal. Whitelist BTC ETH SOL BNB XRP HYPE ZEC (omit = BTC).\",\"mimeType\":\"application/json\",\"serviceName\":\"HyperNatt Terminal\",\"tags\":[\"bitcoin\",\"hyperliquid\",\"trading\",\"market maker\",\"liquidations\"]},\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"type\":\"http\",\"method\":\"GET\",\"queryParams\":{}},\"output\":{\"type\":\"json\",\"example\":{\"ok\":true,\"product\":\"hypernatt_liq_radar_v1\",\"payload_schema\":\"hypernatt_liq_radar_v2\",\"symbol\":\"BTC\",\"default_symbol\":\"BTC\",\"supported_symbols\":[\"BTC\",\"ETH\",\"SOL\",\"BNB\",\"XRP\",\"HYPE\",\"ZEC\"],\"liq_radar\":{\"magnet\":{\"score\":-60,\"bias\":\"BEARISH_MAGNET\"},\"ls_ratio\":{\"long_pct\":67,\"short_pct\":33},\"liq_density\":{\"asymmetry\":0.32,\"clusters_above\":[{\"price\":64100,\"size_btc\":60.8,\"distance_pct\":3.45}],\"clusters_below\":[{\"price\":59100,\"size_btc\":123.5,\"distance_pct\":4.62}]},\"real_liquidations\":{\"window_1h\":{\"count\":43,\"dominant\":\"short\"}}}}}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"GET\",\"HEAD\",\"DELETE\"]},\"queryParams\":{\"type\":\"object\",\"properties\":{}}},\"required\":[\"type\",\"method\"],\"additionalProperties\":false},\"output\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\"},\"example\":{\"type\":\"object\"}},\"required\":[\"type\"]}},\"required\":[\"input\"]}},\"builder-code\":{\"info\":{\"a\":\"bc_44pslzw2\"},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\",\"pattern\":\"^[a-z0-9_]{1,32}$\",\"description\":\"App builder code\"},\"w\":{\"type\":\"string\",\"pattern\":\"^[a-z0-9_]{1,32}$\",\"description\":\"Wallet builder code\"},\"s\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"pattern\":\"^[a-z0-9_]{1,32}$\"},\"description\":\"Service builder codes\"}},\"additionalProperties\":false}}}}"
+  },
+  "run_id": "20261010T142516Z",
+  "checked_at": "2026-10-10T14:25:18Z"
+}
