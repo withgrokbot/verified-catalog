@@ -1,10 +1,10 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.withgrokbot/verified-catalog",
-  "title": "PayScout (formerly Spot-Check)",
+  "title": "402xAgent (formerly Spot-Check)",
   "description": "Check an x402 endpoint before your agent pays: pay, skip or recheck. Plus a verified x402 catalog.",
-  "version": "0.16.0",
-  "websiteUrl": "https://payscout.dev/",
+  "version": "0.17.0",
+  "websiteUrl": "https://402xagent.com/",
   "repository": {
     "url": "https://github.com/withgrokbot/verified-catalog",
     "source": "github"
@@ -12,7 +12,7 @@
   "remotes": [
     {
       "type": "streamable-http",
-      "url": "https://api.payscout.dev/mcp"
+      "url": "https://api.402xagent.com/mcp"
     },
     {
       "type": "streamable-http",

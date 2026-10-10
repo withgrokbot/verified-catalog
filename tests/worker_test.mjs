@@ -522,7 +522,7 @@ test("paid path: every unpaid call (no params, GET or POST, first call of the da
   assert.ok(e.points.every((p) => p.blobs[12] === "payment-required" && p.doubles[2] === 402 && p.doubles[0] === 0));
   // discovery documents
   const wk = (await send("/.well-known/x402", { envo: e })).body;
-  assert.deepEqual(wk, { version: 1, resources: ["https://lookup.test/v1/lookup/paid", "https://lookup.test/v1/products/overnight-cos-pack", "https://lookup.test/v1/products/endpoint-spot-check"] });
+  assert.deepEqual(wk, { version: 1, resources: ["https://api.402xagent.com/v1/lookup/paid", "https://api.402xagent.com/v1/products/overnight-cos-pack", "https://api.402xagent.com/v1/products/endpoint-spot-check"] });
   const oa = (await send("/openapi.json", { envo: e })).body;
   const op = oa.paths["/v1/lookup/paid"].get;
   assert.deepEqual(op["x-payment-info"].protocols, [{ x402: { scheme: "exact", network: "eip155:8453", asset: USDC, payTo: PAY_TO } }]);
@@ -583,7 +583,7 @@ test("MCP /mcp: initialize, tools/list (catalog tools + products), ping, notific
   let r = await rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } } }, { envo: e });
   assert.equal(r.status, 200);
   assert.match(r.headers.get("content-type"), /application\/json/);
-  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "payscout", title: "PayScout (formerly Spot-Check) + verified x402 catalog", version: VERSION } } });
+  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "402xagent", title: "402xAgent (formerly Spot-Check) + verified x402 catalog", version: VERSION } } });
   assert.equal(r.headers.get("mcp-session-id"), null, "stateless: no session");
   r = await rpc({ jsonrpc: "2.0", method: "notifications/initialized" }, { envo: e });
   assert.equal(r.status, 202);
@@ -702,7 +702,7 @@ test("overnight-cos-pack: unpaid GET/POST return 402 with amount 9000000, payTo,
   assert.equal(self.status, 402);
   // discovery docs
   const wk = (await send("/.well-known/x402", { envo: e })).body;
-  assert.ok(wk.resources.includes("https://lookup.test" + PACK));
+  assert.ok(wk.resources.includes("https://api.402xagent.com" + PACK), "discovery lists the canonical API host");
   const oa = (await send("/openapi.json", { envo: e })).body;
   assert.equal(oa.info.version, VERSION);
   const op = oa.paths[PACK].get;
@@ -1223,7 +1223,7 @@ test("public receipts: every delivered decision is stored; GET by id and by-url 
   const t = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=rcpt-client-1";
   const free = await send(t, { envo: e });
   assert.match(free.body.receipt_id, /^sc-[0-9a-f]{16}$/);
-  assert.equal(free.body.receipt_url, "https://lookup.test/v1/receipts/" + free.body.receipt_id);
+  assert.equal(free.body.receipt_url, "https://402xagent.com/v1/receipts/" + free.body.receipt_id);
   assert.equal(db.rows.length, 1);
   assert.ok(!db.rows[0].body.includes("rcpt-client-1"), "receipts never carry the client id");
   const unpaid = await send(t, { envo: e });
@@ -1522,53 +1522,96 @@ test("determinism (0.14.0): one probe per normalized URL + method for 5 min; con
   spotTargetMode = "402";
 });
 
-test("PayScout rebrand (0.15.0): every host serves the same routes; 402 resource follows the host; legacy host unchanged", async () => {
-  const e = spotEnv();
-  const hosts = ["https://payscout.dev", "https://api.payscout.dev", "https://verified-catalog-lookup.withgrokbot.workers.dev"];
+test("402xAgent rebrand (0.17.0): every host serves the same API; 402 resource follows the host; links canonical; no old brand", async () => {
+  const e = spotEnv({ RECEIPTS_DB: fakeD1() });
+  const hosts = ["https://402xagent.com", "https://api.402xagent.com", "https://payscout.dev", "https://api.payscout.dev", "https://verified-catalog-lookup.withgrokbot.workers.dev"];
   for (const h of hosts) {
     const get = async (p, init = {}) => worker.fetch(new Request(h + p, { headers: { "user-agent": "agent-x/1.0", "cf-connecting-ip": "203.0.113.7", ...(init.headers || {}) }, method: init.method || "GET", body: init.body }), e.env, { waitUntil() {} });
     assert.equal((await (await get("/health")).json()).version, VERSION, h);
-    const oa = await (await get("/openapi.json")).json();
-    assert.match(oa.info.title, /^PayScout \(formerly Spot-Check\)/);
-    assert.deepEqual(oa.servers.map((s) => s.url).sort(), hosts.slice().sort(), h);
+    const oaT = await (await get("/openapi.json")).text();
+    const oa = JSON.parse(oaT);
+    assert.match(oa.info.title, /^402xAgent \(formerly Spot-Check\)/);
+    assert.deepEqual(oa.servers.map((s) => s.url), ["https://api.402xagent.com", "https://402xagent.com", "https://verified-catalog-lookup.withgrokbot.workers.dev"], h);
     const pack = await get("/v1/products/overnight-cos-pack", { method: "POST", body: "{}", headers: { "content-type": "application/json" } });
     assert.equal(pack.status, 402, "POST still gets the 402 on " + h);
     const pr = JSON.parse(Buffer.from(pack.headers.get("payment-required"), "base64").toString());
-    assert.equal(pr.resource.url, h + "/v1/products/overnight-cos-pack", "402 resource is the host the client called");
+    assert.equal(pr.resource.url, h + "/v1/products/overnight-cos-pack", "402 resource is the host the client called (signed requirements match there)");
+    const sp = await get("/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://seller.example/api/x") + "&client=rb-" + hosts.indexOf(h));
+    const spT = await sp.text();
+    assert.equal(sp.status, 200, h);
+    assert.match(String(JSON.parse(spT).receipt_url), /^https:\/\/402xagent\.com\/v1\/receipts\/sc-/, "receipt links are canonical: " + spT.slice(0, 300));
     const llms = await (await get("/llms.txt")).text();
-    assert.match(llms, /^# PayScout \(formerly Spot-Check\)/);
+    assert.match(llms, /^# 402xAgent \(formerly Spot-Check\)/);
     const root = await (await get("/", { headers: { accept: "application/json" } })).json();
-    assert.equal(root.payscout.home, "https://payscout.dev");
-    assert.equal(root.products["endpoint-spot-check"].url, h + "/v1/products/endpoint-spot-check", "route paths unchanged");
+    assert.equal(root.hosts.home, "https://402xagent.com");
+    assert.equal(root.products["endpoint-spot-check"].url, "https://402xagent.com/v1/products/endpoint-spot-check", "route paths unchanged");
+    const wk = await (await get("/.well-known/x402")).json();
+    assert.ok(wk.resources.every((u) => u.startsWith("https://api.402xagent.com/")));
+    assert.match(await (await get("/robots.txt")).text(), /Sitemap: https:\/\/402xagent\.com\/sitemap\.xml/);
+    const pubs = [oaT, spT, llms, JSON.stringify(root), JSON.stringify(pr).split(h + "/v1/products/overnight-cos-pack").join("<resource>"), JSON.stringify(wk), await (await get("/v1/skips.json")).text(), await (await get("/v1/receipts")).text()];
+    for (const t of pubs) assert.doesNotMatch(t, /payscout/i, "old brand gone from public copy on " + h + ": " + (t.match(/.{60}payscout.{60}/is) || [""])[0]);
   }
-  // the apex answers browsers with a landing page; JSON clients (and the legacy host) get the JSON index as before
-  const html = await worker.fetch(new Request("https://payscout.dev/", { headers: { accept: "text/html,*/*" } }), e.env, { waitUntil() {} });
-  assert.match(html.headers.get("content-type"), /text\/html/);
-  assert.match(await html.text(), /PayScout/);
-  const legacy = await worker.fetch(new Request("https://verified-catalog-lookup.withgrokbot.workers.dev/", { headers: { accept: "text/html,*/*" } }), e.env, { waitUntil() {} });
-  assert.match(legacy.headers.get("content-type"), /application\/json/);
-  const sk = await worker.fetch(new Request("https://payscout.dev/v1/skips"), e.env, { waitUntil() {} });
-  assert.match(await sk.text(), /<title>PayScout skips/);
   const m = await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" }, { envo: e });
   const names = m.body.result.tools.map((t) => t.name);
   for (const n of ["endpoint_spot_check", "get_receipt", "lookup", "search_catalog", "get_service"]) assert.ok(names.includes(n), "tool name kept: " + n);
+  assert.doesNotMatch(JSON.stringify(m.body), /payscout/i);
+  const sk = await worker.fetch(new Request("https://402xagent.com/v1/skips"), e.env, { waitUntil() {} });
+  const skT = await sk.text();
+  assert.match(skT, /<title>402xAgent skips/);
+  assert.doesNotMatch(skT, /payscout/i);
 });
 
-test("landing page (0.16.0): HTML to browsers on payscout.dev only, real counts, no client ids, JSON elsewhere", async () => {
+test("receipts stored under an earlier brand are served with the 402xAgent name and a canonical permalink", async () => {
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db });
+  const body = { service: "PayScout (formerly Spot-Check)", id: "sc-00000000000000aa", url: "https://x.test/a", check_type: "dry-run", verdict: "pay", reason: "price_ok", permalink: "https://payscout.dev/v1/receipts/sc-00000000000000aa" };
+  await db.prepare("INSERT INTO spot_receipts (id, url, created_at, verdict, reason, check_type, ref, norm_key, probed_at, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(body.id, body.url, "2026-10-10T18:00:00Z", "pay", "price_ok", "dry-run", null, null, null, JSON.stringify(body)).run();
+  const r = await worker.fetch(new Request("https://api.402xagent.com/v1/receipts/sc-00000000000000aa"), e.env, { waitUntil() {} });
+  const t = await r.text();
+  assert.equal(r.status, 200);
+  assert.doesNotMatch(t, /payscout/i);
+  assert.equal(JSON.parse(t).permalink, "https://402xagent.com/v1/receipts/sc-00000000000000aa");
+});
+
+test("old hosts (0.17.0): browser page views 301 to 402xagent.com; API, x402, MCP, POST and payment retries keep answering", async () => {
+  const e = spotEnv();
+  const H = "text/html,application/xhtml+xml,*/*;q=0.8";
+  const go = (u, init = {}) => worker.fetch(new Request(u, { method: init.method || "GET", headers: init.headers || {}, body: init.body }), e.env, { waitUntil() {} });
+  for (const h of ["https://payscout.dev", "https://api.payscout.dev", "https://verified-catalog-lookup.withgrokbot.workers.dev"]) {
+    for (const p of ["/", "/v1/skips?page=1", "/llms.txt", "/openapi.json", "/v1/receipts/b5e13e8271"]) {
+      const r = await go(h + p, { headers: { accept: H } });
+      assert.equal(r.status, 301, h + p);
+      assert.equal(r.headers.get("location"), "https://402xagent.com" + p);
+    }
+    // not redirected: JSON / default Accept, API + x402 + MCP paths, POST, payment retries
+    assert.equal((await go(h + "/", { headers: { accept: "application/json" } })).status, 200);
+    assert.equal((await go(h + "/v1/skips.json")).status, 200);
+    assert.equal((await go(h + "/llms.txt", { headers: { accept: "*/*" } })).status, 200);
+    assert.equal((await go(h + "/v1/products/overnight-cos-pack", { headers: { accept: H } })).status, 402);
+    assert.equal((await go(h + "/v1/lookup/paid?task=web-search", { headers: { accept: H } })).status, 402);
+    assert.equal((await go(h + "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://seller.example/api/x") + "&client=oh-" + h.length, { headers: { accept: H } })).status, 200);
+    assert.notEqual((await go(h + "/v1/skips", { headers: { accept: H, "x-payment": "e30=" } })).status, 301);
+    const mcp = await go(h + "/mcp", { method: "POST", headers: { accept: "application/json, text/event-stream, text/html", "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
+    assert.equal(mcp.status, 200);
+  }
+  // the new hosts never redirect
+  for (const h of ["https://402xagent.com", "https://api.402xagent.com"]) assert.notEqual((await go(h + "/v1/skips", { headers: { accept: H } })).status, 301);
+});
+
+test("landing page (0.17.0): HTML to browsers on 402xagent.com only, real counts, no client ids, JSON elsewhere", async () => {
   const e = spotEnv();
   const go = (h, accept) => worker.fetch(new Request(h + "/?cb=1", { headers: accept ? { accept } : {} }), e.env, { waitUntil() {} });
-  const html = await go("https://payscout.dev", "text/html,application/xhtml+xml,*/*;q=0.8");
+  const html = await go("https://402xagent.com", "text/html,application/xhtml+xml,*/*;q=0.8");
   assert.equal(html.status, 200);
   assert.match(html.headers.get("content-type"), /text\/html/);
   const t = await html.text();
-  for (const re of [/<h1>Check before your <span class="grad">agent pays<\/span><\/h1>/, /og:title/, /rel="canonical" href="https:\/\/payscout.dev\/"/, /id="try"/, /wrapFetchWithPayment\(spotCheckFetch\(fetch\), client\)/, /wrapAxiosWithPayment\(spotCheckAxios\(axios.create\(\)\), client\)/, /class="bigprice">Free to try, paid checks from \$0\.01<\/h2>/, /1\/10 of the target\x27s price<\/b>, \$0\.01 min to \$0\.25 max/, /\$0\.001\/check<\/b> in packs of 10/, /<details class="sample" id="resp">\s*<summary>Show response<\/summary>/, /Stops your agent paying dead, mispriced or wrong-network endpoints/, /First router integration gets 1,000 free checks/, /withgrokbot\/x402-spotcheck\/issues\/new/, /href="\/mcp"/, /href="\/llms.txt"/, /href="\/openapi.json"/, /href="\/v1\/skips"/])
+  for (const re of [/<h1>Check before your <span class="grad">agent pays<\/span><\/h1>/, /og:title" content="402xAgent/, /rel="canonical" href="https:\/\/402xagent.com\/"/, /og:url" content="https:\/\/402xagent.com\/"/, /id="try"/, /wrapFetchWithPayment\(spotCheckFetch\(fetch\), client\)/, /wrapAxiosWithPayment\(spotCheckAxios\(axios.create\(\)\), client\)/, /class="bigprice">Free to try, paid checks from \$0\.01<\/h2>/, /1\/10 of the target's price<\/b>, \$0\.01 min to \$0\.25 max/, /\$0\.001\/check<\/b> in packs of 10/, /<details class="sample" id="resp">\s*<summary>Show response<\/summary>/, /Stops your agent paying dead, mispriced or wrong-network endpoints/, /First router integration gets 1,000 free checks/, /withgrokbot\/x402-spotcheck\/issues\/new/, /href="\/mcp"/, /href="\/llms.txt"/, /href="\/openapi.json"/, /href="\/v1\/skips"/, /curl &quot;https:\/\/api\.402xagent\.com\/v1\/products\/endpoint-spot-check/])
     assert.match(t, re);
   assert.ok(t.includes(`>${RECEIPTS_META.skip}</div><div class="l">skip`), "skip count is the real crawl number");
   assert.ok(t.includes(`>${RECEIPTS_META.pay}</div><div class="l">pay`));
-  assert.doesNotMatch(t, /router-ab|client=router|Jacob|@gmail|<script src=|<link rel="stylesheet"|fonts\.googleapis/i, "no client ids, personal names or external assets");
+  assert.doesNotMatch(t, /payscout|router-ab|client=router|Jacob|@gmail|<script src=|<link rel="stylesheet"|fonts\.googleapis/i, "no old brand, client ids, personal names or external assets");
   assert.ok(LANDING_EXAMPLES.length >= 3 && LANDING_EXAMPLES.every((x) => t.includes(x.url)));
-  // JSON clients and the other hosts keep the JSON index
-  for (const [h, a] of [["https://payscout.dev", "application/json"], ["https://payscout.dev", null], ["https://api.payscout.dev", "text/html,*/*"], ["https://verified-catalog-lookup.withgrokbot.workers.dev", "text/html,*/*"]]) {
+  for (const [h, a] of [["https://402xagent.com", "application/json"], ["https://402xagent.com", null], ["https://api.402xagent.com", "text/html,*/*"]]) {
     const r = await go(h, a);
     assert.match(r.headers.get("content-type"), /application\/json/, h + " " + a);
     assert.equal((await r.json()).version, VERSION);
