@@ -96,7 +96,7 @@ def query_ae(since, sql=sql_rows):
 
 
 # Bots are not demand (ANALYTICS_2026-10-09.md). Worker 0.11.0+ tags them in blob6; older rows get the same rules here.
-NOT_REAL = {"self", "uptime", "crawler", "scanner", "example-param", "indexer", "ssrf-probe"}
+NOT_REAL = {"self", "uptime", "crawler", "scanner", "example-param", "indexer", "ssrf-probe", "dry-run"}  # dry-run: Worker 0.13.0 free dry runs (blob6/blob13)
 INDEXER_UA = re.compile(r"(bazaar|indexer|index-bot|probe|verifier|scout|x402watch|collector|doctor|x402lens|lens\b|conformance|discovery|registry|trustindex|agenstry|brickblue|pennywise|allow402|easy402|x402scan|settled|observer|touchstone|catalog-bot|directory)", re.I)
 EXAMPLE_HOST = re.compile(r"^(?:[^/]*\.)?(?:example\.(?:com|org|net)|[^/]+\.example|[^/]+\.test|[^/]+\.invalid|localhost)$", re.I)
 OUR_CLIENT = re.compile(r"^c:(wgb-|router-selftest|mx|maxverify|hermes-probe|withgrokbot|discovery-seed|sam-selftest|agent$|hint-|ship-|beacon|daily-review|selftest|test)")
@@ -109,6 +109,8 @@ def bot_tag(r):
     reason = r.get("reason") or ""
     if reason in NOT_REAL:
         return reason
+    if (r.get("access") or "").startswith("dry-run"):
+        return "dry-run"  # free dry runs are never paid or real-client demand; counted under rows_by_tag["dry-run"]
     if OUR_CLIENT.match(r.get("client") or "") or OUR_REF.match(r.get("ref") or ""):
         return "self"
     if (r.get("access") or "") == "spot-ssrf":

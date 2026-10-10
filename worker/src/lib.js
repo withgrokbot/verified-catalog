@@ -32,7 +32,7 @@ import {
 
 import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skips.js";
 import { RECEIPTS } from "./receipts-data.js";
-export const VERSION = "0.12.1";
+export const VERSION = "0.13.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -384,8 +384,15 @@ export function spotCfg(env) {
     priceUsd: (Number(price) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, ""),
     freePerDay: Number.isFinite(free) && free >= 0 ? free : SPOT_DEFAULT_FREE_PER_DAY,
     paidPerHour: Number.isFinite(paidCap) && paidCap > 0 ? paidCap : SPOT_PAID_PER_HOUR,
+    dryPerDay: posInt(env.SPOT_DRY_PER_DAY, SPOT_DRY_PER_DAY),
+    dryPerIpDay: posInt(env.SPOT_DRY_PER_IP_DAY, SPOT_DRY_PER_IP_DAY),
   };
 }
+// 0.13.0 dry runs: free, never signed or paid, always stored. Capped per caller (ref, else client, else IP hash) and per IP hash.
+export const SPOT_DRY_PER_DAY = 50;
+export const SPOT_DRY_PER_IP_DAY = 200;
+export const SPOT_DRY_COUNTER = "spot-dry";
+const posInt = (v, d) => { const n = parseInt(v ?? "", 10); return Number.isFinite(n) && n > 0 ? n : d; };
 
 
 export function utcDay(now = new Date()) {
@@ -833,7 +840,8 @@ export function spotBazaarExtension() {
                 pay_to: { type: "string", description: "optional expected pay-to wallet" },
                 network: { type: "string", description: "optional expected CAIP-2 network" },
                 client: { type: "string" },
-                ref: { type: "string" },
+                ref: { type: "string", description: "attribution tag; ref=dry-run-<caller> sets mode=dry-run" },
+                mode: { type: "string", enum: ["live", "dry-run"], description: "free dry run: one unpaid probe, nothing signed or paid, always stored as a public receipt (check_type dry-run). Returns the free-tier shape with payment_terms_sha256 null (never an approval). 50 per caller (ref, else client, else IP) per UTC day. ref=dry-run-<caller> also sets it" },
               },
             },
             headers: { type: "object", additionalProperties: { type: "string" } },
@@ -990,7 +998,7 @@ export function spotBadRequest(origin, field, problem) {
     example,
   };
 }
-const SPOT_KNOWN_PARAMS = new Set([...SPOT_URL_ALIASES, ...SPOT_PRICE_ALIASES, "task", "client", "ref", "format", "method", "pay_to", "network"]);
+const SPOT_KNOWN_PARAMS = new Set([...SPOT_URL_ALIASES, ...SPOT_PRICE_ALIASES, "task", "client", "ref", "format", "method", "pay_to", "network", "mode"]);
 
 // Listing facts from our self-checked crawl (/v1/receipts), by exact URL. Used as the expected pay_to / network / price
 // when the caller does not send its own (0.7.0).
@@ -1054,13 +1062,26 @@ export function newReceiptId() {
   crypto.getRandomValues(b);
   return "sc-" + [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
-export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText, pm, termsHash, exp, now = new Date() }) {
+export function liveDemand(probe) {
+  const accepts = (probe.accepts || []).map((a) => ({ scheme: a.scheme, network: a.network, asset: a.asset, amount_atomic: a.amount, pay_to: a.payTo }));
+  if (probe.x402_challenge) return { http_status: probe.http_status ?? null, x402_challenge: true, schemes: [...new Set(accepts.map((a) => a.scheme).filter(Boolean))], terms: accepts };
+  return { http_status: probe.http_status ?? null, x402_challenge: false, free_trial: probe.free_trial || null, error: probe.error || null };
+}
+export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText, pm, termsHash, exp, now = new Date(), checkType = "live", ref = "", caller = null }) {
+  const dry = checkType === "dry-run";
   return {
     id,
     url,
     method,
     checked_at: now.toISOString().replace(/\.\d{3}Z$/, "Z"),
-    check_type: "live spot-check (unpaid probe of the target; never pays it)",
+    check_type: dry ? "dry-run" : "live",
+    check_note: dry
+      ? "dry run: one unpaid probe of the target; nothing signed or paid, and not an approval to pay"
+      : "live spot-check (unpaid probe of the target; never pays it)",
+    ref: ref || null,
+    caller: dry ? caller || ref || null : null,
+    listing: exp.source ? { claimed_price_usd: exp.claimed, pay_to: exp.pay_to, network: exp.network, source: exp.source } : null,
+    live_demand: liveDemand(probe),
     verdict: d.verdict,
     reason: d.reason,
     reason_text: reasonText,
@@ -1081,22 +1102,59 @@ export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText
 export async function saveLiveReceipt(env, r) {
   if (!env.RECEIPTS_DB) return false;
   try {
-    await env.RECEIPTS_DB.prepare("INSERT INTO spot_receipts (id, url, created_at, verdict, reason, body) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind(r.id, r.url, r.checked_at, r.verdict, r.reason, JSON.stringify(r)).run();
+    await env.RECEIPTS_DB.prepare("INSERT INTO spot_receipts (id, url, created_at, verdict, reason, check_type, ref, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(r.id, r.url, r.checked_at, r.verdict, r.reason, r.check_type || "live", r.ref || null, JSON.stringify(r)).run();
     return true;
   } catch (_) {
     return false; // storing must never break an answer
   }
 }
+// Receipts stored before 0.13.0 carry the long check_type text; read them as check_type "live" (text kept in check_note).
+export function normReceipt(r) {
+  if (r && r.check_type !== "live" && r.check_type !== "dry-run") return { ...r, check_type: "live", check_note: r.check_type || null };
+  return r;
+}
 export async function getLiveReceipt(env, id) {
   if (!env.RECEIPTS_DB || !LIVE_RECEIPT_RE.test(id)) return null;
   const row = await env.RECEIPTS_DB.prepare("SELECT body FROM spot_receipts WHERE id = ?").bind(id).first();
-  return row ? JSON.parse(row.body) : null;
+  return row ? normReceipt(JSON.parse(row.body)) : null;
 }
 export async function latestLiveReceipt(env, url) {
   if (!env.RECEIPTS_DB) return null;
   const row = await env.RECEIPTS_DB.prepare("SELECT body FROM spot_receipts WHERE url = ? ORDER BY created_at DESC LIMIT 1").bind(url).first();
-  return row ? JSON.parse(row.body) : null;
+  return row ? normReceipt(JSON.parse(row.body)) : null;
+}
+// GET /v1/receipts?type=dry-run|live[&ref=][&limit=1..100][&cursor=] : newest first, free to read.
+export async function handleReceiptList(env, url) {
+  const p = url.searchParams;
+  const type = String(p.get("type") || "").toLowerCase();
+  if (!["dry-run", "live"].includes(type)) return rj({ error: 'type must be dry-run or live', field: "type", example: url.origin + "/v1/receipts?type=dry-run&limit=20" }, 400);
+  const ref = String(p.get("ref") || "").toLowerCase();
+  if (ref && !/^[a-z0-9._\-]{1,64}$/.test(ref)) return rj({ error: "invalid ref", field: "ref" }, 400);
+  let limit = parseInt(p.get("limit") || "20", 10);
+  if (!Number.isFinite(limit) || limit < 1) limit = 20;
+  limit = Math.min(limit, 100);
+  let cur = null;
+  const cursor = p.get("cursor");
+  if (cursor) {
+    try { cur = JSON.parse(atob(cursor.replace(/-/g, "+").replace(/_/g, "/"))); } catch (_) { cur = null; }
+    if (!Array.isArray(cur) || cur.length !== 2 || !LIVE_RECEIPT_RE.test(String(cur[1]))) return rj({ error: "invalid cursor", field: "cursor" }, 400);
+  }
+  if (!env.RECEIPTS_DB) return rj({ error: "receipt store unavailable, try again shortly" }, 503);
+  let sql = "SELECT id, created_at, body FROM spot_receipts WHERE check_type = ?";
+  const args = [type];
+  if (ref) { sql += " AND ref = ?"; args.push(ref); }
+  if (cur) { sql += " AND (created_at < ? OR (created_at = ? AND id < ?))"; args.push(cur[0], cur[0], cur[1]); }
+  sql += " ORDER BY created_at DESC, id DESC LIMIT ?";
+  args.push(limit + 1);
+  let rows;
+  try { rows = ((await env.RECEIPTS_DB.prepare(sql).bind(...args).all()) || {}).results || []; } catch (_) { return rj({ error: "receipt store unavailable, try again shortly" }, 503); }
+  const more = rows.length > limit;
+  const page = rows.slice(0, limit);
+  const last = page[page.length - 1];
+  const next = more && last ? btoa(JSON.stringify([last.created_at, last.id])).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : null;
+  const qs = (c) => { const n = new URLSearchParams({ type }); if (ref) n.set("ref", ref); n.set("limit", String(limit)); n.set("cursor", c); return url.origin + "/v1/receipts?" + n.toString(); };
+  return rj({ type, ref: ref || null, limit, count: page.length, receipts: page.map((r) => normReceipt(JSON.parse(r.body))), next_cursor: next, next: next ? qs(next) : null });
 }
 const rj = (o, status = 200) => new Response(JSON.stringify(o, null, 2), { status, headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": status === 200 ? "public, max-age=60" : "no-store" } });
 async function handleLiveReceipts(req, env, url, path) {
@@ -1221,7 +1279,12 @@ async function parseSpotQuery(req, url) {
   let methodRaw = p.get("method") || body.method || "GET";
   const method = String(methodRaw).toUpperCase();
   if (!["GET", "POST"].includes(method)) errors.push({ field: "method", problem: 'Invalid "method": GET or POST (how to probe the target)' });
-  return { url: target, task: taskSlug, claimed_price, client, ref, method, pay_to, network, errors };
+  // 0.13.0: mode=dry-run (or ref=dry-run-<caller>) = free dry run: never signed or paid, always stored as a receipt.
+  const modeRaw = String(p.get("mode") || body.mode || "").trim().toLowerCase();
+  if (modeRaw && !["dry-run", "live"].includes(modeRaw)) errors.push({ field: "mode", problem: 'Invalid "mode": dry-run (free, nothing signed or paid, stored as a receipt) or live (default)' });
+  const mode = modeRaw === "dry-run" || /^dry-run-/.test(ref) ? "dry-run" : "live";
+  const dry_caller = /^dry-run-./.test(ref) ? ref.slice("dry-run-".length) : null;
+  return { url: target, task: taskSlug, claimed_price, client, ref, method, pay_to, network, mode, dry_caller, errors };
 }
 
 // Paid spot-check price: one tenth of the target's quoted x402 price, min $0.01, cap $0.25 (no quote -> $0.01).
@@ -1283,7 +1346,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const rid = env.RECEIPTS_DB ? newReceiptId() : null;
     const receiptFields = { receipt_id: rid, receipt_url: rid ? url.origin + "/v1/receipts/" + rid : null };
     if (rid) {
-      const rec = buildLiveReceipt({ id: rid, origin: url.origin, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm, termsHash, exp });
+      const rec = buildLiveReceipt({ id: rid, origin: url.origin, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm, termsHash, exp, ref: q.ref });
       const p = saveLiveReceipt(env, rec);
       if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(p); else await p;
     }
@@ -1336,6 +1399,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       claimed_price_usd: q.claimed_price,
     }, 400);
   }
+
+  if (q.mode === "dry-run") return spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { cid, ua, referer, c });
 
   const probe = await spotProbe(q.url, { ...probeOpts, method: q.method });
   cd = spotDynCfg(c, probe.quoted_price_usd);
@@ -1448,6 +1513,63 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
 
   writePoint(env, dataPoint({ cid, q: qLike, excluded: isExempt(qLike, env) ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: access.tier === "partner" ? "partner" : access.tier, freeUsed: partner ? partner.used : freeUsed }));
   return json(await buildResult(probe, access), 200, extraHeaders);
+}
+
+// 0.13.0 dry run. Abuse guard: (1) capped per caller and per IP hash per UTC day; (2) the answer is the free-tier shape
+// (verdict + plain-words reason) with payment_terms_sha256 always null and no payment object, so a dry run can never
+// stand in for an approval (x402-spotcheck and the router hooks need the hash / payment terms from a live check).
+// The full live terms go only into the public receipt, as for every live check.
+async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { cid, ua, referer, c }) {
+  const point = (status, access) => {
+    const dp = dataPoint({ cid, q: qLike, excluded: "dry-run", candidates: 0, ua, returnedPayTo: [], status, referer, access });
+    dp.doubles[0] = 0;
+    writePoint(env, dp);
+  };
+  const exempt = isExempt(qLike, env);
+  const ipKey = await quotaKey(req, { ...qLike, client: null }, env);
+  const callerKey = q.ref ? "r:" + q.ref : q.client && q.client !== MCP_CLIENT ? "c:" + q.client : ipKey;
+  let cap = { free: true, used: null };
+  if (!exempt) {
+    cap = await takeFree(env, "dry:" + callerKey, c.dryPerDay, new Date(), "take", SPOT_DRY_COUNTER);
+    if (cap.free) {
+      const ipCap = await takeFree(env, "dryip:" + ipKey, c.dryPerIpDay, new Date(), "take", SPOT_DRY_COUNTER);
+      if (!ipCap.free) cap = { free: false, used: ipCap.used, ip: true };
+    }
+  }
+  if (!cap.free) {
+    point(429, "dry-run-capped");
+    return json({
+      error: cap.ip ? `dry-run limit: ${c.dryPerIpDay} per UTC day from one network` : `dry-run limit: ${c.dryPerDay} per caller per UTC day`,
+      product: SPOT_ID,
+      mode: "dry-run",
+      resets: "00:00 UTC",
+      live_check: url.origin + "/v1/products/endpoint-spot-check?url=" + encodeURIComponent(q.url),
+    }, 429, { "cache-control": "no-store" });
+  }
+  if (!env.RECEIPTS_DB) { point(503, "dry-run-no-store"); return json({ error: "dry runs are always stored as receipts; the receipt store is unavailable, try again shortly", mode: "dry-run" }, 503); }
+  const probe = await spotProbe(q.url, { ...probeOpts, method: q.method });
+  const d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pickPayment(probe, exp), exp), probe, q, listing);
+  const rid = newReceiptId();
+  const reason = spotLossReason(d, exp.claimed).replace(/, details locked$/, "");
+  const rec = buildLiveReceipt({ id: rid, origin: url.origin, url: q.url, method: q.method, probe, d, reasonText: reason, pm: null, termsHash: null, exp, checkType: "dry-run", ref: q.ref, caller: q.dry_caller });
+  if (!(await saveLiveReceipt(env, rec))) { point(503, "dry-run-store-failed"); return json({ error: "dry runs are always stored as receipts; storing failed, try again shortly", mode: "dry-run" }, 503); }
+  point(200, "dry-run");
+  return json({
+    mode: "dry-run",
+    check_type: "dry-run",
+    verdict: d.verdict,
+    reason,
+    payment_terms_sha256: null,
+    receipt_id: rid,
+    receipt_url: url.origin + "/v1/receipts/" + rid,
+    access: {
+      tier: exempt ? "dry-run-exempt" : "dry-run",
+      dry_runs_per_day: c.dryPerDay,
+      dry_runs_used_today: cap.used,
+      dry_runs_remaining_today: cap.used === null ? null : Math.max(0, c.dryPerDay - cap.used),
+      note: "Free dry run: nothing signed or paid, not an approval to pay (no payment terms hash). Live terms are in the public receipt.",
+    },
+  }, 200, { "cache-control": "no-store" });
 }
 
 export function paymentRequired(c, url, error, used) {
@@ -1708,7 +1830,8 @@ export function openapi(origin, env = {}) {
             { name: "pay_to", in: "query", schema: { type: "string" }, description: "optional wallet you expect to pay (from your listing); a 402 paying elsewhere is skip/pay_to_mismatch. Defaults to the listing in our crawl when we have one" },
             { name: "network", in: "query", schema: { type: "string" }, description: "optional CAIP-2 network you expect (e.g. eip155:8453); a 402 on another network is skip/network_mismatch" },
             { name: "client", in: "query", schema: { type: "string" } },
-            { name: "ref", in: "query", schema: { type: "string" } },
+            { name: "ref", in: "query", schema: { type: "string" }, description: "attribution tag, stored on the receipt; ref=dry-run-<caller> sets mode=dry-run" },
+            { name: "mode", in: "query", schema: { type: "string", enum: ["live", "dry-run"], default: "live" }, description: "free dry run: one unpaid probe, nothing signed or paid, always stored as a public receipt (check_type dry-run). Returns the free-tier shape with payment_terms_sha256 null (never an approval). 50 per caller (ref, else client, else IP) per UTC day. ref=dry-run-<caller> also sets it" },
           ],
           "x-payment-info": {
             price: { mode: "dynamic", currency: "USD", min: "0.01", max: "0.25", rule: "one tenth of the target endpoint's quoted x402 price" },
@@ -1761,8 +1884,14 @@ export function openapi(origin, env = {}) {
         get: {
           operationId: "receipts",
           security: [],
-          summary: "Free: every self-checked receipt (url, claimed_price_usd, quoted_price_usd, pay_to, verdict, reason, timestamp, source_list). /v1/receipts/{id} returns one receipt.",
-          responses: { 200: { description: "JSON receipts" } },
+          summary: "Free: every self-checked receipt (url, claimed_price_usd, quoted_price_usd, pay_to, verdict, reason, timestamp, source_list). /v1/receipts/{id} returns one receipt. With type=dry-run or type=live: stored Spot-Check decisions, newest first (url, listing, live_demand, verdict, reason, checked_at, check_type, ref), filter by ref, page with limit (1-100, default 20) and cursor (next_cursor).",
+          parameters: [
+            { name: "type", in: "query", schema: { type: "string", enum: ["dry-run", "live"] }, description: "list stored Spot-Check receipts of this type" },
+            { name: "ref", in: "query", schema: { type: "string" }, description: "only receipts with this ref (e.g. dry-run-mybot)" },
+            { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+            { name: "cursor", in: "query", schema: { type: "string" }, description: "next_cursor from the previous page" },
+          ],
+          responses: { 200: { description: "JSON receipts" }, 400: { description: "bad type, ref or cursor" } },
         },
       },
       "/mcp": {
@@ -2106,6 +2235,7 @@ export const MCP_TOOLS = [
       "Decision-shaped SSRF-safe spot-check of a public URL for an x402 PAYMENT-REQUIRED / 402 challenge. " +
       "Free: verdict (pay|skip|recheck), a plain-words reason, payment_terms_sha256 (hash of the approved payment), and access. Paid: verdict, reason code, quoted/claimed price, pay_to, network, asset, and payment = the exact {network, asset, amount_atomic, amount_usd, pay_to} a router may sign (verdict pay only), plus access with the settlement tx. " +
       "A 2xx with no payment terms is recheck (reason no_terms_seen, or free_trial_active when the target sends x-free-trial headers), not skip. " +
+      "mode=dry-run: free dry run (nothing signed or paid, stored as a public receipt, no approval hash, 50/caller/day). " +
       "Never pays the target (probe GET only). 1 free check per client per UTC day (client=vc-mcp), then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402. " +
       "Unpaid after free quota: payment instructions. Forward PAYMENT-SIGNATURE for a paid check.",
     inputSchema: {
@@ -2117,6 +2247,8 @@ export const MCP_TOOLS = [
         method: { type: "string", enum: ["GET", "POST"], description: "optional: probe the target with POST (empty JSON body) for POST-only endpoints" },
         pay_to: { type: "string", description: "optional: the wallet you expect to pay (from your listing)" },
         network: { type: "string", description: "optional: the CAIP-2 network you expect, e.g. eip155:8453" },
+        mode: { type: "string", enum: ["live", "dry-run"], description: "optional: dry-run = free dry run: one unpaid probe, nothing signed or paid, always stored as a public receipt (check_type dry-run). Returns the free-tier shape with payment_terms_sha256 null (never an approval). 50 per caller (ref, else client, else IP) per UTC day. ref=dry-run-<caller> also sets it" },
+        ref: { type: "string", description: "optional attribution tag stored on the receipt (dry-run-<caller> sets mode=dry-run)" },
       },
       required: ["url"],
     },
@@ -2241,7 +2373,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         if (!args.url) return err("url is required");
         const qp = new URLSearchParams({ client: MCP_CLIENT, url: pyStr(args.url) });
         if (args.task) qp.set("task", pyStr(args.task));
-        for (const k of ["method", "pay_to", "network"]) if (args[k]) qp.set(k, pyStr(args[k]));
+        for (const k of ["method", "pay_to", "network", "mode", "ref"]) if (args[k]) qp.set(k, pyStr(args[k]));
         if (!blank(args.claimed_price)) {
           const d = decStr(args.claimed_price);
           if (d === null) return err("claimed_price must be a number");
@@ -2423,6 +2555,7 @@ const routeInnerHolder = {
     if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405, { allow: "GET, OPTIONS" });
     if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env);
     if (path === "/v1/receipts/by-url" || /^\/v1\/receipts\/sc-/.test(path)) return handleLiveReceipts(req, env, url, path);
+    if (path === "/v1/receipts" && url.searchParams.has("type")) return handleReceiptList(env, url);
     if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return handleReceipts(url, env);
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
     if (path === "/.well-known/x402") return json({ version: 1, resources: [url.origin + "/v1/lookup/paid", url.origin + "/v1/products/overnight-cos-pack", url.origin + "/v1/products/endpoint-spot-check"] });

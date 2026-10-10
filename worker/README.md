@@ -20,6 +20,8 @@ GET /v1/products/endpoint-spot-check # x402 Endpoint Spot-Check, 1 free/day then
                                      # Decision-shaped: verdict/reason/quoted vs claimed. Never pays target. MCP: endpoint_spot_check
     optional: endpoint=<id or url>, limit=<services, default 10>, client=<your agent name>, payer=<0x wallet>,
               ref=<where you found it, e.g. via-readme>
+GET /v1/products/endpoint-spot-check?url=<endpoint>&mode=dry-run   # free dry run (0.13.0); ref=dry-run-<caller> also sets it
+GET /v1/receipts?type=dry-run[&ref=<ref>][&limit=1-100][&cursor=<next_cursor>]   # stored dry runs (type=live: live checks), free
 GET /v1/tasks          task names -> service ids
 GET /openapi.json      OpenAPI 3.1
 ```
@@ -62,6 +64,22 @@ GET /openapi.json      OpenAPI 3.1
 - Weekly report: `python3 scripts/demand_weekly.py --start <day 1>` (needs `CF_ACCOUNT_ID` and a read-only
   `CF_API_TOKEN` with Account Analytics: Read). It includes paid lookups and revenue (by week and ref; our own
   self-test payments listed separately).
+
+## Spot-Check dry runs (0.13.0)
+
+`mode=dry-run` (or `ref=dry-run-<caller>`) runs one unpaid probe of the target, signs and pays nothing (a payment header is
+ignored), and always stores a public receipt in D1 (`check_type: "dry-run"`; normal checks are `"live"`). The receipt holds
+the url, the listing (claimed price, pay_to, network and their source, if any), the live demand (the 402 terms: scheme(s),
+network, asset, amount, pay_to; or what came back instead: HTTP status, `x-free-trial` headers), verdict + reason, `checked_at`
+(UTC) and the ref / caller (`<caller>` from `ref=dry-run-<caller>`). Never a client id, IP or payer. Read it at
+`/v1/receipts/<id>` or list newest first with `/v1/receipts?type=dry-run` (`ref=`, `limit`, `cursor`).
+
+Abuse guard: the answer is the free-tier shape (verdict + plain-words reason) with `payment_terms_sha256: null` and no
+`payment` object, so a dry run is never an approval (x402-spotcheck and the router hooks need a live check's hash or terms
+to pay). Dry runs are capped at 50 per caller per UTC day (key: ref, else client, else IP hash; `SPOT_DRY_PER_DAY`) and 200
+per IP hash per UTC day across refs (`SPOT_DRY_PER_IP_DAY`), then 429; a capped call probes nothing. Analytics: blob6 and
+blob13 are `dry-run` (`dry-run-capped` on a 429), never qualifying; demand_weekly.py leaves them out of paid and
+real-client counts.
 
 ## Local test (no account needed)
 

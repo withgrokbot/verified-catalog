@@ -1174,7 +1174,19 @@ function fakeD1() {
       return {
         bind(...a) {
           return {
-            async run() { if (/^INSERT/.test(sql)) { if (rows.some((r) => r.id === a[0])) throw new Error("UNIQUE"); rows.push({ id: a[0], url: a[1], created_at: a[2], verdict: a[3], reason: a[4], body: a[5] }); } return { success: true }; },
+            async run() { if (/^INSERT/.test(sql)) { if (rows.some((r) => r.id === a[0])) throw new Error("UNIQUE"); rows.push({ id: a[0], url: a[1], created_at: a[2], verdict: a[3], reason: a[4], check_type: a[5], ref: a[6], body: a[7] }); } return { success: true }; },
+            async all() {
+              // SELECT ... WHERE check_type = ? [AND ref = ?] [AND (created_at < ? OR (created_at = ? AND id < ?))] ORDER BY created_at DESC, id DESC LIMIT ?
+              let i = 0;
+              const type = a[i++];
+              const ref = / AND ref = \?/.test(sql) ? a[i++] : null;
+              const cur = /created_at < \?/.test(sql) ? [a[i++], a[i++], a[i++]] : null;
+              const lim = a[i++];
+              let out = rows.filter((r) => r.check_type === type && (ref === null || r.ref === ref));
+              if (cur) out = out.filter((r) => r.created_at < cur[0] || (r.created_at === cur[1] && r.id < cur[2]));
+              out.sort((x, y) => (x.created_at === y.created_at ? (x.id < y.id ? 1 : -1) : x.created_at < y.created_at ? 1 : -1));
+              return { results: out.slice(0, lim) };
+            },
             async first() {
               if (/WHERE id = \?/.test(sql)) return rows.find((r) => r.id === a[0]) || null;
               if (/WHERE url = \?/.test(sql)) return rows.filter((r) => r.url === a[0]).sort((x, y) => (x.created_at < y.created_at ? 1 : x.created_at > y.created_at ? -1 : 0))[0] || null;
@@ -1373,6 +1385,98 @@ test("guessed Spot-Check paths 308 to /v1/products/endpoint-spot-check with the 
   const nf = await send("/nope", { envo: e });
   assert.equal(nf.status, 404);
   assert.match(nf.body.spot_check, /\/v1\/products\/endpoint-spot-check\?url=/);
+});
+
+test("dry run (0.13.0): free, never signed or paid, always stored; free-tier shape with no approval hash; listable; capped; tagged", async () => {
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db, SPOT_DRY_PER_DAY: "3", SPOT_DRY_PER_IP_DAY: "4" });
+  facCalls.length = 0;
+  spotTargetMode = "402";
+  lastSpotFetchInit = null;
+  const u = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001";
+  const r = await send(u + "&mode=dry-run&ref=via-agentkit&client=dry-client-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "check_type", "mode", "payment_terms_sha256", "reason", "receipt_id", "receipt_url", "verdict"]);
+  assert.equal(r.body.mode, "dry-run");
+  assert.equal(r.body.verdict, "pay");
+  assert.equal(r.body.reason, "listed $0.001, payment request matches");
+  assert.equal(r.body.payment_terms_sha256, null, "a dry run never approves terms");
+  assert.equal(r.body.access.tier, "dry-run");
+  assert.deepEqual([r.body.access.dry_runs_per_day, r.body.access.dry_runs_used_today, r.body.access.dry_runs_remaining_today], [3, 1, 2]);
+  assert.equal(facCalls.length, 0, "nothing verified or settled, even with a payment header");
+  const h = lastSpotFetchInit.headers || {};
+  assert.ok(!Object.keys(h instanceof Headers ? Object.fromEntries(h.entries()) : h).some((k) => /payment/i.test(k)), "probe carries no payment headers");
+  // stored receipt
+  assert.equal(db.rows.length, 1);
+  assert.equal(db.rows[0].check_type, "dry-run");
+  assert.equal(db.rows[0].ref, "via-agentkit");
+  const rec = (await send("/v1/receipts/" + r.body.receipt_id, { envo: e })).body;
+  assert.equal(rec.check_type, "dry-run");
+  assert.equal(rec.url, "https://spot.target.test/api");
+  assert.deepEqual(rec.listing, { claimed_price_usd: 0.001, pay_to: null, network: null, source: "request" });
+  assert.deepEqual(rec.live_demand, { http_status: 402, x402_challenge: true, schemes: ["exact"], terms: [{ scheme: "exact", network: "eip155:8453", asset: USDC, amount_atomic: "1000", pay_to: PAY_TO }] });
+  assert.deepEqual([rec.verdict, rec.reason, rec.ref, rec.caller, rec.approved_payment, rec.payment_terms_sha256], ["pay", "price_ok", "via-agentkit", "via-agentkit", null, null]);
+  assert.match(rec.checked_at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+  assert.ok(!db.rows[0].body.includes("dry-client-1") && !db.rows[0].body.includes("203.0.113"), "no client id or IP in the receipt");
+  // ref=dry-run-<caller> alias; a 200-with-trial target records what it returned
+  await new Promise((res) => setTimeout(res, 1100)); // receipts sort by second-resolution checked_at
+  spotTargetMode = "trial";
+  const a = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/t") + "&ref=dry-run-bot-a", { envo: e });
+  assert.deepEqual([a.body.mode, a.body.verdict], ["dry-run", "recheck"]);
+  const ra = (await send("/v1/receipts/" + a.body.receipt_id, { envo: e })).body;
+  assert.deepEqual(ra.live_demand, { http_status: 200, x402_challenge: false, free_trial: { active: true, remaining: 3 }, error: null });
+  assert.deepEqual([ra.ref, ra.caller, ra.listing], ["dry-run-bot-a", "bot-a", null]);
+  // normal checks: check_type live
+  spotTargetMode = "402";
+  const live = await send(u + "&client=withgrokbot-selftest&ref=via-cdp", { envo: e });
+  assert.equal(live.body.access.tier, "exempt");
+  assert.equal((await send("/v1/receipts/" + live.body.receipt_id, { envo: e })).body.check_type, "live");
+  // listing + filter + cursor
+  const l1 = await send("/v1/receipts?type=dry-run&limit=1", { envo: e });
+  assert.equal(l1.status, 200);
+  assert.equal(l1.body.count, 1);
+  assert.equal(l1.body.receipts[0].id, a.body.receipt_id, "newest first");
+  assert.ok(l1.body.next_cursor);
+  const l2 = await send("/v1/receipts?type=dry-run&limit=1&cursor=" + l1.body.next_cursor, { envo: e });
+  assert.deepEqual([l2.body.receipts[0].id, l2.body.next_cursor], [r.body.receipt_id, null]);
+  assert.deepEqual((await send("/v1/receipts?type=dry-run&ref=dry-run-bot-a", { envo: e })).body.receipts.map((x) => x.id), [a.body.receipt_id]);
+  assert.deepEqual((await send("/v1/receipts?type=live", { envo: e })).body.receipts.map((x) => x.id), [live.body.receipt_id]);
+  assert.equal((await send("/v1/receipts?type=bogus", { envo: e })).status, 400);
+  assert.equal((await send("/v1/receipts?type=dry-run&cursor=zzz", { envo: e })).status, 400);
+  assert.ok((await send("/v1/receipts", { envo: e })).body.receipts, "plain /v1/receipts is still the crawl listing");
+  // cap: 3 per caller (ref), then 429 without probing or storing
+  await send(u + "&mode=dry-run&ref=via-agentkit", { envo: e });
+  await send(u + "&mode=dry-run&ref=via-agentkit", { envo: e });
+  const n = db.rows.length;
+  lastSpotFetchInit = null;
+  const capped = await send(u + "&mode=dry-run&ref=via-agentkit", { envo: e });
+  assert.equal(capped.status, 429);
+  assert.match(capped.body.error, /3 per caller/);
+  assert.equal(lastSpotFetchInit, null, "capped dry run does not probe");
+  assert.equal(db.rows.length, n);
+  // per-IP cap across refs (4 per IP: r, bot-a and two more ran from this IP)
+  const other = await send(u + "&mode=dry-run&ref=dry-run-rotating-1", { envo: e });
+  assert.equal(other.status, 429);
+  assert.match(other.body.error, /4 per UTC day from one network/);
+  assert.equal((await send(u + "&mode=dry-run&ref=dry-run-rotating-2", { envo: e, ip: "198.51.100.9" })).status, 200, "another network is not capped");
+  // bad mode is a 400; no DB -> 503 (dry runs are always stored)
+  assert.equal((await send(u + "&mode=fast", { envo: e })).status, 400);
+  assert.equal((await send(u + "&mode=dry-run&ref=x1", { envo: spotEnv() })).status, 503);
+  // analytics: blob6 + blob13 = dry-run, never qualifying
+  const pts = e.points.filter((p) => p.blobs[12].startsWith("dry-run"));
+  assert.ok(pts.length >= 5);
+  for (const p of pts) { assert.equal(p.blobs[5], "dry-run"); assert.equal(p.doubles[0], 0); }
+  assert.ok(e.points.some((p) => p.blobs[12] === "dry-run-capped"));
+  // MCP: mode passes through
+  const m = await rpc({ jsonrpc: "2.0", id: 21, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: "https://spot.target.test/api", mode: "dry-run", ref: "dry-run-mcp-1" } } }, { envo: e, ip: "192.0.2.44" });
+  assert.equal(m.body.result.structuredContent.mode, "dry-run");
+  // pre-0.13.0 rows read as check_type live
+  db.rows.push({ id: "sc-00000000000000aa", url: "https://old.test/x", created_at: "2026-10-01T00:00:00Z", verdict: "pay", reason: "price_ok", check_type: "live", ref: null, body: JSON.stringify({ id: "sc-00000000000000aa", check_type: "live spot-check (unpaid probe of the target; never pays it)" }) });
+  const old = (await send("/v1/receipts/sc-00000000000000aa", { envo: e })).body;
+  assert.deepEqual([old.check_type, old.check_note], ["live", "live spot-check (unpaid probe of the target; never pays it)"]);
+  const oa = (await send("/openapi.json", { envo: e })).body;
+  assert.ok(oa.paths[SPOT].get.parameters.some((x) => x.name === "mode"));
+  assert.ok(oa.paths["/v1/receipts"].get.parameters.some((x) => x.name === "type"));
 });
 
 let passed = 0;
