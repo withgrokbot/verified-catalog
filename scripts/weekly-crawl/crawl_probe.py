@@ -204,10 +204,27 @@ def fetch(url, c, done):
     except requests.exceptions.RequestException as e:
         return done("recheck", "connection error: " + type(e).__name__)
 
+NO_TERMS_REASON = "no payment terms seen (HTTP {}): a free trial or allowance may have answered; recheck"
+NO_402_2XX = __import__("re").compile(r"^no 402 challenge \(HTTP (2\d\d)\)$")
+
+def reclass(r):
+    """Older receipts judged a 2xx without terms as skip; since 0.12.0 that is a recheck. Returns r (mutated)."""
+    m = NO_402_2XX.match(r.get("reason") or "")
+    if r.get("verdict") == "skip" and m:
+        r["verdict"], r["reason"] = "recheck", NO_TERMS_REASON.format(m.group(1))
+    return r
+
 def judge(r, rec, lead, claimed, done):
     try:
         rec["http_status"] = r.status_code
         if r.status_code >= 500: return done("recheck", f"HTTP {r.status_code} (server error)")
+        if 200 <= r.status_code < 300:  # 0.12.0: 2xx without terms = recheck (a free trial or allowance may have answered)
+            ft, rem = r.headers.get("x-free-trial"), r.headers.get("x-free-trial-remaining")
+            if (ft is not None and ft.strip().lower() not in ("false", "0", "no")) or (ft is None and rem is not None):
+                n = int(rem) if rem is not None and rem.strip().isdigit() else None
+                rec["free_trial_remaining"] = n
+                return done("recheck", f"free trial active, no payment terms seen (HTTP {r.status_code}" + (f", {n} trial calls left)" if n is not None else ")"))
+            return done("recheck", NO_TERMS_REASON.format(r.status_code))
         if r.status_code != 402: return done("skip", f"no 402 challenge (HTTP {r.status_code})")
         buf, t_end = b"", time.monotonic() + 8  # hard wall-clock cap: a trickling server can't hold a lane
         while len(buf) < 65536 and time.monotonic() < t_end:

@@ -32,7 +32,7 @@ import {
 
 import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skips.js";
 import { RECEIPTS } from "./receipts-data.js";
-export const VERSION = "0.11.0";
+export const VERSION = "0.12.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -888,7 +888,8 @@ export const SPOT_PAID_SCHEMA = {
   description: "paid response: decision plus the facts behind it",
   properties: {
     verdict: SPOT_VERDICT_SCHEMA,
-    reason: { type: "string", enum: ["price_ok", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "no_x402", "timeout", "unreachable", "ambiguous", "bad_challenge", "ssrf_blocked"] },
+    reason: { type: "string", enum: ["price_ok", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "no_x402", "no_terms_seen", "free_trial_active", "timeout", "unreachable", "ambiguous", "bad_challenge", "ssrf_blocked"] },
+    free_trial_remaining: { type: ["integer", "null"], description: "reason free_trial_active only: the seller's x-free-trial-remaining, when parseable" },
     quoted_price_usd: { type: ["number", "null"], description: "price in the target's live 402 challenge" },
     claimed_price_usd: { type: ["number", "null"], description: "the claimed_price you sent" },
     pay_to: { type: ["string", "null"] },
@@ -952,7 +953,7 @@ export function spotPaymentRequired(c, resourceUrl, error, used) {
       verdict: "skip",
       reason: "no_x402",
       quoted_price_usd: null,
-      claimed_price_usd: 0.01,
+      claimed_price_usd: 0.35,
       pay_to: null,
       network: null,
       asset: null,
@@ -965,7 +966,7 @@ export function spotPaymentRequired(c, resourceUrl, error, used) {
       receipt_url: "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/receipts/sc-0123456789abcdef",
       access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
     },
-    paid_example_note: "Real case: https://frog03-20494.wykr.es/api/signals/paid is listed as a $0.01 x402 endpoint; the live probe gets HTTP 200 with no 402 challenge, so there is nothing safe to pay. Receipt: " + origin + "/v1/receipts/ae218e0fb7",
+    paid_example_note: "Real case: https://kr-intel-agent-production.up.railway.app/api/briefing is listed as a $0.35 x402 endpoint; the live probe gets HTTP 404 with no 402 challenge, so there is nothing safe to pay. Receipt: " + origin + "/v1/receipts/395e5cd716. (A 2xx with no payment terms is a recheck, reason no_terms_seen, or free_trial_active when the seller sends x-free-trial headers.)",
     free_example: SPOT_FREE_EXAMPLE,
     skips_page: origin + "/v1/skips",
     how_to_pay:
@@ -1068,6 +1069,7 @@ export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText
       x402_challenge: !!probe.x402_challenge,
       accepts: (probe.accepts || []).map((a) => ({ scheme: a.scheme, network: a.network, asset: a.asset, amount_atomic: a.amount, pay_to: a.payTo })),
       error: probe.error || null,
+      free_trial: probe.free_trial || null,
     },
     expected: { claimed_price_usd: exp.claimed, pay_to: exp.pay_to, network: exp.network, source: exp.source },
     approved_payment: pm,
@@ -1117,6 +1119,24 @@ async function handleLiveReceipts(req, env, url, path) {
   let r = null;
   try { r = await getLiveReceipt(env, id); } catch (_) { return rj({ error: "receipt store unavailable, try again shortly" }, 503); }
   return r ? rj(r) : rj({ error: "no live receipt with id " + id.slice(0, 40) }, 404);
+}
+
+// 0.12.0: a no-terms recheck (no_terms_seen / free_trial_active) is still a skip when the listing data already shows a
+// mismatch: the caller's price/network/pay_to differs from our crawl listing, or the crawl's own 402 differed from it.
+export function applyNoTermsListing(d, probe, q, listing) {
+  if (!d || (d.reason !== "no_terms_seen" && d.reason !== "free_trial_active")) return d;
+  const out = { ...d };
+  if (d.reason === "free_trial_active" && probe.free_trial && probe.free_trial.remaining != null) out.free_trial_remaining = probe.free_trial.remaining;
+  if (!listing) return out;
+  const l = (v) => String(v || "").toLowerCase();
+  const skip = (reason) => ({ verdict: "skip", reason });
+  if (q.claimed_price != null && listing.claimed_price_usd != null && priceMatchesClaimed(listing.claimed_price_usd, q.claimed_price) === false) return skip("price_mismatch");
+  if (q.network && listing.listed_network && l(q.network) !== l(listing.listed_network)) return skip("network_mismatch");
+  if (q.pay_to && listing.listed_pay_to && l(q.pay_to) !== l(listing.listed_pay_to)) return skip("pay_to_mismatch");
+  if (listing.pay_to && listing.listed_pay_to && l(listing.pay_to) !== l(listing.listed_pay_to)) return skip("pay_to_mismatch");
+  if (listing.network && listing.listed_network && l(listing.network) !== l(listing.listed_network)) return skip("network_mismatch");
+  if (listing.quoted_price_usd != null && listing.claimed_price_usd != null && priceMatchesClaimed(listing.quoted_price_usd, listing.claimed_price_usd) === false) return skip("price_mismatch");
+  return out;
 }
 
 // Compare a verdict "pay" against the expected pay_to / network: a 402 that pays a different wallet or runs on a
@@ -1216,6 +1236,8 @@ export function spotLossReason(d, claimed) {
   const listed = claimed !== null && claimed !== undefined && claimed !== "" ? `listed $${Number(claimed)}` : "price unlisted";
   const what = {
     no_x402: "no payment request",
+    no_terms_seen: "answered without payment terms (a free trial or allowance may have answered), check again",
+    free_trial_active: "seller reports a free trial in use, no payment terms yet, check again",
     price_mismatch: "asks a different price than listed",
     timeout: "endpoint timed out",
     unreachable: "endpoint unreachable",
@@ -1226,6 +1248,7 @@ export function spotLossReason(d, claimed) {
     pay_to_mismatch: "pays a different wallet than expected",
     asset_not_usdc: "asks for a token other than USDC",
   }[d.reason] || d.reason;
+  if (d.reason === "free_trial_active" && d.free_trial_remaining != null) return `${listed}, ${what} (${d.free_trial_remaining} trial calls left), details locked`;
   if (d.reason === "price_ok" && listed === "price unlisted") return "payment request found, pass claimed_price to compare, details locked";
   return `${listed}, ${what}, details locked`;
 }
@@ -1254,7 +1277,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   };
   const buildResult = async (probe, access) => {
     const pm0 = pickPayment(probe, exp);
-    const d = applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pm0, exp);
+    const d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pm0, exp), probe, q, listing);
     const pm = d.verdict === "pay" ? pm0 : null; // only a "pay" verdict approves terms
     const termsHash = await termsSha256(pm);
     const rid = env.RECEIPTS_DB ? newReceiptId() : null;
@@ -1281,6 +1304,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       expected_source: exp.source,
       payment: pm,
       payment_terms_sha256: termsHash,
+      ...(d.reason === "free_trial_active" ? { free_trial_remaining: d.free_trial_remaining ?? null } : {}),
       ...receiptFields,
       access,
     };
@@ -1691,7 +1715,7 @@ export function openapi(origin, env = {}) {
             protocols: [{ x402: { scheme: "exact", network: spotCfg(env).network, asset: USDC_BASE, payTo: spotCfg(env).payTo } }],
           },
           responses: {
-            200: { description: "free tier: verdict (pay|skip|recheck), a plain-words reason, access. Paid tier: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, payment (the exact signable payment when verdict is pay), payment_terms_sha256, access (with settlement tx). Free tier also carries payment_terms_sha256", content: { "application/json": { schema: { oneOf: [SPOT_PAID_SCHEMA, SPOT_FREE_SCHEMA] }, examples: { paid: { value: SPOT_PAID_EXAMPLE }, free: { value: SPOT_FREE_EXAMPLE } } } } },
+            200: { description: "A 2xx with no payment terms is recheck (reason no_terms_seen, or free_trial_active when the target sends x-free-trial headers), not skip. Free tier: verdict (pay|skip|recheck), a plain-words reason, access. Paid tier: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, payment (the exact signable payment when verdict is pay), payment_terms_sha256, access (with settlement tx). Free tier also carries payment_terms_sha256", content: { "application/json": { schema: { oneOf: [SPOT_PAID_SCHEMA, SPOT_FREE_SCHEMA] }, examples: { paid: { value: SPOT_PAID_EXAMPLE }, free: { value: SPOT_FREE_EXAMPLE } } } } },
             400: { description: "bad params, or SSRF-blocked URL as verdict=skip reason=ssrf_blocked (no fetch)" },
             402: { description: "free quota used: x402 v2 payment requirement ($0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base)" },
             429: { description: "paid rate limit (per payer per UTC hour)" },
@@ -2081,6 +2105,7 @@ export const MCP_TOOLS = [
     description:
       "Decision-shaped SSRF-safe spot-check of a public URL for an x402 PAYMENT-REQUIRED / 402 challenge. " +
       "Free: verdict (pay|skip|recheck), a plain-words reason, payment_terms_sha256 (hash of the approved payment), and access. Paid: verdict, reason code, quoted/claimed price, pay_to, network, asset, and payment = the exact {network, asset, amount_atomic, amount_usd, pay_to} a router may sign (verdict pay only), plus access with the settlement tx. " +
+      "A 2xx with no payment terms is recheck (reason no_terms_seen, or free_trial_active when the target sends x-free-trial headers), not skip. " +
       "Never pays the target (probe GET only). 1 free check per client per UTC day (client=vc-mcp), then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402. " +
       "Unpaid after free quota: payment instructions. Forward PAYMENT-SIGNATURE for a paid check.",
     inputSchema: {

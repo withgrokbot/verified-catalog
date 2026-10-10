@@ -95,6 +95,10 @@ globalThis.fetch = async (url, init = {}) => {
     if (spotTargetMode === "timeout") {
       const err = new Error("timeout"); err.name = "AbortError"; throw err;
     }
+    if (spotTargetMode === "ok200") return new Response('{"data":1}', { status: 200, headers: { "content-type": "application/json" } });
+    if (spotTargetMode === "trial") return new Response('{"data":1}', { status: 200, headers: { "content-type": "application/json", "x-free-trial": "true", "x-free-trial-remaining": "3" } });
+    if (spotTargetMode === "trialflag") return new Response('{"data":1}', { status: 200, headers: { "x-free-trial": "true", "x-free-trial-remaining": "n/a" } });
+    if (spotTargetMode === "notfound") return new Response("nope", { status: 404 });
     if (spotTargetMode === "huge") {
       return new Response("x".repeat(200000), { status: 200, headers: { "content-type": "text/plain" } });
     }
@@ -871,9 +875,61 @@ test("spot-check timeout and oversized body handled safely", async () => {
   spotTargetMode = "huge";
   const h = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/huge") + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(h.status, 200);
-  assert.equal(h.body.verdict, "skip");
-  assert.equal(h.body.reason, "no_x402");
+  assert.equal(h.body.verdict, "recheck"); // 200 with no terms (0.12.0)
+  assert.equal(h.body.reason, "no_terms_seen");
   spotTargetMode = "402";
+});
+
+test("200 with no payment terms is recheck, not skip (0.12.0): no_terms_seen, free_trial_active (+remaining), listing mismatch still skips", async () => {
+  const e = spotEnv();
+  const go = (path, q = "") => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test" + path) + "&client=withgrokbot-selftest" + q, { envo: e });
+  spotTargetMode = "ok200";
+  let r = await go("/a", "&claimed_price=0.01");
+  assert.deepEqual([r.body.verdict, r.body.reason, r.body.payment, r.body.payment_terms_sha256], ["recheck", "no_terms_seen", null, null]);
+  assert.ok(!("free_trial_remaining" in r.body));
+  spotTargetMode = "trial";
+  r = await go("/b");
+  assert.deepEqual([r.body.verdict, r.body.reason, r.body.free_trial_remaining, r.body.payment], ["recheck", "free_trial_active", 3, null]);
+  spotTargetMode = "trialflag";
+  r = await go("/c");
+  assert.deepEqual([r.body.verdict, r.body.reason, r.body.free_trial_remaining], ["recheck", "free_trial_active", null]);
+  spotTargetMode = "notfound";
+  r = await go("/d");
+  assert.deepEqual([r.body.verdict, r.body.reason], ["skip", "no_x402"]);
+  // free tier words + the remaining count
+  spotTargetMode = "trial";
+  const f = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/e") + "&claimed_price=0.05&client=trial-free-1", { envo: e });
+  assert.equal(f.body.verdict, "recheck");
+  assert.equal(f.body.reason, "listed $0.05, seller reports a free trial in use, no payment terms yet, check again (3 trial calls left), details locked");
+  spotTargetMode = "402";
+});
+
+test("no-terms recheck becomes skip when the listing data already shows a mismatch (0.12.0)", async () => {
+  const { applyNoTermsListing } = await import("../worker/src/lib.js");
+  const { decideVerdict, freeTrialSignal } = await import("../worker/src/spotcheck.js");
+  const probe = { reachable: true, http_status: 200, x402_challenge: false, accepts: [], free_trial: null };
+  const d = decideVerdict(probe, null);
+  assert.deepEqual(d, { verdict: "recheck", reason: "no_terms_seen" });
+  const listing = { claimed_price_usd: 0.01, listed_pay_to: "0x" + "11".repeat(20), listed_network: "eip155:8453", pay_to: null, network: null, quoted_price_usd: null };
+  const q0 = { claimed_price: null, pay_to: null, network: null };
+  assert.deepEqual(applyNoTermsListing(d, probe, q0, null), d);
+  assert.deepEqual(applyNoTermsListing(d, probe, q0, listing), d);
+  assert.deepEqual(applyNoTermsListing(d, probe, { ...q0, claimed_price: 0.01 }, listing), d);
+  assert.deepEqual(applyNoTermsListing(d, probe, { ...q0, claimed_price: 0.5 }, listing), { verdict: "skip", reason: "price_mismatch" });
+  assert.deepEqual(applyNoTermsListing(d, probe, { ...q0, network: "eip155:84532" }, listing), { verdict: "skip", reason: "network_mismatch" });
+  assert.deepEqual(applyNoTermsListing(d, probe, { ...q0, pay_to: "0x" + "22".repeat(20) }, listing), { verdict: "skip", reason: "pay_to_mismatch" });
+  assert.deepEqual(applyNoTermsListing(d, probe, q0, { ...listing, pay_to: "0x" + "33".repeat(20) }), { verdict: "skip", reason: "pay_to_mismatch" });
+  assert.deepEqual(applyNoTermsListing(d, probe, q0, { ...listing, quoted_price_usd: 0.2 }), { verdict: "skip", reason: "price_mismatch" });
+  // a real skip or a pay is untouched
+  assert.deepEqual(applyNoTermsListing({ verdict: "skip", reason: "no_x402" }, probe, { ...q0, claimed_price: 9 }, listing), { verdict: "skip", reason: "no_x402" });
+  // header parsing
+  const H = (o) => new Headers(o);
+  assert.equal(freeTrialSignal(H({})), null);
+  assert.deepEqual(freeTrialSignal(H({ "x-free-trial": "true", "x-free-trial-remaining": "0" })), { active: true, remaining: 0 });
+  assert.deepEqual(freeTrialSignal(H({ "x-free-trial-remaining": "7" })), { active: true, remaining: 7 });
+  assert.deepEqual(freeTrialSignal(H({ "x-free-trial": "false" })), { active: false, remaining: null });
+  assert.deepEqual(decideVerdict({ ...probe, http_status: 404, free_trial: { active: true, remaining: 1 } }, null), { verdict: "recheck", reason: "free_trial_active" });
+  assert.deepEqual(decideVerdict({ ...probe, free_trial: { active: false, remaining: null } }, null), { verdict: "recheck", reason: "no_terms_seen" });
 });
 
 test("MCP endpoint_spot_check listed; unpaid after free returns pay instructions", async () => {

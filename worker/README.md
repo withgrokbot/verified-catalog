@@ -40,6 +40,11 @@ GET /openapi.json      OpenAPI 3.1
   Bot tags (0.11.0, blob6): `scanner` (bare call, no params), `example-param` (example.com target or the documented
   web-search/0.01 example, without ref/client), `indexer` (named x402 indexer UAs), plus `self`/`uptime`/`crawler`.
   Views (access `view-*`) are counted on the $9 pack, /v1/skips, /v1/receipts and the docs routes.
+- Verdicts (0.12.0, Spot-Check): a 2xx with no payment terms is `recheck`, reason `no_terms_seen` (a free trial or
+  allowance may have answered), or `free_trial_active` when the target sends `x-free-trial` / `x-free-trial-remaining`
+  (paid tier adds `free_trial_remaining`). It stays `skip` only when the listing data already shows a price, network or
+  pay_to mismatch. A non-2xx with no 402 (e.g. 404) is still `skip`/`no_x402`. The weekly crawl and /v1/skips follow the
+  same rule (older 2xx-without-terms skips are re-labelled recheck by build_worker_data.py).
 - Free quota: one SQLite-backed Durable Object (`QuotaCounter`, binding `QUOTA`, free plan) per client key holds
   `{day, used}`. Key = `c:<client>` when `client` is sent, else `ip:` + SHA-256 of `CLIENT_SALT`, the UTC day and the IP
   (IPv6 /64). The User-Agent is not part of the quota key. Bad requests (400) never use the quota. If the counter is

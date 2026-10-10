@@ -434,6 +434,7 @@ export async function spotProbe(rawUrl, opts = {}) {
         ssrf_blocked: false,
         error: truncated ? "response body truncated at cap" : null,
         body_truncated: truncated,
+        free_trial: freeTrialSignal(resp.headers),
         ...parsed,
       };
     }
@@ -462,13 +463,26 @@ export function priceMatchesClaimed(quoted, claimed) {
   return Math.abs(c - q) < 1e-9 + Math.max(c, q) * 1e-6;
 }
 
+// 0.12.0: a seller's own free-trial signal (x-free-trial / x-free-trial-remaining). A route that answers 200 while a
+// caller's trial is active is payable later, so no terms on that 200 is a recheck, not a skip.
+export function freeTrialSignal(headers) {
+  const get = (n) => (headers && typeof headers.get === "function" ? headers.get(n) : null);
+  const flag = get("x-free-trial");
+  const rem = get("x-free-trial-remaining");
+  if (flag == null && rem == null) return null;
+  const n = rem != null && /^\s*\d+\s*$/.test(String(rem)) ? parseInt(rem, 10) : null;
+  return { active: flag == null ? true : !/^(false|0|no)$/i.test(String(flag).trim()), remaining: n };
+}
+
 /**
  * Map probe result → decision-shaped verdict.
  * Deterministic rules (prefer skip over pay when unsure about safety;
  * prefer recheck over pay when data incomplete):
  * - skip + ssrf_blocked if SSRF
  * - skip + unreachable / timeout if fetch fails
- * - skip + no_x402 if reachable but no parseable x402/402 challenge
+ * - recheck + free_trial_active if no challenge and the seller sends x-free-trial / x-free-trial-remaining
+ * - recheck + no_terms_seen if HTTP 2xx with no challenge (a trial or allowance may have answered; check again)
+ * - skip + no_x402 if reachable, not 2xx, and no parseable x402/402 challenge
  * - pay + price_ok if challenge parses and (no claimed_price OR quoted matches claimed within epsilon)
  * - skip + price_mismatch if both prices present and differ
  * - recheck + ambiguous / bad_challenge when challenge present but unparseable or partial
@@ -483,6 +497,8 @@ export function decideVerdict(probe, claimedPrice) {
     return { verdict: "skip", reason: "unreachable" };
   }
   if (!probe.x402_challenge) {
+    if (probe.free_trial && probe.free_trial.active) return { verdict: "recheck", reason: "free_trial_active" };
+    if (probe.http_status >= 200 && probe.http_status < 300) return { verdict: "recheck", reason: "no_terms_seen" };
     return { verdict: "skip", reason: "no_x402" };
   }
   // Challenge present but not a fully parseable shape → recheck
