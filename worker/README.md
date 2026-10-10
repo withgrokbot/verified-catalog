@@ -21,7 +21,7 @@ GET /v1/products/endpoint-spot-check # x402 Endpoint Spot-Check, 1 free/day then
     optional: endpoint=<id or url>, limit=<services, default 10>, client=<your agent name>, payer=<0x wallet>,
               ref=<where you found it, e.g. via-readme>
 GET /v1/products/endpoint-spot-check?url=<endpoint>&mode=dry-run   # free dry run (0.13.0); ref=dry-run-<caller> also sets it
-GET /v1/receipts?type=dry-run[&ref=<ref>][&limit=1-100][&cursor=<next_cursor>]   # stored dry runs (type=live: live checks), free
+GET /v1/receipts?type=dry-run[&ref=<ref>][&limit=1-100][&cursor=<next_cursor>]   # stored dry-run receipts (type=self-checked: ours; type=live: pre-0.14 rows), free
 GET /v1/tasks          task names -> service ids
 GET /openapi.json      OpenAPI 3.1
 ```
@@ -42,11 +42,24 @@ GET /openapi.json      OpenAPI 3.1
   Bot tags (0.11.0, blob6): `scanner` (bare call, no params), `example-param` (example.com target or the documented
   web-search/0.01 example, without ref/client), `indexer` (named x402 indexer UAs), plus `self`/`uptime`/`crawler`.
   Views (access `view-*`) are counted on the $9 pack, /v1/skips, /v1/receipts and the docs routes.
-- Verdicts (0.12.0, Spot-Check): a 2xx with no payment terms is `recheck`, reason `no_terms_seen` (a free trial or
-  allowance may have answered), or `free_trial_active` when the target sends `x-free-trial` / `x-free-trial-remaining`
-  (paid tier adds `free_trial_remaining`). It stays `skip` only when the listing data already shows a price, network or
-  pay_to mismatch. A non-2xx with no 402 (e.g. 404) is still `skip`/`no_x402`. The weekly crawl and /v1/skips follow the
-  same rule (older 2xx-without-terms skips are re-labelled recheck by build_worker_data.py).
+- Verdicts (0.14.0, Spot-Check): `pay` only for a readable 402 on a supported mainnet (Base, Ethereum, OP, Polygon,
+  Arbitrum, Avalanche, Solana) in that network's canonical USDC, at the listed price, to the listed pay_to. `skip` for no
+  paywall (any response without 402 terms: `no_paywall`), a wrong network vs the listing (`network_mismatch`), a testnet or
+  unknown network (`network_unsupported`), any other token (`asset_not_usdc`), a different pay_to (`pay_to_mismatch`) or price
+  (`price_mismatch`), an unreadable 402 (`bad_challenge`), SSRF. `recheck` only for transient cases: `timeout`, `unreachable`
+  (network error), `server_error` (5xx), and `free_trial_active` (the target sends `x-free-trial` / `x-free-trial-remaining`;
+  paid tier adds `free_trial_remaining`; still skip if the listing already shows a mismatch). The weekly crawl and /v1/skips
+  apply the same rules (build_worker_data.py re-applies the mainnet/USDC rule to older crawls).
+- Payment object (0.14.0): a paid or self-test `pay` answer carries `payment` = {network, asset (canonical USDC), amount
+  {atomic, usd}, pay_to, deadline (UTC; the 402's validBefore, else probed_at + maxTimeoutSeconds, else + 60 s),
+  deadline_source} (plus the older flat scheme/amount_atomic/amount_usd/asset_is_usdc fields for x402-spotcheck 0.2.x).
+- Determinism (0.14.0): one live probe per normalized URL + method is reused for 5 minutes (`SPOT_PROBE_CACHE_S`, D1, so
+  global), so two consecutive calls get the same verdict even when the target answers callers differently (trials) or flaps.
+  `probe: {probed_at, cached, cache_ttl_s}` in the paid answer and every receipt says which probe was used.
+- Receipts (0.14.0): every call that probes is stored in D1 with `check_type` `self-checked` (our exempt self-test client;
+  the weekly crawl is self-checked too) or `dry-run` (everyone else, and `mode=dry-run`), plus `mode` / `dry_run`. Not stored:
+  SSRF-blocked or bad-parameter calls (nothing was probed) and unpaid 402 answers (no decision was delivered, and a public
+  receipt would hand out the paid terms for free). Rows stored before 0.14.0 read as `check_type: "live"`.
 - Free quota: one SQLite-backed Durable Object (`QuotaCounter`, binding `QUOTA`, free plan) per client key holds
   `{day, used}`. Key = `c:<client>` when `client` is sent, else `ip:` + SHA-256 of `CLIENT_SALT`, the UTC day and the IP
   (IPv6 /64). The User-Agent is not part of the quota key. Bad requests (400) never use the quota. If the counter is
@@ -68,7 +81,8 @@ GET /openapi.json      OpenAPI 3.1
 ## Spot-Check dry runs (0.13.0)
 
 `mode=dry-run` (or `ref=dry-run-<caller>`) runs one unpaid probe of the target, signs and pays nothing (a payment header is
-ignored), and always stores a public receipt in D1 (`check_type: "dry-run"`; normal checks are `"live"`). The receipt holds
+ignored), and always stores a public receipt in D1 (`check_type: "dry-run"`, `mode: "dry-run"`; `self-checked` when our own self-test
+client runs it). The receipt holds
 the url, the listing (claimed price, pay_to, network and their source, if any), the live demand (the 402 terms: scheme(s),
 network, asset, amount, pay_to; or what came back instead: HTTP status, `x-free-trial` headers), verdict + reason, `checked_at`
 (UTC) and the ref / caller (`<caller>` from `ref=dry-run-<caller>`). Never a client id, IP or payer. Read it at

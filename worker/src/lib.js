@@ -32,7 +32,7 @@ import {
 
 import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skips.js";
 import { RECEIPTS } from "./receipts-data.js";
-export const VERSION = "0.13.0";
+export const VERSION = "0.14.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -876,8 +876,21 @@ export const SPOT_PAID_EXAMPLE = {
   expected_pay_to: "0x1111111111111111111111111111111111111111",
   expected_network: "eip155:8453",
   expected_source: "request",
-  payment: { scheme: "exact", network: "eip155:8453", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", asset_is_usdc: true, amount_atomic: "50000", amount_usd: 0.05, pay_to: "0x1111111111111111111111111111111111111111" },
+  payment: {
+    network: "eip155:8453",
+    asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    amount: { atomic: "50000", usd: 0.05 },
+    pay_to: "0x1111111111111111111111111111111111111111",
+    deadline: "2026-10-10T17:05:00Z",
+    deadline_source: "maxTimeoutSeconds",
+    scheme: "exact",
+    amount_atomic: "50000",
+    amount_usd: 0.05,
+    asset_is_usdc: true,
+  },
   payment_terms_sha256: "<sha256 of network|asset|amount_atomic|pay_to, lower-case>",
+  probe: { probed_at: "2026-10-10T17:00:00Z", cached: false, cache_ttl_s: 300 },
+  check_type: "dry-run",
   receipt_id: "sc-0123456789abcdef",
   receipt_url: "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/receipts/sc-0123456789abcdef",
   access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
@@ -896,7 +909,7 @@ export const SPOT_PAID_SCHEMA = {
   description: "paid response: decision plus the facts behind it",
   properties: {
     verdict: SPOT_VERDICT_SCHEMA,
-    reason: { type: "string", enum: ["price_ok", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "no_x402", "no_terms_seen", "free_trial_active", "timeout", "unreachable", "ambiguous", "bad_challenge", "ssrf_blocked"] },
+    reason: { type: "string", enum: ["price_ok", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "network_unsupported", "no_paywall", "free_trial_active", "timeout", "unreachable", "server_error", "bad_challenge", "ssrf_blocked"] },
     free_trial_remaining: { type: ["integer", "null"], description: "reason free_trial_active only: the seller's x-free-trial-remaining, when parseable" },
     quoted_price_usd: { type: ["number", "null"], description: "price in the target's live 402 challenge" },
     claimed_price_usd: { type: ["number", "null"], description: "the claimed_price you sent" },
@@ -908,15 +921,23 @@ export const SPOT_PAID_SCHEMA = {
     expected_source: { type: ["string", "null"], enum: ["request", "listing", null] },
     payment: {
       type: ["object", "null"],
-      description: "verdict pay only: the exact payment a router may sign, from the live 402, checked against the listing. Sign nothing else.",
-      properties: { scheme: { type: "string" }, network: { type: "string" }, asset: { type: "string" }, asset_is_usdc: { type: ["boolean", "null"] }, amount_atomic: { type: "string" }, amount_usd: { type: ["number", "null"] }, pay_to: { type: "string" } },
+      description: "verdict pay only: THE payment a router may sign, from the live 402, checked against the listing: network (supported mainnet, CAIP-2), asset (that network's canonical USDC contract), amount {atomic, usd}, pay_to, deadline (UTC; validBefore, else probed_at + maxTimeoutSeconds, else + 60 s). Sign nothing else. scheme / amount_atomic / amount_usd / asset_is_usdc are kept for older clients.",
+      properties: {
+        network: { type: "string" }, asset: { type: "string" },
+        amount: { type: "object", properties: { atomic: { type: "string" }, usd: { type: ["number", "null"] } }, required: ["atomic", "usd"] },
+        pay_to: { type: "string" }, deadline: { type: "string", format: "date-time" }, deadline_source: { type: "string", enum: ["validBefore", "maxTimeoutSeconds", "default_60s"] },
+        scheme: { type: "string" }, asset_is_usdc: { type: ["boolean", "null"] }, amount_atomic: { type: "string" }, amount_usd: { type: ["number", "null"] },
+      },
+      required: ["network", "asset", "amount", "pay_to", "deadline"],
     },
+    probe: { type: "object", description: "the live probe this decision used: probed_at, cached (true = reused within cache_ttl_s for the same normalized URL + method, so consecutive calls agree)", properties: { probed_at: { type: "string" }, cached: { type: "boolean" }, cache_ttl_s: { type: "integer" } } },
+    check_type: { type: "string", enum: ["dry-run", "self-checked"], description: "receipt label: self-checked for our own self-test client, dry-run for everyone else" },
     payment_terms_sha256: { type: ["string", "null"], description: "sha256 hex of lower-case network|asset|amount_atomic|pay_to (null unless pay)" },
     receipt_id: { type: ["string", "null"], description: "public receipt id for this decision (sc-...)" },
     receipt_url: { type: ["string", "null"], description: "free, public: GET it to show as the reason for paying or aborting" },
     access: { type: "object", properties: { tier: { const: "paid" }, charged_usd: { type: "string" }, tx: { type: "string" } } },
   },
-  required: ["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source", "payment", "payment_terms_sha256", "receipt_id", "receipt_url", "access"],
+  required: ["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source", "payment", "payment_terms_sha256", "probe", "check_type", "receipt_id", "receipt_url", "access"],
 };
 export const SPOT_FREE_SCHEMA = {
   type: "object",
@@ -959,7 +980,7 @@ export function spotPaymentRequired(c, resourceUrl, error, used) {
     paid_fields: ["quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source", "payment"],
     paid_example: {
       verdict: "skip",
-      reason: "no_x402",
+      reason: "no_paywall",
       quoted_price_usd: null,
       claimed_price_usd: 0.35,
       pay_to: null,
@@ -970,11 +991,13 @@ export function spotPaymentRequired(c, resourceUrl, error, used) {
       expected_source: "request",
       payment: null,
       payment_terms_sha256: null,
+      probe: { probed_at: "2026-10-10T17:00:00Z", cached: false, cache_ttl_s: 300 },
+      check_type: "dry-run",
       receipt_id: "sc-0123456789abcdef",
       receipt_url: "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/receipts/sc-0123456789abcdef",
       access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
     },
-    paid_example_note: "Real case: https://kr-intel-agent-production.up.railway.app/api/briefing is listed as a $0.35 x402 endpoint; the live probe gets HTTP 404 with no 402 challenge, so there is nothing safe to pay. Receipt: " + origin + "/v1/receipts/395e5cd716. (A 2xx with no payment terms is a recheck, reason no_terms_seen, or free_trial_active when the seller sends x-free-trial headers.)",
+    paid_example_note: "Real case: https://kr-intel-agent-production.up.railway.app/api/briefing is listed as a $0.35 x402 endpoint; the live probe gets HTTP 404 with no 402 challenge, so there is nothing safe to pay. Receipt: " + origin + "/v1/receipts/395e5cd716. (Any response without 402 terms is skip/no_paywall, except recheck/free_trial_active when the seller sends x-free-trial headers; recheck is only for timeouts, 5xx and network errors.)",
     free_example: SPOT_FREE_EXAMPLE,
     skips_page: origin + "/v1/skips",
     how_to_pay:
@@ -1016,16 +1039,24 @@ export async function listingForAsync(env, u) {
 }
 // PAY STEP (0.8.0): the exact payment a router may sign, taken from the target's live 402 and checked against the
 // expectation (caller's listing, else our crawl's listing). Only USDC is approved where we know the USDC contract.
+// 0.14.0: supported mainnets only, each with its canonical (Circle-issued, native) USDC contract. Testnets and other
+// networks are skip/network_unsupported; any other token on a supported network is skip/asset_not_usdc.
 export const USDC_BY_NETWORK = {
-  "eip155:8453": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
-  "eip155:84532": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
-  "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp": "epjfwdd5aufqsqem2qn1xzybapc8g4wegggkzwytdt1v",
+  "eip155:8453": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", // Base
+  "eip155:1": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", // Ethereum
+  "eip155:10": "0x0b2c639c533813f4aa9d7837caf62653d097ff85", // OP Mainnet
+  "eip155:137": "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359", // Polygon PoS
+  "eip155:42161": "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // Arbitrum One
+  "eip155:43114": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e", // Avalanche C-Chain
+  "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp": "epjfwdd5aufqssqem2qn1xzybapc8g4weggkzwytdt1v", // Solana mainnet (EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)
 };
+const NETWORK_ALIASES = { base: "eip155:8453", ethereum: "eip155:1", optimism: "eip155:10", polygon: "eip155:137", arbitrum: "eip155:42161", avalanche: "eip155:43114", solana: "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp" };
+export const caip = (n) => NETWORK_ALIASES[String(n ?? "").toLowerCase()] || String(n ?? "").toLowerCase();
 const lc = (v) => String(v ?? "").toLowerCase();
 export function pickPayment(probe, exp = {}) {
   const accepts = (Array.isArray(probe && probe.accepts) ? probe.accepts : []).filter((a) => a && a.network && a.payTo && a.amount != null && /^[0-9]{1,30}$/.test(String(a.amount)) && (!a.scheme || a.scheme === "exact"));
   if (!accepts.length) return null;
-  const usdc = (a) => USDC_BY_NETWORK[lc(a.network)] ? USDC_BY_NETWORK[lc(a.network)] === lc(a.asset) : null;
+  const usdc = (a) => USDC_BY_NETWORK[caip(a.network)] ? USDC_BY_NETWORK[caip(a.network)] === lc(a.asset) : null;
   const score = (a) => (exp.network && lc(a.network) === lc(exp.network) ? 4 : 0) + (exp.pay_to && lc(a.payTo) === lc(exp.pay_to) ? 2 : 0) + (usdc(a) === true ? 1 : 0);
   const a = [...accepts].sort((x, y) => score(y) - score(x))[0];
   const isUsdc = usdc(a);
@@ -1037,8 +1068,37 @@ export function pickPayment(probe, exp = {}) {
     amount_atomic: String(a.amount),
     amount_usd: isUsdc ? Number(a.amount) / 1e6 : null,
     pay_to: a.payTo,
+    supported_network: !!USDC_BY_NETWORK[caip(a.network)],
+    max_timeout_seconds: a.maxTimeoutSeconds ?? null,
+    valid_before: a.validBefore ?? null,
   };
 }
+// 0.14.0: the paid / self-test answer IS the payment object. deadline = validBefore when the 402 states it, else
+// probed_at + maxTimeoutSeconds, else probed_at + 60 s (x402 default). Legacy flat fields stay for x402-spotcheck <= 0.2.x.
+export function paymentObject(pm, probedAt) {
+  if (!pm) return null;
+  const t0 = Date.parse(probedAt || "") || Date.now();
+  let deadline = null, source = "default_60s";
+  const vb = pm.valid_before;
+  if (vb != null && /^\d{9,12}$/.test(String(vb))) { deadline = new Date(Number(vb) * 1000); source = "validBefore"; }
+  else if (vb != null && !Number.isNaN(Date.parse(String(vb)))) { deadline = new Date(Date.parse(String(vb))); source = "validBefore"; }
+  else if (pm.max_timeout_seconds) { deadline = new Date(t0 + pm.max_timeout_seconds * 1000); source = "maxTimeoutSeconds"; }
+  else deadline = new Date(t0 + 60000);
+  return {
+    network: pm.network, // as the 402 states it (x402 v1 names like "base" stay as-is so signed requirements still match)
+    asset: USDC_BY_NETWORK[caip(pm.network)] === lc(pm.asset) ? canonicalAsset(pm.network, pm.asset) : pm.asset,
+    amount: { atomic: pm.amount_atomic, usd: pm.amount_usd },
+    pay_to: pm.pay_to,
+    deadline: deadline.toISOString().replace(/\.\d{3}Z$/, "Z"),
+    deadline_source: source,
+    scheme: pm.scheme,
+    amount_atomic: pm.amount_atomic,
+    amount_usd: pm.amount_usd,
+    asset_is_usdc: pm.asset_is_usdc,
+  };
+}
+const CANONICAL_CASE = { "eip155:8453": USDC_BASE };
+const canonicalAsset = (n, a) => CANONICAL_CASE[caip(n)] || a;
 // Commitment to the approved terms, so the free tier can enforce them without the terms in the body.
 export async function termsSha256(pm) {
   if (!pm) return null;
@@ -1047,8 +1107,9 @@ export async function termsSha256(pm) {
 // After decideVerdict + applyExpected: a "pay" needs one signable USDC payment whose amount matches the claimed price.
 export function applyPayment(d, pm, exp) {
   if (!d || d.verdict !== "pay") return d;
-  if (!pm) return { verdict: "recheck", reason: "ambiguous" };
-  if (pm.asset_is_usdc === false) return { verdict: "skip", reason: "asset_not_usdc" };
+  if (!pm) return { verdict: "skip", reason: "bad_challenge" }; // no exact-scheme payment with a readable amount
+  if (!pm.supported_network) return { verdict: "skip", reason: "network_unsupported" };
+  if (pm.asset_is_usdc !== true) return { verdict: "skip", reason: "asset_not_usdc" };
   if (exp.claimed != null && pm.amount_usd != null && priceMatchesClaimed(pm.amount_usd, exp.claimed) === false) return { verdict: "skip", reason: "price_mismatch" };
   return d;
 }
@@ -1067,24 +1128,29 @@ export function liveDemand(probe) {
   if (probe.x402_challenge) return { http_status: probe.http_status ?? null, x402_challenge: true, schemes: [...new Set(accepts.map((a) => a.scheme).filter(Boolean))], terms: accepts };
   return { http_status: probe.http_status ?? null, x402_challenge: false, free_trial: probe.free_trial || null, error: probe.error || null };
 }
-export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText, pm, termsHash, exp, now = new Date(), checkType = "live", ref = "", caller = null }) {
-  const dry = checkType === "dry-run";
+// 0.14.0: every Spot-Check call that probes (or is SSRF-blocked) is stored. check_type: "self-checked" for our own
+// exempt self-test client (crawls are self-checked too), "dry-run" for everyone else; mode says whether the caller
+// asked for a dry run. probe_snapshot is the cached live probe that makes the decision repeatable for SPOT_PROBE_CACHE_S.
+export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText, pm, termsHash, exp, now = new Date(), checkType = "dry-run", mode = "live", ref = "", caller = null, probedAt = null, cached = false, normKey = null }) {
   return {
     id,
     url,
     method,
     checked_at: now.toISOString().replace(/\.\d{3}Z$/, "Z"),
-    check_type: dry ? "dry-run" : "live",
-    check_note: dry
+    check_type: checkType,
+    mode,
+    dry_run: mode === "dry-run",
+    check_note: mode === "dry-run"
       ? "dry run: one unpaid probe of the target; nothing signed or paid, and not an approval to pay"
-      : "live spot-check (unpaid probe of the target; never pays it)",
+      : "spot-check: unpaid probe of the target (never pays it)",
     ref: ref || null,
-    caller: dry ? caller || ref || null : null,
+    caller: caller || ref || null,
     listing: exp.source ? { claimed_price_usd: exp.claimed, pay_to: exp.pay_to, network: exp.network, source: exp.source } : null,
     live_demand: liveDemand(probe),
     verdict: d.verdict,
     reason: d.reason,
     reason_text: reasonText,
+    probe: { probed_at: probedAt, cached: !!cached, cache_ttl_s: SPOT_PROBE_CACHE_S },
     live_402: {
       http_status: probe.http_status ?? null,
       x402_challenge: !!probe.x402_challenge,
@@ -1095,15 +1161,48 @@ export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText
     expected: { claimed_price_usd: exp.claimed, pay_to: exp.pay_to, network: exp.network, source: exp.source },
     approved_payment: pm,
     payment_terms_sha256: termsHash,
+    probe_snapshot: probeSnapshot(probe),
+    norm_key: normKey,
     worker_version: VERSION,
     permalink: origin + "/v1/receipts/" + id,
   };
 }
+// Determinism (0.14.0): one live probe per normalized URL + method is reused for SPOT_PROBE_CACHE_S (5 min), so two
+// consecutive calls get the same verdict even if the target varies per caller (trials) or flaps. Stored in D1 (global).
+export const SPOT_PROBE_CACHE_S = 300;
+export function probeKey(u, method) {
+  let n = String(u || "");
+  try { n = normUrl(u); } catch (_) {}
+  return n + " " + String(method || "GET").toUpperCase();
+}
+export function probeSnapshot(p) {
+  if (!p) return null;
+  const keep = ["reachable", "http_status", "ssrf_blocked", "error", "x402_challenge", "accepts", "quoted_price_usd", "known_answer", "free_trial", "body_truncated"];
+  const o = {};
+  for (const k of keep) if (p[k] !== undefined) o[k] = p[k];
+  return o;
+}
+async function getProbe(env, q, probeOpts, now = new Date()) {
+  const key = probeKey(q.url, q.method);
+  const ttl = env.SPOT_PROBE_CACHE_S != null && /^\d+$/.test(String(env.SPOT_PROBE_CACHE_S)) ? Number(env.SPOT_PROBE_CACHE_S) : SPOT_PROBE_CACHE_S;
+  if (env.RECEIPTS_DB && ttl > 0) {
+    try {
+      const since = new Date(now.getTime() - ttl * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+      const row = await env.RECEIPTS_DB.prepare("SELECT body FROM spot_receipts WHERE norm_key = ? AND probed_at >= ? ORDER BY probed_at DESC LIMIT 1").bind(key, since).first();
+      const b = row ? JSON.parse(row.body) : null;
+      if (b && b.probe_snapshot && b.probe && b.probe.probed_at) return { probe: b.probe_snapshot, probedAt: b.probe.probed_at, cached: true, key };
+    } catch (_) {
+      // cache miss on any store error
+    }
+  }
+  const probe = await spotProbe(q.url, { ...probeOpts, method: q.method });
+  return { probe, probedAt: now.toISOString().replace(/\.\d{3}Z$/, "Z"), cached: false, key };
+}
 export async function saveLiveReceipt(env, r) {
   if (!env.RECEIPTS_DB) return false;
   try {
-    await env.RECEIPTS_DB.prepare("INSERT INTO spot_receipts (id, url, created_at, verdict, reason, check_type, ref, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(r.id, r.url, r.checked_at, r.verdict, r.reason, r.check_type || "live", r.ref || null, JSON.stringify(r)).run();
+    await env.RECEIPTS_DB.prepare("INSERT INTO spot_receipts (id, url, created_at, verdict, reason, check_type, ref, norm_key, probed_at, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(r.id, r.url, r.checked_at, r.verdict, r.reason, r.check_type || "dry-run", r.ref || null, r.norm_key || null, (r.probe && r.probe.probed_at) || null, JSON.stringify(r)).run();
     return true;
   } catch (_) {
     return false; // storing must never break an answer
@@ -1111,7 +1210,7 @@ export async function saveLiveReceipt(env, r) {
 }
 // Receipts stored before 0.13.0 carry the long check_type text; read them as check_type "live" (text kept in check_note).
 export function normReceipt(r) {
-  if (r && r.check_type !== "live" && r.check_type !== "dry-run") return { ...r, check_type: "live", check_note: r.check_type || null };
+  if (r && !["live", "dry-run", "self-checked"].includes(r.check_type)) return { ...r, check_type: "live", check_note: r.check_type || null };
   return r;
 }
 export async function getLiveReceipt(env, id) {
@@ -1128,7 +1227,7 @@ export async function latestLiveReceipt(env, url) {
 export async function handleReceiptList(env, url) {
   const p = url.searchParams;
   const type = String(p.get("type") || "").toLowerCase();
-  if (!["dry-run", "live"].includes(type)) return rj({ error: 'type must be dry-run or live', field: "type", example: url.origin + "/v1/receipts?type=dry-run&limit=20" }, 400);
+  if (!["dry-run", "self-checked", "live"].includes(type)) return rj({ error: "type must be dry-run, self-checked, or live (legacy rows stored before 0.14.0)", field: "type", example: url.origin + "/v1/receipts?type=dry-run&limit=20" }, 400);
   const ref = String(p.get("ref") || "").toLowerCase();
   if (ref && !/^[a-z0-9._\-]{1,64}$/.test(ref)) return rj({ error: "invalid ref", field: "ref" }, 400);
   let limit = parseInt(p.get("limit") || "20", 10);
@@ -1182,7 +1281,7 @@ async function handleLiveReceipts(req, env, url, path) {
 // 0.12.0: a no-terms recheck (no_terms_seen / free_trial_active) is still a skip when the listing data already shows a
 // mismatch: the caller's price/network/pay_to differs from our crawl listing, or the crawl's own 402 differed from it.
 export function applyNoTermsListing(d, probe, q, listing) {
-  if (!d || (d.reason !== "no_terms_seen" && d.reason !== "free_trial_active")) return d;
+  if (!d || d.reason !== "free_trial_active") return d;
   const out = { ...d };
   if (d.reason === "free_trial_active" && probe.free_trial && probe.free_trial.remaining != null) out.free_trial_remaining = probe.free_trial.remaining;
   if (!listing) return out;
@@ -1202,7 +1301,7 @@ export function applyNoTermsListing(d, probe, q, listing) {
 export function applyExpected(d, probe, exp) {
   if (!d || d.verdict !== "pay") return d;
   const accepts = Array.isArray(probe.accepts) ? probe.accepts : [];
-  if (exp.network && accepts.length && !accepts.some((a) => String(a.network || "").toLowerCase() === exp.network.toLowerCase()))
+  if (exp.network && accepts.length && !accepts.some((a) => caip(a.network) === caip(exp.network)))
     return { verdict: "skip", reason: "network_mismatch" };
   if (exp.pay_to && accepts.length && !accepts.some((a) => String(a.payTo || "").toLowerCase() === exp.pay_to.toLowerCase()))
     return { verdict: "skip", reason: "pay_to_mismatch" };
@@ -1299,11 +1398,13 @@ export function spotLossReason(d, claimed) {
   const listed = claimed !== null && claimed !== undefined && claimed !== "" ? `listed $${Number(claimed)}` : "price unlisted";
   const what = {
     no_x402: "no payment request",
-    no_terms_seen: "answered without payment terms (a free trial or allowance may have answered), check again",
+    no_paywall: "no paywall (no payment request)",
+    server_error: "server error, check again",
+    network_unsupported: "asks for a network we do not support (testnet or unknown)",
     free_trial_active: "seller reports a free trial in use, no payment terms yet, check again",
     price_mismatch: "asks a different price than listed",
-    timeout: "endpoint timed out",
-    unreachable: "endpoint unreachable",
+    timeout: "endpoint timed out, check again",
+    unreachable: "endpoint unreachable, check again",
     ambiguous: "payment request unclear",
     bad_challenge: "payment request unreadable",
     price_ok: "payment request matches",
@@ -1338,17 +1439,19 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     network: q.network || (listing && listing.listed_network) || null,
     source: q.pay_to || q.network || q.claimed_price !== null ? "request" : listing ? "listing" : null,
   };
+  const selfChecked = isExempt(qLike, env);
+  const checkType = selfChecked ? "self-checked" : "dry-run";
   const buildResult = async (probe, access) => {
     const pm0 = pickPayment(probe, exp);
     const d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pm0, exp), probe, q, listing);
     const pm = d.verdict === "pay" ? pm0 : null; // only a "pay" verdict approves terms
     const termsHash = await termsSha256(pm);
+    const payment = paymentObject(pm, pr.probedAt);
     const rid = env.RECEIPTS_DB ? newReceiptId() : null;
     const receiptFields = { receipt_id: rid, receipt_url: rid ? url.origin + "/v1/receipts/" + rid : null };
     if (rid) {
-      const rec = buildLiveReceipt({ id: rid, origin: url.origin, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm, termsHash, exp, ref: q.ref });
-      const p = saveLiveReceipt(env, rec);
-      if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(p); else await p;
+      const rec = buildLiveReceipt({ id: rid, origin: url.origin, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key });
+      await saveLiveReceipt(env, rec); // awaited: the next call's cache lookup must see it
     }
     // Free tier: verdict + plain reason + a hash of the approved terms (enough for x402-spotcheck to refuse a
     // different payment); the terms themselves, quoted/claimed price and pay-to are behind the paid 402.
@@ -1365,8 +1468,10 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       expected_pay_to: exp.pay_to,
       expected_network: exp.network,
       expected_source: exp.source,
-      payment: pm,
+      payment,
       payment_terms_sha256: termsHash,
+      probe: { probed_at: pr.probedAt, cached: pr.cached, cache_ttl_s: SPOT_PROBE_CACHE_S },
+      check_type: checkType,
       ...(d.reason === "free_trial_active" ? { free_trial_remaining: d.free_trial_remaining ?? null } : {}),
       ...receiptFields,
       access,
@@ -1402,7 +1507,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
 
   if (q.mode === "dry-run") return spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { cid, ua, referer, c });
 
-  const probe = await spotProbe(q.url, { ...probeOpts, method: q.method });
+  const pr = await getProbe(env, q, probeOpts);
+  const probe = pr.probe;
   cd = spotDynCfg(c, probe.quoted_price_usd);
   let access;
   const extraHeaders = {};
@@ -1547,16 +1653,17 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
     }, 429, { "cache-control": "no-store" });
   }
   if (!env.RECEIPTS_DB) { point(503, "dry-run-no-store"); return json({ error: "dry runs are always stored as receipts; the receipt store is unavailable, try again shortly", mode: "dry-run" }, 503); }
-  const probe = await spotProbe(q.url, { ...probeOpts, method: q.method });
+  const pr = await getProbe(env, q, probeOpts);
+  const probe = pr.probe;
   const d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pickPayment(probe, exp), exp), probe, q, listing);
   const rid = newReceiptId();
   const reason = spotLossReason(d, exp.claimed).replace(/, details locked$/, "");
-  const rec = buildLiveReceipt({ id: rid, origin: url.origin, url: q.url, method: q.method, probe, d, reasonText: reason, pm: null, termsHash: null, exp, checkType: "dry-run", ref: q.ref, caller: q.dry_caller });
+  const rec = buildLiveReceipt({ id: rid, origin: url.origin, url: q.url, method: q.method, probe, d, reasonText: reason, pm: null, termsHash: null, exp, checkType: exempt ? "self-checked" : "dry-run", mode: "dry-run", ref: q.ref, caller: q.dry_caller || (exempt ? "self-test" : null), probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key });
   if (!(await saveLiveReceipt(env, rec))) { point(503, "dry-run-store-failed"); return json({ error: "dry runs are always stored as receipts; storing failed, try again shortly", mode: "dry-run" }, 503); }
   point(200, "dry-run");
   return json({
     mode: "dry-run",
-    check_type: "dry-run",
+    check_type: exempt ? "self-checked" : "dry-run",
     verdict: d.verdict,
     reason,
     payment_terms_sha256: null,
@@ -1838,7 +1945,7 @@ export function openapi(origin, env = {}) {
             protocols: [{ x402: { scheme: "exact", network: spotCfg(env).network, asset: USDC_BASE, payTo: spotCfg(env).payTo } }],
           },
           responses: {
-            200: { description: "A 2xx with no payment terms is recheck (reason no_terms_seen, or free_trial_active when the target sends x-free-trial headers), not skip. Free tier: verdict (pay|skip|recheck), a plain-words reason, access. Paid tier: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, payment (the exact signable payment when verdict is pay), payment_terms_sha256, access (with settlement tx). Free tier also carries payment_terms_sha256", content: { "application/json": { schema: { oneOf: [SPOT_PAID_SCHEMA, SPOT_FREE_SCHEMA] }, examples: { paid: { value: SPOT_PAID_EXAMPLE }, free: { value: SPOT_FREE_EXAMPLE } } } } },
+            200: { description: "No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx and network errors; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. Free tier: verdict (pay|skip|recheck), a plain-words reason, access. Paid tier: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, payment (the exact signable payment when verdict is pay), payment_terms_sha256, access (with settlement tx). Free tier also carries payment_terms_sha256", content: { "application/json": { schema: { oneOf: [SPOT_PAID_SCHEMA, SPOT_FREE_SCHEMA] }, examples: { paid: { value: SPOT_PAID_EXAMPLE }, free: { value: SPOT_FREE_EXAMPLE } } } } },
             400: { description: "bad params, or SSRF-blocked URL as verdict=skip reason=ssrf_blocked (no fetch)" },
             402: { description: "free quota used: x402 v2 payment requirement ($0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base)" },
             429: { description: "paid rate limit (per payer per UTC hour)" },
@@ -2234,7 +2341,7 @@ export const MCP_TOOLS = [
     description:
       "Decision-shaped SSRF-safe spot-check of a public URL for an x402 PAYMENT-REQUIRED / 402 challenge. " +
       "Free: verdict (pay|skip|recheck), a plain-words reason, payment_terms_sha256 (hash of the approved payment), and access. Paid: verdict, reason code, quoted/claimed price, pay_to, network, asset, and payment = the exact {network, asset, amount_atomic, amount_usd, pay_to} a router may sign (verdict pay only), plus access with the settlement tx. " +
-      "A 2xx with no payment terms is recheck (reason no_terms_seen, or free_trial_active when the target sends x-free-trial headers), not skip. " +
+      "No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx and network errors; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. " +
       "mode=dry-run: free dry run (nothing signed or paid, stored as a public receipt, no approval hash, 50/caller/day). " +
       "Never pays the target (probe GET only). 1 free check per client per UTC day (client=vc-mcp), then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402. " +
       "Unpaid after free quota: payment instructions. Forward PAYMENT-SIGNATURE for a paid check.",

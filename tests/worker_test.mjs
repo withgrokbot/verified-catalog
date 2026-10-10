@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import worker from "../worker/src/index.js";
 import { normUrl, receiptIdFor } from "../worker/src/skips.js";
 import { RECEIPTS_META } from "../worker/src/receipts-data.js";
-import { VERSION, listingFor, pickPayment, termsSha256, applyPayment, _resetCache, isoWeek, ipPrefix, saltPeriod, QuotaCounter, takeFree, quotaKey, PAYMENT_POLICY } from "../worker/src/lib.js";
+import { VERSION, listingFor, pickPayment, termsSha256, applyPayment, paymentObject, _resetCache, isoWeek, ipPrefix, saltPeriod, QuotaCounter, takeFree, quotaKey, PAYMENT_POLICY } from "../worker/src/lib.js";
 
 const BASE = "https://data.test/vc/";
 const H = 3600000;
@@ -869,23 +869,23 @@ test("spot-check timeout and oversized body handled safely", async () => {
   const t = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/slow") + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(t.status, 200);
   assert.equal(t.body.access.tier, "exempt");
-  assert.equal(t.body.verdict, "skip");
+  assert.equal(t.body.verdict, "recheck"); // transient (0.14.0)
   assert.equal(t.body.reason, "timeout");
   assert.equal(t.body.quoted_price_usd, null);
   spotTargetMode = "huge";
   const h = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/huge") + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(h.status, 200);
-  assert.equal(h.body.verdict, "recheck"); // 200 with no terms (0.12.0)
-  assert.equal(h.body.reason, "no_terms_seen");
+  assert.equal(h.body.verdict, "skip"); // 200 with no terms, no trial headers (0.14.0)
+  assert.equal(h.body.reason, "no_paywall");
   spotTargetMode = "402";
 });
 
-test("200 with no payment terms is recheck, not skip (0.12.0): no_terms_seen, free_trial_active (+remaining), listing mismatch still skips", async () => {
+test("no 402 terms is skip/no_paywall; trial headers are recheck/free_trial_active (+remaining) (0.14.0)", async () => {
   const e = spotEnv();
   const go = (path, q = "") => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test" + path) + "&client=withgrokbot-selftest" + q, { envo: e });
   spotTargetMode = "ok200";
   let r = await go("/a", "&claimed_price=0.01");
-  assert.deepEqual([r.body.verdict, r.body.reason, r.body.payment, r.body.payment_terms_sha256], ["recheck", "no_terms_seen", null, null]);
+  assert.deepEqual([r.body.verdict, r.body.reason, r.body.payment, r.body.payment_terms_sha256], ["skip", "no_paywall", null, null]);
   assert.ok(!("free_trial_remaining" in r.body));
   spotTargetMode = "trial";
   r = await go("/b");
@@ -895,7 +895,7 @@ test("200 with no payment terms is recheck, not skip (0.12.0): no_terms_seen, fr
   assert.deepEqual([r.body.verdict, r.body.reason, r.body.free_trial_remaining], ["recheck", "free_trial_active", null]);
   spotTargetMode = "notfound";
   r = await go("/d");
-  assert.deepEqual([r.body.verdict, r.body.reason], ["skip", "no_x402"]);
+  assert.deepEqual([r.body.verdict, r.body.reason], ["skip", "no_paywall"]);
   // free tier words + the remaining count
   spotTargetMode = "trial";
   const f = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/e") + "&claimed_price=0.05&client=trial-free-1", { envo: e });
@@ -904,12 +904,17 @@ test("200 with no payment terms is recheck, not skip (0.12.0): no_terms_seen, fr
   spotTargetMode = "402";
 });
 
-test("no-terms recheck becomes skip when the listing data already shows a mismatch (0.12.0)", async () => {
+test("verdict table (0.14.0): recheck only for transient + trial; trial recheck still skips on a listing mismatch", async () => {
   const { applyNoTermsListing } = await import("../worker/src/lib.js");
   const { decideVerdict, freeTrialSignal } = await import("../worker/src/spotcheck.js");
   const probe = { reachable: true, http_status: 200, x402_challenge: false, accepts: [], free_trial: null };
-  const d = decideVerdict(probe, null);
-  assert.deepEqual(d, { verdict: "recheck", reason: "no_terms_seen" });
+  assert.deepEqual(decideVerdict(probe, null), { verdict: "skip", reason: "no_paywall" });
+  assert.deepEqual(decideVerdict({ ...probe, http_status: 503 }, null), { verdict: "recheck", reason: "server_error" });
+  assert.deepEqual(decideVerdict({ ...probe, reachable: false, error: "fetch failed" }, null), { verdict: "recheck", reason: "unreachable" });
+  assert.deepEqual(decideVerdict({ ...probe, reachable: false, error: "timeout after 5000ms" }, null), { verdict: "recheck", reason: "timeout" });
+  assert.deepEqual(decideVerdict({ ...probe, http_status: 402, x402_challenge: true, known_answer: false }, null), { verdict: "skip", reason: "bad_challenge" });
+  const d = decideVerdict({ ...probe, free_trial: { active: true, remaining: null } }, null);
+  assert.deepEqual(d, { verdict: "recheck", reason: "free_trial_active" });
   const listing = { claimed_price_usd: 0.01, listed_pay_to: "0x" + "11".repeat(20), listed_network: "eip155:8453", pay_to: null, network: null, quoted_price_usd: null };
   const q0 = { claimed_price: null, pay_to: null, network: null };
   assert.deepEqual(applyNoTermsListing(d, probe, q0, null), d);
@@ -921,7 +926,7 @@ test("no-terms recheck becomes skip when the listing data already shows a mismat
   assert.deepEqual(applyNoTermsListing(d, probe, q0, { ...listing, pay_to: "0x" + "33".repeat(20) }), { verdict: "skip", reason: "pay_to_mismatch" });
   assert.deepEqual(applyNoTermsListing(d, probe, q0, { ...listing, quoted_price_usd: 0.2 }), { verdict: "skip", reason: "price_mismatch" });
   // a real skip or a pay is untouched
-  assert.deepEqual(applyNoTermsListing({ verdict: "skip", reason: "no_x402" }, probe, { ...q0, claimed_price: 9 }, listing), { verdict: "skip", reason: "no_x402" });
+  assert.deepEqual(applyNoTermsListing({ verdict: "skip", reason: "no_paywall" }, probe, { ...q0, claimed_price: 9 }, listing), { verdict: "skip", reason: "no_paywall" });
   // header parsing
   const H = (o) => new Headers(o);
   assert.equal(freeTrialSignal(H({})), null);
@@ -929,7 +934,7 @@ test("no-terms recheck becomes skip when the listing data already shows a mismat
   assert.deepEqual(freeTrialSignal(H({ "x-free-trial-remaining": "7" })), { active: true, remaining: 7 });
   assert.deepEqual(freeTrialSignal(H({ "x-free-trial": "false" })), { active: false, remaining: null });
   assert.deepEqual(decideVerdict({ ...probe, http_status: 404, free_trial: { active: true, remaining: 1 } }, null), { verdict: "recheck", reason: "free_trial_active" });
-  assert.deepEqual(decideVerdict({ ...probe, free_trial: { active: false, remaining: null } }, null), { verdict: "recheck", reason: "no_terms_seen" });
+  assert.deepEqual(decideVerdict({ ...probe, free_trial: { active: false, remaining: null } }, null), { verdict: "skip", reason: "no_paywall" });
 });
 
 test("MCP endpoint_spot_check listed; unpaid after free returns pay instructions", async () => {
@@ -1136,7 +1141,9 @@ test("PAY STEP: paid pay verdict returns the exact signable payment; hash commit
   spotTargetMode = "402";
   const ok = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=withgrokbot-selftest", { envo: e });
   assert.equal(ok.body.verdict, "pay");
-  assert.deepEqual(ok.body.payment, { scheme: "exact", network: "eip155:8453", asset: USDC, asset_is_usdc: true, amount_atomic: "1000", amount_usd: 0.001, pay_to: PAY_TO });
+  const dl = new Date(Date.parse(ok.body.probe.probed_at) + 300000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  assert.deepEqual(ok.body.payment, { network: "eip155:8453", asset: USDC, amount: { atomic: "1000", usd: 0.001 }, pay_to: PAY_TO, deadline: dl, deadline_source: "maxTimeoutSeconds", scheme: "exact", amount_atomic: "1000", amount_usd: 0.001, asset_is_usdc: true });
+  assert.equal(ok.body.check_type, "self-checked");
   const h = createHash("sha256").update(["eip155:8453", USDC.toLowerCase(), "1000", PAY_TO.toLowerCase()].join("|")).digest("hex");
   assert.equal(ok.body.payment_terms_sha256, h);
   assert.equal(await termsSha256(ok.body.payment), h);
@@ -1161,7 +1168,15 @@ test("PAY STEP: picks the accept matching the expectation; non-USDC asset is ski
   assert.equal(pm.amount_usd, null);
   assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pm, {}), { verdict: "skip", reason: "asset_not_usdc" });
   assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pickPayment({ accepts: [usdc] }, {}), { claimed: 0.02 }), { verdict: "skip", reason: "price_mismatch" });
-  assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, null, {}), { verdict: "recheck", reason: "ambiguous" });
+  assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, null, {}), { verdict: "skip", reason: "bad_challenge" });
+  assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pickPayment({ accepts: [sep] }, {}), {}), { verdict: "skip", reason: "network_unsupported" }, "testnets are not supported mainnets");
+  const poly = { scheme: "exact", network: "eip155:137", asset: "0x2791bca1f2de4661ed88a30c99a7a9449aa84174", amount: "10000", payTo: "0x" + "cc".repeat(20) }; // bridged USDC.e, not canonical
+  assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pickPayment({ accepts: [poly] }, {}), {}), { verdict: "skip", reason: "asset_not_usdc" });
+  assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pickPayment({ accepts: [{ ...poly, asset: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359" }] }, {}), {}), { verdict: "pay", reason: "price_ok" });
+  // payment object deadline: validBefore wins, else maxTimeoutSeconds, else 60 s
+  const pmB = pickPayment({ accepts: [{ ...usdc, validBefore: 1791651600 }] }, {});
+  assert.deepEqual([paymentObject(pmB, "2026-10-10T17:00:00Z").deadline, paymentObject(pmB, "2026-10-10T17:00:00Z").deadline_source], [new Date(1791651600000).toISOString().replace(/\.\d{3}Z$/, "Z"), "validBefore"]);
+  assert.deepEqual([paymentObject(pickPayment({ accepts: [usdc] }, {}), "2026-10-10T17:00:00Z").deadline, paymentObject(pickPayment({ accepts: [usdc] }, {}), "2026-10-10T17:00:00Z").deadline_source], ["2026-10-10T17:01:00Z", "default_60s"]);
   assert.equal(pickPayment({ accepts: [{ scheme: "upto", network: "eip155:8453", amount: "1", payTo: "0x1" }] }, {}), null);
 });
 
@@ -1174,7 +1189,7 @@ function fakeD1() {
       return {
         bind(...a) {
           return {
-            async run() { if (/^INSERT/.test(sql)) { if (rows.some((r) => r.id === a[0])) throw new Error("UNIQUE"); rows.push({ id: a[0], url: a[1], created_at: a[2], verdict: a[3], reason: a[4], check_type: a[5], ref: a[6], body: a[7] }); } return { success: true }; },
+            async run() { if (/^INSERT/.test(sql)) { if (rows.some((r) => r.id === a[0])) throw new Error("UNIQUE"); rows.push({ id: a[0], url: a[1], created_at: a[2], verdict: a[3], reason: a[4], check_type: a[5], ref: a[6], norm_key: a[7], probed_at: a[8], body: a[9] }); } return { success: true }; },
             async all() {
               // SELECT ... WHERE check_type = ? [AND ref = ?] [AND (created_at < ? OR (created_at = ? AND id < ?))] ORDER BY created_at DESC, id DESC LIMIT ?
               let i = 0;
@@ -1189,6 +1204,7 @@ function fakeD1() {
             },
             async first() {
               if (/WHERE id = \?/.test(sql)) return rows.find((r) => r.id === a[0]) || null;
+              if (/WHERE norm_key = \?/.test(sql)) return rows.filter((r) => r.norm_key === a[0] && r.probed_at >= a[1]).sort((x, y) => (x.probed_at < y.probed_at ? 1 : -1))[0] || null;
               if (/WHERE url = \?/.test(sql)) return rows.filter((r) => r.url === a[0]).sort((x, y) => (x.created_at < y.created_at ? 1 : x.created_at > y.created_at ? -1 : 0))[0] || null;
               return null;
             },
@@ -1426,11 +1442,11 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   const ra = (await send("/v1/receipts/" + a.body.receipt_id, { envo: e })).body;
   assert.deepEqual(ra.live_demand, { http_status: 200, x402_challenge: false, free_trial: { active: true, remaining: 3 }, error: null });
   assert.deepEqual([ra.ref, ra.caller, ra.listing], ["dry-run-bot-a", "bot-a", null]);
-  // normal checks: check_type live
+  // exempt self-test client: check_type self-checked
   spotTargetMode = "402";
   const live = await send(u + "&client=withgrokbot-selftest&ref=via-cdp", { envo: e });
   assert.equal(live.body.access.tier, "exempt");
-  assert.equal((await send("/v1/receipts/" + live.body.receipt_id, { envo: e })).body.check_type, "live");
+  assert.equal((await send("/v1/receipts/" + live.body.receipt_id, { envo: e })).body.check_type, "self-checked");
   // listing + filter + cursor
   const l1 = await send("/v1/receipts?type=dry-run&limit=1", { envo: e });
   assert.equal(l1.status, 200);
@@ -1440,7 +1456,7 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   const l2 = await send("/v1/receipts?type=dry-run&limit=1&cursor=" + l1.body.next_cursor, { envo: e });
   assert.deepEqual([l2.body.receipts[0].id, l2.body.next_cursor], [r.body.receipt_id, null]);
   assert.deepEqual((await send("/v1/receipts?type=dry-run&ref=dry-run-bot-a", { envo: e })).body.receipts.map((x) => x.id), [a.body.receipt_id]);
-  assert.deepEqual((await send("/v1/receipts?type=live", { envo: e })).body.receipts.map((x) => x.id), [live.body.receipt_id]);
+  assert.deepEqual((await send("/v1/receipts?type=self-checked", { envo: e })).body.receipts.map((x) => x.id), [live.body.receipt_id]);
   assert.equal((await send("/v1/receipts?type=bogus", { envo: e })).status, 400);
   assert.equal((await send("/v1/receipts?type=dry-run&cursor=zzz", { envo: e })).status, 400);
   assert.ok((await send("/v1/receipts", { envo: e })).body.receipts, "plain /v1/receipts is still the crawl listing");
@@ -1477,6 +1493,32 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   const oa = (await send("/openapi.json", { envo: e })).body;
   assert.ok(oa.paths[SPOT].get.parameters.some((x) => x.name === "mode"));
   assert.ok(oa.paths["/v1/receipts"].get.parameters.some((x) => x.name === "type"));
+});
+
+test("determinism (0.14.0): one probe per normalized URL + method for 5 min; consecutive calls agree; every call stored and labelled", async () => {
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db });
+  spotTargetMode = "402";
+  const t = "https://spot.target.test/det";
+  const first = await send(SPOT + "?url=" + encodeURIComponent(t) + "&client=withgrokbot-selftest", { envo: e });
+  spotTargetMode = "trial"; // the target flips (e.g. per-caller trial) ...
+  const second = await send(SPOT + "?url=" + encodeURIComponent("HTTPS://SPOT.target.test/det/") + "&client=withgrokbot-selftest", { envo: e });
+  assert.deepEqual([first.body.verdict, second.body.verdict], ["pay", "pay"], "... but the cached probe keeps the verdict");
+  assert.deepEqual([first.body.probe.cached, second.body.probe.cached], [false, true]);
+  assert.equal(second.body.probe.probed_at, first.body.probe.probed_at);
+  assert.deepEqual(second.body.payment, first.body.payment);
+  assert.notEqual(second.body.receipt_id, first.body.receipt_id, "each call gets its own receipt");
+  // POST is a different key; an outside caller is labelled dry-run, our self-test client self-checked
+  const post = await send(SPOT + "?url=" + encodeURIComponent(t) + "&method=POST&client=outside-1", { envo: e });
+  assert.equal(post.body.verdict, "recheck");
+  assert.equal(post.body.access.tier, "free");
+  const labels = db.rows.map((r) => [r.check_type, JSON.parse(r.body).mode]);
+  assert.deepEqual(labels, [["self-checked", "live"], ["self-checked", "live"], ["dry-run", "live"]]);
+  // cache window over -> a fresh probe
+  const e2 = spotEnv({ RECEIPTS_DB: db, SPOT_PROBE_CACHE_S: "0" });
+  const fresh = await send(SPOT + "?url=" + encodeURIComponent(t) + "&client=withgrokbot-selftest", { envo: e2 });
+  assert.deepEqual([fresh.body.verdict, fresh.body.reason, fresh.body.probe.cached], ["recheck", "free_trial_active", false]);
+  spotTargetMode = "402";
 });
 
 let passed = 0;

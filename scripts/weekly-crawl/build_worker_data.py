@@ -5,13 +5,13 @@
 Prints the one-line coverage summary as the last line."""
 import json, os, sys, collections, hashlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from crawl_probe import norm_url, reclass
+from crawl_probe import norm_url, mainnet_policy
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KV = os.path.join(ROOT, "kv"); os.makedirs(KV, exist_ok=True)
 PAGE = 500
 FEATURED = "b5e13e8271"  # README's featured case while it is still a skip
 name = open(os.path.join(ROOT, "latest.txt")).read().strip()
-rs = [reclass(json.loads(l)) for l in open(os.path.join(ROOT, name))]  # 2xx-without-terms skips -> recheck (0.12.0)
+rs = [mainnet_policy(json.loads(l)) for l in open(os.path.join(ROOT, name))]  # 0.14.0: testnet / non-canonical USDC pays -> skip
 keep = ["id", "url", "claimed_price_usd", "quoted_price_usd", "pay_to", "verdict", "reason", "timestamp", "source_list",
         "also_listed_in", "check_type", "method", "http_status", "network", "listed_network", "listed_pay_to", "free_trial_remaining"]
 rs = [{k: r.get(k) for k in keep if r.get(k) not in (None, [])} | {"id": r["id"], "url": r["url"], "verdict": r["verdict"]} for r in rs]

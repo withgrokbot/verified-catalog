@@ -183,6 +183,8 @@ export function summarizeAccepts(accepts) {
       amount: amount != null ? String(amount) : null,
       payTo: a.payTo || null,
       amount_usd: amount != null ? atomicToUsd(amount) : null,
+      maxTimeoutSeconds: Number.isFinite(Number(a.maxTimeoutSeconds)) && Number(a.maxTimeoutSeconds) > 0 ? Number(a.maxTimeoutSeconds) : null,
+      validBefore: a.validBefore ?? (a.extra && a.extra.validBefore) ?? null,
     };
   });
 }
@@ -475,48 +477,34 @@ export function freeTrialSignal(headers) {
 }
 
 /**
- * Map probe result → decision-shaped verdict.
- * Deterministic rules (prefer skip over pay when unsure about safety;
- * prefer recheck over pay when data incomplete):
- * - skip + ssrf_blocked if SSRF
- * - skip + unreachable / timeout if fetch fails
- * - recheck + free_trial_active if no challenge and the seller sends x-free-trial / x-free-trial-remaining
- * - recheck + no_terms_seen if HTTP 2xx with no challenge (a trial or allowance may have answered; check again)
- * - skip + no_x402 if reachable, not 2xx, and no parseable x402/402 challenge
- * - pay + price_ok if challenge parses and (no claimed_price OR quoted matches claimed within epsilon)
- * - skip + price_mismatch if both prices present and differ
- * - recheck + ambiguous / bad_challenge when challenge present but unparseable or partial
+ * Map probe result → decision-shaped verdict (0.14.0). recheck ONLY for transient cases; everything else that cannot
+ * be paid safely is skip:
+ * - skip + ssrf_blocked
+ * - recheck + timeout / unreachable (network error) / server_error (5xx without terms)
+ * - recheck + free_trial_active when no terms and the seller sends x-free-trial / x-free-trial-remaining
+ * - skip + no_paywall when reachable with no 402 terms (any non-5xx status, no trial headers)
+ * - skip + bad_challenge when a challenge is present but unreadable / incomplete
+ * - skip + price_mismatch when claimed and quoted differ; pay + price_ok when they match or nothing is claimed
+ * (network / token / pay_to checks follow in applyExpected and applyPayment)
  */
 export function decideVerdict(probe, claimedPrice) {
-  if (!probe || probe.ssrf_blocked) {
-    return { verdict: "skip", reason: "ssrf_blocked" };
-  }
+  if (!probe || probe.ssrf_blocked) return { verdict: "skip", reason: "ssrf_blocked" };
   if (!probe.reachable) {
     const err = String(probe.error || "");
-    if (/timeout/i.test(err)) return { verdict: "skip", reason: "timeout" };
-    return { verdict: "skip", reason: "unreachable" };
+    return { verdict: "recheck", reason: /timeout/i.test(err) ? "timeout" : "unreachable" };
   }
   if (!probe.x402_challenge) {
     if (probe.free_trial && probe.free_trial.active) return { verdict: "recheck", reason: "free_trial_active" };
-    if (probe.http_status >= 200 && probe.http_status < 300) return { verdict: "recheck", reason: "no_terms_seen" };
-    return { verdict: "skip", reason: "no_x402" };
+    if (probe.http_status >= 500) return { verdict: "recheck", reason: "server_error" };
+    return { verdict: "skip", reason: "no_paywall" };
   }
-  // Challenge present but not a fully parseable shape → recheck
-  if (probe.known_answer !== true) {
-    const accepts = Array.isArray(probe.accepts) ? probe.accepts : [];
-    const partial = accepts.length > 0 || probe.quoted_price_usd != null;
-    return { verdict: "recheck", reason: partial ? "ambiguous" : "bad_challenge" };
-  }
-  // Fully parsed challenge
+  if (probe.known_answer !== true) return { verdict: "skip", reason: "bad_challenge" };
   const claimed = claimedPrice;
-  if (claimed === null || claimed === undefined || claimed === "") {
-    return { verdict: "pay", reason: "price_ok" };
-  }
+  if (claimed === null || claimed === undefined || claimed === "") return { verdict: "pay", reason: "price_ok" };
   const match = priceMatchesClaimed(probe.quoted_price_usd, claimed);
   if (match === true) return { verdict: "pay", reason: "price_ok" };
   if (match === false) return { verdict: "skip", reason: "price_mismatch" };
-  // Claimed set but quoted missing/unusable → incomplete
-  return { verdict: "recheck", reason: "ambiguous" };
+  return { verdict: "skip", reason: "bad_challenge" }; // claimed set but the 402 has no readable price
 }
 
 export function utcHour(now = new Date()) {

@@ -204,28 +204,35 @@ def fetch(url, c, done):
     except requests.exceptions.RequestException as e:
         return done("recheck", "connection error: " + type(e).__name__)
 
-NO_TERMS_REASON = "no payment terms seen (HTTP {}): a free trial or allowance may have answered; recheck"
-NO_402_2XX = __import__("re").compile(r"^no 402 challenge \(HTTP (2\d\d)\)$")
+# 0.14.0 policy (same table as the Worker's USDC_BY_NETWORK): pay only on a supported mainnet with its canonical USDC.
+USDC_MAINNET = {
+    "eip155:8453": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "eip155:1": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "eip155:10": "0x0b2c639c533813f4aa9d7837caf62653d097ff85", "eip155:137": "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
+    "eip155:42161": "0xaf88d065e77c8cc2239327c5edb3a432268e5831", "eip155:43114": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+    "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp": "epjfwdd5aufqssqem2qn1xzybapc8g4weggkzwytdt1v",
+}
 
-def reclass(r):
-    """Older receipts judged a 2xx without terms as skip; since 0.12.0 that is a recheck. Returns r (mutated)."""
-    m = NO_402_2XX.match(r.get("reason") or "")
-    if r.get("verdict") == "skip" and m:
-        r["verdict"], r["reason"] = "recheck", NO_TERMS_REASON.format(m.group(1))
+def mainnet_policy(r):
+    """A 'pay' on a testnet / unknown network or a non-canonical USDC token becomes a skip. Returns r (mutated)."""
+    if r.get("verdict") != "pay": return r
+    n, a = str(r.get("network") or "").lower(), str(r.get("asset") or "").lower()
+    if n not in USDC_MAINNET:
+        r["verdict"], r["reason"] = "skip", f"network not a supported mainnet ({r.get('network')})"
+    elif a != USDC_MAINNET[n]:
+        r["verdict"], r["reason"] = "skip", f"token is not the canonical USDC contract on {r.get('network')} ({r.get('asset')})"
     return r
 
 def judge(r, rec, lead, claimed, done):
     try:
         rec["http_status"] = r.status_code
         if r.status_code >= 500: return done("recheck", f"HTTP {r.status_code} (server error)")
-        if 200 <= r.status_code < 300:  # 0.12.0: 2xx without terms = recheck (a free trial or allowance may have answered)
+        if r.status_code != 402:  # 0.14.0: no terms = skip (no paywall), except a seller's own free-trial signal = recheck
             ft, rem = r.headers.get("x-free-trial"), r.headers.get("x-free-trial-remaining")
             if (ft is not None and ft.strip().lower() not in ("false", "0", "no")) or (ft is None and rem is not None):
                 n = int(rem) if rem is not None and rem.strip().isdigit() else None
                 rec["free_trial_remaining"] = n
                 return done("recheck", f"free trial active, no payment terms seen (HTTP {r.status_code}" + (f", {n} trial calls left)" if n is not None else ")"))
-            return done("recheck", NO_TERMS_REASON.format(r.status_code))
-        if r.status_code != 402: return done("skip", f"no 402 challenge (HTTP {r.status_code})")
+            return done("skip", f"no 402 challenge (HTTP {r.status_code})")
         buf, t_end = b"", time.monotonic() + 8  # hard wall-clock cap: a trickling server can't hold a lane
         while len(buf) < 65536 and time.monotonic() < t_end:
             chunk = r.raw.read(4096, decode_content=True)
@@ -250,6 +257,9 @@ def judge(r, rec, lead, claimed, done):
         if claimed is not None and abs(q - claimed) > 1e-9 + max(q, claimed) * 1e-6:
             return done("skip", f"price mismatch: listed ${claimed:g}, 402 asks ${q:g}")
         if not (0 < q <= SANE_MAX_USD): return done("skip", f"price not sane (${q:g})")
+        n_, a_ = str(rec.get("network") or "").lower(), str(rec.get("asset") or "").lower()
+        if n_ not in USDC_MAINNET: return done("skip", f"network not a supported mainnet ({rec.get('network')})")
+        if a_ != USDC_MAINNET[n_]: return done("skip", f"token is not the canonical USDC contract on {rec.get('network')} ({rec.get('asset')})")
         return done("pay", "402 matches listing (price, asset, network, payTo)" if claimed is not None else "valid 402, no listed price to compare")
     except requests.exceptions.Timeout:
         return done("recheck", "timeout (5s)")
