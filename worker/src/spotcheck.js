@@ -2,8 +2,11 @@
 // NEVER sends PAYMENT-SIGNATURE / X-PAYMENT / settles to the target. Probe only (GET/HEAD).
 
 export const SPOT_ID = "endpoint-spot-check";
-export const SPOT_SERVICE_NAME = "x402 Endpoint Spot-Check";
-export const SPOT_TAGS = ["x402", "spot-check", "probe", "catalog", "agents"];
+export const SPOT_SERVICE_NAME = "PayScout (formerly x402 Endpoint Spot-Check)";
+export const BRAND = "PayScout";
+export const BRAND_HOSTS = ["https://payscout.dev", "https://api.payscout.dev"];
+export const LEGACY_ORIGIN = "https://verified-catalog-lookup.withgrokbot.workers.dev";
+export const SPOT_TAGS = ["x402", "payscout", "spot-check", "probe", "catalog", "agents"];
 export const SPOT_DEFAULT_PRICE_ATOMIC = "250000"; // $0.25 USDC
 export const SPOT_DEFAULT_FREE_PER_DAY = 1;
 export const SPOT_PAID_PER_HOUR = 30;

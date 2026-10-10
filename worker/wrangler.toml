@@ -2,7 +2,13 @@
 name = "verified-catalog-lookup"
 main = "src/index.js"
 compatibility_date = "2026-09-01"
-workers_dev = true
+workers_dev = true  # keep verified-catalog-lookup.withgrokbot.workers.dev serving exactly as before (0.15.0)
+# PayScout (formerly Spot-Check), 0.15.0: same Worker on the payscout.dev zone (same account). Apex = landing page for
+# browsers + every API route; api.payscout.dev = the API. No redirects between hosts: POST and x402 retries work on all three.
+routes = [
+  { pattern = "payscout.dev", custom_domain = true },
+  { pattern = "api.payscout.dev", custom_domain = true },
+]
 # Ported from the dashboard upload of 2026-10-08 (version b8ef527d): preview URLs + Workers Logs/Traces on.
 preview_urls = true
 

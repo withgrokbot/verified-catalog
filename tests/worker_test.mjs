@@ -582,7 +582,7 @@ test("MCP /mcp: initialize, tools/list (catalog tools + products), ping, notific
   let r = await rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } } }, { envo: e });
   assert.equal(r.status, 200);
   assert.match(r.headers.get("content-type"), /application\/json/);
-  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "verified-catalog", version: VERSION } } });
+  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "payscout", title: "PayScout (formerly Spot-Check) + verified x402 catalog", version: VERSION } } });
   assert.equal(r.headers.get("mcp-session-id"), null, "stateless: no session");
   r = await rpc({ jsonrpc: "2.0", method: "notifications/initialized" }, { envo: e });
   assert.equal(r.status, 202);
@@ -1519,6 +1519,38 @@ test("determinism (0.14.0): one probe per normalized URL + method for 5 min; con
   const fresh = await send(SPOT + "?url=" + encodeURIComponent(t) + "&client=withgrokbot-selftest", { envo: e2 });
   assert.deepEqual([fresh.body.verdict, fresh.body.reason, fresh.body.probe.cached], ["recheck", "free_trial_active", false]);
   spotTargetMode = "402";
+});
+
+test("PayScout rebrand (0.15.0): every host serves the same routes; 402 resource follows the host; legacy host unchanged", async () => {
+  const e = spotEnv();
+  const hosts = ["https://payscout.dev", "https://api.payscout.dev", "https://verified-catalog-lookup.withgrokbot.workers.dev"];
+  for (const h of hosts) {
+    const get = async (p, init = {}) => worker.fetch(new Request(h + p, { headers: { "user-agent": "agent-x/1.0", "cf-connecting-ip": "203.0.113.7", ...(init.headers || {}) }, method: init.method || "GET", body: init.body }), e.env, { waitUntil() {} });
+    assert.equal((await (await get("/health")).json()).version, VERSION, h);
+    const oa = await (await get("/openapi.json")).json();
+    assert.match(oa.info.title, /^PayScout \(formerly Spot-Check\)/);
+    assert.deepEqual(oa.servers.map((s) => s.url).sort(), hosts.slice().sort(), h);
+    const pack = await get("/v1/products/overnight-cos-pack", { method: "POST", body: "{}", headers: { "content-type": "application/json" } });
+    assert.equal(pack.status, 402, "POST still gets the 402 on " + h);
+    const pr = JSON.parse(Buffer.from(pack.headers.get("payment-required"), "base64").toString());
+    assert.equal(pr.resource.url, h + "/v1/products/overnight-cos-pack", "402 resource is the host the client called");
+    const llms = await (await get("/llms.txt")).text();
+    assert.match(llms, /^# PayScout \(formerly Spot-Check\)/);
+    const root = await (await get("/", { headers: { accept: "application/json" } })).json();
+    assert.equal(root.payscout.home, "https://payscout.dev");
+    assert.equal(root.products["endpoint-spot-check"].url, h + "/v1/products/endpoint-spot-check", "route paths unchanged");
+  }
+  // the apex answers browsers with a landing page; JSON clients (and the legacy host) get the JSON index as before
+  const html = await worker.fetch(new Request("https://payscout.dev/", { headers: { accept: "text/html,*/*" } }), e.env, { waitUntil() {} });
+  assert.match(html.headers.get("content-type"), /text\/html/);
+  assert.match(await html.text(), /PayScout/);
+  const legacy = await worker.fetch(new Request("https://verified-catalog-lookup.withgrokbot.workers.dev/", { headers: { accept: "text/html,*/*" } }), e.env, { waitUntil() {} });
+  assert.match(legacy.headers.get("content-type"), /application\/json/);
+  const sk = await worker.fetch(new Request("https://payscout.dev/v1/skips"), e.env, { waitUntil() {} });
+  assert.match(await sk.text(), /<title>PayScout skips/);
+  const m = await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" }, { envo: e });
+  const names = m.body.result.tools.map((t) => t.name);
+  for (const n of ["endpoint_spot_check", "get_receipt", "lookup", "search_catalog", "get_service"]) assert.ok(names.includes(n), "tool name kept: " + n);
 });
 
 let passed = 0;

@@ -1,4 +1,11 @@
-# Reliability lookup Worker
+# PayScout Worker (formerly Spot-Check) + reliability lookup
+
+PayScout (formerly x402 Endpoint Spot-Check) checks an x402 endpoint right before you pay. Since 0.15.0 the same Worker
+serves https://payscout.dev (browser landing page + every API route), https://api.payscout.dev (API) and the original
+https://verified-catalog-lookup.withgrokbot.workers.dev, with identical routes, responses and payments on all three (no
+redirects between hosts; the x402 `resource` is the host the client called, and payments verify on any host). Route paths,
+response fields and MCP tool names are unchanged (`/v1/products/endpoint-spot-check`, `endpoint_spot_check`); the MCP
+serverInfo name is now `payscout`.
 
 One JSON endpoint on the Cloudflare Workers free plan. It answers "is endpoint E reliable for task X at price <= Y?"
 from the catalog's own data and counts distinct clients for the demand test. It stores no catalog data itself.
