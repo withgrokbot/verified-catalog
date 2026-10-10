@@ -124,6 +124,14 @@ pre{margin:0;background:var(--code);color:var(--codefg);padding:20px;overflow-x:
 .copy{margin:0 0 6px auto;align-self:center;font:600 12px ui-sans-serif,system-ui,sans-serif;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
 .sample{margin-top:24px;border-radius:12px;overflow:hidden}
 .samplepre{border-radius:12px;border:1px solid var(--line)}
+.saves{font-size:15px;color:var(--fg);margin:-16px auto 28px;max-width:760px;text-wrap:balance;font-weight:550}
+details.sample summary{cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:14px;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--card);list-style:none;margin-bottom:12px}
+details.sample summary::-webkit-details-marker{display:none}
+details.sample summary::before{content:"";width:0;height:0;border-left:5px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .15s}
+details.sample[open] summary::before{transform:rotate(90deg)}
+.kicker{margin:0 0 6px;font-size:13px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.bigprice{font-size:clamp(28px,4.2vw,44px);font-weight:720;letter-spacing:-.03em;line-height:1.1;margin:8px 0 10px}
+.tiers .price p{margin:6px 0 0;font-size:14px}.tiers .price b{color:var(--fg);font-weight:650}
 .sample .cap{font-size:13px;color:var(--muted);margin:0 0 8px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .price{padding:24px}.price h3{margin:0 0 4px;font-size:15px;color:var(--muted);font-weight:600}.price .amt{font-size:30px;font-weight:720;letter-spacing:-.02em}.price p{color:var(--muted);font-size:14.5px;margin:8px 0 0}
@@ -152,6 +160,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
   <span class="eyebrow"><span class="dot" aria-hidden="true"></span>${esc(covered)} x402 endpoints self-checked · ${esc(crawled)}</span>
   <h1>Check before your <span class="grad">agent pays</span></h1>
   <p class="sub">PayScout probes an x402 endpoint once, unpaid, compares the live 402 with its listing, and tells your agent to pay, skip or recheck, with the exact payment to sign.</p>
+  <p class="saves">Stops your agent paying dead, mispriced or wrong-network endpoints, or the wrong token or payee.</p>
   <div class="cta"><a class="btn primary" href="#try">Try it</a><a class="btn" href="https://github.com/withgrokbot/x402-spotcheck"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a></div>
 </div></div>
 
@@ -167,10 +176,11 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
     <div class="chips" role="group" aria-label="Example endpoints">${LANDING_EXAMPLES.map((e) => `<button type="button" class="chip" data-u="${esc(e.url)}">${esc(e.label)}</button>`).join("")}</div>
     <div class="result" id="out" aria-live="polite">Pick an example or paste a URL, then press Check.</div>
   </div>
-  <div class="sample">
-    <p class="cap">A real free answer from payscout.dev (receipt <a href="/v1/receipts/${esc(LANDING_SAMPLE.receipt_id)}">${esc(LANDING_SAMPLE.receipt_id)}</a>). Paid checks add the payment object: network, canonical USDC, amount, pay_to, deadline.</p>
-    <pre class="samplepre" tabindex="0"><code>${esc(JSON.stringify(LANDING_SAMPLE, null, 2))}</code></pre>
-  </div>
+  <details class="sample" id="resp">
+    <summary>Show response</summary>
+    <p class="cap" id="respcap">A real free answer from payscout.dev (receipt <a href="/v1/receipts/${esc(LANDING_SAMPLE.receipt_id)}">${esc(LANDING_SAMPLE.receipt_id)}</a>). Paid checks add the payment object: network, canonical USDC, amount, pay_to, deadline.</p>
+    <pre class="samplepre" tabindex="0"><code id="respcode">${esc(JSON.stringify(LANDING_SAMPLE, null, 2))}</code></pre>
+  </details>
 </div></section>
 
 <section aria-labelledby="how-h"><div class="wrap">
@@ -193,12 +203,13 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 </div></section>
 
 <section id="pricing" aria-labelledby="pricing-h"><div class="wrap">
-  <h2 id="pricing-h">Pricing</h2>
+  <p class="kicker">Pricing</p>
+  <h2 id="pricing-h" class="bigprice">Free to try, paid checks from $0.01</h2>
   <p class="lead">USDC on Base via x402. No account, no key.</p>
-  <div class="grid3">
-    <div class="card price"><h3>Free</h3><div class="amt">$0</div><p>1 check per client per UTC day: verdict, plain-words reason and a hash of the approved terms. Dry runs are free too.</p></div>
-    <div class="card price"><h3>Paid check</h3><div class="amt">$0.01–$0.25</div><p>One tenth of the target's quoted price, minimum $0.01, maximum $0.25. Full detail plus the payment object to sign.</p></div>
-    <div class="card price"><h3>Router tier</h3><div class="amt">$0.001<span style="font-size:16px;color:var(--muted);font-weight:500"> / check</span></div><p>Billed in packs of 10 checks as one $0.01 x402 payment; the other 9 are prepaid on your router id.</p></div>
+  <div class="grid3 tiers">
+    <div class="card price"><h3>Free</h3><p><b>$0</b>: 1 check per client per UTC day (verdict, plain-words reason and a hash of the approved terms). Dry runs are free too.</p></div>
+    <div class="card price"><h3>Paid check</h3><p><b>1/10 of the target's price</b>, $0.01 min to $0.25 max. Full detail plus the payment object to sign.</p></div>
+    <div class="card price"><h3>Router tier</h3><p><b>$0.001/check</b> in packs of 10, billed as one $0.01 x402 payment; the other 9 are prepaid on your router id.</p></div>
   </div>
 </div></section>
 
@@ -228,14 +239,15 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <script>
 (()=>{const $=(s)=>document.querySelector(s),out=$("#out"),u=$("#u"),go=$("#go");
 const E=(s)=>String(s??"").replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const setResp=(j,dry)=>{document.getElementById("respcode").textContent=JSON.stringify(j,null,2);document.getElementById("respcap").textContent=dry?"Raw response from this free dry run.":"Raw response from this check.";};
 const show=(j,extra)=>{const v=String(j.verdict||"");out.className="result filled";out.innerHTML='<span class="verdict v-'+E(v)+'">'+E(v)+'</span><span>'+E(j.reason)+'</span>'+(j.receipt_url?'<div class="note">Receipt: <a href="'+E(new URL(j.receipt_url).pathname)+'">'+E(j.receipt_id||j.receipt_url)+'</a></div>':'')+(extra?'<div class="note">'+extra+'</div>':'');};
 const msg=(t)=>{out.className="result filled";out.innerHTML=t;};
 const call=async(url,dry)=>{const q=new URLSearchParams({url});if(dry)q.set("mode","dry-run");else q.set("ref","via-payscout-site");return fetch("/v1/products/endpoint-spot-check?"+q,{headers:{accept:"application/json"}});};
 async function run(e){if(e)e.preventDefault();const url=u.value.trim();if(!/^https?:\\/\\//i.test(url)){msg("Enter a full http(s) URL.");u.focus();return;}
 go.disabled=true;msg("Checking…");try{let r=await call(url,false);let j=await r.json().catch(()=>({}));
-if(r.status===200){show(j,j.access&&j.access.tier==="free"?"Free check: "+E(j.access.free_remaining_today)+" left today. Full detail and the payment object are in the paid check.":"");}
+if(r.status===200){setResp(j,false);show(j,j.access&&j.access.tier==="free"?"Free check: "+E(j.access.free_remaining_today)+" left today. Full detail and the payment object are in the paid check.":"");}
 else if(r.status===402){const r2=await call(url,true),j2=await r2.json().catch(()=>({}));
-if(r2.status===200)show(j2,"Today's free check is used, so this is a free dry run: nothing signed or paid, and not an approval to pay. A full check costs "+E(j.price_usd?"$"+j.price_usd:"$0.01+")+" in USDC on Base via x402.");
+if(r2.status===200){setResp(j2,true);show(j2,"Today's free check is used, so this is a free dry run: nothing signed or paid, and not an approval to pay. A full check costs "+E(j.price_usd?"$"+j.price_usd:"$0.01+")+" in USDC on Base via x402.");}
 else if(r2.status===429)msg("Today's free check and dry runs are used up from this network. They reset at 00:00 UTC.");else msg(E(j2.error||("Dry run failed: HTTP "+r2.status)));}
 else if(r.status===400)msg(E(j.error||("Bad request: "+(j.reason||r.status))));
 else msg("Unexpected answer: HTTP "+r.status);}catch(err){msg("Could not reach PayScout. Try again.");}finally{go.disabled=false;}}
