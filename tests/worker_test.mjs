@@ -12,6 +12,7 @@ import worker from "../worker/src/index.js";
 import { normUrl, receiptIdFor } from "../worker/src/skips.js";
 import { RECEIPTS_META } from "../worker/src/receipts-data.js";
 import { VERSION, listingFor, pickPayment, termsSha256, applyPayment, paymentObject, _resetCache, isoWeek, ipPrefix, saltPeriod, QuotaCounter, takeFree, quotaKey, PAYMENT_POLICY } from "../worker/src/lib.js";
+import { LANDING_EXAMPLES } from "../worker/src/landing.js";
 
 const BASE = "https://data.test/vc/";
 const H = 3600000;
@@ -1551,6 +1552,27 @@ test("PayScout rebrand (0.15.0): every host serves the same routes; 402 resource
   const m = await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" }, { envo: e });
   const names = m.body.result.tools.map((t) => t.name);
   for (const n of ["endpoint_spot_check", "get_receipt", "lookup", "search_catalog", "get_service"]) assert.ok(names.includes(n), "tool name kept: " + n);
+});
+
+test("landing page (0.16.0): HTML to browsers on payscout.dev only, real counts, no client ids, JSON elsewhere", async () => {
+  const e = spotEnv();
+  const go = (h, accept) => worker.fetch(new Request(h + "/?cb=1", { headers: accept ? { accept } : {} }), e.env, { waitUntil() {} });
+  const html = await go("https://payscout.dev", "text/html,application/xhtml+xml,*/*;q=0.8");
+  assert.equal(html.status, 200);
+  assert.match(html.headers.get("content-type"), /text\/html/);
+  const t = await html.text();
+  for (const re of [/<h1>Check before your <span class="grad">agent pays<\/span><\/h1>/, /og:title/, /rel="canonical" href="https:\/\/payscout.dev\/"/, /id="try"/, /wrapFetchWithPayment\(spotCheckFetch\(fetch\), client\)/, /wrapAxiosWithPayment\(spotCheckAxios\(axios.create\(\)\), client\)/, /\$0\.01–\$0\.25/, /\$0\.001/, /packs of 10/, /First router integration gets 1,000 free checks/, /withgrokbot\/x402-spotcheck\/issues\/new/, /href="\/mcp"/, /href="\/llms.txt"/, /href="\/openapi.json"/, /href="\/v1\/skips"/])
+    assert.match(t, re);
+  assert.ok(t.includes(`>${RECEIPTS_META.skip}</div><div class="l">skip`), "skip count is the real crawl number");
+  assert.ok(t.includes(`>${RECEIPTS_META.pay}</div><div class="l">pay`));
+  assert.doesNotMatch(t, /router-ab|client=router|Jacob|@gmail|<script src=|<link rel="stylesheet"|fonts\.googleapis/i, "no client ids, personal names or external assets");
+  assert.ok(LANDING_EXAMPLES.length >= 3 && LANDING_EXAMPLES.every((x) => t.includes(x.url)));
+  // JSON clients and the other hosts keep the JSON index
+  for (const [h, a] of [["https://payscout.dev", "application/json"], ["https://payscout.dev", null], ["https://api.payscout.dev", "text/html,*/*"], ["https://verified-catalog-lookup.withgrokbot.workers.dev", "text/html,*/*"]]) {
+    const r = await go(h, a);
+    assert.match(r.headers.get("content-type"), /application\/json/, h + " " + a);
+    assert.equal((await r.json()).version, VERSION);
+  }
 });
 
 let passed = 0;

@@ -1,15 +1,19 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.withgrokbot/verified-catalog",
-  "title": "Verified x402 Catalog",
-  "description": "Which x402 pay-per-call endpoint delivered for a task at a price? Facts from our own paid calls.",
-  "version": "0.6.1",
-  "websiteUrl": "https://withgrokbot.github.io/verified-catalog/",
+  "title": "PayScout (formerly Spot-Check)",
+  "description": "Check an x402 endpoint before your agent pays: pay, skip or recheck. Plus a verified x402 catalog.",
+  "version": "0.16.0",
+  "websiteUrl": "https://payscout.dev/",
   "repository": {
     "url": "https://github.com/withgrokbot/verified-catalog",
     "source": "github"
   },
   "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://api.payscout.dev/mcp"
+    },
     {
       "type": "streamable-http",
       "url": "https://verified-catalog-lookup.withgrokbot.workers.dev/mcp"

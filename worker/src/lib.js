@@ -32,7 +32,9 @@ import {
 
 import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skips.js";
 import { RECEIPTS } from "./receipts-data.js";
-export const VERSION = "0.15.0";
+import { landingHtml } from "./landing.js";
+export { landingHtml };
+export const VERSION = "0.16.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -2645,28 +2647,6 @@ async function viewPoint(req, env, url, view, status) {
 }
 
 export const SPOT_ALIASES = new Set(["/endpoint-spot-check", "/v1/endpoint-spot-check", "/spot-check", "/v1/spot-check", "/v1/products/spot-check", "/v1/lookup/endpoint-spot-check"]);
-// 0.15.0: browser landing page on the payscout.dev apex (JSON clients and the other hosts still get the JSON index).
-export function landingHtml(origin) {
-  const e = (x) => String(x).replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  const ex = origin + "/v1/products/endpoint-spot-check?url=https://api.402rates.com/v1/ping";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PayScout: check an x402 endpoint before you pay</title>
-<meta name="description" content="PayScout (formerly Spot-Check) probes an x402 endpoint right before your agent pays: pay, skip or recheck, plus the exact payment to sign. Never pays the target.">
-<style>body{font:16px/1.5 system-ui,sans-serif;margin:2rem auto;max-width:760px;padding:0 1rem}code,pre{font-family:ui-monospace,monospace;font-size:14px}pre{background:#f5f5f5;padding:.75rem;overflow-x:auto}a{color:#0645ad}</style></head><body>
-<h1>PayScout</h1>
-<p><small>formerly Spot-Check</small></p>
-<p>Check an x402 endpoint right before your agent pays. PayScout probes the target once (unpaid, SSRF-safe), compares the live 402 with the listing, and answers <b>pay</b>, <b>skip</b> or <b>recheck</b>, with the exact payment to sign (network, canonical USDC, amount, pay_to, deadline). It never pays the target.</p>
-<pre>curl "${e(ex)}"</pre>
-<ul>
-<li>Free dry run (nothing signed or paid, stored as a public receipt): add <code>&amp;mode=dry-run</code></li>
-<li>1 free check per client per UTC day, then $0.01 to $0.25 USDC on Base via x402 (one tenth of the target's quoted price)</li>
-<li>Skips: <a href="/v1/skips">/v1/skips</a> · receipts: <a href="/v1/receipts?type=dry-run">/v1/receipts?type=dry-run</a> · <a href="/openapi.json">OpenAPI</a> · <a href="/llms.txt">llms.txt</a> · MCP: <code>${e(origin)}/mcp</code></li>
-<li>One-line guard for @x402/fetch and @x402/axios: <a href="https://github.com/withgrokbot/x402-spotcheck">x402-spotcheck</a></li>
-</ul>
-<p><small>API: <code>https://api.payscout.dev</code> (same routes). The old host <code>${e(LEGACY_ORIGIN)}</code> keeps working.</small></p>
-</body></html>`;
-}
-
 const routeInnerHolder = {
   async routeInner(req, env, ctx, url, path) {
     if (path === "/mcp") return handleMcp(req, env, ctx, url);
@@ -2702,7 +2682,7 @@ const routeInnerHolder = {
     if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/v1/skips", "/v1/skips.json", "/v1/receipts", "/", "/openapi.json", "/llms.txt"].map((u) => `<url><loc>${url.origin}${u}</loc><changefreq>daily</changefreq></url>`).join("")}</urlset>\n`, { headers: { "content-type": "application/xml; charset=utf-8" } });
     if (path === "/llms.txt") return new Response(`# PayScout (formerly Spot-Check) + x402 Verified Catalog\n\nPayScout checks an x402 endpoint right before you pay: pay | skip | recheck, plus the exact payment to sign. Hosts: https://payscout.dev, https://api.payscout.dev (same API; the old ${LEGACY_ORIGIN} keeps working).\n\n- Skips page (free): ${url.origin}/v1/skips (JSON: ${url.origin}/v1/skips.json). 500 self-checked x402 endpoints; the skip list shows which ones disagree with their listing.\n- All receipts: ${url.origin}/v1/receipts  (live PayScout receipts: ${url.origin}/v1/receipts/sc-<id>; dry runs: ${url.origin}/v1/receipts?type=dry-run; latest for a URL: ${url.origin}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${url.origin}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (route name kept from Spot-Check). Free dry run: add &mode=dry-run. 1 free/day, then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402.\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${url.origin}/openapi.json  MCP: ${url.origin}/mcp\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (path === "/" && url.hostname === "payscout.dev" && /text\/html/.test(req.headers.get("accept") || ""))
-      return new Response(landingHtml(url.origin), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" } });
+      return new Response(landingHtml(url.origin), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", vary: "accept", "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "access-control-allow-origin": "*" } });
     if (path === "/")
       return json({
         name: "PayScout (formerly Spot-Check) + verified x402 catalog",
@@ -2735,7 +2715,7 @@ const routeInnerHolder = {
         pricing: pricingDoc(cfg(env)),
         payment_policy: PAYMENT_POLICY,
         privacy: "Raw IPs are never stored. Lookups are counted by a weekly-salted hash of IP /24 + User-Agent, or by the client value you send. The free quota is counted by the client value, or by a daily-salted hash of the IP.",
-      });
+      }, 200, { vary: "accept" });
     return json({ error: "not found", usage: url.origin + "/v1/lookup?task=web-search&max_price=0.01&n=5", spot_check: url.origin + "/v1/products/endpoint-spot-check?url=<endpoint>", docs: url.origin + "/openapi.json" }, 404);
   },
 };
