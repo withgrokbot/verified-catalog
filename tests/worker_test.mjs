@@ -1014,7 +1014,7 @@ test("spot-check aliases: endpoint= and claimed_price_usd= accepted (0.6.3); /v1
   assert.equal(a.body.claimed_price_usd, 9.99);
   const none = await send(SPOT + "?client=withgrokbot-selftest", { envo: e });
   assert.equal(none.status, 400);
-  assert.deepEqual(Object.keys(none.body), ["error", "field", "example"]);
+  assert.deepEqual(Object.keys(none.body), ["error", "field", "example", "mistake", "hint", "fixed_example", "docs"]);
   assert.equal(none.body.field, "url");
   assert.ok(none.body.error.startsWith('Missing "url". Example: ') && !none.body.error.includes("\n"));
   const wrong = await send(SPOT + "?link=https://a.test/x", { envo: e });
@@ -1590,7 +1590,7 @@ test("402xAgent rebrand (0.17.0): every host serves the same API; 402 resource f
   assert.doesNotMatch(JSON.stringify(m.body).split("endpoint-spot-check").join(""), /spot[- ]check|formerly/i, "MCP tool copy");
   const init = await rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }, { envo: e });
   assert.equal(init.body.result.serverInfo.title, "402xAgent + verified x402 catalog");
-  const sk = await worker.fetch(new Request("https://402xagent.com/v1/skips"), e.env, { waitUntil() {} });
+  const sk = await worker.fetch(new Request("https://402xagent.com/v1/skips", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} });
   const skT = await sk.text();
   assert.match(skT, /<title>402xAgent skips/);
   assert.doesNotMatch(skT, /payscout/i);
@@ -1756,6 +1756,74 @@ test("agent-tools.cloud ownership token: per-host config only; unset serves noth
   }
   const bad = spotEnv({ AGENT_TOOLS_VERIFY: "{not json" });
   assert.equal((await go(bad, H + "/.well-known/agent-tools-verify.txt")).status, 404);
+});
+
+test("0.22.0: 400s name the mistake + a copy-pasteable fixed free check; /v1/skips JSON unless Accept text/html; verdict/shape/host analytics", async () => {
+  const R = "https://api.402xagent.com/v1/products/endpoint-spot-check";
+  const ok = (b) => assert.equal(b.docs, "https://api.402xagent.com/openapi.json");
+  const e = spotEnv();
+  // bare call -> real example
+  let r = await send(SPOT, { envo: e, ua: "node" });
+  assert.equal(r.status, 400); assert.equal(r.body.mistake, "no_params"); ok(r.body);
+  assert.deepEqual(r.body.fixed_example, { method: "GET", url: R + "?url=https://api.402rates.com/v1/ping" });
+  assert.equal(r.points.at(-1).blobs[16], "no_params"); assert.equal(r.points.at(-1).blobs[17], "GET||");
+  assert.equal(r.points.at(-1).blobs[19], "lookup.test");
+  // cb= alone is not "an unknown param"
+  r = await send(SPOT + "?cb=123", { envo: e });
+  assert.equal(r.body.mistake, "no_params"); assert.ok(!r.body.error.includes('"cb"'));
+  // wrong param name -> their value moved to url=, encoded (query string preserved)
+  const tv = "https://api.example.org/v1/quote?sym=ETH&n=2";
+  r = await send(SPOT + "?link=" + encodeURIComponent(tv), { envo: e });
+  assert.equal(r.body.mistake, "wrong_param_name"); assert.match(r.body.hint, /"link"/);
+  assert.equal(r.body.fixed_example.url, R + "?url=" + encodeURIComponent(tv));
+  assert.equal(new URL(r.body.fixed_example.url).searchParams.get("url"), tv);
+  assert.equal(r.points.at(-1).blobs[17], "GET||link");
+  // no scheme -> https:// added
+  r = await send(SPOT + "?url=api.example.org/v1/ping", { envo: e });
+  assert.equal(r.body.mistake, "url_missing_scheme"); assert.equal(r.body.fixed_example.url, R + "?url=" + encodeURIComponent("https://api.example.org/v1/ping"));
+  r = await send(SPOT + "?url=notaurl", { envo: e });
+  assert.equal(r.body.mistake, "url_not_http"); assert.equal(r.body.fixed_example.url, R + "?url=https://api.402rates.com/v1/ping");
+  // POST JSON wrong field -> right JSON body
+  r = await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ target_url: "https://api.example.org/x" }) });
+  assert.equal(r.body.mistake, "post_wrong_field");
+  assert.deepEqual(r.body.fixed_example, { method: "POST", url: R, headers: { "content-type": "application/json" }, body: { url: "https://api.example.org/x" } });
+  assert.equal(r.points.at(-1).blobs[17], "POST|application/json|body:target_url");
+  // POST form body -> JSON body with their value
+  r = await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "url=" + encodeURIComponent("https://api.example.org/y") });
+  assert.equal(r.body.mistake, "post_form_body"); assert.deepEqual(r.body.fixed_example.body, { url: "https://api.example.org/y" });
+  r = await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+  assert.equal(r.body.mistake, "no_params"); assert.equal(r.body.fixed_example.method, "POST");
+  r = await send(SPOT + "?url=https://a.test/x&claimed_price=abc", { envo: e });
+  assert.equal(r.body.mistake, "bad_claimed_price"); assert.equal(r.body.fixed_example.url, R + "?url=" + encodeURIComponent("https://a.test/x"));
+  r = await send(SPOT, { envo: e, method: "PUT" });
+  assert.equal(r.body.mistake, "http_method");
+  // verdict mix + unencoded inner query logged on a 200 (answer unchanged)
+  spotTargetMode = "402";
+  const e2 = spotEnv({ RECEIPTS_DB: fakeD1() });
+  r = await send(SPOT + "?url=https://spot.target.test/api?a=1&b=2&client=withgrokbot-selftest", { envo: e2 });
+  assert.equal(r.status, 200);
+  const p = r.points.at(-1);
+  assert.equal(p.blobs[18], r.body.verdict); assert.ok(["pay", "skip", "recheck"].includes(p.blobs[18]));
+  assert.equal(p.blobs[16], "url_query_unencoded"); assert.equal(p.blobs[17], "GET||b,client,url");
+  // dry runs carry the verdict too
+  r = await send(SPOT + "?mode=dry-run&url=" + encodeURIComponent("https://spot.target.test/api") + "&client=someone", { envo: e2 });
+  assert.equal(r.status, 200); assert.equal(e2.points.at(-1).blobs[18], r.body.verdict);
+  // host blob on views (funnel)
+  const e3 = spotEnv();
+  const wu = [];
+  await worker.fetch(new Request("https://402xagent.com/", { headers: { accept: "text/html", "user-agent": "Mozilla/5.0" } }), e3.env, { waitUntil(p) { wu.push(p); } });
+  await Promise.all(wu);
+  assert.equal(e3.points.at(-1).blobs[12], "view-docs-home"); assert.equal(e3.points.at(-1).blobs[19], "402xagent.com");
+  // /v1/skips negotiation
+  const sk = async (h, q = "") => worker.fetch(new Request("https://402xagent.com/v1/skips" + q, { headers: h }), e3.env, { waitUntil() {} });
+  for (const h of [{ accept: "*/*" }, {}, { accept: "application/json" }, { accept: "text/plain" }]) {
+    const x = await sk(h);
+    assert.match(x.headers.get("content-type"), /application\/json/, JSON.stringify(h));
+    const b = await x.json(); assert.ok(Array.isArray(b.skips) && b.free_check, JSON.stringify(h));
+  }
+  const br = await sk({ accept: "text/html,application/xhtml+xml,*/*;q=0.8" });
+  assert.match(br.headers.get("content-type"), /text\/html/); assert.equal(br.headers.get("vary"), "accept");
+  assert.match((await sk({ accept: "text/html" }, "?format=json")).headers.get("content-type"), /application\/json/);
 });
 
 let passed = 0;

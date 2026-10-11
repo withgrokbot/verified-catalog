@@ -54,20 +54,20 @@ WR deploy
 WANT=$(python3 -c "import json,re;s=open('$APP/worker/src/receipts-data.js').read();m=json.loads(re.search(r'RECEIPTS_META = (\{.*?\});', s).group(1));print(m['crawled_at'], m['endpoints_covered'])")
 GOT=""
 for i in 1 2 3 4 5 6; do
-  GOT=$(curl -fsS "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/skips.json?cb=$RANDOM$RANDOM" | python3 -c "import json,sys;j=json.load(sys.stdin);print(j['crawled_at'], j['endpoints_covered'])" || true)
+  GOT=$(curl -fsS -H "accept: application/json" "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/skips.json?cb=$RANDOM$RANDOM" | python3 -c "import json,sys;j=json.load(sys.stdin);print(j['crawled_at'], j['endpoints_covered'])" || true)
   [ "$GOT" = "$WANT" ] && break; sleep 10
 done
 [ "$GOT" = "$WANT" ] || { echo "LIVE CHECK FAILED: got '$GOT' want '$WANT'"; exit 1; }
 LAST=$(python3 -c "import json;s=json.load(open('$R/kv/bulk.json'));print(max(int(b['key'][2:]) for b in s if b['key'].startswith('s:')))")
-curl -fsS "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/skips.json?page=$LAST&cb=$RANDOM" | python3 -c "import json,sys;j=json.load(sys.stdin);assert j['skips'], 'last skip page empty';print('live last skip page', j['page'], 'ok')"
+curl -fsS -H "accept: application/json" "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/skips.json?page=$LAST&cb=$RANDOM" | python3 -c "import json,sys;j=json.load(sys.stdin);assert j['skips'], 'last skip page empty';print('live last skip page', j['page'], 'ok')"
 echo "live /v1/skips: $GOT"
 
 # 7) push data + crawl scripts to the public repo (brand identity only)
 export GH_CONFIG_DIR=/workspace/.gh-brand
 REPO="$TMP/vc"; gh repo clone withgrokbot/verified-catalog "$REPO" -- -q
 cp "$APP/worker/src/receipts-data.js" "$REPO/worker/src/receipts-data.js"
-mkdir -p "$REPO/scripts/weekly-crawl" && cp "$S"/{fetch_lists.py,crawl_probe.py,build_worker_data.py,payai_credits.py,weekly_refresh_skips.sh} "$REPO/scripts/weekly-crawl/" && cp "$APP/scripts/almost_paid.py" "$REPO/scripts/almost_paid.py"
-cd "$REPO" && git add worker/src/receipts-data.js scripts/weekly-crawl scripts/almost_paid.py
+mkdir -p "$REPO/scripts/weekly-crawl" && cp "$S"/{fetch_lists.py,crawl_probe.py,build_worker_data.py,payai_credits.py,weekly_refresh_skips.sh} "$REPO/scripts/weekly-crawl/" && cp "$APP/scripts/almost_paid.py" "$APP/scripts/funnel_weekly.py" "$REPO/scripts/"
+cd "$REPO" && git add worker/src/receipts-data.js scripts/weekly-crawl scripts/almost_paid.py scripts/funnel_weekly.py
 if git diff --cached --quiet; then echo "repo already up to date"; else
   git -c user.name=withgrokbot -c user.email=336192572+withgrokbot@users.noreply.github.com commit -qm "Weekly /v1/skips refresh: $COV"
   git push -q origin HEAD:main && echo "pushed $(git rev-parse --short HEAD)"
@@ -79,5 +79,8 @@ CRED=$(python3 "$S/payai_credits.py" | python3 -c "import json,sys;j=json.load(s
 ALMOST=$(cd "$APP" && CF_ACCOUNT_ID="${CF_ACCOUNT_ID:-aa4453a0042a949537d2fcae99590a5f}" python3 scripts/almost_paid.py --start "${ALMOST_START:-2026-10-05}" 2>&1) || ALMOST="almost_paid=unavailable (${ALMOST%%$'\n'*})"
 echo "$ALMOST"
 ALMOST1=$(printf '%s\n' "$ALMOST" | head -1); ALMOST3=$(printf '%s\n' "$ALMOST" | sed -n 3p)
+# 10) verdict mix + per-host funnel (read-only Analytics Engine SQL; Worker 0.22.0+ blob19 verdict, blob20 host)
+FUNNEL=$(cd "$APP" && CF_ACCOUNT_ID="${CF_ACCOUNT_ID:-aa4453a0042a949537d2fcae99590a5f}" python3 scripts/funnel_weekly.py --days 7 2>&1) || FUNNEL="funnel=unavailable (${FUNNEL%%$'\n'*})"
+echo "$FUNNEL"
 echo "== done $STAMP"
-echo "$COV $CRED | $ALMOST1${ALMOST3:+; $ALMOST3}"
+echo "$COV $CRED | $ALMOST1${ALMOST3:+; $ALMOST3} | $(printf '%s\n' "$FUNNEL" | head -1)"
