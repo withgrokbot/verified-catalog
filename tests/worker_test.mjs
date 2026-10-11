@@ -127,6 +127,7 @@ globalThis.fetch = async (url, init = {}) => {
       error: "Payment required",
       accepts: [{ scheme: "exact", network: "eip155:8453", amount: "1000", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", maxTimeoutSeconds: 300 }],
     };
+    if (spotTargetMode === "upto") challenge.accepts[0].scheme = "upto"; // 0.23.1 Base regression fixture
     const b64c = Buffer.from(JSON.stringify(challenge)).toString("base64");
     return new Response(JSON.stringify({ error: "payment_required", accepts: challenge.accepts, price: "$0.001" }), {
       status: 402,
@@ -1225,9 +1226,7 @@ test("PAY STEP: picks the accept matching the expectation; non-USDC asset is ski
   const pmB = pickPayment({ accepts: [{ ...usdc, validBefore: 1791651600 }] }, {});
   assert.deepEqual([paymentObject(pmB, "2026-10-10T17:00:00Z").deadline, paymentObject(pmB, "2026-10-10T17:00:00Z").deadline_source], [new Date(1791651600000).toISOString().replace(/\.\d{3}Z$/, "Z"), "validBefore"]);
   assert.deepEqual([paymentObject(pickPayment({ accepts: [usdc] }, {}), "2026-10-10T17:00:00Z").deadline, paymentObject(pickPayment({ accepts: [usdc] }, {}), "2026-10-10T17:00:00Z").deadline_source], ["2026-10-10T17:01:00Z", "default_60s"]);
-  // 0.23.0: upto is read (amount = the maximum); an unknown scheme still is not
-  assert.equal(pickPayment({ accepts: [{ scheme: "upto", network: "eip155:8453", amount: "1", payTo: "0x1" }] }, {}).amount_kind, "max");
-  assert.equal(pickPayment({ accepts: [{ scheme: "stream", network: "eip155:8453", amount: "1", payTo: "0x1" }] }, {}), null);
+  assert.equal(pickPayment({ accepts: [{ scheme: "upto", network: "eip155:8453", amount: "1", payTo: "0x1" }] }, {}), null);
 });
 
 // In-memory D1 stand-in (prepare/bind/run/first) for the receipts table.
@@ -1898,6 +1897,36 @@ test("0.23.0 Solana: SVM 402s read like Base (network, mint, pay_to, scheme, pri
     assert.deepEqual([L.caip("solana"), L.caip("solana-devnet")], [sdk.V1_TO_V2_NETWORK_MAP.solana.toLowerCase(), sdk.V1_TO_V2_NETWORK_MAP["solana-devnet"].toLowerCase()]);
     console.log("  (Solana constants pinned against the installed @x402/svm)");
   }
+});
+
+test("0.23.1: upto on Solana only (Base upto-only stays skip/bad_challenge); terms hash: Base pinned, Solana base58 case kept", async () => {
+  // Base/EVM regression: an upto-only 402 is exactly as before 0.23.0
+  const e = spotEnv({ RECEIPTS_DB: fakeD1() });
+  spotTargetMode = "upto";
+  const b = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/upto-only") + "&client=withgrokbot-selftest", { envo: e });
+  spotTargetMode = "402";
+  assert.deepEqual([b.body.verdict, b.body.reason, b.body.payment, b.body.payment_terms_sha256], ["skip", "bad_challenge", null, null]);
+  const br = (await send("/v1/receipts/" + b.body.receipt_id, { envo: e })).body.live_402.accepts[0];
+  assert.deepEqual(Object.keys(br).sort(), ["amount_atomic", "asset", "network", "pay_to", "scheme"], "EVM accept rows gain nothing");
+  for (const n of ["eip155:8453", "base", "eip155:1", "eip155:84532", "base-sepolia"])
+    assert.equal(pickPayment({ accepts: [{ scheme: "upto", network: n, amount: "1000", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: "0x" + "1".repeat(40) }] }, {}), null, n);
+  assert.equal(pickPayment({ accepts: [{ scheme: "upto", network: "solana", amount: "1000", asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", payTo: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin" }] }, {}).amount_kind, "max");
+  // v1 names equal the full ids
+  const L = await import("../worker/src/lib.js");
+  assert.deepEqual([L.caip("solana"), L.caip("solana-devnet"), L.caip("base"), L.caip("base-sepolia")], ["solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp", "solana:etwtrabzayq6imfeykouru166vu2xqa1", "eip155:8453", "eip155:84532"]);
+  // Base hash pinned (api.402rates.com/v1/ping, live 2026-10-11 before and after 0.23.1)
+  const base = { network: "eip155:8453", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", amount_atomic: "1000", pay_to: "0xf567Cfe0FDb87A1D6Ca330e3f30f0D3DA0F7cb98" };
+  assert.equal(await termsSha256(base), "6ddcc14caebdf8cf0f7eb183c0916b2dc2d36500875d99d039c81e4ea5f2844e");
+  assert.equal(await termsSha256({ ...base, asset: base.asset.toLowerCase(), pay_to: base.pay_to.toUpperCase().replace("0X", "0x") }), "6ddcc14caebdf8cf0f7eb183c0916b2dc2d36500875d99d039c81e4ea5f2844e", "EVM stays case-insensitive");
+  // Solana: mint and pay_to hashed as-is; a case change is a different payment
+  const sol = { network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", amount_atomic: "5000", pay_to: "GLu63pRCYrp4BJu5P5ciYKxgeZFW9c8TJ8jWzK3TB9AR" };
+  const h = await termsSha256(sol);
+  assert.equal(h, createHash("sha256").update("solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp|EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v|5000|GLu63pRCYrp4BJu5P5ciYKxgeZFW9c8TJ8jWzK3TB9AR").digest("hex"));
+  assert.notEqual(await termsSha256({ ...sol, asset: sol.asset.toLowerCase() }), h);
+  assert.notEqual(await termsSha256({ ...sol, pay_to: sol.pay_to.toLowerCase() }), h);
+  // live path: the Solana fixture's free-tier hash is the case-kept one
+  const f = await send(SPOT + "?url=" + encodeURIComponent("https://sol.target.test/good") + "&client=sol-hash-1", { envo: e });
+  assert.equal(f.body.payment_terms_sha256, await termsSha256({ network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", amount_atomic: "10000", pay_to: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin" }));
 });
 
 let passed = 0;

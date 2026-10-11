@@ -41,7 +41,7 @@ import { landingHtml } from "./landing.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.23.0";
+export const VERSION = "0.23.1";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -1162,8 +1162,9 @@ const isUsdcAsset = (network, asset) => {
   return want === lc(asset);
 };
 export function pickPayment(probe, exp = {}) {
-  // 0.23.0: "upto" (x402 v2) is read too; its amount is the maximum that may be charged. exact is preferred on ties.
-  const accepts = (Array.isArray(probe && probe.accepts) ? probe.accepts : []).filter((a) => a && a.network && a.payTo && a.amount != null && /^[0-9]{1,30}$/.test(String(a.amount)) && (!a.scheme || a.scheme === "exact" || a.scheme === "upto"));
+  // 0.23.1: "upto" (x402 v2) is read on Solana networks only (its amount is the maximum that may be charged; exact
+  // wins ties). On Base/EVM only exact counts, as before 0.23.0 (an upto-only 402 there is skip/bad_challenge).
+  const accepts = (Array.isArray(probe && probe.accepts) ? probe.accepts : []).filter((a) => a && a.network && a.payTo && a.amount != null && /^[0-9]{1,30}$/.test(String(a.amount)) && (!a.scheme || a.scheme === "exact" || (a.scheme === "upto" && isSolana(a.network))));
   if (!accepts.length) return null;
   const usdc = (a) => isUsdcAsset(a.network, a.asset);
   const score = (a) => (exp.network && caip(a.network) === caip(exp.network) ? 8 : 0) + (exp.pay_to && sameAddr(a.payTo, exp.pay_to, a.network) ? 4 : 0) + (usdc(a) === true ? 2 : 0) + (a.scheme !== "upto" ? 1 : 0);
@@ -1216,9 +1217,12 @@ export function paymentObject(pm, probedAt) {
 const CANONICAL_CASE = { "eip155:8453": USDC_BASE, "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp": USDC_SOLANA_MAINNET, "solana:etwtrabzayq6imfeykouru166vu2xqa1": USDC_SOLANA_DEVNET };
 const canonicalAsset = (n, a) => CANONICAL_CASE[caip(n)] || a;
 // Commitment to the approved terms, so the free tier can enforce them without the terms in the body.
+// 0.23.1: Solana mint and pay_to are base58 (case-sensitive) and are hashed as-is; EVM values are lowercased exactly as
+// before, so existing Base hashes are byte-for-byte unchanged. The network id stays lowercased on every chain.
 export async function termsSha256(pm) {
   if (!pm) return null;
-  return sha256hex([lc(pm.network), lc(pm.asset), String(pm.amount_atomic), lc(pm.pay_to)].join("|"));
+  const addr = isSolana(pm.network) ? (v) => String(v ?? "") : lc;
+  return sha256hex([lc(pm.network), addr(pm.asset), String(pm.amount_atomic), addr(pm.pay_to)].join("|"));
 }
 // After decideVerdict + applyExpected: a "pay" needs one signable USDC payment whose amount matches the claimed price.
 export function applyPayment(d, pm, exp) {
@@ -1244,10 +1248,10 @@ export function newReceiptId() {
 export function acceptView(a) {
   const base = { scheme: a.scheme, network: a.network, asset: a.asset, amount_atomic: a.amount, pay_to: a.payTo };
   const sol = isSolana(a.network), upto = a.scheme === "upto", tn = !USDC_BY_NETWORK[caip(a.network)] && !!TESTNET_USDC_BY_NETWORK[caip(a.network)];
-  if (!sol && !upto && !tn) return base; // EVM mainnet exact rows: unchanged
+  if (!sol && !tn) return base; // EVM mainnet rows (any scheme): unchanged
   const u = isUsdcAsset(a.network, a.asset);
   const extra = { asset_is_usdc: u, amount_usd: u === true && /^[0-9]{1,30}$/.test(String(a.amount ?? "")) ? Number(a.amount) / 1e6 : null };
-  if (upto) extra.amount_kind = "max";
+  if (upto && sol) extra.amount_kind = "max";
   if (tn) extra.testnet = true;
   if (sol) Object.assign(extra, { chain: "solana", mint: a.asset || null, decimals: u === true ? 6 : null, fee_payer: a.feePayer || null });
   return { ...base, ...extra };
