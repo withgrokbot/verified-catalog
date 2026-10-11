@@ -43,6 +43,10 @@ FREE_PER_DAY = "5"
 PRICE_ATOMIC = "20000"
 PAY_TO = "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
 FACILITATOR_URL = "https://facilitator.payai.network"
+# agent-tools.cloud ownership proof (descriptor method, https://agent-tools.cloud/docs/claim): per-host public verify tokens,
+# served top-level as "agentToolsVerify" in that host's /.well-known/x402 and at /.well-known/agent-tools-verify.txt.
+# They re-check daily; keep these in place. Each token appears only on its own host.
+AGENT_TOOLS_VERIFY = '{"verified-catalog-lookup.withgrokbot.workers.dev":"atc_oJX_-ffIMuHMZlBzXhs7VRRvItaalGby","api.402xagent.com":"atc_Wsn-DeMuouw4l37sPpLuVW6PC-4LiWoo"}'
 # Fallback (NOT active; see FACILITATOR_FALLBACK.md). Config-only, no key, $0 fee per their docs:
 #   FACILITATOR_URL = "https://x402.dexter.cash"      # or "https://facilitator.xpay.sh"
 # Coinbase CDP (1,000 settlements/month free, then $0.001): apply patches/cdp-facilitator.patch, then

@@ -1724,6 +1724,40 @@ test("free check is the front door (0.20.0): 402s point to it, free answers carr
   assert.ok(hero.indexOf("endpoint-spot-check?url=") < hero.indexOf("paid check"));
 });
 
+test("agent-tools.cloud ownership token: per-host config only; unset serves nothing; never redirected", async () => {
+  const H = "https://verified-catalog-lookup.withgrokbot.workers.dev";
+  const go = (e, u, accept = "text/html,*/*") => worker.fetch(new Request(u, { headers: { accept } }), e.env, { waitUntil() {} });
+  const off = spotEnv();
+  assert.equal((await go(off, H + "/.well-known/agent-tools-verify.txt")).status, 404);
+  assert.ok(!("agentToolsVerify" in (await (await go(off, H + "/.well-known/x402")).json())));
+  const tok = "atc_R7xK2mQ9pL4vB8nT6wZ3yF5c";
+  const on = spotEnv({ AGENT_TOOLS_VERIFY: JSON.stringify({ "verified-catalog-lookup.withgrokbot.workers.dev": tok }) });
+  const f = await go(on, H + "/.well-known/agent-tools-verify.txt");
+  assert.equal(f.status, 200);
+  assert.equal(await f.text(), tok + "\n");
+  const wk = await (await go(on, H + "/.well-known/x402")).json();
+  assert.equal(wk.agentToolsVerify, tok);
+  assert.ok(Array.isArray(wk.resources) && wk.payment.x402.networks.length === 1, "x402 descriptor otherwise unchanged");
+  assert.equal((await go(on, "https://api.402xagent.com/.well-known/agent-tools-verify.txt")).status, 404, "other hosts need their own token");
+  assert.ok(!("agentToolsVerify" in (await (await go(on, "https://api.402xagent.com/.well-known/x402")).json())));
+  // the real tokens from wrangler.toml: top-level, each only on its own host
+  const toml = (await import("node:fs")).readFileSync(new URL("../worker/wrangler.toml", import.meta.url), "utf8");
+  const map = JSON.parse(toml.match(/^AGENT_TOOLS_VERIFY = '(.*)'$/m)[1]);
+  const real = spotEnv({ AGENT_TOOLS_VERIFY: JSON.stringify(map) });
+  assert.deepEqual(Object.keys(map).sort(), ["api.402xagent.com", "verified-catalog-lookup.withgrokbot.workers.dev"]);
+  for (const [host, t] of Object.entries(map)) {
+    const w = await (await go(real, "https://" + host + "/.well-known/x402", "*/*")).json();
+    assert.equal(w.agentToolsVerify, t, host);
+    assert.equal(await (await go(real, "https://" + host + "/.well-known/agent-tools-verify.txt")).text(), t + "\n");
+    for (const other of ["402xagent.com", "payscout.dev", "api.payscout.dev", ...Object.keys(map).filter((h) => h !== host)]) {
+      const o = await (await go(real, "https://" + other + "/.well-known/x402", "*/*")).text();
+      assert.ok(!o.includes(t), t + " must not show on " + other);
+    }
+  }
+  const bad = spotEnv({ AGENT_TOOLS_VERIFY: "{not json" });
+  assert.equal((await go(bad, H + "/.well-known/agent-tools-verify.txt")).status, 404);
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {
