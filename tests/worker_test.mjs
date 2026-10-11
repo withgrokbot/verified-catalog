@@ -832,7 +832,8 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   assert.equal(r.body.verdict, "pay");
   assert.equal(r.body.reason, "listed $0.001, payment request matches, details locked");
   // free tier: verdict + plain reason + access only (quoted/claimed price, pay_to, network, asset are paid)
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "payment_terms_sha256", "reason", "receipt_id", "receipt_url", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "payment_terms_sha256", "prior_checks", "reason", "receipt_id", "receipt_url", "verdict"]);
+  assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.match(r.body.payment_terms_sha256, /^[0-9a-f]{64}$/);
   assert.ok(lastSpotFetchInit);
   const h = lastSpotFetchInit.headers || {};
@@ -1440,7 +1441,8 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   const u = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001";
   const r = await send(u + "&mode=dry-run&ref=via-agentkit&client=dry-client-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
   assert.equal(r.status, 200);
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "check_type", "mode", "payment_terms_sha256", "reason", "receipt_id", "receipt_url", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "check_type", "mode", "payment_terms_sha256", "prior_checks", "reason", "receipt_id", "receipt_url", "verdict"]);
+  assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.equal(r.body.mode, "dry-run");
   assert.equal(r.body.verdict, "pay");
   assert.equal(r.body.reason, "listed $0.001, payment request matches");
@@ -1668,6 +1670,58 @@ test("landing page (0.17.0): HTML to browsers on 402xagent.com only, real counts
     assert.match(r.headers.get("content-type"), /application\/json/, h + " " + a);
     assert.equal((await r.json()).version, VERSION);
   }
+});
+
+test("free check is the front door (0.20.0): 402s point to it, free answers carry prior_checks, docs lead with it", async () => {
+  const e = spotEnv({ RECEIPTS_DB: fakeD1() });
+  const FC = "https://api.402xagent.com/v1/products/endpoint-spot-check?url=<endpoint>";
+  const get = (u, init = {}) => worker.fetch(new Request(u, { method: init.method || "GET", headers: { "user-agent": "agent-y/1.0", "cf-connecting-ip": "203.0.113.9", ...(init.headers || {}) }, body: init.body }), e.env, { waitUntil() {} });
+  const decode = (r) => JSON.parse(Buffer.from(r.headers.get("payment-required"), "base64").toString());
+  for (const [u, init] of [["https://api.402xagent.com/v1/lookup/paid?task=web-search&max_price=0.05"], ["https://api.402xagent.com/v1/products/overnight-cos-pack"], ["https://api.402xagent.com/v1/products/overnight-cos-pack", { method: "POST", body: "{}", headers: { "content-type": "application/json" } }]]) {
+    const r = await get(u, init);
+    assert.equal(r.status, 402, u);
+    const b = await r.json(), h = decode(r);
+    assert.equal(b.x402Version, 2); assert.ok(Array.isArray(b.accepts) && b.accepts[0].payTo && b.resource.url, "still valid x402 v2");
+    assert.equal(b.free_check.url, FC, u);
+    assert.ok(b.error.includes("Free check first: " + FC), "error text: " + b.error);
+    assert.ok(h.error.includes(FC), "PAYMENT-REQUIRED error text");
+    assert.deepEqual(h.accepts, b.accepts);
+  }
+  // check route after the free quota: 402 names the free check, this endpoint's URL and a dry run that works now
+  const T = "https://seller.real/api/x";
+  const first = await get("https://api.402xagent.com/v1/products/endpoint-spot-check?url=" + encodeURIComponent(T) + "&client=fd-1");
+  assert.equal(first.status, 200);
+  const fb = await first.json();
+  assert.equal(fb.prior_checks, "https://402xagent.com/v1/skips");
+  const second = await get("https://api.402xagent.com/v1/products/endpoint-spot-check?url=" + encodeURIComponent(T) + "&client=fd-1");
+  assert.equal(second.status, 402);
+  const sb = await second.json();
+  assert.ok(sb.error.includes(FC) && /dry-run/.test(sb.error), sb.error);
+  assert.equal(sb.free_check.this_endpoint, "https://api.402xagent.com/v1/products/endpoint-spot-check?url=" + encodeURIComponent(T));
+  assert.equal(sb.free_check.dry_run_now, sb.free_check.this_endpoint + "&mode=dry-run");
+  assert.ok(decode(second).error.includes(FC));
+  // free lookup carries prior_checks; paid/exempt shapes untouched
+  const fl = await (await get("https://api.402xagent.com/v1/lookup?task=web-search&max_price=0.05&client=fd-2")).json();
+  assert.equal(fl.access.tier, "free"); assert.equal(fl.prior_checks, "https://402xagent.com/v1/skips");
+  const ex = await (await get("https://api.402xagent.com/v1/lookup?task=web-search&max_price=0.05&client=withgrokbot")).json();
+  assert.ok(!("prior_checks" in ex), "exempt answer unchanged");
+  // docs lead with the free check
+  const llms = await (await get("https://api.402xagent.com/llms.txt")).text();
+  assert.ok(llms.split("\n").slice(0, 6).join("\n").includes("Start with the free check: GET " + FC), llms.slice(0, 300));
+  assert.ok(llms.indexOf(FC) < llms.indexOf("paid check"));
+  const oa = await (await get("https://api.402xagent.com/openapi.json")).json();
+  assert.ok(oa.info.description.startsWith("Start free: GET " + FC));
+  const wk = await (await get("https://api.402xagent.com/.well-known/x402")).json();
+  assert.equal(wk.free_check.url, FC);
+  assert.ok(wk.resources.every((x) => typeof x === "string") && wk.payment.x402.networks[0] === "eip155:8453", "parsers' fields unchanged");
+  const sj = await (await get("https://api.402xagent.com/v1/skips.json")).json();
+  assert.equal(Object.keys(sj)[0], "free_check"); assert.equal(sj.free_check.url, FC);
+  const sh = await (await get("https://402xagent.com/v1/skips", { headers: { accept: "text/html" } })).text();
+  assert.ok(sh.indexOf("Check your endpoint free first") > 0 && sh.indexOf("Check your endpoint free first") < sh.indexOf("endpoints covered"));
+  const home = await (await get("https://402xagent.com/", { headers: { accept: "text/html" } })).text();
+  const hero = home.slice(home.indexOf('<div class="hero">'), home.indexOf('id="try"'));
+  assert.ok(hero.includes("GET " + FC.replace("<", "&lt;").replace(">", "&gt;")) && hero.includes("&quot;verdict&quot;:&quot;pay&quot;"), "hero shows the free URL + example");
+  assert.ok(hero.indexOf("endpoint-spot-check?url=") < hero.indexOf("paid check"));
 });
 
 let passed = 0;
