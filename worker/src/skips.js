@@ -6,7 +6,7 @@ import { CANON_ORIGIN, API_ORIGIN, SPOT_SERVICE_NAME, FREE_CHECK_URL, FREE_CHECK
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const usd = (v) => (v === null || v === undefined ? "—" : "$" + Number(v).toString());
-const hdrs = (type) => ({ "content-type": type, "access-control-allow-origin": "*", "cache-control": "public, max-age=300" });
+const hdrs = (type) => ({ "content-type": type, "access-control-allow-origin": "*", "cache-control": "public, max-age=300", vary: "accept" });
 const j = (o, s = 200) => new Response(JSON.stringify(o, null, 2), { status: s, headers: hdrs("application/json; charset=utf-8") });
 
 // Same as norm_url() in receipts/scripts/crawl_probe.py. Keep the two in sync (tested).
@@ -89,7 +89,10 @@ export async function handleSkips(req, url, env = {}) {
   const path = url.pathname.replace(/\/+$/, "");
   const accept = req.headers.get("accept") || "";
   const nav = (p) => origin + (path === "/v1/skips.json" ? "/v1/skips.json" : "/v1/skips") + "?page=" + p + (path !== "/v1/skips.json" && url.searchParams.get("format") === "json" ? "&format=json" : "");
-  if (path === "/v1/skips.json" || url.searchParams.get("format") === "json" || (accept.includes("application/json") && !accept.includes("text/html")))
+  // 0.22.0: HTML only for browsers (Accept names text/html). Everything else (application/json, curl's */*, no Accept,
+  // ?format=json, /v1/skips.json) gets the JSON counts and data.
+  const wantsHtml = /text\/html/i.test(accept) && url.searchParams.get("format") !== "json" && path !== "/v1/skips.json";
+  if (!wantsHtml)
     return j({
       ...skipsSummary(origin),
       page, pages, next: page < pages ? nav(page + 1) : null, prev: page > 1 ? nav(page - 1) : null,

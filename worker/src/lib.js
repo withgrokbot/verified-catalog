@@ -30,6 +30,7 @@ import {
   spotProbe, priceMatchesClaimed, decideVerdict, utcHour, assertSafeUrl,
   FREE_CHECK_URL,
   FREE_CHECK_EXAMPLE_URL,
+  FREE_CHECK_EXAMPLE_TARGET,
   FREE_CHECK_EXAMPLE,
   PRIOR_CHECKS,
 } from "./spotcheck.js";
@@ -40,7 +41,7 @@ import { landingHtml } from "./landing.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.21.0";
+export const VERSION = "0.22.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -307,12 +308,13 @@ export function saltPeriod(now, env) {
 }
 
 export async function clientId(req, q, env, now = new Date()) {
-  if (q.client) return { id: "c:" + q.client, source: "client_param" };
+  const host = (() => { try { return new URL(req.url).hostname; } catch (_) { return ""; } })();
+  if (q.client) return { id: "c:" + q.client, source: "client_param", host };
   const ip = req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || "";
   const ua = req.headers.get("user-agent") || "";
   const salt = `${env.CLIENT_SALT || "unsalted-dev"}|${saltPeriod(now, env)}`;
   const h = await sha256hex(`${salt}|${ipPrefix(ip)}|${ua}`);
-  return { id: "h:" + h.slice(0, 20), source: "ip24_ua_hash" };
+  return { id: "h:" + h.slice(0, 20), source: "ip24_ua_hash", host };
 }
 
 // 0.11.0 bot tags (analytics only; never changes an answer). See ANALYTICS_2026-10-09.md: ~95% of outside traffic
@@ -1047,15 +1049,60 @@ export function spotExample(origin) {
   return origin + "/v1/products/endpoint-spot-check?url=" + SPOT_EXAMPLE_TARGET;
 }
 // One-line 400 message: exact field name + a full working sample request (GET URL, and the one-line POST JSON).
-export function spotBadRequest(origin, field, problem) {
+export function spotBadRequest(origin, field, problem, fix = null) {
   const example = spotExample(origin);
   return {
     error: `${problem}. Example: ${example} (or POST JSON {"url":"${SPOT_EXAMPLE_TARGET}"} to ${origin}/v1/products/endpoint-spot-check)`,
     field,
     example,
+    ...(fix ? { mistake: fix.mistake, hint: fix.hint, fixed_example: fix.fixed_example, docs: API_ORIGIN + "/openapi.json" } : {}),
   };
 }
-const SPOT_KNOWN_PARAMS = new Set([...SPOT_URL_ALIASES, ...SPOT_PRICE_ALIASES, "task", "client", "ref", "format", "method", "pay_to", "network", "mode"]);
+const SPOT_KNOWN_PARAMS = new Set([...SPOT_URL_ALIASES, ...SPOT_PRICE_ALIASES, "task", "client", "ref", "format", "method", "pay_to", "network", "mode", "cb"]);
+const SPOT_ROUTE = API_ORIGIN + "/v1/products/endpoint-spot-check";
+const looksLikeUrl = (v) => typeof v === "string" && /^https?:\/\/[^\s/]+\.[^\s]+/i.test(v.trim());
+const looksLikeHost = (v) => typeof v === "string" && /^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?(?:[/?#][^\s]*)?$/i.test(v.trim());
+// 0.22.0: what the caller sent, names only (never values): "METHOD|content-type|param,keys" (Analytics blob18).
+export function spotShape(ctx) {
+  const ct = String(ctx.ctype || "").split(";")[0].trim().toLowerCase().slice(0, 40);
+  const keys = [...new Set(ctx.keys || [])].map((k) => String(k).replace(/[^A-Za-z0-9_.:\-]/g, "").slice(0, 29)).filter(Boolean).sort().slice(0, 12);
+  return `${ctx.method || "GET"}|${ct}|${keys.join(",")}`.slice(0, 200);
+}
+// 0.22.0: the caller's mistake, named, plus a copy-pasteable free check that fixes it. GET mistakes get a GET URL with
+// their own value moved to url= (encoded); POST mistakes get the right JSON body. No usable value -> a real example.
+export function spotFix(q) {
+  const ctx = q.ctx || {};
+  const e = (q.errors || [])[0] || {};
+  const get = (v) => ({ method: "GET", url: SPOT_ROUTE + "?url=" + encodeURIComponent(v) });
+  const post = (v) => ({ method: "POST", url: SPOT_ROUTE, headers: { "content-type": "application/json" }, body: { url: v } });
+  const asPost = ctx.method === "POST";
+  const fixFor = (v) => (asPost ? post(v) : get(v));
+  const real = asPost ? post(FREE_CHECK_EXAMPLE_TARGET) : { method: "GET", url: FREE_CHECK_EXAMPLE_URL };
+  const unknown = (ctx.unknown || []).filter((k) => k !== "cb");
+  const val = (k) => (ctx.values || {})[k];
+  if (e.field === "body") {
+    const form = ctx.form || {};
+    const fv = SPOT_URL_ALIASES.map((k) => form[k]).find(Boolean) || Object.values(form).find(looksLikeUrl);
+    if (fv) return { mistake: "post_form_body", hint: 'Send JSON with content-type application/json: {"url":"<endpoint>"} (form bodies are not read).', fixed_example: post(fv) };
+    return { mistake: "post_invalid_json", hint: 'POST a JSON object {"url":"<endpoint>"} with content-type application/json, or use GET ?url=<endpoint>.', fixed_example: real };
+  }
+  if (e.field === "url" && !q.url) {
+    const k = unknown.find((n) => looksLikeUrl(val(n)) || looksLikeHost(val(n)));
+    if (k) {
+      const v = String(val(k)).trim();
+      return { mistake: asPost ? "post_wrong_field" : "wrong_param_name", hint: `Use "url" instead of "${String(k).slice(0, 40)}"${asPost ? " in the JSON body" : ""}.`, fixed_example: fixFor(looksLikeUrl(v) ? v : "https://" + v) };
+    }
+    if (!ctx.keys || !ctx.keys.filter((n) => n !== "cb").length) return { mistake: "no_params", hint: "Add ?url=<the x402 endpoint you are about to pay>, URL-encoded.", fixed_example: real };
+    return { mistake: asPost ? "post_missing_url" : "missing_url", hint: asPost ? 'Put the endpoint in the JSON body as {"url":"<endpoint>"}.' : "Add url=<the x402 endpoint>, URL-encoded.", fixed_example: real };
+  }
+  if (e.field === "url") {
+    const v = String(q.url || "").trim();
+    if (looksLikeHost(v)) return { mistake: "url_missing_scheme", hint: "url must be a full http(s) URL; https:// was added in the example.", fixed_example: fixFor("https://" + v) };
+    return { mistake: "url_not_http", hint: "url must be a full http(s) URL of the x402 endpoint, URL-encoded.", fixed_example: real };
+  }
+  const t = q.url && looksLikeUrl(q.url) ? q.url : FREE_CHECK_EXAMPLE_TARGET;
+  return { mistake: "bad_" + String(e.field || "param").replace(/[^a-z_]/gi, "").slice(0, 20), hint: `Fix or drop "${e.field}"; the check only needs url.`, fixed_example: fixFor(t) };
+}
 
 // Listing facts from our self-checked crawl (/v1/receipts), by exact URL. Used as the expected pay_to / network / price
 // when the caller does not send its own (0.7.0).
@@ -1376,12 +1423,18 @@ async function parseSpotQuery(req, url) {
   let clientRaw = p.get("client");
   let refRaw = p.get("ref");
   let body = {};
+  const ctx = { method: req.method, ctype: req.headers.get("content-type") || "", keys: [...p.keys()], values: Object.fromEntries([...p.entries()].map(([k, v]) => [k, String(v).slice(0, 2000)])), form: null };
   if (req.method === "POST") {
     let t = "";
     try {
       t = await req.text();
       if (t) body = JSON.parse(t);
     } catch (_) {
+      try {
+        const f = new URLSearchParams(t);
+        ctx.form = Object.fromEntries([...f.entries()].map(([k, v]) => [k, String(v).slice(0, 2000)]));
+        ctx.keys.push(...Object.keys(ctx.form).map((k) => "form:" + k));
+      } catch (_) {}
       errors.push({ field: "body", problem: 'Invalid JSON body (send {"url":"..."} with content-type application/json)' });
       body = {};
     }
@@ -1389,14 +1442,16 @@ async function parseSpotQuery(req, url) {
       errors.push({ field: "body", problem: 'JSON body must be an object like {"url":"..."}' });
   }
   if (!body || typeof body !== "object" || Array.isArray(body)) body = {};
+  for (const [k, v] of Object.entries(body)) { ctx.keys.push("body:" + k); if (typeof v === "string") ctx.values[k] = v.slice(0, 2000); }
   if (!urlParam) urlParam = first(body, SPOT_URL_ALIASES);
   if (!task && body.task) task = body.task;
   if (claimed === null || claimed === "") claimed = first(body, SPOT_PRICE_ALIASES);
   if (!clientRaw && body.client) clientRaw = body.client;
   if (!refRaw && body.ref) refRaw = body.ref;
   const target = urlParam ? String(urlParam).trim().slice(0, 2000) : "";
+  ctx.unknown = [...new Set([...p.keys(), ...Object.keys(body)])].filter((k) => !SPOT_KNOWN_PARAMS.has(k));
   if (!target) {
-    const unknown = [...new Set([...p.keys(), ...Object.keys(body)])].filter((k) => !SPOT_KNOWN_PARAMS.has(k));
+    const unknown = ctx.unknown;
     errors.push({ field: "url", problem: unknown.length ? `Missing "url" (unknown param "${String(unknown[0]).slice(0, 40).replace(/[^\x20-\x7e]/g, "")}"; use "url")` : 'Missing "url"' });
   } else {
     let u = null;
@@ -1427,7 +1482,9 @@ async function parseSpotQuery(req, url) {
   if (modeRaw && !["dry-run", "live"].includes(modeRaw)) errors.push({ field: "mode", problem: 'Invalid "mode": dry-run (free, nothing signed or paid, stored as a receipt) or live (default)' });
   const mode = modeRaw === "dry-run" || /^dry-run-/.test(ref) ? "dry-run" : "live";
   const dry_caller = /^dry-run-./.test(ref) ? ref.slice("dry-run-".length) : null;
-  return { url: target, task: taskSlug, claimed_price, client, ref, method, pay_to, network, mode, dry_caller, errors };
+  // 0.22.0: an unencoded url with its own query string loses everything after its first "&" (logged, not changed).
+  if (target && target.includes("?") && ctx.unknown.length && !errors.length) ctx.mistake = "url_query_unencoded";
+  return { url: target, task: taskSlug, claimed_price, client, ref, method, pay_to, network, mode, dry_caller, errors, ctx };
 }
 
 // Paid spot-check price: one tenth of the target's quoted x402 price, min $0.01, cap $0.25 (no quote -> $0.01).
@@ -1471,9 +1528,11 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const referer = refererHost(req);
   const spotExcluded = exclusion(req, { ...qLike, url: q.url }, env, url); // same self/uptime/crawler/bot filter as /v1/lookup
 
+  const shape = spotShape(q.ctx);
   if (q.errors.length) {
-    writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-bad-params" }));
-    return json(spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem), 400);
+    const fix = spotFix(q);
+    writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-bad-params", failReason: fix.mistake, shape }));
+    return json(spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem, fix), 400);
   }
 
   const listing = await listingForAsync(env, q.url);
@@ -1528,7 +1587,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     body.pricing = typeof isRouter !== "undefined" && isRouter
       ? "router tier: $0.001 per check, billed per pack of checks in one settlement"
       : "one tenth of this endpoint's quoted x402 price, minimum $0.01, cap $0.25";
-    writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 402, referer, access: kind, freeUsed: used, paidBy: payer, failReason: kind === "payment-failed" ? error : "" }));
+    writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 402, referer, access: kind, freeUsed: used, paidBy: payer, failReason: kind === "payment-failed" ? error : "", shape }));
     return json(body, 402, { "payment-required": b64encode(body) });
   };
 
@@ -1594,8 +1653,9 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         const sp = await routerCredits(env, q.client, "spend");
         if (sp.ok) {
           access = { tier: "router-prepaid", price_per_check_usd: rcfg.perCheckAtomic / 1e6, credits_remaining: sp.balance, note: "router tier: prepaid checks from your last pack" };
-          writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "router-prepaid", freeUsed: t.used }));
-          return json(await buildResult(probe, access), 200, extraHeaders);
+          const out = await buildResult(probe, access);
+          writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "router-prepaid", freeUsed: t.used , verdict: out.verdict, shape, failReason: q.ctx.mistake || "" }));
+          return json(out, 200, extraHeaders);
         }
       }
       if (isRouter) {
@@ -1656,13 +1716,15 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         access.credits_added = n;
         access.credits_remaining = cr.balance;
       }
-      writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: selfPaid ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "paid", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed }));
-      return json(await buildResult(probe, access), 200, extraHeaders);
+      const out = await buildResult(probe, access);
+      writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: selfPaid ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "paid", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed , verdict: out.verdict, shape, failReason: q.ctx.mistake || "" }));
+      return json(out, 200, extraHeaders);
     }
   }
 
-  writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: isExempt(qLike, env) ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: access.tier === "partner" ? "partner" : access.tier, freeUsed: partner ? partner.used : freeUsed }));
-  return json(await buildResult(probe, access), 200, extraHeaders);
+  const out = await buildResult(probe, access);
+  writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: isExempt(qLike, env) ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: access.tier === "partner" ? "partner" : access.tier, freeUsed: partner ? partner.used : freeUsed , verdict: out.verdict, shape, failReason: q.ctx.mistake || "" }));
+  return json(out, 200, extraHeaders);
 }
 
 // 0.13.0 dry run. Abuse guard: (1) capped per caller and per IP hash per UTC day; (2) the answer is the free-tier shape
@@ -1670,8 +1732,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
 // stand in for an approval (x402-spotcheck and the router hooks need the hash / payment terms from a live check).
 // The full live terms go only into the public receipt, as for every live check.
 async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { cid, ua, referer, c }) {
-  const point = (status, access) => {
-    const dp = dataPoint({ product: "spot", cid, q: qLike, excluded: "dry-run", candidates: 0, ua, returnedPayTo: [], status, referer, access });
+  const point = (status, access, verdict = "") => {
+    const dp = dataPoint({ product: "spot", cid, q: qLike, excluded: "dry-run", candidates: 0, ua, returnedPayTo: [], status, referer, access, verdict, shape: spotShape(q.ctx), failReason: q.ctx.mistake || "" });
     dp.doubles[0] = 0;
     writePoint(env, dp);
   };
@@ -1704,7 +1766,7 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
   const reason = spotLossReason(d, exp.claimed).replace(/, details locked$/, "");
   const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: reason, pm: null, termsHash: null, exp, checkType: exempt ? "self-checked" : "dry-run", mode: "dry-run", ref: q.ref, caller: q.dry_caller || (exempt ? "self-test" : null), probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key });
   if (!(await saveLiveReceipt(env, rec))) { point(503, "dry-run-store-failed"); return json({ error: "dry runs are always stored as receipts; storing failed, try again shortly", mode: "dry-run" }, 503); }
-  point(200, "dry-run");
+  point(200, "dry-run", d.verdict);
   return json({
     mode: "dry-run",
     check_type: exempt ? "self-checked" : "dry-run",
@@ -1851,7 +1913,7 @@ export function refererHost(req) {
 }
 
 // access: free | paid | exempt | payment-required | payment-failed | "" (request rejected before the quota)
-export function dataPoint({ cid, q, excluded, candidates, ua, returnedPayTo, status, referer = "", access = "", amountUsd = 0, tx = "", paidBy = "", freeUsed = null, product = "", failReason = "" }) {
+export function dataPoint({ cid, q, excluded, candidates, ua, returnedPayTo, status, referer = "", access = "", amountUsd = 0, tx = "", paidBy = "", freeUsed = null, product = "", failReason = "", shape = "", verdict = "" }) {
   const paywalled = access === "payment-required" || access === "payment-failed";
   const qualifying =
     !excluded && !paywalled && q.errors.length === 0 && ((q.task && q.max_price !== null) || !!q.endpoint) && candidates >= 1 ? 1 : 0;
@@ -1879,7 +1941,10 @@ export function dataPoint({ cid, q, excluded, candidates, ua, returnedPayTo, sta
       String(tx || "").slice(0, 80), // blob14 settlement tx (paid only)
       String(paidBy || "").toLowerCase().slice(0, 64), // blob15 paying wallet (paid: from the facilitator; payment-failed: the signer, 0.19.0)
       String(product || "").slice(0, 32), // blob16 product/route (0.19.0): spot | lookup | lookup-paid | pack | mcp | view
-      String(failReason || "").slice(0, 160), // blob17 why a signed payment failed (payment-failed only, 0.19.0)
+      String(failReason || "").slice(0, 160), // blob17 why a signed payment failed (payment-failed, 0.19.0) | the caller's mistake (spot-bad-params / url_query_unencoded, 0.22.0)
+      String(shape || "").slice(0, 200), // blob18 request shape, names only: METHOD|content-type|param,keys (check route, 0.22.0)
+      String(verdict || "").slice(0, 12), // blob19 verdict answered: pay | skip | recheck (check route 200s incl. dry runs, 0.22.0)
+      String((cid && cid.host) || "").slice(0, 80), // blob20 host called (funnel per host, 0.22.0)
     ],
     // double1 qualifying, double2 candidates, double3 HTTP status, double4 n, double5 USD charged, double6 free calls used today
     doubles: [qualifying, candidates, status, q.n, Number(amountUsd) || 0, freeUsed === null ? -1 : Number(freeUsed)],
@@ -2767,7 +2832,7 @@ const routeInnerHolder = {
       return json({ error: "moved", moved_to: to, note: "the 402xAgent check lives at /v1/products/endpoint-spot-check" }, 308, { location: to, "cache-control": "no-store" });
     }
     if (path === "/v1/products/endpoint-spot-check")
-      return json(spotBadRequest(API_ORIGIN, "method", `Unsupported method ${String(req.method).slice(0, 10)}; use GET or POST`), 400);
+      return json(spotBadRequest(API_ORIGIN, "method", `Unsupported method ${String(req.method).slice(0, 10)}; use GET or POST`, { mistake: "http_method", hint: "Use GET with ?url=<endpoint>, or POST a JSON body {\"url\":\"<endpoint>\"}.", fixed_example: { method: "GET", url: FREE_CHECK_EXAMPLE_URL } }), 400);
     if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405, { allow: "GET, OPTIONS" });
     if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env);
     if (path === "/v1/receipts/by-url" || /^\/v1\/receipts\/sc-/.test(path)) return handleLiveReceipts(req, env, url, path);
