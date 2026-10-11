@@ -35,7 +35,7 @@ import { RECEIPTS } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.18.0";
+export const VERSION = "0.19.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -763,11 +763,18 @@ export async function buildPackResponse(env, settlement) {
 
 // Always-paid product. SELF_CLIENTS are NOT exempt (this is a product sale, not lookup quota).
 // PACK_PREVIEW=1 returns a stub without payment (local/unit tests only; leave off in production).
+async function packFailPoint(req, env, url, payer, error) {
+  const q = parseQuery(url);
+  const cid = await clientId(req, q, env);
+  writePoint(env, dataPoint({ product: "pack", cid, q: { ...q, errors: [], endpoint: url.pathname }, excluded: exclusion(req, q, env, url), candidates: 0, ua: req.headers.get("user-agent") || "", returnedPayTo: [], status: 402, referer: refererHost(req), access: "payment-failed", paidBy: payer, failReason: error }));
+}
 async function handleOvernightCosPack(req, env, ctx, url) {
   const c = packCfg(env);
   const resourceUrl = url.origin + url.pathname.replace(/\/+$/, "");
-  const deny = (error, kind = "payment-required") => {
+  const deny = (error, kind = "payment-required", payer = "") => {
     const body = packPaymentRequired(c, resourceUrl, error);
+    // 0.19.0: a signed pack payment that failed is its own analytics row (payer + reason); plain 402s stay view-pack-402 rows.
+    if (kind === "payment-failed") packFailPoint(req, env, url, payer, error).catch(() => {});
     return json(body, 402, { "payment-required": b64encode(body) });
   };
   if (String(env.PACK_PREVIEW || "") === "1") {
@@ -782,12 +789,12 @@ async function handleOvernightCosPack(req, env, ctx, url) {
   const payload = decodePaymentHeader(hdr);
   if (!payload) return deny("payment header is not valid base64 JSON x402 payload", "payment-failed");
   const bad = checkPayload(payload, c);
-  if (bad) return deny("payment rejected: " + bad, "payment-failed");
+  if (bad) return deny("payment rejected: " + bad, "payment-failed", signerOf(payload));
   const r = await verifyAndSettle(c, payload, resourceUrl, {
     paidPath: true,
     description: `${PACK_TITLE}: one-time download. ${c.priceUsd} USDC on Base.`,
   });
-  if (!r.ok) return deny("payment rejected: " + r.reason, "payment-failed");
+  if (!r.ok) return deny("payment rejected: " + r.reason, "payment-failed", signerOf(payload));
   const enc = b64encode(r.settle);
   const settlement = {
     tier: "paid",
@@ -1441,7 +1448,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const spotExcluded = exclusion(req, { ...qLike, url: q.url }, env, url); // same self/uptime/crawler/bot filter as /v1/lookup
 
   if (q.errors.length) {
-    writePoint(env, dataPoint({ cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-bad-params" }));
+    writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-bad-params" }));
     return json(spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem), 400);
   }
 
@@ -1492,12 +1499,12 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   };
 
   let cd = c; // per-request priced config, set after the probe
-  const deny = (error, used, kind = "payment-required") => {
+  const deny = (error, used, kind = "payment-required", payer = "") => {
     const body = spotPaymentRequired(cd, resourceUrl, error, used);
     body.pricing = typeof isRouter !== "undefined" && isRouter
       ? "router tier: $0.001 per check, billed per pack of checks in one settlement"
       : "one tenth of this endpoint's quoted x402 price, minimum $0.01, cap $0.25";
-    writePoint(env, dataPoint({ cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 402, referer, access: kind, freeUsed: used }));
+    writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 402, referer, access: kind, freeUsed: used, paidBy: payer, failReason: kind === "payment-failed" ? error : "" }));
     return json(body, 402, { "payment-required": b64encode(body) });
   };
 
@@ -1509,7 +1516,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   // Problem: safe URLs would be fetched twice if we pre-probe. So import assertSafeUrl.
   const safe = await assertSafeUrl(q.url, probeOpts);
   if (!safe.ok) {
-    writePoint(env, dataPoint({ cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-ssrf" }));
+    writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-ssrf" }));
     return json({
       verdict: "skip",
       reason: "ssrf_blocked",
@@ -1563,7 +1570,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         const sp = await routerCredits(env, q.client, "spend");
         if (sp.ok) {
           access = { tier: "router-prepaid", price_per_check_usd: rcfg.perCheckAtomic / 1e6, credits_remaining: sp.balance, note: "router tier: prepaid checks from your last pack" };
-          writePoint(env, dataPoint({ cid, q: qLike, excluded: spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "router-prepaid", freeUsed: t.used }));
+          writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "router-prepaid", freeUsed: t.used }));
           return json(await buildResult(probe, access), 200, extraHeaders);
         }
       }
@@ -1585,13 +1592,13 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         if (!isRouter && /^[0-9]{1,12}$/.test(amt) && Number(amt) >= Number(cd.priceAtomic) && Number(amt) <= 250000) cd = { ...cd, priceAtomic: amt, priceUsd: (Number(amt) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, "") };
       }
       const bad = checkPayload(payload, cd);
-      if (bad) return deny("payment rejected: " + bad, t.used, "payment-failed");
+      if (bad) return deny("payment rejected: " + bad, t.used, "payment-failed", signerOf(payload));
       // Rate-limit paid checks by payer (from payment payload) before settle.
       const authFrom = ((payload.payload && payload.payload.authorization) || {}).from || "";
       const payerKey = /^0x[0-9a-fA-F]{40}$/.test(authFrom) ? "p:" + authFrom.toLowerCase() : "c:" + (q.client || cid.id);
       const rl = await takeFree(env, payerKey, c.paidPerHour, new Date(), "take", SPOT_RATE_COUNTER, utcHour());
       if (!rl.free) {
-        writePoint(env, dataPoint({ cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 429, referer, access: "spot-rate-limited", freeUsed: t.used }));
+        writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 429, referer, access: "spot-rate-limited", freeUsed: t.used }));
         return json({
           error: `paid 402xAgent check rate limit: ${c.paidPerHour} per hour per payer`,
           product: SPOT_ID,
@@ -1602,7 +1609,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         paidPath: false,
         description: `${SPOT_SERVICE_NAME}: one probe. $${cd.priceUsd} USDC on Base.`,
       });
-      if (!r.ok) return deny("payment rejected: " + r.reason, t.used, "payment-failed");
+      if (!r.ok) return deny("payment rejected: " + r.reason, t.used, "payment-failed", signerOf(payload));
       const enc = b64encode(r.settle);
       extraHeaders["payment-response"] = enc;
       extraHeaders["x-payment-response"] = enc;
@@ -1625,12 +1632,12 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         access.credits_added = n;
         access.credits_remaining = cr.balance;
       }
-      writePoint(env, dataPoint({ cid, q: qLike, excluded: selfPaid ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "paid", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed }));
+      writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: selfPaid ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "paid", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed }));
       return json(await buildResult(probe, access), 200, extraHeaders);
     }
   }
 
-  writePoint(env, dataPoint({ cid, q: qLike, excluded: isExempt(qLike, env) ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: access.tier === "partner" ? "partner" : access.tier, freeUsed: partner ? partner.used : freeUsed }));
+  writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: isExempt(qLike, env) ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: access.tier === "partner" ? "partner" : access.tier, freeUsed: partner ? partner.used : freeUsed }));
   return json(await buildResult(probe, access), 200, extraHeaders);
 }
 
@@ -1640,7 +1647,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
 // The full live terms go only into the public receipt, as for every live check.
 async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { cid, ua, referer, c }) {
   const point = (status, access) => {
-    const dp = dataPoint({ cid, q: qLike, excluded: "dry-run", candidates: 0, ua, returnedPayTo: [], status, referer, access });
+    const dp = dataPoint({ product: "spot", cid, q: qLike, excluded: "dry-run", candidates: 0, ua, returnedPayTo: [], status, referer, access });
     dp.doubles[0] = 0;
     writePoint(env, dp);
   };
@@ -1800,6 +1807,15 @@ export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
 }
 
 // ------------------------------------------------------------------ counting
+// 0.19.0: the wallet that signed an x402 payload (EIP-3009 authorization.from), for payment-failed analytics. "" if none.
+export function signerOf(payload) {
+  try {
+    const f = String(((payload && payload.payload && payload.payload.authorization) || {}).from || "");
+    return /^0x[0-9a-fA-F]{40}$/.test(f) ? f.toLowerCase() : "";
+  } catch (_) {
+    return "";
+  }
+}
 export function refererHost(req) {
   try {
     return new URL(req.headers.get("referer") || "").hostname.slice(0, 100);
@@ -1809,7 +1825,7 @@ export function refererHost(req) {
 }
 
 // access: free | paid | exempt | payment-required | payment-failed | "" (request rejected before the quota)
-export function dataPoint({ cid, q, excluded, candidates, ua, returnedPayTo, status, referer = "", access = "", amountUsd = 0, tx = "", paidBy = "", freeUsed = null }) {
+export function dataPoint({ cid, q, excluded, candidates, ua, returnedPayTo, status, referer = "", access = "", amountUsd = 0, tx = "", paidBy = "", freeUsed = null, product = "", failReason = "" }) {
   const paywalled = access === "payment-required" || access === "payment-failed";
   const qualifying =
     !excluded && !paywalled && q.errors.length === 0 && ((q.task && q.max_price !== null) || !!q.endpoint) && candidates >= 1 ? 1 : 0;
@@ -1835,7 +1851,9 @@ export function dataPoint({ cid, q, excluded, candidates, ua, returnedPayTo, sta
       referer || "", // blob12 Referer host (browser clicks only)
       access || "", // blob13 access: free | paid | exempt | payment-required | payment-failed
       String(tx || "").slice(0, 80), // blob14 settlement tx (paid only)
-      String(paidBy || "").toLowerCase().slice(0, 64), // blob15 paying wallet (paid only, from the facilitator)
+      String(paidBy || "").toLowerCase().slice(0, 64), // blob15 paying wallet (paid: from the facilitator; payment-failed: the signer, 0.19.0)
+      String(product || "").slice(0, 32), // blob16 product/route (0.19.0): spot | lookup | lookup-paid | pack | mcp | view
+      String(failReason || "").slice(0, 160), // blob17 why a signed payment failed (payment-failed only, 0.19.0)
     ],
     // double1 qualifying, double2 candidates, double3 HTTP status, double4 n, double5 USD charged, double6 free calls used today
     doubles: [qualifying, candidates, status, q.n, Number(amountUsd) || 0, freeUsed === null ? -1 : Number(freeUsed)],
@@ -2063,18 +2081,18 @@ async function handleLookup(req, env, ctx, url) {
   try {
     data = await loadData(env, ctx);
   } catch (e) {
-    writePoint(env, dataPoint({ cid, q, excluded, candidates: 0, ua, returnedPayTo: [], status: 503, referer }));
+    writePoint(env, dataPoint({ product: "lookup", cid, q, excluded, candidates: 0, ua, returnedPayTo: [], status: 503, referer }));
     return json({ error: "catalog data unavailable, try again shortly" }, 503);
   }
   if (q.errors.length) {
-    writePoint(env, dataPoint({ cid, q, excluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer }));
+    writePoint(env, dataPoint({ product: "lookup", cid, q, excluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer }));
     return json({ error: q.errors.join("; "), tasks: Object.keys(taskIndex(data.catalog)).sort(), docs: CANON_ORIGIN + "/openapi.json", ...hintFields(CANON_ORIGIN) }, 400);
   }
   // The answer is computed before (and independently of) the access decision: payment never changes it.
   const out = lookup(data, q);
   const candidates = out.results.length + out.facts_only.length;
   const payTo = [...new Set(out.results.concat(out.facts_only).flatMap((r) => r.pay_to))];
-  const point = (extra) => writePoint(env, dataPoint({ cid, q, excluded, candidates, ua, returnedPayTo: payTo, referer, ...extra }));
+  const point = (extra) => writePoint(env, dataPoint({ product: "lookup", cid, q, excluded, candidates, ua, returnedPayTo: payTo, referer, ...extra }));
 
   let access;
   const extraHeaders = {};
@@ -2095,18 +2113,18 @@ async function handleLookup(req, env, ctx, url) {
       point({ status: 200, access: "free", freeUsed: t.used });
     } else {
       const hdr = req.headers.get("payment-signature") || req.headers.get("x-payment") || "";
-      const deny = (error, kind) => {
+      const deny = (error, kind, payer = "") => {
         const body = paymentRequired(c, url, error, t.used);
-        point({ status: 402, access: kind, freeUsed: t.used });
+        point({ status: 402, access: kind, freeUsed: t.used, paidBy: payer, failReason: kind === "payment-failed" ? error : "" });
         return json(body, 402, { "payment-required": b64encode(body) });
       };
       if (!hdr) return deny(`Free lookups used up for today (${c.freePerDay} per UTC day). Pay $${c.priceUsd} USDC on Base via x402 to continue.`, "payment-required");
       const payload = decodePaymentHeader(hdr);
       if (!payload) return deny("payment header is not valid base64 JSON x402 payload", "payment-failed");
       const bad = checkPayload(payload, c);
-      if (bad) return deny("payment rejected: " + bad, "payment-failed");
+      if (bad) return deny("payment rejected: " + bad, "payment-failed", signerOf(payload));
       const r = await verifyAndSettle(c, payload, url);
-      if (!r.ok) return deny("payment rejected: " + r.reason, "payment-failed");
+      if (!r.ok) return deny("payment rejected: " + r.reason, "payment-failed", signerOf(payload));
       const enc = b64encode(r.settle);
       extraHeaders["payment-response"] = enc;
       extraHeaders["x-payment-response"] = enc;
@@ -2136,10 +2154,10 @@ async function handlePaidLookup(req, env, ctx, url) {
   const resourceUrl = url.origin + url.pathname;
   let candidates = 0;
   let payTo = [];
-  const point = (extra) => writePoint(env, dataPoint({ cid, q, excluded, candidates, ua, returnedPayTo: payTo, referer, ...extra }));
-  const deny = (error, kind) => {
+  const point = (extra) => writePoint(env, dataPoint({ product: "lookup-paid", cid, q, excluded, candidates, ua, returnedPayTo: payTo, referer, ...extra }));
+  const deny = (error, kind, payer = "") => {
     const body = paidPaymentRequired(c, resourceUrl, error);
-    point({ status: 402, access: kind });
+    point({ status: 402, access: kind, paidBy: payer, failReason: kind === "payment-failed" ? error : "" });
     return json(body, 402, { "payment-required": b64encode(body) });
   };
   const hdr = paymentHeader(req);
@@ -2162,9 +2180,9 @@ async function handlePaidLookup(req, env, ctx, url) {
   const payload = decodePaymentHeader(hdr);
   if (!payload) return deny("payment header is not valid base64 JSON x402 payload", "payment-failed");
   const bad = checkPayload(payload, c);
-  if (bad) return deny("payment rejected: " + bad, "payment-failed");
+  if (bad) return deny("payment rejected: " + bad, "payment-failed", signerOf(payload));
   const r = await verifyAndSettle(c, payload, resourceUrl, true);
-  if (!r.ok) return deny("payment rejected: " + r.reason, "payment-failed");
+  if (!r.ok) return deny("payment rejected: " + r.reason, "payment-failed", signerOf(payload));
   const enc = b64encode(r.settle);
   const access = { tier: "paid", charged_usd: c.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null };
   point({ status: 200, access: "paid", amountUsd: Number(c.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer });
@@ -2555,7 +2573,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
           return err("catalog data unavailable, try again shortly");
         }
         const q = parseQuery(new URL(origin + "/"));
-        writePoint(env, dataPoint({ cid: await clientId(req, q, env), q, excluded: exclusion(req, q, env), candidates: 0, ua: req.headers.get("user-agent") || "", returnedPayTo: [], status: 200, referer: refererHost(req), access: "mcp-" + name }));
+        writePoint(env, dataPoint({ product: "mcp", cid: await clientId(req, q, env), q, excluded: exclusion(req, q, env), candidates: 0, ua: req.headers.get("user-agent") || "", returnedPayTo: [], status: 200, referer: refererHost(req), access: "mcp-" + name }));
         if (name === "search_catalog") data = mcpSearch(loaded.catalog, args);
         else {
           const m = loaded.catalog.services.filter((s) => s.id === args.id);
@@ -2648,7 +2666,7 @@ async function viewPoint(req, env, url, view, status) {
     const excluded = exclusion(req, q, env, view === "pack" ? url : null);
     const qv = { ...q, errors: [], endpoint: (url.pathname + (url.searchParams.get("page") ? "?page=" + url.searchParams.get("page") : "")).slice(0, 200) };
     const access = "view-" + view + (view === "pack" ? (status === 402 ? "-402" : "-paid") : "");
-    const dp = dataPoint({ cid, q: qv, excluded, candidates: 0, ua, returnedPayTo: [], status, referer: refererHost(req), access });
+    const dp = dataPoint({ product: view === "pack" ? "pack" : "view", cid, q: qv, excluded, candidates: 0, ua, returnedPayTo: [], status, referer: refererHost(req), access });
     dp.blobs[5] = excluded || ""; // views: blob6 = bot tag only ("" = possibly real); never qualifying
     dp.doubles[0] = 0;
     writePoint(env, dp);

@@ -66,8 +66,8 @@ echo "live /v1/skips: $GOT"
 export GH_CONFIG_DIR=/workspace/.gh-brand
 REPO="$TMP/vc"; gh repo clone withgrokbot/verified-catalog "$REPO" -- -q
 cp "$APP/worker/src/receipts-data.js" "$REPO/worker/src/receipts-data.js"
-mkdir -p "$REPO/scripts/weekly-crawl" && cp "$S"/{fetch_lists.py,crawl_probe.py,build_worker_data.py,payai_credits.py,weekly_refresh_skips.sh} "$REPO/scripts/weekly-crawl/"
-cd "$REPO" && git add worker/src/receipts-data.js scripts/weekly-crawl
+mkdir -p "$REPO/scripts/weekly-crawl" && cp "$S"/{fetch_lists.py,crawl_probe.py,build_worker_data.py,payai_credits.py,weekly_refresh_skips.sh} "$REPO/scripts/weekly-crawl/" && cp "$APP/scripts/almost_paid.py" "$REPO/scripts/almost_paid.py"
+cd "$REPO" && git add worker/src/receipts-data.js scripts/weekly-crawl scripts/almost_paid.py
 if git diff --cached --quiet; then echo "repo already up to date"; else
   git -c user.name=withgrokbot -c user.email=336192572+withgrokbot@users.noreply.github.com commit -qm "Weekly /v1/skips refresh: $COV"
   git push -q origin HEAD:main && echo "pushed $(git rev-parse --short HEAD)"
@@ -75,5 +75,9 @@ fi
 
 # 8) PayAI free credits left (read-only estimate) + the one-line summary
 CRED=$(python3 "$S/payai_credits.py" | python3 -c "import json,sys;j=json.load(sys.stdin);print(f\"payai_credits_left~{j['payai_credits_left_est']} (~{j['settlements_left_at_rate_est']} Base settlements; {j['settlements_to_pay_to']} so far; PayAI stats 30d: {j.get('payai_stats_settlements_30d')})\")" || echo "payai_credits_left=unknown")
+# 9) almost-paid report (read-only Analytics Engine SQL; free answer -> paid 402 -> no payment within 15 min; repeats)
+ALMOST=$(cd "$APP" && CF_ACCOUNT_ID="${CF_ACCOUNT_ID:-aa4453a0042a949537d2fcae99590a5f}" python3 scripts/almost_paid.py --start "${ALMOST_START:-2026-10-05}" 2>&1) || ALMOST="almost_paid=unavailable (${ALMOST%%$'\n'*})"
+echo "$ALMOST"
+ALMOST1=$(printf '%s\n' "$ALMOST" | head -1); ALMOST3=$(printf '%s\n' "$ALMOST" | sed -n 3p)
 echo "== done $STAMP"
-echo "$COV $CRED"
+echo "$COV $CRED | $ALMOST1${ALMOST3:+; $ALMOST3}"

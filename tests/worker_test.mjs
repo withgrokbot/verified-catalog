@@ -464,6 +464,11 @@ test("payment rejected: wrong amount or payTo (facilitator not called), invalid,
   facMode = "ok";
   const p = e.points.pop();
   assert.deepEqual([p.blobs[12], p.doubles[0], p.doubles[4]], ["payment-failed", 0, 0]);
+  // 0.19.0: a failed signed payment records the signer, the product and why it failed (almost-paid analysis)
+  assert.deepEqual([p.blobs[14], p.blobs[15]], ["0x" + "11".repeat(20), "lookup"]);
+  assert.match(p.blobs[16], /settlement failed: transaction_failed/);
+  const garbage = e.points.find((x) => x.blobs[12] === "payment-failed" && /not valid base64/.test(x.blobs[16]));
+  assert.deepEqual([garbage.blobs[14], garbage.blobs[15]], ["", "lookup"], "undecodable header: no payer");
 });
 
 test("free calls left: a payment header is ignored (nothing settled); counter outage fails open", async () => {
@@ -851,6 +856,20 @@ test("spot-check unpaid after free exhausted → 402 amount 10000 (1/10 of quote
   const unpaid = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", { envo: e });
   assert.equal(unpaid.status, 402);
   assert.equal(unpaid.body.accepts[0].amount, "10000");
+  // 0.19.0 analytics: the free answer and the 402 carry client id, target URL, UA family, ref and product "spot"
+  const sp = e.points.filter((x) => x.blobs[15] === "spot").slice(-2);
+  assert.deepEqual(sp.map((x) => x.blobs[12]), ["free", "payment-required"]);
+  for (const x of sp) assert.deepEqual([x.blobs[0], x.blobs[3]], [sp[0].blobs[0], "https://spot.target.test/api"]);
+  assert.ok(sp[1].blobs[0] && "blob9 UA family" && typeof sp[1].blobs[8] === "string" && typeof sp[1].blobs[10] === "string");
+  facMode = "invalid";
+  const failed = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
+  assert.equal(failed.status, 402);
+  const fp = e.points[e.points.length - 1];
+  assert.deepEqual([fp.blobs[12], fp.blobs[15], fp.blobs[3]], ["payment-failed", "spot", "https://spot.target.test/api"]);
+  assert.match(fp.blobs[14], /^0x[0-9a-f]{40}$/, "signer recorded");
+  assert.match(fp.blobs[16], /payment not valid/);
+  facMode = "ok";
+  facCalls.length = 0;
   lastSpotFetchInit = null;
   const paid = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", {
     envo: e,
