@@ -39,11 +39,11 @@
   },
   "paid_receipts": 4,
   "latest": {
-    "checked_at": "2026-10-10T14:25:17Z",
+    "checked_at": "2026-10-11T14:26:29Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 710,
+    "latency_ms": 473,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.002",
@@ -55,15 +55,15 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261010T142516Z/bitrefill-gift-card-search.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261010T142516Z/bitrefill-gift-card-search.json"
+    "raw_log": "results/raw/20261011T142628Z/bitrefill-gift-card-search.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261011T142628Z/bitrefill-gift-card-search.json"
   },
   "history_summary": {
-    "checks": 17,
-    "reachable": 17,
-    "x402_challenge_ok": 17,
+    "checks": 18,
+    "reachable": 18,
+    "x402_challenge_ok": 18,
     "paid_checks": 4,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-10-10T14:25:17Z"
+    "last_checked": "2026-10-11T14:26:29Z"
   }
 }
