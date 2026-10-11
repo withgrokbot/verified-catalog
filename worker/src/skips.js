@@ -2,7 +2,7 @@
 // 0.11.0: the weekly crawl covers every listed endpoint. Page 1 of skips is bundled (receipts-data.js); every receipt
 // and every other skip page lives in the CRAWL_KV namespace (c:<id[0:2]> shards, s:<n> pages), written by receipts/scripts.
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
-import { CANON_ORIGIN, API_ORIGIN, SPOT_SERVICE_NAME } from "./spotcheck.js";
+import { CANON_ORIGIN, API_ORIGIN, SPOT_SERVICE_NAME, FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE } from "./spotcheck.js";
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const usd = (v) => (v === null || v === undefined ? "—" : "$" + Number(v).toString());
@@ -53,7 +53,7 @@ export async function crawlReceiptForUrl(env, u) {
 }
 
 export function spotHowTo(origin) {
-  return `Check before you pay with the 402xAgent check: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid (optional &claimed_price=0.01; or POST JSON {"url":"https://example.com/api/paid"}) returns verdict pay|skip|recheck. 1 free/day, then $0.01-$0.25 USDC via x402 on Base (one tenth of the target's quoted price). Never pays the target.`;
+  return `Free check first: GET ${FREE_CHECK_URL} (optional &claimed_price=0.01; or POST JSON {"url":"<endpoint>"}) returns verdict pay|skip|recheck. 1 free/day plus free dry runs (&mode=dry-run); after that, the paid check is $0.01-$0.25 USDC via x402 on Base (one tenth of the target's quoted price). Never pays the target.`;
 }
 
 export function coverage() {
@@ -64,6 +64,7 @@ export function coverage() {
 export function skipsSummary(origin) {
   const m = RECEIPTS_META;
   return {
+    free_check: { url: FREE_CHECK_URL, example: FREE_CHECK_EXAMPLE_URL, example_response: FREE_CHECK_EXAMPLE, then: "the paid check (HTTP 402) for the full payment terms" },
     ...coverage(),
     total_receipts: m.total, skip: m.skip, pay: m.pay, recheck: m.recheck, check_type: m.check_type,
     lists: m.lists, listed_in: m.listed_in, sources: m.sources, dedupe: m.dedupe, method: m.method, spot_check: spotHowTo(origin),
@@ -109,6 +110,7 @@ export async function handleSkips(req, url, env = {}) {
 <link rel="canonical" href="${CANON_ORIGIN}/v1/skips${page > 1 ? "?page=" + page : ""}">
 <style>body{font:14px/1.45 system-ui,sans-serif;margin:1.5rem;max-width:1200px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:4px 6px;vertical-align:top;text-align:left}.u{word-break:break-all;font-family:ui-monospace,monospace;font-size:12px}tr:target,.featured{background:#fff6d5}header p{margin:.3rem 0}code{background:#f3f3f3;padding:1px 4px}.cov{font-size:16px}</style></head><body>
 <header><h1>402xAgent skips: self-checked x402 receipts</h1>
+<div class="free" style="border:1px solid #fde2c4;background:#fffaf3;border-radius:8px;padding:10px 12px;margin:0 0 12px"><b>Check your endpoint free first:</b> <code class="u">GET ${esc(FREE_CHECK_URL)}</code><br><small>Real example: <a class="u" href="${esc(FREE_CHECK_EXAMPLE_URL)}">${esc(FREE_CHECK_EXAMPLE_URL)}</a> → <code class="u">${esc(JSON.stringify(FREE_CHECK_EXAMPLE))}</code>. 1 free per day, free dry runs with &amp;mode=dry-run. Then, only for the full payment terms, the paid check (HTTP 402).</small></div>
 <p><small>402xAgent · <a href="${CANON_ORIGIN}">402xagent.com</a></small></p>
 <p class="cov"><b>${cov.endpoints_covered}</b> endpoints covered · <b>${cov.new_this_week ?? "—"}</b> new this week${cov.previous_run ? "" : " (first full crawl)"} · crawled ${esc(m.crawled_at)} (UTC)</p>
 <p><b>${m.skip}</b> skip · ${m.pay} pay · ${m.recheck} recheck · lists: ${esc(Object.entries(m.listed_in || m.lists).map(([k, v]) => k + " " + v).join(", "))}</p>

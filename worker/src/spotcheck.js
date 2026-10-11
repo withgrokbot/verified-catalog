@@ -518,3 +518,11 @@ export function decideVerdict(probe, claimedPrice) {
 export function utcHour(now = new Date()) {
   return now.toISOString().slice(0, 13); // YYYY-MM-DDTHH
 }
+
+// 0.20.0: the free check is the front door (shared by lib.js, skips.js and landing.js).
+export const FREE_CHECK_URL = API_ORIGIN + "/v1/products/endpoint-spot-check?url=<endpoint>";
+export const FREE_CHECK_EXAMPLE_URL = API_ORIGIN + "/v1/products/endpoint-spot-check?url=https://api.402rates.com/v1/ping";
+// Real free answer for FREE_CHECK_EXAMPLE_URL (receipt sc-1373dc485641b938, Oct 10 2026 5:30 PM PT; same verdict on repeat
+// exempt self-test calls Oct 10 6:2x PM PT), trimmed to one line.
+export const FREE_CHECK_EXAMPLE = { verdict: "pay", reason: "listed $0.001, payment request matches, details locked", receipt_url: "https://402xagent.com/v1/receipts/sc-1373dc485641b938" };
+export const PRIOR_CHECKS = CANON_ORIGIN + "/v1/skips";

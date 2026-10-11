@@ -1,23 +1,25 @@
 // 402xAgent landing page (0.18.0 light redesign around the logo): browser view of https://402xagent.com only. Inline CSS/JS,
 // no external fonts or scripts; images are the Worker's own /brand assets. Every example below is a real live answer (re-checked before each release).
 import { RECEIPTS_META } from "./receipts-data.js";
+import { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE } from "./spotcheck.js";
 
 const esc = (x) => String(x ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-// Real targets and what 402xAgent answered for them (exempt self-test client, twice each, re-checked Oct 10 2026 5:3x PM PT for 0.18.0).
+// Real targets and what 402xAgent answered for them (exempt self-test client, twice each, re-checked Oct 10 2026 6:3x PM PT for 0.20.0; the oracle's free trial has ended, back to pay).
 export const LANDING_EXAMPLES = [
   { url: "https://api.402rates.com/v1/ping", label: "402rates ping", expect: "pay" },
-  { url: "https://api.automaton-sovereign.workers.dev/v2/oracle/base", label: "oracle, free trial on", expect: "recheck" },
+  { url: "https://api.automaton-sovereign.workers.dev/v2/oracle/base", label: "oracle (2 schemes)", expect: "pay" },
   { url: "https://topagentx402.vercel.app/api/send-token", label: "testnet listing, mainnet 402", expect: "skip" },
   { url: "https://kr-intel-agent-production.up.railway.app/api/briefing", label: "listed, no paywall", expect: "skip" },
 ];
-// A real free-tier answer from api.402xagent.com for the default Try-it URL (receipt sc-f6c1a95579f0e930, Oct 10 2026 PT), verbatim.
+// A real free-tier answer from api.402xagent.com for the default Try-it URL (receipt sc-67c41ed764517284, Oct 10 2026 6:3x PM PT, Worker 0.20.0), verbatim.
 export const LANDING_SAMPLE = {
   "verdict": "pay",
   "reason": "listed $0.001, payment request matches, details locked",
   "payment_terms_sha256": "6ddcc14caebdf8cf0f7eb183c0916b2dc2d36500875d99d039c81e4ea5f2844e",
-  "receipt_id": "sc-f6c1a95579f0e930",
-  "receipt_url": "https://402xagent.com/v1/receipts/sc-f6c1a95579f0e930",
+  "receipt_id": "sc-67c41ed764517284",
+  "receipt_url": "https://402xagent.com/v1/receipts/sc-67c41ed764517284",
+  "prior_checks": "https://402xagent.com/v1/skips",
   "access": {
     "tier": "free",
     "free_per_day": 1,
@@ -109,6 +111,11 @@ h1{font-size:clamp(38px,6.2vw,66px);line-height:1.03;letter-spacing:-.04em;margi
 .sub{font-size:clamp(17px,2vw,19.5px);color:var(--muted);max-width:660px;margin:0 auto 14px;text-wrap:pretty}
 .saves{font-size:15.5px;color:var(--fg);margin:0 auto 30px;max-width:760px;font-weight:600;text-wrap:balance}
 .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.freecheck{max-width:760px;margin:0 auto 28px;text-align:left;background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;position:relative;overflow:hidden}
+.freecheck:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--grad)}
+.fc-h{margin:0 0 8px;font-weight:650;font-size:15px}.fc-tag{display:inline-block;font:700 11px/1 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--pay);padding:4px 7px;border-radius:6px;margin-right:6px;vertical-align:1px}
+.freecheck code{display:block;font-size:13px;line-height:1.55;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-wrap:anywhere;white-space:pre-wrap;color:var(--fg)}
+.fc-ex{margin:10px 0 6px;font-size:13.5px;color:var(--muted)}.fc-then{margin:10px 0 0;font-size:13.5px;color:var(--muted)}
 .btn{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 20px;border-radius:10px;font-weight:600;font-size:15px;text-decoration:none;border:1px solid var(--line2);color:var(--fg);background:#fff;cursor:pointer;font-family:inherit}
 .btn:hover{border-color:var(--fg)}
 .btn.primary{background:var(--fg);color:#fff;border-color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.1),0 6px 18px -6px rgba(239,68,35,.45)}
@@ -193,6 +200,13 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
   <h1>Check before your <span class="grad">agent pays</span></h1>
   <p class="sub">402xAgent probes an x402 endpoint once, unpaid, compares the live 402 with its listing, and tells your agent to pay, skip or recheck, with the exact payment to sign.</p>
   <p class="saves">Stops your agent paying dead, mispriced or wrong-network endpoints, or the wrong token or payee.</p>
+  <div class="freecheck" aria-label="Free check">
+    <p class="fc-h"><span class="fc-tag">Free</span> Check any x402 endpoint first, no payment, no key:</p>
+    <code class="fc-url">GET ${esc(FREE_CHECK_URL)}</code>
+    <p class="fc-ex">Real answer for <a href="${esc(FREE_CHECK_EXAMPLE_URL)}">api.402rates.com/v1/ping</a>:</p>
+    <code class="fc-res">${esc(JSON.stringify(FREE_CHECK_EXAMPLE))}</code>
+    <p class="fc-then">Then, only if you want the full payment terms: the paid check (HTTP 402, from $0.01).</p>
+  </div>
   <div class="cta"><a class="btn primary" href="#try">Try it</a><a class="btn" href="https://github.com/withgrokbot/x402-spotcheck"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a></div>
 </div></div>
 
