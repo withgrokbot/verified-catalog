@@ -41,7 +41,7 @@ import { landingHtml } from "./landing.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.22.0";
+export const VERSION = "0.23.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -1131,23 +1131,55 @@ export const USDC_BY_NETWORK = {
   "eip155:43114": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e", // Avalanche C-Chain
   "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp": "epjfwdd5aufqssqem2qn1xzybapc8g4weggkzwytdt1v", // Solana mainnet (EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)
 };
-const NETWORK_ALIASES = { base: "eip155:8453", ethereum: "eip155:1", optimism: "eip155:10", polygon: "eip155:137", arbitrum: "eip155:42161", avalanche: "eip155:43114", solana: "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp" };
+// 0.23.0 Solana: constants as published by @x402/svm 2.28.0 (SOLANA_*_CAIP2, USDC_*_ADDRESS, V1_TO_V2_NETWORK_MAP) and
+// Circle's USDC address list. The SDK itself is not bundled: its entry pulls Node built-ins (fs/promises, path, events)
+// and @solana/kit, and this Worker runs without nodejs_compat. tests/worker_test.mjs pins these against the SDK.
+export const SOLANA_MAINNET_CAIP2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+export const SOLANA_DEVNET_CAIP2 = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+export const USDC_SOLANA_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+export const USDC_SOLANA_DEVNET = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+// Testnet USDC is recognized (asset_is_usdc, testnet: true in receipts) but testnets stay skip/network_unsupported,
+// the same rule for Base Sepolia and Solana devnet.
+export const TESTNET_USDC_BY_NETWORK = {
+  "eip155:84532": "0x036cbd53842c5426634e7929541ec2318f3dcf7e", // Base Sepolia (Circle)
+  "solana:etwtrabzayq6imfeykouru166vu2xqa1": USDC_SOLANA_DEVNET.toLowerCase(), // Solana devnet (Circle, @x402/svm)
+};
+const NETWORK_ALIASES = { base: "eip155:8453", ethereum: "eip155:1", optimism: "eip155:10", polygon: "eip155:137", arbitrum: "eip155:42161", avalanche: "eip155:43114", solana: "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp", "solana-devnet": "solana:etwtrabzayq6imfeykouru166vu2xqa1", "base-sepolia": "eip155:84532" };
 export const caip = (n) => NETWORK_ALIASES[String(n ?? "").toLowerCase()] || String(n ?? "").toLowerCase();
 const lc = (v) => String(v ?? "").toLowerCase();
+export const isSolana = (n) => caip(n).startsWith("solana:");
+// EVM addresses compare case-insensitively (checksum case); Solana base58 addresses/mints are case-sensitive.
+export const sameAddr = (a, b, network) => {
+  const x = String(a ?? "").trim(), y = String(b ?? "").trim();
+  if (!x || !y) return false;
+  return /^0x[0-9a-fA-F]{40}$/.test(x) && /^0x[0-9a-fA-F]{40}$/.test(y) && !isSolana(network) ? x.toLowerCase() === y.toLowerCase() : x === y;
+};
+const usdcOf = (network) => USDC_BY_NETWORK[caip(network)] || TESTNET_USDC_BY_NETWORK[caip(network)] || null;
+const isUsdcAsset = (network, asset) => {
+  const want = usdcOf(network);
+  if (!want) return null;
+  if (isSolana(network)) return String(asset ?? "") === (caip(network) === "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp" ? USDC_SOLANA_MAINNET : USDC_SOLANA_DEVNET);
+  return want === lc(asset);
+};
 export function pickPayment(probe, exp = {}) {
-  const accepts = (Array.isArray(probe && probe.accepts) ? probe.accepts : []).filter((a) => a && a.network && a.payTo && a.amount != null && /^[0-9]{1,30}$/.test(String(a.amount)) && (!a.scheme || a.scheme === "exact"));
+  // 0.23.0: "upto" (x402 v2) is read too; its amount is the maximum that may be charged. exact is preferred on ties.
+  const accepts = (Array.isArray(probe && probe.accepts) ? probe.accepts : []).filter((a) => a && a.network && a.payTo && a.amount != null && /^[0-9]{1,30}$/.test(String(a.amount)) && (!a.scheme || a.scheme === "exact" || a.scheme === "upto"));
   if (!accepts.length) return null;
-  const usdc = (a) => USDC_BY_NETWORK[caip(a.network)] ? USDC_BY_NETWORK[caip(a.network)] === lc(a.asset) : null;
-  const score = (a) => (exp.network && lc(a.network) === lc(exp.network) ? 4 : 0) + (exp.pay_to && lc(a.payTo) === lc(exp.pay_to) ? 2 : 0) + (usdc(a) === true ? 1 : 0);
+  const usdc = (a) => isUsdcAsset(a.network, a.asset);
+  const score = (a) => (exp.network && caip(a.network) === caip(exp.network) ? 8 : 0) + (exp.pay_to && sameAddr(a.payTo, exp.pay_to, a.network) ? 4 : 0) + (usdc(a) === true ? 2 : 0) + (a.scheme !== "upto" ? 1 : 0);
   const a = [...accepts].sort((x, y) => score(y) - score(x))[0];
   const isUsdc = usdc(a);
+  const testnet = !USDC_BY_NETWORK[caip(a.network)] && !!TESTNET_USDC_BY_NETWORK[caip(a.network)];
   return {
+    ...(isSolana(a.network) ? { chain: "solana", mint: a.asset || null, decimals: isUsdc ? 6 : null, fee_payer: a.feePayer || null } : {}),
+    ...(testnet ? { testnet: true } : {}),
+    ...(a.scheme === "upto" ? { amount_kind: "max" } : {}),
     scheme: a.scheme || "exact",
     network: a.network,
     asset: a.asset || null,
     asset_is_usdc: isUsdc,
     amount_atomic: String(a.amount),
-    amount_usd: isUsdc ? Number(a.amount) / 1e6 : null,
+    amount_usd: isUsdc ? Number(a.amount) / 1e6 : null, // USDC: 6 decimals on every supported chain incl. Solana
     pay_to: a.payTo,
     supported_network: !!USDC_BY_NETWORK[caip(a.network)],
     max_timeout_seconds: a.maxTimeoutSeconds ?? null,
@@ -1167,7 +1199,7 @@ export function paymentObject(pm, probedAt) {
   else deadline = new Date(t0 + 60000);
   return {
     network: pm.network, // as the 402 states it (x402 v1 names like "base" stay as-is so signed requirements still match)
-    asset: USDC_BY_NETWORK[caip(pm.network)] === lc(pm.asset) ? canonicalAsset(pm.network, pm.asset) : pm.asset,
+    asset: pm.asset_is_usdc === true ? canonicalAsset(pm.network, pm.asset) : pm.asset, // Solana: the mint
     amount: { atomic: pm.amount_atomic, usd: pm.amount_usd },
     pay_to: pm.pay_to,
     deadline: deadline.toISOString().replace(/\.\d{3}Z$/, "Z"),
@@ -1176,9 +1208,12 @@ export function paymentObject(pm, probedAt) {
     amount_atomic: pm.amount_atomic,
     amount_usd: pm.amount_usd,
     asset_is_usdc: pm.asset_is_usdc,
+    ...(pm.chain === "solana" ? { chain: "solana", mint: pm.mint, decimals: pm.decimals, fee_payer: pm.fee_payer } : {}),
+    ...(pm.amount_kind ? { amount_kind: pm.amount_kind } : {}),
+    ...(pm.testnet ? { testnet: true } : {}),
   };
 }
-const CANONICAL_CASE = { "eip155:8453": USDC_BASE };
+const CANONICAL_CASE = { "eip155:8453": USDC_BASE, "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp": USDC_SOLANA_MAINNET, "solana:etwtrabzayq6imfeykouru166vu2xqa1": USDC_SOLANA_DEVNET };
 const canonicalAsset = (n, a) => CANONICAL_CASE[caip(n)] || a;
 // Commitment to the approved terms, so the free tier can enforce them without the terms in the body.
 export async function termsSha256(pm) {
@@ -1204,8 +1239,21 @@ export function newReceiptId() {
   crypto.getRandomValues(b);
   return "sc-" + [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
+// 0.23.0: per accept option, the existing fields plus (only gaining fields) the quoted USD price and, for Solana,
+// chain/mint/decimals/fee_payer; testnet: true for Base Sepolia / Solana devnet.
+export function acceptView(a) {
+  const base = { scheme: a.scheme, network: a.network, asset: a.asset, amount_atomic: a.amount, pay_to: a.payTo };
+  const sol = isSolana(a.network), upto = a.scheme === "upto", tn = !USDC_BY_NETWORK[caip(a.network)] && !!TESTNET_USDC_BY_NETWORK[caip(a.network)];
+  if (!sol && !upto && !tn) return base; // EVM mainnet exact rows: unchanged
+  const u = isUsdcAsset(a.network, a.asset);
+  const extra = { asset_is_usdc: u, amount_usd: u === true && /^[0-9]{1,30}$/.test(String(a.amount ?? "")) ? Number(a.amount) / 1e6 : null };
+  if (upto) extra.amount_kind = "max";
+  if (tn) extra.testnet = true;
+  if (sol) Object.assign(extra, { chain: "solana", mint: a.asset || null, decimals: u === true ? 6 : null, fee_payer: a.feePayer || null });
+  return { ...base, ...extra };
+}
 export function liveDemand(probe) {
-  const accepts = (probe.accepts || []).map((a) => ({ scheme: a.scheme, network: a.network, asset: a.asset, amount_atomic: a.amount, pay_to: a.payTo }));
+  const accepts = (probe.accepts || []).map(acceptView);
   if (probe.x402_challenge) return { http_status: probe.http_status ?? null, x402_challenge: true, schemes: [...new Set(accepts.map((a) => a.scheme).filter(Boolean))], terms: accepts };
   return { http_status: probe.http_status ?? null, x402_challenge: false, free_trial: probe.free_trial || null, error: probe.error || null };
 }
@@ -1235,7 +1283,7 @@ export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText
     live_402: {
       http_status: probe.http_status ?? null,
       x402_challenge: !!probe.x402_challenge,
-      accepts: (probe.accepts || []).map((a) => ({ scheme: a.scheme, network: a.network, asset: a.asset, amount_atomic: a.amount, pay_to: a.payTo })),
+      accepts: (probe.accepts || []).map(acceptView),
       error: probe.error || null,
       free_trial: probe.free_trial || null,
     },
@@ -1379,10 +1427,11 @@ export function applyNoTermsListing(d, probe, q, listing) {
   const l = (v) => String(v || "").toLowerCase();
   const skip = (reason) => ({ verdict: "skip", reason });
   if (q.claimed_price != null && listing.claimed_price_usd != null && priceMatchesClaimed(listing.claimed_price_usd, q.claimed_price) === false) return skip("price_mismatch");
-  if (q.network && listing.listed_network && l(q.network) !== l(listing.listed_network)) return skip("network_mismatch");
-  if (q.pay_to && listing.listed_pay_to && l(q.pay_to) !== l(listing.listed_pay_to)) return skip("pay_to_mismatch");
-  if (listing.pay_to && listing.listed_pay_to && l(listing.pay_to) !== l(listing.listed_pay_to)) return skip("pay_to_mismatch");
-  if (listing.network && listing.listed_network && l(listing.network) !== l(listing.listed_network)) return skip("network_mismatch");
+  const net = listing.listed_network || listing.network || q.network;
+  if (q.network && listing.listed_network && caip(q.network) !== caip(listing.listed_network)) return skip("network_mismatch");
+  if (q.pay_to && listing.listed_pay_to && !sameAddr(q.pay_to, listing.listed_pay_to, net)) return skip("pay_to_mismatch");
+  if (listing.pay_to && listing.listed_pay_to && !sameAddr(listing.pay_to, listing.listed_pay_to, net)) return skip("pay_to_mismatch");
+  if (listing.network && listing.listed_network && caip(listing.network) !== caip(listing.listed_network)) return skip("network_mismatch");
   if (listing.quoted_price_usd != null && listing.claimed_price_usd != null && priceMatchesClaimed(listing.quoted_price_usd, listing.claimed_price_usd) === false) return skip("price_mismatch");
   return out;
 }
@@ -1394,7 +1443,7 @@ export function applyExpected(d, probe, exp) {
   const accepts = Array.isArray(probe.accepts) ? probe.accepts : [];
   if (exp.network && accepts.length && !accepts.some((a) => caip(a.network) === caip(exp.network)))
     return { verdict: "skip", reason: "network_mismatch" };
-  if (exp.pay_to && accepts.length && !accepts.some((a) => String(a.payTo || "").toLowerCase() === exp.pay_to.toLowerCase()))
+  if (exp.pay_to && accepts.length && !accepts.some((a) => sameAddr(a.payTo, exp.pay_to, a.network)))
     return { verdict: "skip", reason: "pay_to_mismatch" };
   return d;
 }
@@ -2058,7 +2107,7 @@ export function openapi(origin, env = {}) {
             { name: "claimed_price", in: "query", schema: { type: "number" }, description: "optional claimed USD price to compare against quoted challenge" },
             { name: "method", in: "query", schema: { type: "string", enum: ["GET", "POST"], default: "GET" }, description: "how to probe the target (POST sends an empty JSON body; for POST-only x402 endpoints)" },
             { name: "pay_to", in: "query", schema: { type: "string" }, description: "optional wallet you expect to pay (from your listing); a 402 paying elsewhere is skip/pay_to_mismatch. Defaults to the listing in our crawl when we have one" },
-            { name: "network", in: "query", schema: { type: "string" }, description: "optional CAIP-2 network you expect (e.g. eip155:8453); a 402 on another network is skip/network_mismatch" },
+            { name: "network", in: "query", schema: { type: "string" }, description: "optional CAIP-2 network you expect (e.g. eip155:8453 or solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp); a 402 on another network is skip/network_mismatch" },
             { name: "client", in: "query", schema: { type: "string" } },
             { name: "ref", in: "query", schema: { type: "string" }, description: "attribution tag, stored on the receipt; ref=dry-run-<caller> sets mode=dry-run" },
             { name: "mode", in: "query", schema: { type: "string", enum: ["live", "dry-run"], default: "live" }, description: "free dry run: one unpaid probe, nothing signed or paid, always stored as a public receipt (check_type dry-run). Returns the free-tier shape with payment_terms_sha256 null (never an approval). 50 per caller (ref, else client, else IP) per UTC day. ref=dry-run-<caller> also sets it" },
