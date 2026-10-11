@@ -40,7 +40,7 @@ import { landingHtml } from "./landing.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.20.0";
+export const VERSION = "0.21.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -2706,7 +2706,20 @@ async function viewPoint(req, env, url, view, status) {
 // 0.18.0: x402 discovery manifest. `resources` stays a bare URL list (x402scan / Bazaar crawlers); the service-wide
 // `payment.x402` block and the per-resource `resourceCatalog` accepts tell indexes (e.g. Agent402) the payment
 // network, asset and payTo without a settled payment or a live 402 probe. Identical on every host.
-export function wellKnownX402(env) {
+// agent-tools.cloud ownership proof (docs: https://agent-tools.cloud/docs/claim). The token is per account and per host,
+// issued in their logged-in /account page, so it is configuration, not code: AGENT_TOOLS_VERIFY is a JSON object
+// {"<host>": "atc_..."} (a [vars] entry; the token is public once served). Unset = nothing served, nothing changes.
+export function agentToolsToken(env, host) {
+  try {
+    const m = JSON.parse(String(env.AGENT_TOOLS_VERIFY || "{}"));
+    const t = m && typeof m === "object" ? m[String(host || "").toLowerCase()] : null;
+    return typeof t === "string" && /^atc_[A-Za-z0-9_-]{8,64}$/.test(t) ? t : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+export function wellKnownX402(env, host = "") {
   const c = cfg(env), pk = packCfg(env);
   const acc = (amount, desc) => ({ scheme: "exact", network: c.network, asset: USDC_BASE, payTo: c.payTo, ...(amount ? { amount } : {}), maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" }, ...(desc ? { description: desc } : {}) });
   const R = (p) => API_ORIGIN + p;
@@ -2725,6 +2738,7 @@ export function wellKnownX402(env) {
     ],
     openapi: API_ORIGIN + "/openapi.json",
     mcp: API_ORIGIN + "/mcp",
+    ...(agentToolsToken(env, host) ? { agentToolsVerify: agentToolsToken(env, host) } : {}),
   };
 }
 
@@ -2760,7 +2774,11 @@ const routeInnerHolder = {
     if (path === "/v1/receipts" && url.searchParams.has("type")) return handleReceiptList(env, url);
     if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return handleReceipts(url, env);
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
-    if (path === "/.well-known/x402") return json(wellKnownX402(env), 200, { "cache-control": "public, max-age=300" });
+    if (path === "/.well-known/x402") return json(wellKnownX402(env, url.hostname), 200, { "cache-control": "public, max-age=300" });
+    if (path === "/.well-known/agent-tools-verify.txt") {
+      const tok = agentToolsToken(env, url.hostname);
+      return tok ? new Response(tok + "\n", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } }) : json({ error: "not found" }, 404);
+    }
     if (path === "/v1/tasks") {
       try {
         const data = await loadData(env, ctx);
