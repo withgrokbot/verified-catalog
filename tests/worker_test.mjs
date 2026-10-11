@@ -522,7 +522,15 @@ test("paid path: every unpaid call (no params, GET or POST, first call of the da
   assert.ok(e.points.every((p) => p.blobs[12] === "payment-required" && p.doubles[2] === 402 && p.doubles[0] === 0));
   // discovery documents
   const wk = (await send("/.well-known/x402", { envo: e })).body;
-  assert.deepEqual(wk, { version: 1, resources: ["https://api.402xagent.com/v1/lookup/paid", "https://api.402xagent.com/v1/products/overnight-cos-pack", "https://api.402xagent.com/v1/products/endpoint-spot-check"] });
+  assert.deepEqual(wk.resources, ["https://api.402xagent.com/v1/lookup/paid", "https://api.402xagent.com/v1/products/overnight-cos-pack", "https://api.402xagent.com/v1/products/endpoint-spot-check"]);
+  assert.equal(wk.version, 1);
+  // 0.18.0: service-wide payment block + per-resource accepts so indexes learn the network without a settled payment
+  assert.deepEqual(wk.payment.x402.networks, ["eip155:8453"]);
+  assert.equal(wk.payment.x402.payTo, PAY_TO);
+  assert.equal(wk.payment.x402.asset, USDC);
+  assert.deepEqual(wk.resourceCatalog.map((r) => r.url), wk.resources);
+  for (const r of wk.resourceCatalog) assert.deepEqual([r.accepts[0].network, r.accepts[0].asset, r.accepts[0].payTo], ["eip155:8453", USDC, PAY_TO]);
+  assert.equal(wk.resourceCatalog[0].accepts[0].amount, "20000");
   const oa = (await send("/openapi.json", { envo: e })).body;
   const op = oa.paths["/v1/lookup/paid"].get;
   assert.deepEqual(op["x-payment-info"].protocols, [{ x402: { scheme: "exact", network: "eip155:8453", asset: USDC, payTo: PAY_TO } }]);
@@ -583,7 +591,7 @@ test("MCP /mcp: initialize, tools/list (catalog tools + products), ping, notific
   let r = await rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } } }, { envo: e });
   assert.equal(r.status, 200);
   assert.match(r.headers.get("content-type"), /application\/json/);
-  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "402xagent", title: "402xAgent (formerly Spot-Check) + verified x402 catalog", version: VERSION } } });
+  assert.deepEqual(r.body, { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "402xagent", title: "402xAgent + verified x402 catalog", version: VERSION } } });
   assert.equal(r.headers.get("mcp-session-id"), null, "stateless: no session");
   r = await rpc({ jsonrpc: "2.0", method: "notifications/initialized" }, { envo: e });
   assert.equal(r.status, 202);
@@ -1530,7 +1538,7 @@ test("402xAgent rebrand (0.17.0): every host serves the same API; 402 resource f
     assert.equal((await (await get("/health")).json()).version, VERSION, h);
     const oaT = await (await get("/openapi.json")).text();
     const oa = JSON.parse(oaT);
-    assert.match(oa.info.title, /^402xAgent \(formerly Spot-Check\)/);
+    assert.match(oa.info.title, /^402xAgent: /);
     assert.deepEqual(oa.servers.map((s) => s.url), ["https://api.402xagent.com", "https://402xagent.com", "https://verified-catalog-lookup.withgrokbot.workers.dev"], h);
     const pack = await get("/v1/products/overnight-cos-pack", { method: "POST", body: "{}", headers: { "content-type": "application/json" } });
     assert.equal(pack.status, 402, "POST still gets the 402 on " + h);
@@ -1541,7 +1549,7 @@ test("402xAgent rebrand (0.17.0): every host serves the same API; 402 resource f
     assert.equal(sp.status, 200, h);
     assert.match(String(JSON.parse(spT).receipt_url), /^https:\/\/402xagent\.com\/v1\/receipts\/sc-/, "receipt links are canonical: " + spT.slice(0, 300));
     const llms = await (await get("/llms.txt")).text();
-    assert.match(llms, /^# 402xAgent \(formerly Spot-Check\)/);
+    assert.match(llms, /^# 402xAgent \+ x402 Verified Catalog/);
     const root = await (await get("/", { headers: { accept: "application/json" } })).json();
     assert.equal(root.hosts.home, "https://402xagent.com");
     assert.equal(root.products["endpoint-spot-check"].url, "https://402xagent.com/v1/products/endpoint-spot-check", "route paths unchanged");
@@ -1549,12 +1557,18 @@ test("402xAgent rebrand (0.17.0): every host serves the same API; 402 resource f
     assert.ok(wk.resources.every((u) => u.startsWith("https://api.402xagent.com/")));
     assert.match(await (await get("/robots.txt")).text(), /Sitemap: https:\/\/402xagent\.com\/sitemap\.xml/);
     const pubs = [oaT, spT, llms, JSON.stringify(root), JSON.stringify(pr).split(h + "/v1/products/overnight-cos-pack").join("<resource>"), JSON.stringify(wk), await (await get("/v1/skips.json")).text(), await (await get("/v1/receipts")).text()];
+    pubs.push(await (await get("/v1/skips")).text(), await (await get("/", { headers: { accept: "text/html" } })).text());
     for (const t of pubs) assert.doesNotMatch(t, /payscout/i, "old brand gone from public copy on " + h + ": " + (t.match(/.{60}payscout.{60}/is) || [""])[0]);
+    // 0.18.0: no Spot-Check name in public copy (route path /v1/products/endpoint-spot-check and tool name endpoint_spot_check stay)
+    for (const t of pubs) { const c = t.split("endpoint-spot-check").join(""); assert.doesNotMatch(c, /spot[- ]check|formerly/i, "no Spot-Check copy on " + h + ": " + (c.match(/.{60}(spot[- ]check|formerly).{60}/is) || [""])[0]); }
   }
   const m = await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" }, { envo: e });
   const names = m.body.result.tools.map((t) => t.name);
   for (const n of ["endpoint_spot_check", "get_receipt", "lookup", "search_catalog", "get_service"]) assert.ok(names.includes(n), "tool name kept: " + n);
   assert.doesNotMatch(JSON.stringify(m.body), /payscout/i);
+  assert.doesNotMatch(JSON.stringify(m.body).split("endpoint-spot-check").join(""), /spot[- ]check|formerly/i, "MCP tool copy");
+  const init = await rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }, { envo: e });
+  assert.equal(init.body.result.serverInfo.title, "402xAgent + verified x402 catalog");
   const sk = await worker.fetch(new Request("https://402xagent.com/v1/skips"), e.env, { waitUntil() {} });
   const skT = await sk.text();
   assert.match(skT, /<title>402xAgent skips/);
@@ -1569,7 +1583,8 @@ test("receipts stored under an earlier brand are served with the 402xAgent name 
   const r = await worker.fetch(new Request("https://api.402xagent.com/v1/receipts/sc-00000000000000aa"), e.env, { waitUntil() {} });
   const t = await r.text();
   assert.equal(r.status, 200);
-  assert.doesNotMatch(t, /payscout/i);
+  assert.doesNotMatch(t, /payscout|formerly|Spot-Check/i);
+  assert.equal(JSON.parse(t).service, "402xAgent");
   assert.equal(JSON.parse(t).permalink, "https://402xagent.com/v1/receipts/sc-00000000000000aa");
 });
 
@@ -1609,8 +1624,26 @@ test("landing page (0.17.0): HTML to browsers on 402xagent.com only, real counts
     assert.match(t, re);
   assert.ok(t.includes(`>${RECEIPTS_META.skip}</div><div class="l">skip`), "skip count is the real crawl number");
   assert.ok(t.includes(`>${RECEIPTS_META.pay}</div><div class="l">pay`));
-  assert.doesNotMatch(t, /payscout|router-ab|client=router|Jacob|@gmail|<script src=|<link rel="stylesheet"|fonts\.googleapis/i, "no old brand, client ids, personal names or external assets");
+  assert.doesNotMatch(t, /payscout|router-ab|client=router|<script src=|<link rel="stylesheet"|fonts\.googleapis/i, "no old brand, client ids, personal names or external assets");
   assert.ok(LANDING_EXAMPLES.length >= 3 && LANDING_EXAMPLES.every((x) => t.includes(x.url)));
+  // 0.18.0: light theme around the logo; own assets only
+  assert.match(t, /--bg:#ffffff;--bg2:#f8fafc;--fg:#0b0b0f/);
+  assert.match(t, /<meta name="color-scheme" content="light">/);
+  assert.match(t, /class="hero-logo" src="\/brand\/logo-light\.png\?v=\d+"/);
+  assert.match(t, /og:image" content="https:\/\/402xagent\.com\/og\.png/);
+  assert.match(t, /twitter:card" content="summary_large_image"/);
+  assert.match(t, /rel="apple-touch-icon"/);
+  assert.doesNotMatch(t.split("endpoint-spot-check").join(""), /spot[- ]check|formerly/i);
+  for (const [p, ct] of [["/brand/logo-light.png", "image/png"], ["/brand/logo-dark.png", "image/png"], ["/brand/mark-402.png", "image/png"], ["/og.png", "image/png"], ["/favicon.ico", "image/x-icon"], ["/apple-touch-icon.png", "image/png"], ["/brand/favicon-32.png", "image/png"]]) {
+    for (const h of ["https://402xagent.com", "https://verified-catalog-lookup.withgrokbot.workers.dev"]) {
+      const r = await worker.fetch(new Request(h + p, { headers: { accept: "image/avif,image/webp,*/*" } }), e.env, { waitUntil() {} });
+      assert.equal(r.status, 200, h + p);
+      assert.equal(r.headers.get("content-type"), ct);
+      const b = new Uint8Array(await r.arrayBuffer());
+      assert.ok(b.length > 200, p);
+      if (ct === "image/png") assert.deepEqual([...b.slice(1, 4)], [80, 78, 71], p + " is a PNG");
+    }
+  }
   for (const [h, a] of [["https://402xagent.com", "application/json"], ["https://402xagent.com", null], ["https://api.402xagent.com", "text/html,*/*"]]) {
     const r = await go(h, a);
     assert.match(r.headers.get("content-type"), /application\/json/, h + " " + a);

@@ -33,8 +33,9 @@ import {
 import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skips.js";
 import { RECEIPTS } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
+import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.17.0";
+export const VERSION = "0.18.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -1144,7 +1145,7 @@ export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText
     dry_run: mode === "dry-run",
     check_note: mode === "dry-run"
       ? "dry run: one unpaid probe of the target; nothing signed or paid, and not an approval to pay"
-      : "spot-check: unpaid probe of the target (never pays it)",
+      : "402xAgent check: unpaid probe of the target (never pays it)",
     ref: ref || null,
     caller: caller || ref || null,
     listing: exp.source ? { claimed_price_usd: exp.claimed, pay_to: exp.pay_to, network: exp.network, source: exp.source } : null,
@@ -1213,6 +1214,12 @@ export async function saveLiveReceipt(env, r) {
 // Receipts stored before 0.13.0 carry the long check_type text; read them as check_type "live" (text kept in check_note).
 export function normReceipt(r) {
   if (!r) return r;
+  // 0.18.0: copy stored under earlier names reads with the current brand (URLs and route paths untouched).
+  try {
+    const t = JSON.stringify(r);
+    if (/formerly|spot-check: unpaid|Spot-Check|Spot Check/.test(t.replace(/endpoint-spot-check/g, "")))
+      r = JSON.parse(t.replace(/ ?\(formerly [^)"]*\)/g, "").replace(/spot-check: unpaid probe/g, "402xAgent check: unpaid probe").replace(/(?<!endpoint-)Spot[- ]Check(?!er)/g, "402xAgent check"));
+  } catch (_) {}
   // 0.17.0: rows stored under an earlier brand/host are served with the current service name and canonical permalink.
   if (r.id) r = { ...r, service: SPOT_SERVICE_NAME, permalink: CANON_ORIGIN + "/v1/receipts/" + r.id };
   for (const k of ["ref", "caller"]) if (typeof r[k] === "string" && /payscout/i.test(r[k])) r = { ...r, [k]: r[k].replace(/payscout/gi, "402xagent") }; // old site tag
@@ -1586,7 +1593,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       if (!rl.free) {
         writePoint(env, dataPoint({ cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 429, referer, access: "spot-rate-limited", freeUsed: t.used }));
         return json({
-          error: `paid spot-check rate limit: ${c.paidPerHour} per hour per payer`,
+          error: `paid 402xAgent check rate limit: ${c.paidPerHour} per hour per payer`,
           product: SPOT_ID,
           retry_after_hint: "wait until the next UTC hour",
         }, 429);
@@ -1850,7 +1857,7 @@ export function pricingDoc(c) {
     free_scope: "per client per UTC day; client = the client value when sent, otherwise a salted hash of your IP",
     then: `HTTP 402 x402 payment requirement: $${c.priceUsd} USDC on Base (eip155:8453), scheme exact, payTo ${c.payTo}`,
     facilitator: c.facilitator,
-    metered: "/v1/lookup after the free quota; /v1/lookup/paid always (same results); /v1/products/overnight-cos-pack always $9 USDC; /v1/products/endpoint-spot-check 1 free/day then $0.01 to $0.25 USDC (one tenth of the target's quoted price). /mcp, /v1/tasks, /openapi.json, /health are free (MCP lookup shares vc-mcp quota; get_overnight_cos_pack paid; endpoint_spot_check shares spot-check quota)",
+    metered: "/v1/lookup after the free quota; /v1/lookup/paid always (same results); /v1/products/overnight-cos-pack always $9 USDC; /v1/products/endpoint-spot-check 1 free/day then $0.01 to $0.25 USDC (one tenth of the target's quoted price). /mcp, /v1/tasks, /openapi.json, /health are free (MCP lookup shares vc-mcp quota; get_overnight_cos_pack paid; endpoint_spot_check shares the 402xAgent check quota)",
   };
 }
 
@@ -1859,7 +1866,7 @@ export function openapi(origin, env = {}) {
   return {
     openapi: "3.1.0",
     info: {
-      title: "402xAgent (formerly Spot-Check): x402 pre-payment checks + verified catalog",
+      title: "402xAgent: x402 pre-payment checks + verified catalog",
       version: VERSION,
       contact: { url: "https://github.com/withgrokbot/verified-catalog/issues" },
       "x-guidance": `Ask GET /v1/lookup?task=<task>&max_price=<usd> (task names: /v1/tasks). ${c.freePerDay} free calls per client per UTC day, then the same path answers 402; /v1/lookup/paid is the always-paid twin ($${c.priceUsd} USDC on Base via x402) with identical results. Products: GET /v1/products/overnight-cos-pack ($9 USDC); GET /v1/products/endpoint-spot-check (1 free/day then $0.01 to $0.25 USDC (one tenth of the target's quoted price), SSRF-safe x402 probe). Free MCP: POST /mcp.`,
@@ -1934,7 +1941,7 @@ export function openapi(origin, env = {}) {
       "/v1/products/endpoint-spot-check": {
         get: {
           operationId: "endpointSpotCheck",
-          summary: "Decision-shaped x402 endpoint spot-check: probe a public URL for PAYMENT-REQUIRED (never pays the target). Returns verdict/reason/quoted vs claimed. 1 free/client/UTC day, then $0.01-$0.25 (one tenth of the target quote) USDC on Base",
+          summary: "Decision-shaped 402xAgent check: probe a public URL for PAYMENT-REQUIRED (never pays the target). Returns verdict/reason/quoted vs claimed. 1 free/client/UTC day, then $0.01-$0.25 (one tenth of the target quote) USDC on Base",
           parameters: [
             { name: "url", in: "query", required: true, schema: { type: "string" }, description: "public http(s) URL to probe" },
             { name: "task", in: "query", schema: { type: "string" } },
@@ -1979,7 +1986,7 @@ export function openapi(origin, env = {}) {
         get: {
           operationId: "receiptByUrl",
           security: [],
-          summary: "Free: latest public receipt for a URL: latest_live (last live 402xAgent decision: live 402 terms, verdict, reason, timestamp, id) and latest_crawl (weekly self-checked crawl). A fresh live check is the paid Spot-Check.",
+          summary: "Free: latest public receipt for a URL: latest_live (last live 402xAgent decision: live 402 terms, verdict, reason, timestamp, id) and latest_crawl (weekly self-checked crawl). A fresh live check is a paid 402xAgent check.",
           parameters: [{ name: "url", in: "query", required: true, schema: { type: "string" }, description: "the listing/endpoint URL exactly as checked" }],
           responses: { 200: { description: "receipts" }, 400: { description: "missing url" }, 404: { description: "no receipt for this url yet (check_now link included)" } },
         },
@@ -1997,7 +2004,7 @@ export function openapi(origin, env = {}) {
         get: {
           operationId: "receipts",
           security: [],
-          summary: "Free: every self-checked receipt (url, claimed_price_usd, quoted_price_usd, pay_to, verdict, reason, timestamp, source_list). /v1/receipts/{id} returns one receipt. With type=dry-run or type=live: stored Spot-Check decisions, newest first (url, listing, live_demand, verdict, reason, checked_at, check_type, ref), filter by ref, page with limit (1-100, default 20) and cursor (next_cursor).",
+          summary: "Free: every self-checked receipt (url, claimed_price_usd, quoted_price_usd, pay_to, verdict, reason, timestamp, source_list). /v1/receipts/{id} returns one receipt. With type=dry-run or type=live: stored 402xAgent decisions, newest first (url, listing, live_demand, verdict, reason, checked_at, check_type, ref), filter by ref, page with limit (1-100, default 20) and cursor (next_cursor).",
           parameters: [
             { name: "type", in: "query", schema: { type: "string", enum: ["dry-run", "live"] }, description: "list stored 402xAgent receipts of this type" },
             { name: "ref", in: "query", schema: { type: "string" }, description: "only receipts with this ref (e.g. dry-run-mybot)" },
@@ -2011,7 +2018,7 @@ export function openapi(origin, env = {}) {
         post: {
           operationId: "mcp",
           security: [],
-          summary: "Free remote MCP server (Streamable HTTP, stateless JSON-RPC 2.0): tools search_catalog, get_service, lookup, get_overnight_cos_pack, endpoint_spot_check (lookup shares vc-mcp quota; pack always paid; spot-check 1 free/day then $0.01-$0.25 by target quote)",
+          summary: "Free remote MCP server (Streamable HTTP, stateless JSON-RPC 2.0): tools search_catalog, get_service, lookup, get_overnight_cos_pack, endpoint_spot_check (lookup shares vc-mcp quota; pack always paid; 402xAgent check 1 free/day then $0.01-$0.25 by target quote)",
           responses: { 200: { description: "JSON-RPC response" }, 202: { description: "notification accepted" } },
         },
       },
@@ -2170,7 +2177,7 @@ async function handlePaidLookup(req, env, ctx, url) {
 // free quota (5 per UTC day) and reports, but never pays, the 402 after it.
 export const MCP_CLIENT = "vc-mcp";
 export const MCP_PROTOCOL = "2025-06-18";
-export const MCP_SERVER_INFO = { name: "402xagent", title: "402xAgent (formerly Spot-Check) + verified x402 catalog", version: VERSION };
+export const MCP_SERVER_INFO = { name: "402xagent", title: "402xAgent + verified x402 catalog", version: VERSION };
 export const MCP_TOOLS = [
   {
     name: "search_catalog",
@@ -2336,7 +2343,7 @@ export const MCP_TOOLS = [
   {
     name: "get_receipt",
     description:
-      "Free: read a public 402xAgent (formerly Spot-Check) receipt. Give id (sc-... from endpoint_spot_check's receipt_id, or a 10-hex crawl id) or url " +
+      "Free: read a public 402xAgent receipt. Give id (sc-... from endpoint_spot_check's receipt_id, or a 10-hex crawl id) or url " +
       "(latest live + crawl receipt for that URL). Receipts hold the listing URL, the live 402 terms, verdict, reason, timestamp. " +
       "Does not run a fresh check (use endpoint_spot_check for that).",
     inputSchema: { type: "object", properties: { id: { type: "string", description: "receipt id" }, url: { type: "string", description: "endpoint URL exactly as checked" } } },
@@ -2345,7 +2352,7 @@ export const MCP_TOOLS = [
   {
     name: "endpoint_spot_check",
     description:
-      "Decision-shaped SSRF-safe spot-check of a public URL for an x402 PAYMENT-REQUIRED / 402 challenge. " +
+      "Decision-shaped SSRF-safe 402xAgent check of a public URL for an x402 PAYMENT-REQUIRED / 402 challenge. " +
       "Free: verdict (pay|skip|recheck), a plain-words reason, payment_terms_sha256 (hash of the approved payment), and access. Paid: verdict, reason code, quoted/claimed price, pay_to, network, asset, and payment = the exact {network, asset, amount_atomic, amount_usd, pay_to} a router may sign (verdict pay only), plus access with the settlement tx. " +
       "No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx and network errors; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. " +
       "mode=dry-run: free dry run (nothing signed or paid, stored as a public receipt, no approval hash, 50/caller/day). " +
@@ -2513,7 +2520,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         } else if (r.status === 400) {
           return err((body && body.error) || "bad request");
         } else {
-          return err("spot-check returned HTTP " + r.status + (body && body.error ? ": " + body.error : ""));
+          return err("402xAgent check returned HTTP " + r.status + (body && body.error ? ": " + body.error : ""));
         }
       } else if (name === "get_overnight_cos_pack") {
         const u = new URL(origin + "/v1/products/overnight-cos-pack");
@@ -2650,6 +2657,29 @@ async function viewPoint(req, env, url, view, status) {
   }
 }
 
+// 0.18.0: x402 discovery manifest. `resources` stays a bare URL list (x402scan / Bazaar crawlers); the service-wide
+// `payment.x402` block and the per-resource `resourceCatalog` accepts tell indexes (e.g. Agent402) the payment
+// network, asset and payTo without a settled payment or a live 402 probe. Identical on every host.
+export function wellKnownX402(env) {
+  const c = cfg(env), pk = packCfg(env);
+  const acc = (amount, desc) => ({ scheme: "exact", network: c.network, asset: USDC_BASE, payTo: c.payTo, ...(amount ? { amount } : {}), maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" }, ...(desc ? { description: desc } : {}) });
+  const R = (p) => API_ORIGIN + p;
+  return {
+    version: 1,
+    name: BRAND,
+    homepage: CANON_ORIGIN,
+    resources: [R("/v1/lookup/paid"), R("/v1/products/overnight-cos-pack"), R("/v1/products/endpoint-spot-check")],
+    payment: { x402: { version: 2, scheme: "exact", networks: [c.network], primaryNetwork: c.network, currency: "USDC", asset: USDC_BASE, payTo: c.payTo } },
+    resourceCatalog: [
+      { url: R("/v1/lookup/paid"), method: "GET", description: "Reliability lookup: x402 services for a task at a price, ranked by known-answer pass rate", accepts: [acc(c.priceAtomic)] },
+      { url: R("/v1/products/overnight-cos-pack"), methods: ["GET", "POST"], description: "Overnight Chief of Staff Setup Pack (prompts, template, PDF guide)", accepts: [acc(pk.priceAtomic)] },
+      { url: R("/v1/products/endpoint-spot-check"), methods: ["GET", "POST"], description: "402xAgent check: pay, skip or recheck for an x402 endpoint before your agent pays. 1 free per day, then one tenth of the target's price ($0.01 to $0.25)", price: { mode: "dynamic", currency: "USD", min: "0.01", max: "0.25" }, accepts: [acc(null)] },
+    ],
+    openapi: API_ORIGIN + "/openapi.json",
+    mcp: API_ORIGIN + "/mcp",
+  };
+}
+
 export function oldHostPageView(req, url, path) {
   if (!OLD_HOSTNAMES.includes(url.hostname)) return false;
   if (req.method !== "GET" && req.method !== "HEAD") return false;
@@ -2672,7 +2702,7 @@ const routeInnerHolder = {
     // 0.12.1: guessed short paths for Spot-Check get a 308 to the canonical route (query kept; method + body kept by 308).
     if (SPOT_ALIASES.has(path)) {
       const to = url.origin + "/v1/products/endpoint-spot-check" + url.search;
-      return json({ error: "moved", moved_to: to, note: "402xAgent (formerly Spot-Check) lives at /v1/products/endpoint-spot-check" }, 308, { location: to, "cache-control": "no-store" });
+      return json({ error: "moved", moved_to: to, note: "the 402xAgent check lives at /v1/products/endpoint-spot-check" }, 308, { location: to, "cache-control": "no-store" });
     }
     if (path === "/v1/products/endpoint-spot-check")
       return json(spotBadRequest(API_ORIGIN, "method", `Unsupported method ${String(req.method).slice(0, 10)}; use GET or POST`), 400);
@@ -2682,7 +2712,7 @@ const routeInnerHolder = {
     if (path === "/v1/receipts" && url.searchParams.has("type")) return handleReceiptList(env, url);
     if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return handleReceipts(url, env);
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
-    if (path === "/.well-known/x402") return json({ version: 1, resources: [API_ORIGIN + "/v1/lookup/paid", API_ORIGIN + "/v1/products/overnight-cos-pack", API_ORIGIN + "/v1/products/endpoint-spot-check"] });
+    if (path === "/.well-known/x402") return json(wellKnownX402(env), 200, { "cache-control": "public, max-age=300" });
     if (path === "/v1/tasks") {
       try {
         const data = await loadData(env, ctx);
@@ -2693,14 +2723,19 @@ const routeInnerHolder = {
     }
     if (path === "/openapi.json") return json(openapi(url.origin, env));
     if (path === "/health") return json({ ok: true, version: VERSION });
+    if ((req.method === "GET" || req.method === "HEAD") && Object.prototype.hasOwnProperty.call(BRAND_ASSETS, path)) {
+      const asset = BRAND_ASSETS[path];
+      const bytes = Uint8Array.from(atob(asset.b64), (ch) => ch.charCodeAt(0));
+      return new Response(req.method === "HEAD" ? null : bytes, { headers: { "content-type": asset.type, "cache-control": "public, max-age=604800", "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
+    }
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${CANON_ORIGIN}/sitemap.xml\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/v1/skips", "/v1/skips.json", "/v1/receipts", "/", "/openapi.json", "/llms.txt"].map((u) => `<url><loc>${CANON_ORIGIN}${u}</loc><changefreq>daily</changefreq></url>`).join("")}</urlset>\n`, { headers: { "content-type": "application/xml; charset=utf-8" } });
-    if (path === "/llms.txt") return new Response(`# 402xAgent (formerly Spot-Check) + x402 Verified Catalog\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). 500 self-checked x402 endpoints; the skip list shows which ones disagree with their listing.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (live receipts: ${CANON_ORIGIN}/v1/receipts/sc-<id>; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (route name kept from Spot-Check). Free dry run: add &mode=dry-run. 1 free/day, then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402.\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
+    if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). 500 self-checked x402 endpoints; the skip list shows which ones disagree with their listing.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (live receipts: ${CANON_ORIGIN}/v1/receipts/sc-<id>; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 1 free/day, then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402.\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (path === "/" && url.hostname === "402xagent.com" && /text\/html/.test(req.headers.get("accept") || ""))
       return new Response(landingHtml(CANON_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", vary: "accept", "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "access-control-allow-origin": "*" } });
     if (path === "/")
       return json({
-        name: "402xAgent (formerly Spot-Check) + verified x402 catalog",
+        name: "402xAgent + verified x402 catalog",
         version: VERSION,
         hosts: { home: CANON_ORIGIN, api: API_ORIGIN, legacy_host: LEGACY_ORIGIN, note: "Every host serves the same Worker, routes and payments; older hosts keep answering API, x402 and MCP calls." },
         usage: CANON_ORIGIN + "/v1/lookup?task=web-search&max_price=0.01&n=5",
