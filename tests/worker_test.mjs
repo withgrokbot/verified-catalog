@@ -91,6 +91,25 @@ globalThis.fetch = async (url, init = {}) => {
     const accepts = [{ scheme: "exact", network: "eip155:8453", amount: "1000", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: "0xb1f64fc8689a17014Cf0748e8EeaD58C5457Ec74" }];
     return new Response(JSON.stringify({ x402Version: 2, accepts }), { status: 402, headers: { "content-type": "application/json" } });
   }
+  if (u.startsWith("https://sol.target.test/")) {
+    // 0.23.0 Solana fixtures (x402 v2 SVM shape: CAIP-2 network, mint as asset, extra.feePayer)
+    const k = new URL(u).pathname.split("/")[1];
+    const SOL = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", DEV = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+    const MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", DEVMINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+    const PT = "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", FP = "2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4";
+    const one = (o) => ({ scheme: "exact", network: SOL, amount: "10000", asset: MINT, payTo: PT, maxTimeoutSeconds: 60, extra: { feePayer: FP }, ...o });
+    const acc = {
+      good: [one({})],
+      v1: null,
+      wrongmint: [one({ asset: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" })],
+      lowermint: [one({ asset: MINT.toLowerCase() })],
+      devnet: [one({ network: DEV, asset: DEVMINT })],
+      upto: [one({ scheme: "upto", amount: "50000" })],
+    }[k];
+    if (k === "v1") return new Response(JSON.stringify({ x402Version: 1, accepts: [{ scheme: "exact", network: "solana", maxAmountRequired: "10000", asset: MINT, payTo: PT, resource: u, maxTimeoutSeconds: 60, extra: { feePayer: FP } }] }), { status: 402, headers: { "content-type": "application/json" } });
+    const body = { x402Version: 2, error: "Payment required", resource: { url: u }, accepts: acc || [one({})] };
+    return new Response(JSON.stringify(body), { status: 402, headers: { "content-type": "application/json", "payment-required": btoa(JSON.stringify(body)) } });
+  }
   if (u.startsWith("https://spot.target.test/") || u.startsWith("https://x402.example.test/")) {
     lastSpotFetchInit = init || {};
     if (spotTargetMode === "timeout") {
@@ -1206,7 +1225,9 @@ test("PAY STEP: picks the accept matching the expectation; non-USDC asset is ski
   const pmB = pickPayment({ accepts: [{ ...usdc, validBefore: 1791651600 }] }, {});
   assert.deepEqual([paymentObject(pmB, "2026-10-10T17:00:00Z").deadline, paymentObject(pmB, "2026-10-10T17:00:00Z").deadline_source], [new Date(1791651600000).toISOString().replace(/\.\d{3}Z$/, "Z"), "validBefore"]);
   assert.deepEqual([paymentObject(pickPayment({ accepts: [usdc] }, {}), "2026-10-10T17:00:00Z").deadline, paymentObject(pickPayment({ accepts: [usdc] }, {}), "2026-10-10T17:00:00Z").deadline_source], ["2026-10-10T17:01:00Z", "default_60s"]);
-  assert.equal(pickPayment({ accepts: [{ scheme: "upto", network: "eip155:8453", amount: "1", payTo: "0x1" }] }, {}), null);
+  // 0.23.0: upto is read (amount = the maximum); an unknown scheme still is not
+  assert.equal(pickPayment({ accepts: [{ scheme: "upto", network: "eip155:8453", amount: "1", payTo: "0x1" }] }, {}).amount_kind, "max");
+  assert.equal(pickPayment({ accepts: [{ scheme: "stream", network: "eip155:8453", amount: "1", payTo: "0x1" }] }, {}), null);
 });
 
 // In-memory D1 stand-in (prepare/bind/run/first) for the receipts table.
@@ -1824,6 +1845,59 @@ test("0.22.0: 400s name the mistake + a copy-pasteable fixed free check; /v1/ski
   const br = await sk({ accept: "text/html,application/xhtml+xml,*/*;q=0.8" });
   assert.match(br.headers.get("content-type"), /text\/html/); assert.equal(br.headers.get("vary"), "accept");
   assert.match((await sk({ accept: "text/html" }, "?format=json")).headers.get("content-type"), /application\/json/);
+});
+
+test("0.23.0 Solana: SVM 402s read like Base (network, mint, pay_to, scheme, price); same skip rules; devnet = testnet rule; cached", async () => {
+  const SOL = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", DEV = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+  const MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", PT = "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin";
+  const e = spotEnv({ RECEIPTS_DB: fakeD1() });
+  const chk = (k, extra = "", client = "withgrokbot-selftest") => send(SPOT + "?url=" + encodeURIComponent("https://sol.target.test/" + k) + "&client=" + client + extra, { envo: e });
+  // good: pay; payment object = network, mint, amount (6 decimals), pay_to, deadline; Solana extras only gained
+  const g = await chk("good", "&claimed_price=0.01");
+  assert.deepEqual([g.body.verdict, g.body.reason], ["pay", "price_ok"]);
+  const dl = new Date(Date.parse(g.body.probe.probed_at) + 60000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  assert.deepEqual(g.body.payment, { network: SOL, asset: MINT, amount: { atomic: "10000", usd: 0.01 }, pay_to: PT, deadline: dl, deadline_source: "maxTimeoutSeconds", scheme: "exact", amount_atomic: "10000", amount_usd: 0.01, asset_is_usdc: true, chain: "solana", mint: MINT, decimals: 6, fee_payer: "2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4" });
+  const rc = (await send("/v1/receipts/" + g.body.receipt_id, { envo: e })).body;
+  assert.deepEqual(rc.live_402.accepts[0], { scheme: "exact", network: SOL, asset: MINT, amount_atomic: "10000", pay_to: PT, asset_is_usdc: true, amount_usd: 0.01, chain: "solana", mint: MINT, decimals: 6, fee_payer: "2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4" });
+  // same URL again: same verdict from the cached probe
+  const g2 = await chk("good", "&claimed_price=0.01");
+  assert.deepEqual([g2.body.verdict, g2.body.reason, g2.body.probe.cached, g2.body.probe.probed_at], ["pay", "price_ok", true, g.body.probe.probed_at]);
+  // v1 name "solana" + maxAmountRequired, listing network given as the CAIP-2 id
+  const v1 = await chk("v1", "&network=" + encodeURIComponent(SOL));
+  assert.equal(v1.body.verdict, "pay"); assert.equal(v1.body.payment.network, "solana"); assert.equal(v1.body.payment.amount.usd, 0.01);
+  // wrong mint (USDT) and a case-changed USDC mint (base58 is case-sensitive)
+  assert.deepEqual([(await chk("wrongmint")).body.reason, (await chk("lowermint")).body.reason], ["asset_not_usdc", "asset_not_usdc"]);
+  // devnet vs a mainnet listing -> network_mismatch; devnet with no listing -> network_unsupported (same as Base Sepolia)
+  assert.deepEqual([(await chk("devnet", "&network=" + encodeURIComponent(SOL))).body.reason], ["network_mismatch"]);
+  const dv = await chk("devnet", "&cb=2");
+  assert.deepEqual([dv.body.verdict, dv.body.reason], ["skip", "network_unsupported"]);
+  const dvr = (await send("/v1/receipts/" + dv.body.receipt_id, { envo: e })).body.live_402.accepts[0];
+  assert.deepEqual([dvr.testnet, dvr.asset_is_usdc, dvr.mint], [true, true, "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"]);
+  // pay_to mismatch vs the listing, incl. a case-only difference
+  assert.equal((await chk("good", "&pay_to=" + "So1anaWa11etXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")).body.reason, "pay_to_mismatch");
+  assert.equal((await chk("good", "&pay_to=" + PT.toLowerCase())).body.reason, "pay_to_mismatch");
+  assert.equal((await chk("good", "&pay_to=" + PT + "&network=solana")).body.verdict, "pay");
+  // upto: amount is the maximum; price is checked against it
+  const up = await chk("upto", "&claimed_price=0.05");
+  assert.deepEqual([up.body.verdict, up.body.payment.scheme, up.body.payment.amount_kind, up.body.payment.amount.usd], ["pay", "upto", "max", 0.05]);
+  assert.equal((await chk("upto", "&claimed_price=0.01")).body.reason, "price_mismatch");
+  // free tier: still only verdict + short reason + prior_checks + receipt link
+  const f = await chk("good", "", "sol-free-1");
+  assert.equal(f.body.access.tier, "free"); assert.equal(f.body.payment, undefined); assert.equal(f.body.prior_checks, "https://402xagent.com/v1/skips");
+  assert.doesNotMatch(JSON.stringify(f.body), /9xQeWvG8|EPjFWdd5|feePayer|fee_payer/);
+  // our own rail stays Base USDC
+  const pr = await send(SPOT + "?url=" + encodeURIComponent("https://sol.target.test/good") + "&client=sol-free-1", { envo: e });
+  assert.equal(pr.status, 402); assert.ok(pr.body.accepts.every((a) => a.network === "eip155:8453"));
+  // constants match the published @x402/svm SDK when it is installed (SVM_SDK_DIR=<dir with node_modules/@x402/svm>)
+  const L = await import("../worker/src/lib.js");
+  assert.equal(L.USDC_SOLANA_MAINNET, MINT);
+  if (process.env.SVM_SDK_DIR) {
+    const { createRequire } = await import("node:module");
+    const sdk = createRequire(process.env.SVM_SDK_DIR + "/")("@x402/svm");
+    assert.deepEqual([L.SOLANA_MAINNET_CAIP2, L.SOLANA_DEVNET_CAIP2, L.USDC_SOLANA_MAINNET, L.USDC_SOLANA_DEVNET], [sdk.SOLANA_MAINNET_CAIP2, sdk.SOLANA_DEVNET_CAIP2, sdk.USDC_MAINNET_ADDRESS, sdk.USDC_DEVNET_ADDRESS]);
+    assert.deepEqual([L.caip("solana"), L.caip("solana-devnet")], [sdk.V1_TO_V2_NETWORK_MAP.solana.toLowerCase(), sdk.V1_TO_V2_NETWORK_MAP["solana-devnet"].toLowerCase()]);
+    console.log("  (Solana constants pinned against the installed @x402/svm)");
+  }
 });
 
 let passed = 0;

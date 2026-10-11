@@ -193,6 +193,7 @@ export function summarizeAccepts(accepts) {
       amount_usd: amount != null ? atomicToUsd(amount) : null,
       maxTimeoutSeconds: Number.isFinite(Number(a.maxTimeoutSeconds)) && Number(a.maxTimeoutSeconds) > 0 ? Number(a.maxTimeoutSeconds) : null,
       validBefore: a.validBefore ?? (a.extra && a.extra.validBefore) ?? null,
+      ...(a.extra && typeof a.extra.feePayer === "string" ? { feePayer: a.extra.feePayer.slice(0, 64) } : {}), // SVM exact/upto (0.23.0)
     };
   });
 }
