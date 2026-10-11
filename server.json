@@ -1,10 +1,19 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.withgrokbot/verified-catalog",
-  "title": "402xAgent (formerly Spot-Check)",
+  "title": "402xAgent",
   "description": "Check an x402 endpoint before your agent pays: pay, skip or recheck. Plus a verified x402 catalog.",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "websiteUrl": "https://402xagent.com/",
+  "icons": [
+    {
+      "src": "https://402xagent.com/apple-touch-icon.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "180x180"
+      ]
+    }
+  ],
   "repository": {
     "url": "https://github.com/withgrokbot/verified-catalog",
     "source": "github"
