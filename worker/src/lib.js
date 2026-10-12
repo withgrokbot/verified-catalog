@@ -19,7 +19,7 @@
 // Privacy: raw IPs are never stored. Without a `client` value the client id is a hash of the IP /24 (IPv6 /48)
 // plus the User-Agent, salted with a secret that changes every ISO week.
 // No runtime dependencies.
-import { REASON_TEXT } from "./recent.js";
+import { REASON_TEXT, publishable, publishRecent } from "./recent.js";
 import {
   PACK_ID, PACK_TITLE, PACK_SERVICE_NAME, PACK_TAGS, PACK_DESCRIPTION,
   PACK_PRICE_USD, PACK_DEFAULT_PRICE_ATOMIC, PACK_GUIDE_FILENAME, PACK_GUIDE_KV_KEY,
@@ -42,7 +42,8 @@ import { landingHtml } from "./landing.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.24.0";
+export const VERSION = "0.25.0";
+export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -922,7 +923,7 @@ export const SPOT_PAID_EXAMPLE = {
     amount_usd: 0.05,
     asset_is_usdc: true,
   },
-  payment_terms_sha256: "<sha256 of network|asset|amount_atomic|pay_to, lower-case>",
+  payment_terms_sha256: "<sha256 of network|asset|amount_atomic|pay_to (EVM lower-case; Solana mint/pay_to as-is)>",
   probe: { probed_at: "2026-10-10T17:00:00Z", cached: false, cache_ttl_s: 300 },
   check_type: "dry-run",
   receipt_id: "sc-0123456789abcdef",
@@ -932,10 +933,11 @@ export const SPOT_PAID_EXAMPLE = {
 export const SPOT_FREE_EXAMPLE = {
   verdict: "pay",
   reason: "listed $0.05, payment request matches, details locked",
-  payment_terms_sha256: "<sha256 of network|asset|amount_atomic|pay_to, lower-case>",
+  payment_terms_sha256: "<sha256 of network|asset|amount_atomic|pay_to (EVM lower-case; Solana mint/pay_to as-is)>",
   receipt_id: "sc-0123456789abcdef",
   receipt_url: "https://402xagent.com/v1/receipts/sc-0123456789abcdef",
   prior_checks: "https://402xagent.com/v1/skips",
+  upsell: FREE_UPSELL,
   access: { tier: "free", free_per_day: 1, free_used_today: 1, free_remaining_today: 0, then: "$0.01 USDC on Base for the full check of this endpoint via x402 (HTTP 402)" },
 };
 const SPOT_VERDICT_SCHEMA = { type: "string", enum: ["pay", "skip", "recheck"] };
@@ -1635,7 +1637,12 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     }
     // Free tier: verdict + plain reason + a hash of the approved terms (enough for x402-spotcheck to refuse a
     // different payment); the terms themselves, quoted/claimed price and pay-to are behind the paid 402.
-    if (access && access.tier === "free") return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), payment_terms_sha256: termsHash, ...receiptFields, prior_checks: PRIOR_CHECKS, access };
+    if (access && access.tier === "free") {
+      // 0.25.0: an outside free check with a clear verdict is listed in /v1/skips.json recent_checks (URL path only)
+      const pub = publishable({ tier: "free", verdict: d.verdict, botTag: spotExcluded, client: q.client, ref: q.ref, url: q.url });
+      if (pub && rid) await publishRecent(env, rid, pub);
+      return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), payment_terms_sha256: termsHash, ...receiptFields, prior_checks: PRIOR_CHECKS, upsell: FREE_UPSELL, access };
+    }
     const acc = Array.isArray(probe.accepts) ? probe.accepts.find((a) => a && a.payTo) : null;
     return {
       verdict: d.verdict,

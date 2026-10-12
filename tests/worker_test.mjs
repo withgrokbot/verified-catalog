@@ -110,7 +110,7 @@ globalThis.fetch = async (url, init = {}) => {
     const body = { x402Version: 2, error: "Payment required", resource: { url: u }, accepts: acc || [one({})] };
     return new Response(JSON.stringify(body), { status: 402, headers: { "content-type": "application/json", "payment-required": btoa(JSON.stringify(body)) } });
   }
-  if (u.startsWith("https://spot.target.test/") || u.startsWith("https://x402.example.test/")) {
+  if (u.startsWith("https://spot.target.test/") || u.startsWith("https://x402.example.test/") || u.startsWith("https://api.realx402.dev/") || u.startsWith("https://other.realx402.dev/") || u.startsWith("https://example.com/") || u.startsWith("https://httpbin.org/")) {
     lastSpotFetchInit = init || {};
     if (spotTargetMode === "timeout") {
       const err = new Error("timeout"); err.name = "AbortError"; throw err;
@@ -852,7 +852,8 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   assert.equal(r.body.verdict, "pay");
   assert.equal(r.body.reason, "listed $0.001, payment request matches, details locked");
   // free tier: verdict + plain reason + access only (quoted/claimed price, pay_to, network, asset are paid)
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "payment_terms_sha256", "prior_checks", "reason", "receipt_id", "receipt_url", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "payment_terms_sha256", "prior_checks", "reason", "receipt_id", "receipt_url", "upsell", "verdict"]);
+  assert.equal(r.body.upsell, "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01");
   assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.match(r.body.payment_terms_sha256, /^[0-9a-f]{64}$/);
   assert.ok(lastSpotFetchInit);
@@ -1238,8 +1239,19 @@ function fakeD1() {
       return {
         bind(...a) {
           return {
-            async run() { if (/^INSERT/.test(sql)) { if (rows.some((r) => r.id === a[0])) throw new Error("UNIQUE"); rows.push({ id: a[0], url: a[1], created_at: a[2], verdict: a[3], reason: a[4], check_type: a[5], ref: a[6], norm_key: a[7], probed_at: a[8], body: a[9] }); } return { success: true }; },
+            async run() {
+              if (/^UPDATE spot_receipts SET pub_url/.test(sql)) {
+                const r = rows.find((x) => x.id === a[2] && !x.pub_url);
+                if (rows.some((x) => x.pub_day === a[1] && x.pub_url === a[0])) throw new Error("UNIQUE pub");
+                if (r) Object.assign(r, { pub_url: a[0], pub_day: a[1] });
+                return { success: true };
+              }
+              if (/^INSERT/.test(sql)) { if (rows.some((r) => r.id === a[0])) throw new Error("UNIQUE"); rows.push({ id: a[0], url: a[1], created_at: a[2], verdict: a[3], reason: a[4], check_type: a[5], ref: a[6], norm_key: a[7], probed_at: a[8], body: a[9] }); } return { success: true }; },
             async all() {
+              if (/WHERE pub_url IS NOT NULL ORDER BY/.test(sql)) {
+                const out = rows.filter((r) => r.pub_url).sort((x, y) => (x.created_at === y.created_at ? (x.id < y.id ? 1 : -1) : x.created_at < y.created_at ? 1 : -1));
+                return { results: out.slice(0, a[0]) };
+              }
               // SELECT ... WHERE check_type = ? [AND ref = ?] [AND (created_at < ? OR (created_at = ? AND id < ?))] ORDER BY created_at DESC, id DESC LIMIT ?
               let i = 0;
               const type = a[i++];
@@ -1252,6 +1264,11 @@ function fakeD1() {
               return { results: out.slice(0, lim) };
             },
             async first() {
+              if (/COUNT\(\*\) AS n/.test(sql)) {
+                const d = rows.filter((r) => r.pub_day === a[2] && r.pub_url);
+                const pre = a[1].slice(0, -1);
+                return { n: d.length, same: d.filter((r) => r.pub_url === a[0]).length, host: d.filter((r) => r.pub_url.startsWith(pre)).length };
+              }
               if (/WHERE id = \?/.test(sql)) return rows.find((r) => r.id === a[0]) || null;
               if (/WHERE norm_key = \?/.test(sql)) return rows.filter((r) => r.norm_key === a[0] && r.probed_at >= a[1]).sort((x, y) => (x.probed_at < y.probed_at ? 1 : -1))[0] || null;
               if (/WHERE url = \?/.test(sql)) return rows.filter((r) => r.url === a[0]).sort((x, y) => (x.created_at < y.created_at ? 1 : x.created_at > y.created_at ? -1 : 0))[0] || null;
@@ -1972,6 +1989,57 @@ test("0.24.0: outside free/dry-run receipts redacted in every view; paid/exempt 
   // MCP receipt reads go through the same view
   const m = await send("/mcp", { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_receipt", arguments: { id: free.body.receipt_id } } }), envo: e });
   if (m.body && m.body.result && !m.body.result.isError) assert.ok(!JSON.stringify(m.body).includes(PAY_TO), "mcp view redacted");
+});
+
+test("0.25.0: recent_checks in /v1/skips.json: outside free checks only, URL path only, no price/terms; deduped; capped", async () => {
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db });
+  spotTargetMode = "402";
+  let n = 0;
+  const chk = (u, extra = "", o = {}) => send(SPOT + "?url=" + encodeURIComponent(u) + "&claimed_price=0.001" + (extra.includes("client=") ? "" : "&client=outside-" + ++n) + extra, { envo: e, ...o });
+  const R = "https://api.realx402.dev/v1/quote";
+  const a = await chk(R + "?api_key=SECRET999#x");
+  assert.equal(a.body.upsell, "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01");
+  await chk(R); // same URL, same UTC day: deduped
+  // not published: junk, tests, bots, secrets
+  await chk("https://example.com/api/paid");
+  await chk("https://httpbin.org/status/402");
+  await chk("https://api.realx402.dev/a", "&client=withgrokbot-selftest");
+  await chk("https://api.realx402.dev/b", "&client=wgb-test-1");
+  await chk("https://api.realx402.dev/c", "&ref=via-402xagent-site");
+  await chk("https://api.realx402.dev/d", "&mode=dry-run");
+  await chk("https://api.realx402.dev/e", "", { ua: "PayAI-Bazaar-Indexer/1.0" });
+  await chk("https://api.realx402.dev/key/abc", "");
+  await chk("https://api.realx402.dev/v1/Zx9Qr7Lm2Kp8Vt4Wn6Yb3Hc5", "");
+  await chk("https://user:pw@api.realx402.dev/f", "");
+  const sk = (await send("/v1/skips.json", { envo: e })).body;
+  assert.ok(Array.isArray(sk.skips) && "endpoints_covered" in sk, "existing structure unchanged");
+  assert.equal(sk.recent_checks.length, 1, JSON.stringify(sk.recent_checks));
+  const x = sk.recent_checks[0];
+  assert.deepEqual(Object.keys(x), ["url", "verdict", "reason", "checked_at", "receipt_url", "caller"]);
+  assert.deepEqual([x.url, x.verdict, x.reason, x.caller, x.receipt_url], [R, "pay", "payment request matches", "outside", "https://402xagent.com/v1/receipts/" + a.body.receipt_id]);
+  assert.match(x.checked_at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+  const txt = JSON.stringify(sk.recent_checks);
+  assert.ok(!/SECRET999|0\.001|\$|0x[0-9a-fA-F]{40}|sha256|eip155/.test(txt), txt);
+  // the linked receipt is the redacted view
+  const rc = (await send("/v1/receipts/" + a.body.receipt_id, { envo: e })).body;
+  assert.equal(rc.approved_payment, null); assert.ok(rc.redacted);
+  // per-host cap: 5 per host per UTC day
+  for (let i = 0; i < 7; i++) await chk("https://other.realx402.dev/p" + i);
+  const sk2 = (await send("/v1/skips?format=json", { envo: e })).body.recent_checks;
+  assert.equal(sk2.filter((r) => r.url.startsWith("https://other.realx402.dev/")).length, 5);
+  // recheck verdicts count too; the free answer is otherwise unchanged
+  spotTargetMode = "timeout";
+  const t = await chk("https://api.realx402.dev/slow");
+  spotTargetMode = "402";
+  assert.equal(t.body.verdict, "recheck");
+  assert.ok((await send("/v1/skips.json", { envo: e })).body.recent_checks.some((r) => r.url === "https://api.realx402.dev/slow" && r.verdict === "recheck"));
+  // unit: URL privacy rules
+  const { publicUrl, secretLike } = await import("../worker/src/recent.js");
+  assert.equal(publicUrl("https://API.Real.dev:8443/a/b/?q=1#f"), "https://api.real.dev:8443/a/b");
+  for (const bad of ["https://u@x.dev/a", "http://10.0.0.1/a", "https://x.dev/t/eyJhbGciOiJIUzI1NiJ9.e30.x", "https://x.dev/sk_live_abcdef123456", "https://x.dev/" + "a1".repeat(20), "https://x.dev/token/abc", "https://localhost/a", "https://foo.example.org/a"])
+    assert.equal(publicUrl(bad), null, bad);
+  assert.equal(secretLike("v1"), false); assert.equal(secretLike("polymarket-positions"), false);
 });
 
 let passed = 0;
