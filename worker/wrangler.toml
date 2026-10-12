@@ -91,3 +91,7 @@ binding = "RECEIPTS_DB"
 database_name = "vc-spot-receipts"
 database_id = "35d1d852-ad3f-471e-9fc6-5b9a9d341e08"
 migrations_dir = "migrations"
+
+# 0.26.0: lean /bazaar refresh; idle steps are one KV read
+[triggers]
+crons = ["*/20 * * * *"]

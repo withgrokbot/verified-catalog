@@ -39,10 +39,11 @@ import {
 import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skips.js";
 import { RECEIPTS } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
+import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.25.1";
+export const VERSION = "0.26.0";
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
@@ -1379,6 +1380,7 @@ export function normReceipt(r) {
 // and our own exempt/self-checked receipts stay full. Rows stored before 0.24.0 carry no tier: full only when self.
 const FULL_TIERS = new Set(["paid", "router-prepaid", "exempt"]);
 export function receiptIsFull(r) {
+  if (r.access_tier === "bazaar") return false; // 0.26.0: /bazaar self-checks link the public (redacted) view
   return r.check_type === "self-checked" || r.caller === "self-test" || FULL_TIERS.has(r.access_tier);
 }
 export function redactReceipt(r) {
@@ -1632,7 +1634,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const rid = env.RECEIPTS_DB ? newReceiptId() : null;
     const receiptFields = { receipt_id: rid, receipt_url: rid ? CANON_ORIGIN + "/v1/receipts/" + rid : null };
     if (rid) {
-      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: (access && access.tier) || null });
+      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : (access && access.tier) || null });
       await saveLiveReceipt(env, rec); // awaited: the next call's cache lookup must see it
     }
     // Free tier: verdict + plain reason + a hash of the approved terms (enough for x402-spotcheck to refuse a
@@ -2820,6 +2822,12 @@ export const handler = {
     }
     return routeInner(req, env, ctx, url, path);
   },
+  // 0.26.0: lean /bazaar refresh (see bazaar.js); idle steps cost one KV read.
+  async scheduled(event, env, ctx) {
+    if (env.BAZAAR_PAGE === "off") return;
+    const runCheck = (u) => { const url = new URL(u); return handleEndpointSpotCheck(new Request(url, { method: "GET", headers: { accept: "application/json", "user-agent": "402xagent-bazaar/1" } }), env, ctx, url); };
+    await bazaarStep(env, { now: new Date(event && event.scheduledTime ? event.scheduledTime : Date.now()), runCheck, origin: API_ORIGIN });
+  },
 };
 
 // 0.11.0: one cheap Analytics Engine point per hit on the routes that had none (pack, skips, receipts, docs).
@@ -2827,6 +2835,7 @@ export const handler = {
 export function viewName(path) {
   if (path === "/v1/products/overnight-cos-pack") return "pack";
   if (path === "/v1/skips" || path === "/v1/skips.json") return "skips";
+  if (path === "/bazaar" || path === "/bazaar.json") return "bazaar";
   if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return "receipts";
   if (path === "/openapi.json") return "docs-openapi";
   if (path === "/llms.txt") return "docs-llms";
@@ -2919,6 +2928,7 @@ const routeInnerHolder = {
       return json(spotBadRequest(API_ORIGIN, "method", `Unsupported method ${String(req.method).slice(0, 10)}; use GET or POST`, { mistake: "http_method", hint: "Use GET with ?url=<endpoint>, or POST a JSON body {\"url\":\"<endpoint>\"}.", fixed_example: { method: "GET", url: FREE_CHECK_EXAMPLE_URL } }), 400);
     if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405, { allow: "GET, OPTIONS" });
     if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env);
+    if ((path === "/bazaar" || path === "/bazaar.json") && env.BAZAAR_PAGE !== "off") return handleBazaar(req, url, env, path, CANON_ORIGIN);
     if (path === "/v1/receipts/by-url" || /^\/v1\/receipts\/sc-/.test(path)) return handleLiveReceipts(req, env, url, path);
     if (path === "/v1/receipts" && url.searchParams.has("type")) return handleReceiptList(env, url);
     if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return handleReceipts(url, env);
