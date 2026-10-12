@@ -2047,6 +2047,57 @@ test("0.25.0: recent_checks in /v1/skips.json: outside free checks only, URL pat
   assert.equal(secretLike("v1"), false); assert.equal(secretLike("polymarket-positions"), false);
 });
 
+test("0.26.0: /bazaar: daily cron checks Bazaar results as self-checked, redacted receipts, no query strings, off switch", async () => {
+  const db = fakeD1();
+  const store = new Map();
+  const kv = { get: async (k, t) => (store.has(k) ? (t === "json" ? JSON.parse(store.get(k)) : store.get(k)) : null), put: async (k, v) => { store.set(k, v); } };
+  const e = spotEnv({ RECEIPTS_DB: db, CRAWL_KV: kv });
+  spotTargetMode = "402";
+  const empty = await send("/bazaar.json", { envo: e });
+  assert.equal(empty.status, 200); assert.equal(empty.body.rows.length, 0);
+  const orig = globalThis.fetch; let searches = 0, other = 0;
+  globalThis.fetch = async (u, init) => {
+    if (String(u).startsWith("https://api.cdp.coinbase.com/platform/v2/x402/discovery/search")) {
+      searches++;
+      const q = new URL(String(u)).searchParams.get("query");
+      const res = Array.from({ length: 14 }, (_, i) => ({ resource: `https://api.realx402.dev/${q.split(" ")[0]}/${i}?key=SECRET1`, serviceName: "S" + i, extensions: { bazaar: { info: { input: { method: i === 1 ? "POST" : "GET" } } } }, accepts: [{ scheme: "exact", network: "eip155:8453", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", amount: "1000", payTo: "0x" + "aa".repeat(20) }] }));
+      res.push({ resource: "https://example.com/x" }, { resource: "https://api.realx402.dev/p/:address" }, { resource: "https://api.realx402.dev/p/{id}" }, { resource: "https://api.realx402.dev/weather/0" });
+      return Response.json({ resources: res });
+    }
+    other++;
+    return orig(u, init);
+  };
+  try {
+    const ctx = { waitUntil() {} };
+    let steps = 0;
+    do { await worker.scheduled({ scheduledTime: Date.now() }, e.env, ctx); steps++; } while (JSON.parse(store.get("bazaar:v1")).build && steps < 20);
+    assert.equal(searches, 3);
+    assert.ok(steps <= 6, "steps " + steps);
+    other = 0; await worker.scheduled({ scheduledTime: Date.now() }, e.env, ctx);
+    assert.equal(searches, 3); assert.equal(other, 0, "idle step makes no subrequests");
+  } finally { globalThis.fetch = orig; }
+  const j = (await send("/bazaar.json", { envo: e })).body;
+  assert.equal(j.rows.length, 42);
+  assert.deepEqual(j.queries, ["weather forecast", "crypto token price", "web search"]);
+  assert.equal(j.counts.pay + j.counts.skip + j.counts.recheck, 42);
+  assert.ok(!JSON.stringify(j).includes("SECRET1") && !JSON.stringify(j).includes("?"), "no query strings");
+  assert.ok(j.rows.every((r) => r.receipt_url && r.reason_text && ["pay", "skip", "recheck"].includes(r.verdict)));
+  assert.equal(j.rows.find((r) => r.rank === 2).method, "POST");
+  // receipts: self-checked, stored as bazaar tier, shown redacted
+  const row = db.rows.find((r) => j.rows[0].receipt_url.endsWith(r.id));
+  assert.equal(row.check_type, "self-checked"); assert.equal(JSON.parse(row.body).access_tier, "bazaar");
+  const rec = (await send("/v1/receipts/" + row.id, { envo: e })).body;
+  assert.equal(JSON.stringify(rec).includes("aaaaaaaaaa"), false, "receipt redacted: no pay_to");
+  // never in recent_checks
+  assert.equal(((await send("/v1/skips.json", { envo: e })).body.recent_checks || []).length, 0);
+  // HTML only for browsers
+  const html = await worker.fetch(new Request("https://402xagent.com/bazaar", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} });
+  assert.match(html.headers.get("content-type"), /text\/html/); assert.match(await html.text(), /Bazaar check/);
+  // off switch: route gone, cron does nothing
+  const off = spotEnv({ CRAWL_KV: kv, BAZAAR_PAGE: "off" });
+  assert.equal((await send("/bazaar.json", { envo: off })).status, 404);
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {
