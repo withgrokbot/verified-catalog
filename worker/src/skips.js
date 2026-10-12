@@ -2,6 +2,7 @@
 // 0.11.0: the weekly crawl covers every listed endpoint. Page 1 of skips is bundled (receipts-data.js); every receipt
 // and every other skip page lives in the CRAWL_KV namespace (c:<id[0:2]> shards, s:<n> pages), written by receipts/scripts.
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
+import { recentChecks, RECENT_MAX } from "./recent.js";
 import { CANON_ORIGIN, API_ORIGIN, SPOT_SERVICE_NAME, FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE } from "./spotcheck.js";
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -97,6 +98,10 @@ export async function handleSkips(req, url, env = {}) {
       ...skipsSummary(origin),
       page, pages, next: page < pages ? nav(page + 1) : null, prev: page > 1 ? nav(page - 1) : null,
       skips: skips.map((r) => ({ ...r, permalink: origin + "/v1/receipts/" + r.id })),
+      // 0.25.0: latest outside free checks, newest first: url (scheme://host/path only), verdict, short reason (no
+      // price), checked_at (UTC), receipt_url (redacted view), caller. Same on every page.
+      recent_checks_note: `latest ${RECENT_MAX} outside free checks with a clear verdict; one per endpoint per UTC day; query strings removed`,
+      recent_checks: await recentChecks(env, origin),
     });
   const rows = skips
     .map((r) => {
