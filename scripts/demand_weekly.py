@@ -99,7 +99,7 @@ def query_ae(since, sql=sql_rows):
 NOT_REAL = {"self", "uptime", "crawler", "scanner", "example-param", "indexer", "ssrf-probe", "dry-run"}  # dry-run: Worker 0.13.0 free dry runs (blob6/blob13)
 INDEXER_UA = re.compile(r"(bazaar|indexer|index-bot|probe|verifier|scout|x402watch|collector|doctor|x402lens|lens\b|conformance|discovery|registry|trustindex|agenstry|brickblue|pennywise|allow402|easy402|x402scan|settled|observer|touchstone|catalog-bot|directory)", re.I)
 EXAMPLE_HOST = re.compile(r"^(?:[^/]*\.)?(?:example\.(?:com|org|net)|[^/]+\.example|[^/]+\.test|[^/]+\.invalid|localhost)$", re.I)
-OUR_CLIENT = re.compile(r"^c:(wgb-|router-selftest|mx|maxverify|hermes-probe|withgrokbot|discovery-seed|sam-selftest|agent$|hint-|ship-|beacon|daily-review|selftest|test)")
+OUR_CLIENT = re.compile(r"^c:(outside-verify-|wgb-|router-selftest|mx|maxverify|hermes-probe|withgrokbot|discovery-seed|sam-selftest|agent$|hint-|ship-|beacon|daily-review|selftest|test)")
 OUR_REF = re.compile(r"^(selftest|e2e-test|discovery-seed|ship-|x402-spotcheck$)")  # our own test refs (via-x402-spotcheck is real use)
 KNOWN_INDEXER_CLIENT = {"c:payapi"}  # marketplace listing verifier + its monitors (ANALYTICS_2026-10-09.md)
 

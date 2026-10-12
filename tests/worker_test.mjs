@@ -2006,6 +2006,7 @@ test("0.25.0: recent_checks in /v1/skips.json: outside free checks only, URL pat
   await chk("https://httpbin.org/status/402");
   await chk("https://api.realx402.dev/a", "&client=withgrokbot-selftest");
   await chk("https://api.realx402.dev/b", "&client=wgb-test-1");
+  await chk("https://api.realx402.dev/b2", "&client=outside-verify-2"); // 0.25.1: our verification clients
   await chk("https://api.realx402.dev/c", "&ref=via-402xagent-site");
   await chk("https://api.realx402.dev/d", "&mode=dry-run");
   await chk("https://api.realx402.dev/e", "", { ua: "PayAI-Bazaar-Indexer/1.0" });
@@ -2034,6 +2035,10 @@ test("0.25.0: recent_checks in /v1/skips.json: outside free checks only, URL pat
   spotTargetMode = "402";
   assert.equal(t.body.verdict, "recheck");
   assert.ok((await send("/v1/skips.json", { envo: e })).body.recent_checks.some((r) => r.url === "https://api.realx402.dev/slow" && r.verdict === "recheck"));
+  // 0.25.1: a row retagged self-checked stays listed with caller "self-checked"
+  const row = db.rows.find((r) => r.id === a.body.receipt_id); row.check_type = "self-checked";
+  assert.equal((await send("/v1/skips.json", { envo: e })).body.recent_checks.find((r) => r.receipt_url.endsWith(a.body.receipt_id)).caller, "self-checked");
+  row.check_type = "dry-run";
   // unit: URL privacy rules
   const { publicUrl, secretLike } = await import("../worker/src/recent.js");
   assert.equal(publicUrl("https://API.Real.dev:8443/a/b/?q=1#f"), "https://api.real.dev:8443/a/b");

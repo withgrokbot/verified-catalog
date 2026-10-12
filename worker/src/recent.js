@@ -26,7 +26,7 @@ export const RECENT_PER_HOST_PER_DAY = 5; // one host cannot flood the list
 
 
 // Own test clients / refs (mirrors app/scripts/demand_weekly.py OUR_CLIENT / OUR_REF) and our site's try-it box.
-const OWN_CLIENT_RE = /^(wgb-|withgrokbot|router-selftest|mx|maxverify|hermes-probe|discovery-seed|sam-selftest|agent$|hint-|ship-|beacon|daily-review|selftest|test|e2e)/i;
+const OWN_CLIENT_RE = /^(outside-verify-|wgb-|withgrokbot|router-selftest|mx|maxverify|hermes-probe|discovery-seed|sam-selftest|agent$|hint-|ship-|beacon|daily-review|selftest|test|e2e)/i;
 const OWN_REF_RE = /^(selftest|e2e-test|discovery-seed|ship-|dry-run|via-402xagent-site|x402-spotcheck$)/i;
 const JUNK_HOST_RE = /(^|\.)(example\.(com|org|net)|httpbin\.org|localhost|invalid|test|local|internal|example)$|^httpbin\./i;
 const SECRET_WORD_RE = /^(token|tokens|key|keys|apikey|api-key|api_key|secret|secrets|auth|session|sig|signature|password|pass|jwt|bearer|access[-_]?token)$/i;
@@ -90,8 +90,9 @@ export async function publishRecent(env, receiptId, pubUrl, now = new Date()) {
 export async function recentChecks(env, origin) {
   if (!env.RECEIPTS_DB) return [];
   try {
-    const { results } = await env.RECEIPTS_DB.prepare("SELECT id, pub_url, verdict, reason, created_at FROM spot_receipts WHERE pub_url IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT ?").bind(RECENT_MAX).all();
-    return (results || []).map((r) => ({ url: r.pub_url, verdict: r.verdict, reason: shortReason(r.reason), checked_at: r.created_at, receipt_url: origin + "/v1/receipts/" + r.id, caller: "outside" }));
+    const { results } = await env.RECEIPTS_DB.prepare("SELECT id, pub_url, verdict, reason, created_at, check_type FROM spot_receipts WHERE pub_url IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT ?").bind(RECENT_MAX).all();
+    // caller: "self-checked" for our own rows (e.g. a retagged verification call), else "outside"
+    return (results || []).map((r) => ({ url: r.pub_url, verdict: r.verdict, reason: shortReason(r.reason), checked_at: r.created_at, receipt_url: origin + "/v1/receipts/" + r.id, caller: r.check_type === "self-checked" ? "self-checked" : "outside" }));
   } catch (_) {
     return [];
   }
