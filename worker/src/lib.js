@@ -19,6 +19,7 @@
 // Privacy: raw IPs are never stored. Without a `client` value the client id is a hash of the IP /24 (IPv6 /48)
 // plus the User-Agent, salted with a secret that changes every ISO week.
 // No runtime dependencies.
+import { REASON_TEXT } from "./recent.js";
 import {
   PACK_ID, PACK_TITLE, PACK_SERVICE_NAME, PACK_TAGS, PACK_DESCRIPTION,
   PACK_PRICE_USD, PACK_DEFAULT_PRICE_ATOMIC, PACK_GUIDE_FILENAME, PACK_GUIDE_KV_KEY,
@@ -41,7 +42,7 @@ import { landingHtml } from "./landing.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.23.1";
+export const VERSION = "0.24.0";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -1264,10 +1265,20 @@ export function liveDemand(probe) {
 // 0.14.0: every Spot-Check call that probes (or is SSRF-blocked) is stored. check_type: "self-checked" for our own
 // exempt self-test client (crawls are self-checked too), "dry-run" for everyone else; mode says whether the caller
 // asked for a dry run. probe_snapshot is the cached live probe that makes the decision repeatable for SPOT_PROBE_CACHE_S.
-export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText, pm, termsHash, exp, now = new Date(), checkType = "dry-run", mode = "live", ref = "", caller = null, probedAt = null, cached = false, normKey = null }) {
+// 0.24.0: stored and shown URLs are scheme://host[:port]/path only; query and fragment (keys, user data) are dropped.
+export function storedUrl(u) {
+  try {
+    const x = new URL(String(u || ""));
+    return `${x.protocol}//${x.host}${x.pathname}`;
+  } catch (_) {
+    return String(u || "").split(/[?#]/)[0];
+  }
+}
+export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText, pm, termsHash, exp, now = new Date(), checkType = "dry-run", mode = "live", ref = "", caller = null, probedAt = null, cached = false, normKey = null, accessTier = null }) {
   return {
     id,
-    url,
+    url: storedUrl(url),
+    access_tier: accessTier,
     method,
     checked_at: now.toISOString().replace(/\.\d{3}Z$/, "Z"),
     check_type: checkType,
@@ -1295,7 +1306,7 @@ export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText
     approved_payment: pm,
     payment_terms_sha256: termsHash,
     probe_snapshot: probeSnapshot(probe),
-    norm_key: normKey,
+    norm_key: normKey, // 0.24.0: a sha256 of the normalized URL + method (never the raw query)
     worker_version: VERSION,
     permalink: origin + "/v1/receipts/" + id,
   };
@@ -1308,6 +1319,10 @@ export function probeKey(u, method) {
   try { n = normUrl(u); } catch (_) {}
   return n + " " + String(method || "GET").toUpperCase();
 }
+// 0.24.0: the cache key is stored hashed, so a query string in the probed URL never lands in D1.
+export async function probeKeyHash(u, method) {
+  return "k:" + (await sha256hex(probeKey(u, method)));
+}
 export function probeSnapshot(p) {
   if (!p) return null;
   const keep = ["reachable", "http_status", "ssrf_blocked", "error", "x402_challenge", "accepts", "quoted_price_usd", "known_answer", "free_trial", "body_truncated"];
@@ -1316,7 +1331,7 @@ export function probeSnapshot(p) {
   return o;
 }
 async function getProbe(env, q, probeOpts, now = new Date()) {
-  const key = probeKey(q.url, q.method);
+  const key = await probeKeyHash(q.url, q.method);
   const ttl = env.SPOT_PROBE_CACHE_S != null && /^\d+$/.test(String(env.SPOT_PROBE_CACHE_S)) ? Number(env.SPOT_PROBE_CACHE_S) : SPOT_PROBE_CACHE_S;
   if (env.RECEIPTS_DB && ttl > 0) {
     try {
@@ -1353,8 +1368,32 @@ export function normReceipt(r) {
   // 0.17.0: rows stored under an earlier brand/host are served with the current service name and canonical permalink.
   if (r.id) r = { ...r, service: SPOT_SERVICE_NAME, permalink: CANON_ORIGIN + "/v1/receipts/" + r.id };
   for (const k of ["ref", "caller"]) if (typeof r[k] === "string" && /payscout/i.test(r[k])) r = { ...r, [k]: r[k].replace(/payscout/gi, "402xagent") }; // old site tag
-  if (!["live", "dry-run", "self-checked"].includes(r.check_type)) return { ...r, check_type: "live", check_note: r.check_type || null };
-  return r;
+  if (r.url) r = { ...r, url: storedUrl(r.url) };
+  if (!["live", "dry-run", "self-checked"].includes(r.check_type)) r = { ...r, check_type: "live", check_note: r.check_type || null };
+  return redactReceipt(r);
+}
+// 0.24.0: receipts from OUTSIDE free checks and dry runs show verdict + reason only; the 402 terms (network, asset,
+// amount, pay_to), the approved payment and the cached probe are what the paid check sells. Paid (paid, router-prepaid)
+// and our own exempt/self-checked receipts stay full. Rows stored before 0.24.0 carry no tier: full only when self.
+const FULL_TIERS = new Set(["paid", "router-prepaid", "exempt"]);
+export function receiptIsFull(r) {
+  return r.check_type === "self-checked" || r.caller === "self-test" || FULL_TIERS.has(r.access_tier);
+}
+export function redactReceipt(r) {
+  if (!r || receiptIsFull(r)) return r;
+  const o = { ...r };
+  const ld = o.live_demand || {};
+  o.live_demand = { http_status: ld.http_status ?? null, x402_challenge: !!ld.x402_challenge, ...(ld.schemes ? { schemes: ld.schemes } : {}), ...(ld.free_trial !== undefined ? { free_trial: ld.free_trial } : {}), ...(ld.error !== undefined ? { error: ld.error } : {}) };
+  const l4 = o.live_402 || {};
+  o.live_402 = { http_status: l4.http_status ?? null, x402_challenge: !!l4.x402_challenge, accepts_count: Array.isArray(l4.accepts) ? l4.accepts.length : 0, error: l4.error ?? null, free_trial: l4.free_trial ?? null };
+  if (o.listing) o.listing = { source: o.listing.source || null };
+  if (o.expected) o.expected = { source: o.expected.source || null };
+  o.approved_payment = null;
+  o.reason_text = REASON_TEXT[o.reason] || o.reason_text || null; // no claimed/listed price
+  delete o.probe_snapshot;
+  delete o.norm_key;
+  o.redacted = "free check: the 402 terms and the approved payment are in the paid check";
+  return o;
 }
 export async function getLiveReceipt(env, id) {
   if (!env.RECEIPTS_DB || !LIVE_RECEIPT_RE.test(id)) return null;
@@ -1404,7 +1443,7 @@ async function handleLiveReceipts(req, env, url, path) {
     const target = String(url.searchParams.get("url") || "").trim().slice(0, 2000);
     if (!target) return rj({ error: 'Missing "url". Example: ' + CANON_ORIGIN + "/v1/receipts/by-url?url=https://api.402rates.com/v1/ping", field: "url" }, 400);
     let live = null;
-    try { live = await latestLiveReceipt(env, target); } catch (_) { return rj({ error: "receipt store unavailable, try again shortly" }, 503); }
+    try { live = await latestLiveReceipt(env, storedUrl(target)); } catch (_) { return rj({ error: "receipt store unavailable, try again shortly" }, 503); }
     const crawl = await listingForAsync(env, target);
     if (!live && !crawl) return rj({ error: "no receipt for this url yet", url: target, check_now: API_ORIGIN + "/v1/products/endpoint-spot-check?url=" + encodeURIComponent(target) }, 404);
     return rj({
@@ -1550,22 +1589,7 @@ export function spotDynCfg(c, quotedUsd) {
 // Free-tier reason: names the loss in plain words; quoted price, claimed-vs-quoted detail and pay-to stay behind the 402.
 export function spotLossReason(d, claimed) {
   const listed = claimed !== null && claimed !== undefined && claimed !== "" ? `listed $${Number(claimed)}` : "price unlisted";
-  const what = {
-    no_x402: "no payment request",
-    no_paywall: "no paywall (no payment request)",
-    server_error: "server error, check again",
-    network_unsupported: "asks for a network we do not support (testnet or unknown)",
-    free_trial_active: "seller reports a free trial in use, no payment terms yet, check again",
-    price_mismatch: "asks a different price than listed",
-    timeout: "endpoint timed out, check again",
-    unreachable: "endpoint unreachable, check again",
-    ambiguous: "payment request unclear",
-    bad_challenge: "payment request unreadable",
-    price_ok: "payment request matches",
-    network_mismatch: "asks for a different network than expected",
-    pay_to_mismatch: "pays a different wallet than expected",
-    asset_not_usdc: "asks for a token other than USDC",
-  }[d.reason] || d.reason;
+  const what = REASON_TEXT[d.reason] || d.reason;
   if (d.reason === "free_trial_active" && d.free_trial_remaining != null) return `${listed}, ${what} (${d.free_trial_remaining} trial calls left), details locked`;
   if (d.reason === "price_ok" && listed === "price unlisted") return "payment request found, pass claimed_price to compare, details locked";
   return `${listed}, ${what}, details locked`;
@@ -1606,7 +1630,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const rid = env.RECEIPTS_DB ? newReceiptId() : null;
     const receiptFields = { receipt_id: rid, receipt_url: rid ? CANON_ORIGIN + "/v1/receipts/" + rid : null };
     if (rid) {
-      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key });
+      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: (access && access.tier) || null });
       await saveLiveReceipt(env, rec); // awaited: the next call's cache lookup must see it
     }
     // Free tier: verdict + plain reason + a hash of the approved terms (enough for x402-spotcheck to refuse a
@@ -1817,7 +1841,7 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
   const d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pickPayment(probe, exp), exp), probe, q, listing);
   const rid = newReceiptId();
   const reason = spotLossReason(d, exp.claimed).replace(/, details locked$/, "");
-  const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: reason, pm: null, termsHash: null, exp, checkType: exempt ? "self-checked" : "dry-run", mode: "dry-run", ref: q.ref, caller: q.dry_caller || (exempt ? "self-test" : null), probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key });
+  const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: reason, pm: null, termsHash: null, exp, checkType: exempt ? "self-checked" : "dry-run", mode: "dry-run", ref: q.ref, caller: q.dry_caller || (exempt ? "self-test" : null), probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: exempt ? "exempt" : "dry-run" });
   if (!(await saveLiveReceipt(env, rec))) { point(503, "dry-run-store-failed"); return json({ error: "dry runs are always stored as receipts; storing failed, try again shortly", mode: "dry-run" }, 503); }
   point(200, "dry-run", d.verdict);
   return json({
