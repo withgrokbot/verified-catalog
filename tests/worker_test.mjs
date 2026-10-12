@@ -1283,8 +1283,12 @@ test("public receipts: every delivered decision is stored; GET by id and by-url 
   assert.equal(got.body.verdict, "pay");
   assert.equal(got.body.reason, "price_ok");
   assert.match(got.body.checked_at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
-  assert.deepEqual(got.body.live_402.accepts[0], { scheme: "exact", network: "eip155:8453", asset: USDC, amount_atomic: "1000", pay_to: PAY_TO });
-  assert.equal(got.body.approved_payment.amount_atomic, "1000");
+  // 0.24.0: an outside free receipt is redacted (terms + approved payment are the paid check); D1 keeps the full body
+  assert.deepEqual(got.body.live_402, { http_status: 402, x402_challenge: true, accepts_count: 1, error: null, free_trial: null });
+  assert.equal(got.body.approved_payment, null);
+  assert.equal(got.body.access_tier, "free");
+  assert.ok(!JSON.stringify(got.body).includes(PAY_TO) && !JSON.stringify(got.body).includes("probe_snapshot"));
+  assert.ok(db.rows[0].body.includes(PAY_TO), "stored body stays full (cache + paid view)");
   assert.equal(got.body.payment_terms_sha256, free.body.payment_terms_sha256);
   // a later decision for the same URL becomes the latest
   await new Promise((r) => setTimeout(r, 1100));
@@ -1479,8 +1483,8 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   const rec = (await send("/v1/receipts/" + r.body.receipt_id, { envo: e })).body;
   assert.equal(rec.check_type, "dry-run");
   assert.equal(rec.url, "https://spot.target.test/api");
-  assert.deepEqual(rec.listing, { claimed_price_usd: 0.001, pay_to: null, network: null, source: "request" });
-  assert.deepEqual(rec.live_demand, { http_status: 402, x402_challenge: true, schemes: ["exact"], terms: [{ scheme: "exact", network: "eip155:8453", asset: USDC, amount_atomic: "1000", pay_to: PAY_TO }] });
+  assert.deepEqual(rec.listing, { source: "request" }); // 0.24.0: outside dry runs are redacted
+  assert.deepEqual(rec.live_demand, { http_status: 402, x402_challenge: true, schemes: ["exact"] });
   assert.deepEqual([rec.verdict, rec.reason, rec.ref, rec.caller, rec.approved_payment, rec.payment_terms_sha256], ["pay", "price_ok", "via-agentkit", "via-agentkit", null, null]);
   assert.match(rec.checked_at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
   assert.ok(!db.rows[0].body.includes("dry-client-1") && !db.rows[0].body.includes("203.0.113"), "no client id or IP in the receipt");
@@ -1927,6 +1931,47 @@ test("0.23.1: upto on Solana only (Base upto-only stays skip/bad_challenge); ter
   // live path: the Solana fixture's free-tier hash is the case-kept one
   const f = await send(SPOT + "?url=" + encodeURIComponent("https://sol.target.test/good") + "&client=sol-hash-1", { envo: e });
   assert.equal(f.body.payment_terms_sha256, await termsSha256({ network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", amount_atomic: "10000", pay_to: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin" }));
+});
+
+test("0.24.0: outside free/dry-run receipts redacted in every view; paid/exempt full; query + fragment never stored or shown", async () => {
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db });
+  spotTargetMode = "402";
+  const T = "https://spot.target.test/q?api_key=SECRET123&u=me#frag";
+  const free = await send(SPOT + "?url=" + encodeURIComponent(T) + "&claimed_price=0.001&client=outside-1", { envo: e });
+  assert.equal(free.body.access.tier, "free");
+  const row = db.rows.at(-1);
+  assert.equal(row.url, "https://spot.target.test/q");
+  assert.ok(!row.body.includes("SECRET123") && !row.body.includes("frag"), "no query/fragment stored anywhere");
+  assert.match(row.norm_key, /^k:[0-9a-f]{64}$/);
+  const hide = (o, why) => { const t = JSON.stringify(o); assert.ok(!t.includes(PAY_TO) && !/amount_atomic|probe_snapshot|norm_key|SECRET123/.test(t), why + ": " + t.slice(0, 300)); };
+  const one = (await send("/v1/receipts/" + free.body.receipt_id, { envo: e })).body;
+  hide(one, "by id");
+  assert.deepEqual([one.verdict, one.reason, one.reason_text, one.approved_payment, one.url], ["pay", "price_ok", "payment request matches", null, "https://spot.target.test/q"]);
+  assert.match(one.redacted, /paid check/);
+  hide((await send("/v1/receipts?type=dry-run", { envo: e })).body, "type list");
+  const by = (await send("/v1/receipts/by-url?url=" + encodeURIComponent(T), { envo: e })).body;
+  assert.equal(by.latest_live.id, free.body.receipt_id, "by-url finds it with the query stripped");
+  hide(by.latest_live, "by-url");
+  // the cache still works on the hashed key; another query is another key
+  const ex = await send(SPOT + "?url=" + encodeURIComponent(T) + "&client=withgrokbot-selftest", { envo: e });
+  assert.equal(ex.body.probe.cached, true);
+  const ex2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/q?api_key=OTHER") + "&client=withgrokbot-selftest", { envo: e });
+  assert.equal(ex2.body.probe.cached, false);
+  // exempt/self receipt stays full
+  const full = (await send("/v1/receipts/" + ex.body.receipt_id, { envo: e })).body;
+  assert.equal(full.live_402.accepts[0].pay_to, PAY_TO); assert.equal(full.approved_payment.pay_to, PAY_TO); assert.equal(full.redacted, undefined);
+  assert.equal(full.url, "https://spot.target.test/q");
+  // paid / router-prepaid full; legacy rows without a tier: full only when self
+  const { redactReceipt } = await import("../worker/src/lib.js");
+  const body = JSON.parse(db.rows.find((r) => r.id === free.body.receipt_id).body);
+  for (const tier of ["paid", "router-prepaid"]) assert.deepEqual(redactReceipt({ ...body, access_tier: tier }), { ...body, access_tier: tier });
+  const legacy = { ...body, access_tier: undefined, check_type: "live" };
+  assert.equal(redactReceipt(legacy).approved_payment, null);
+  assert.equal(redactReceipt({ ...legacy, caller: "self-test" }).approved_payment.pay_to, PAY_TO);
+  // MCP receipt reads go through the same view
+  const m = await send("/mcp", { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_receipt", arguments: { id: free.body.receipt_id } } }), envo: e });
+  if (m.body && m.body.result && !m.body.result.isError) assert.ok(!JSON.stringify(m.body).includes(PAY_TO), "mcp view redacted");
 });
 
 let passed = 0;
