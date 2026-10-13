@@ -1264,6 +1264,10 @@ function fakeD1() {
               }
               if (/^INSERT/.test(sql)) { if (rows.some((r) => r.id === a[0])) throw new Error("UNIQUE"); rows.push({ id: a[0], url: a[1], created_at: a[2], verdict: a[3], reason: a[4], check_type: a[5], ref: a[6], norm_key: a[7], probed_at: a[8], body: a[9] }); } return { success: true }; },
             async all() {
+              if (/SELECT id, url, created_at, verdict, body FROM spot_receipts WHERE/.test(sql)) {
+                const m = /url >= \?/.test(sql) ? (r) => (r.url >= a[0] && r.url < a[1]) || (r.url >= a[2] && r.url < a[3]) : (r) => r.url === a[0] || r.url === a[1];
+                return { results: rows.filter(m).sort((x, y) => (x.created_at < y.created_at ? 1 : -1)).slice(0, 25) };
+              }
               if (/FROM endpoint_history/.test(sql)) return { results: hist.filter((h) => h.hkey === a[0]).sort((x, y) => (x.observed_at < y.observed_at ? 1 : -1)).slice(0, a[1]).map(({ hkey, ...r }) => r) };
               if (/WHERE pub_url IS NOT NULL ORDER BY/.test(sql)) {
                 const out = rows.filter((r) => r.pub_url).sort((x, y) => (x.created_at === y.created_at ? (x.id < y.id ? 1 : -1) : x.created_at < y.created_at ? 1 : -1));
@@ -2353,6 +2357,50 @@ test("0.31.0: default free tier is 5 live checks per caller per UTC day, then th
   const c = spotCfg({});
   assert.equal(c.freePerDay, 5);
   assert.equal(c.dryPerDay, spotCfg({ SPOT_FREE_PER_DAY: "1" }).dryPerDay, "dry-run cap independent of the free tier");
+});
+
+test("0.32.0: /badge/<host>.svg shows only real current status (pay+fresh = green; skip/stale/none = grey), escapes input, no fetch/no write, links the receipt", async () => {
+  const { badgeState, validBadgeHost, pickBadgeRow, badgeSvg } = await import("../worker/src/badge.js");
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db });
+  const now = Date.now();
+  const iso = (hAgo) => new Date(now - hAgo * 3600000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const add = (id, url, verdict, hAgo, extra = {}) => db.rows.push({ id, url, created_at: iso(hAgo), verdict, reason: "x", check_type: "dry-run", body: JSON.stringify({ id, url, verdict, history: { stable_for_days: 9 }, expected: { source: "listing" }, ...extra }) });
+  add("sc-00000000000000b1", "https://good.example.com/api", "pay", 1);
+  add("sc-00000000000000b2", "https://old.example.com/api", "pay", 100);
+  add("sc-00000000000000b3", "https://bad.example.com/api", "skip", 1);
+  add("sc-00000000000000b4", "https://mixed.example.com/a", "pay", 1);
+  add("sc-00000000000000b5", "https://mixed.example.com/b", "skip", 2);
+  add("sc-00000000000000b6", "https://req.example.com/a", "pay", 1, { expected: { source: "request" } });
+  const get = async (p) => { const r = await worker.fetch(new Request("https://lookup.test" + p, { redirect: "manual" }), e.env, { waitUntil() {} }); return { status: r.status, text: await r.text(), h: r.headers }; };
+  const g = await get("/badge/good.example.com.svg");
+  assert.equal(g.status, 200);
+  assert.match(g.h.get("content-type"), /image\/svg\+xml/);
+  assert.match(g.h.get("cache-control"), /max-age=300/);
+  assert.match(g.text, /pay · stable 9 days/);
+  assert.match(g.h.get("link"), /sc-00000000000000b1/);
+  assert.match((await get("/badge/old.example.com.svg")).text, />stale</);
+  assert.match((await get("/badge/bad.example.com.svg")).text, />not verified</);
+  assert.match((await get("/badge/none.example.com.svg")).text, />not verified</);
+  assert.match((await get("/badge/mixed.example.com.svg")).text, />not verified</, "a fresh skip elsewhere on the host blocks the pass");
+  assert.match((await get("/badge/mixed.example.com.svg?path=%2Fa")).text, /pay · stable/);
+  assert.match((await get("/badge/req.example.com.svg")).text, />not verified</, "caller-supplied expectations never earn a badge");
+  for (const bad of ["/badge/%3Cscript%3E.svg", "/badge/127.0.0.1.svg", "/badge/localhost.svg", "/badge/x.internal.svg", "/badge/a..b.svg"]) {
+    const r = await get(bad);
+    assert.equal(r.status, 400, bad);
+    assert.ok(!/<script/i.test(r.text));
+  }
+  assert.equal((await get("/badge/good.example.com.svg?path=%2Fa%3Fq")).status, 400);
+  const red = await get("/badge/good.example.com");
+  assert.equal(red.status, 302);
+  assert.equal(red.h.get("location"), "https://402xagent.com/v1/receipts/sc-00000000000000b1");
+  assert.ok(!badgeSvg("a<b", "c&d", "#fff\"").includes("a<b"));
+  assert.equal(validBadgeHost("API.Example.com"), "api.example.com");
+  assert.equal(badgeState(null).text, "not verified");
+  assert.equal(pickBadgeRow([]), null);
+  const rc = await send("/v1/receipts/sc-00000000000000b1", { envo: e });
+  assert.equal(rc.body.badge.markdown, "[![402xAgent status](https://402xagent.com/badge/good.example.com.svg?path=%2Fapi)](https://402xagent.com/badge/good.example.com?path=%2Fapi)");
+  assert.match(rc.body.badge.html, /^<a href="https:\/\/402xagent\.com\/badge\/good\.example\.com\?path=%2Fapi"><img src=/);
 });
 
 let passed = 0;
