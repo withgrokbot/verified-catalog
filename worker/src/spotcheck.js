@@ -515,7 +515,8 @@ export function decideVerdict(probe, claimedPrice) {
   if (claimed === null || claimed === undefined || claimed === "") return { verdict: "pay", reason: "price_ok" };
   const match = priceMatchesClaimed(probe.quoted_price_usd, claimed);
   if (match === true) return { verdict: "pay", reason: "price_ok" };
-  if (match === false) return { verdict: "skip", reason: "price_mismatch" };
+  // 0.28.0 (Max): a live price more than 1% BELOW the listing is pay/price_below_listing; above stays skip.
+  if (match === false) return Number(probe.quoted_price_usd) < Number(claimed) ? { verdict: "pay", reason: "price_below_listing" } : { verdict: "skip", reason: "price_mismatch" };
   return { verdict: "skip", reason: "bad_challenge" }; // claimed set but the 402 has no readable price
 }
 

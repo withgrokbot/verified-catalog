@@ -1014,12 +1014,12 @@ test("MCP endpoint_spot_check listed; unpaid after free returns pay instructions
 test("spot-check price_mismatch → skip; no claimed → pay when challenge ok", async () => {
   const e = spotEnv();
   spotTargetMode = "402";
-  const mismatch = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=9.99&client=withgrokbot-selftest", { envo: e });
+  const mismatch = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.0001&client=withgrokbot-selftest", { envo: e });
   assert.equal(mismatch.status, 200);
   assert.equal(mismatch.body.verdict, "skip");
   assert.equal(mismatch.body.reason, "price_mismatch");
   assert.equal(mismatch.body.quoted_price_usd, 0.001);
-  assert.equal(mismatch.body.claimed_price_usd, 9.99);
+  assert.equal(mismatch.body.claimed_price_usd, 0.0001);
   const noclaim = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(noclaim.status, 200);
   assert.equal(noclaim.body.verdict, "pay");
@@ -1030,10 +1030,10 @@ test("spot-check price_mismatch → skip; no claimed → pay when challenge ok",
 test("spot-check aliases: endpoint= and claimed_price_usd= accepted (0.6.3); /v1/skips + /v1/receipts serve", async () => {
   const e = spotEnv();
   spotTargetMode = "402";
-  const a = await send(SPOT + "?endpoint=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price_usd=9.99&client=withgrokbot-selftest", { envo: e });
+  const a = await send(SPOT + "?endpoint=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price_usd=0.0001&client=withgrokbot-selftest", { envo: e });
   assert.equal(a.status, 200);
   assert.equal(a.body.verdict, "skip");
-  assert.equal(a.body.claimed_price_usd, 9.99);
+  assert.equal(a.body.claimed_price_usd, 0.0001);
   const none = await send(SPOT + "?client=withgrokbot-selftest", { envo: e });
   assert.equal(none.status, 200, "0.26.1: GET with no url = usage/help, HTTP 200");
   assert.deepEqual(Object.keys(none.body), ["error", "field", "example", "mistake", "hint", "fixed_example", "docs"]);
@@ -1198,7 +1198,7 @@ test("PAY STEP: paid pay verdict returns the exact signable payment; hash commit
   const h = createHash("sha256").update(["eip155:8453", USDC.toLowerCase(), "1000", PAY_TO.toLowerCase()].join("|")).digest("hex");
   assert.equal(ok.body.payment_terms_sha256, h);
   assert.equal(await termsSha256(ok.body.payment), h);
-  const skip = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=9&client=withgrokbot-selftest", { envo: e });
+  const skip = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.0001&client=withgrokbot-selftest", { envo: e });
   assert.equal(skip.body.verdict, "skip");
   assert.equal(skip.body.payment, null);
   assert.equal(skip.body.payment_terms_sha256, null);
@@ -1229,7 +1229,7 @@ test("PAY STEP: picks the accept matching the expectation; non-USDC asset is ski
   assert.equal(pm.asset_is_usdc, false);
   assert.equal(pm.amount_usd, null);
   assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pm, {}), { verdict: "skip", reason: "asset_not_usdc" });
-  assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pickPayment({ accepts: [usdc] }, {}), { claimed: 0.02 }), { verdict: "skip", reason: "price_mismatch" });
+  assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pickPayment({ accepts: [usdc] }, {}), { claimed: 0.005 }), { verdict: "skip", reason: "price_mismatch" });
   assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, null, {}), { verdict: "skip", reason: "bad_challenge" });
   assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pickPayment({ accepts: [sep] }, {}), {}), { verdict: "skip", reason: "network_unsupported" }, "testnets are not supported mainnets");
   const poly = { scheme: "exact", network: "eip155:137", asset: "0x2791bca1f2de4661ed88a30c99a7a9449aa84174", amount: "10000", payTo: "0x" + "cc".repeat(20) }; // bridged USDC.e, not canonical
@@ -1321,7 +1321,7 @@ test("public receipts: every delivered decision is stored; GET by id and by-url 
   assert.equal(got.body.payment_terms_sha256, free.body.payment_terms_sha256);
   // a later decision for the same URL becomes the latest
   await new Promise((r) => setTimeout(r, 1100));
-  const later = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=9&client=withgrokbot-selftest", { envo: e });
+  const later = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.0001&client=withgrokbot-selftest", { envo: e });
   const by = await send("/v1/receipts/by-url?url=" + encodeURIComponent("https://spot.target.test/api"), { envo: e });
   assert.equal(by.status, 200);
   assert.equal(by.body.latest_live.id, later.body.receipt_id);
@@ -2204,6 +2204,26 @@ test("0.26.1: GET/HEAD with no url -> 200 + the usage/help body; malformed url a
   assert.equal((await send(SPOT + "?cb=123&client=hc", { envo: e })).status, 200, "cache-buster / client only = usage");
   // no payment, no probe on the usage answer
   assert.equal(g.headers.get("payment-required"), null);
+});
+
+test("0.28.0: live price more than 1% BELOW the listing is pay/price_below_listing; above stays skip; stored receipts get a read-time note", async () => {
+  const { markPriceRule } = await import("../worker/src/lib.js");
+  const e = spotEnv({ RECEIPTS_DB: fakeD1() });
+  spotTargetMode = "402";
+  const below = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/below") + "&claimed_price=9&client=withgrokbot-selftest", { envo: e });
+  assert.deepEqual([below.body.verdict, below.body.reason], ["pay", "price_below_listing"]);
+  assert.ok(below.body.payment && below.body.payment.pay_to, "pay approves the live terms");
+  const free = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/below2") + "&claimed_price=9&client=below-free", { envo: e });
+  assert.equal(free.body.reason, "listed $9, live price lower than listed");
+  const above = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/above") + "&claimed_price=0.0001&client=withgrokbot-selftest", { envo: e });
+  assert.deepEqual([above.body.verdict, above.body.reason], ["skip", "price_mismatch"]);
+  const within = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/within") + "&claimed_price=" + String(above.body.quoted_price_usd * 1.005) + "&client=withgrokbot-selftest", { envo: e });
+  assert.deepEqual([within.body.verdict, within.body.reason], ["pay", "price_ok"]);
+  const USDCb = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+  const old = { verdict: "skip", reason: "price_mismatch", expected: { claimed_price_usd: 0.7, network: "eip155:8453" }, live_402: { accepts: [{ network: "eip155:8453", asset: USDCb, amount_atomic: "54000" }] } };
+  assert.equal(markPriceRule(old).current_rule.reason, "price_below_listing");
+  assert.equal(markPriceRule(old).verdict, "skip", "stored answer kept");
+  assert.equal(markPriceRule({ ...old, live_402: { accepts: [{ network: "eip155:8453", asset: USDCb, amount_atomic: "900000" }] } }).current_rule, undefined, "above listing: no note");
 });
 
 let passed = 0;
