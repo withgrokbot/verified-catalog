@@ -272,7 +272,7 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
     <div class="card stat"><div class="n skip">${esc(m.skip ?? 0)}</div><div class="l">skip</div></div>
     <div class="card stat"><div class="n recheck">${esc(m.recheck ?? 0)}</div><div class="l">recheck</div></div>
   </div>
-  <div class="cta" style="justify-content:flex-start"><a class="btn" href="/v1/skips">See the skips →</a><a class="btn" href="/bazaar">Bazaar check</a><a class="btn" href="/v1/receipts?type=dry-run">Recent receipts</a></div>
+  <div class="cta" style="justify-content:flex-start"><a class="btn" href="/v1/skips">See the skips →</a><a class="btn" href="/bazaar">Bazaar check</a><a class="btn" href="/saves">Saves</a><a class="btn" href="/v1/receipts?type=dry-run">Recent receipts</a></div>
 </div></section>
 
 <section aria-labelledby="offer-h"><div class="wrap">

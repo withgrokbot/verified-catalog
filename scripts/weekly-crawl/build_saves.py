@@ -15,12 +15,20 @@ def endpoint(u):
     m = re.match(r"^(https?)://([^/?#]+)([^?#]*)", str(u or ""))
     return (m.group(1) + "://" + m.group(2).lower() + (m.group(3) or "/")) if m else None
 
+# No wallet-looking strings anywhere: an endpoint whose path carries an address-like segment (EVM 0x + 40 hex, or a
+# 32-44 char base58 run) is a parameter value, so it is skipped; Solana CAIP-2 chain ids are shown by name.
+ADDRISH = re.compile(r"0x[0-9a-fA-F]{40}|(?<![A-Za-z0-9])[1-9A-HJ-NP-Za-km-z]{32,44}(?![A-Za-z0-9])")
+SOL = {"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "Solana mainnet", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": "Solana devnet", "solana:4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z": "Solana testnet"}
+def netname(n):
+    n = n.strip()
+    return SOL.get(n, n)
+
 def money(x): return "$" + (f"{x:.6f}".rstrip("0").rstrip("."))
 
 def crawl_save(r, now):
     if r.get("verdict") != "skip": return None
     u = endpoint(r.get("url")); reason = str(r.get("reason") or "")
-    if not u or TEMPLATE.search(u): return None
+    if not u or TEMPLATE.search(u) or ADDRISH.search(u): return None
     host = u.split("/")[2].split(":")[0]
     if OWN.search(host): return None
     ts = r.get("timestamp") or ""
@@ -35,9 +43,10 @@ def crawl_save(r, now):
         kind, what = "pay_to_changed", "pays a different wallet"
     elif reason.startswith("asks for payment on a different network than listed"):
         m = re.search(r"\(listed ([^,]+), offers ([^)]+)\)", reason)
-        kind, what = "network_changed", (f"asks for payment on {m.group(2)}, listed {m.group(1)}" if m else "asks for payment on a different network")
+        kind, what = "network_changed", (f"asks for payment on {', '.join(netname(x) for x in m.group(2).split(','))}, listed {netname(m.group(1))}" if m else "asks for payment on a different network")
     else:
         return None
+    if ADDRISH.search(what): return None
     return {"endpoint": u, "kind": kind, "what": what, "date": ts[:10], "at": ts, "source": "crawl", "receipt_id": r.get("id")}
 
 def main():
