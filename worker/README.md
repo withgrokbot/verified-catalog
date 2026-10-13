@@ -106,7 +106,7 @@ real-client counts.
 
 ## History, reason codes and confidence (0.29.0, 0.30.0)
 
-- Every check records one observation per fresh probe in D1 (`endpoint_history`, last 30 per normalized URL; key is a hash of the URL). Answers and receipts carry `history`: `observations`, `stable_for_days`, `stable_since`, `last_changed`, `drift` (summary only, never the raw price or wallet).
+- Every check records one observation per fresh probe in D1 (`endpoint_history`, last 30 per normalized URL; key is a hash of the URL). Answers and receipts carry `history`: `observations`, `stable_for_days`, `stable_since`, `last_changed`, `drift` (summary only, never the raw price or wallet). Paid, router and exempt check answers (0.34.0) also get `history_observations`: the last 30 observations, newest first (observed_at, http_status, price_usd, amount_atomic, network, asset, pay_to). Free answers, dry runs and receipts keep the summary only.
 - Every verdict carries `reason_code` (stable machine code) and `confidence` (`high` | `medium` | `low`). Free answers keep the plain-words `reason`. Codes and confidence rules: `/rules` (HTML) and `/rules.json`.
 
 ## Free-check network cap (0.33.0)

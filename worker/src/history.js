@@ -53,8 +53,15 @@ export async function recordHistory(env, hkey, obs, fresh, now = new Date()) {
         await db.prepare("DELETE FROM endpoint_history WHERE hkey = ? AND observed_at < ?").bind(hkey, prev[HISTORY_KEEP - 2].observed_at).run(); // keep obs + 29 newest prev
       }
     }
-    return historySummary(list, now);
+    const summary = historySummary(list, now);
+    Object.defineProperty(summary, "list", { value: list, enumerable: false }); // full rows only for paid/router/exempt answers
+    return summary;
   } catch (_) {
     return null;
   }
+}
+// 0.34.0: the full observations, newest first, for paid / router / exempt answers only (never on free or redacted views).
+export function historyObservations(h) {
+  const list = (h && h.list) || [];
+  return list.map((o) => ({ observed_at: o.observed_at, http_status: o.http_status ?? null, price_usd: o.price_usd ?? null, amount_atomic: o.amount_atomic ?? null, network: o.network ?? null, asset: o.asset ?? null, pay_to: o.pay_to ?? null }));
 }

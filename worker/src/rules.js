@@ -56,6 +56,7 @@ export function rulesJson(origin) {
       reason: "free answers: one plain-words line; paid answers: the code (unchanged since 0.6)",
       confidence: "high | medium | low (rules above)",
       history: "summary of the last 30 observations: stable_for_days, stable_since, last_changed, drift",
+      history_observations: "paid, router and exempt answers only: the last 30 observations (time, price, network, pay_to, asset, status)",
     },
     price_tolerance: "within 1% of the listed price counts as the listed price",
     limits: {
