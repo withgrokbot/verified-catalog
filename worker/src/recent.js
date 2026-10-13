@@ -12,6 +12,7 @@ export const REASON_TEXT = {
   ambiguous: "payment request is unclear",
   bad_challenge: "payment request has no readable USDC price",
   price_ok: "payment request matches the listed price",
+  price_below_listing: "live price lower than listed",
   network_mismatch: "asks for payment on a different network than listed",
   pay_to_mismatch: "pays a different wallet than listed",
   asset_not_usdc: "asks for a token other than USDC",

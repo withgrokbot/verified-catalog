@@ -44,7 +44,7 @@ import { staleStep, STALE_REF } from "./stale.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.27.0";
+export const VERSION = "0.28.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
@@ -957,7 +957,7 @@ export const SPOT_PAID_SCHEMA = {
   description: "paid response: decision plus the facts behind it",
   properties: {
     verdict: SPOT_VERDICT_SCHEMA,
-    reason: { type: "string", enum: ["price_ok", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "network_unsupported", "no_paywall", "free_trial_active", "timeout", "unreachable", "server_error", "bad_challenge", "ssrf_blocked"] },
+    reason: { type: "string", enum: ["price_ok", "price_below_listing", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "network_unsupported", "no_paywall", "free_trial_active", "timeout", "unreachable", "server_error", "bad_challenge", "ssrf_blocked"] },
     free_trial_remaining: { type: ["integer", "null"], description: "reason free_trial_active only: the seller's x-free-trial-remaining, when parseable" },
     quoted_price_usd: { type: ["number", "null"], description: "price in the target's live 402 challenge" },
     claimed_price_usd: { type: ["number", "null"], description: "the claimed_price you sent" },
@@ -1254,7 +1254,8 @@ export function applyPayment(d, pm, exp) {
   if (!pm) return { verdict: "skip", reason: "bad_challenge" }; // no exact-scheme payment with a readable amount
   if (!pm.supported_network) return { verdict: "skip", reason: "network_unsupported" };
   if (pm.asset_is_usdc !== true) return { verdict: "skip", reason: "asset_not_usdc" };
-  if (exp.claimed != null && pm.amount_usd != null && priceMatchesClaimed(pm.amount_usd, exp.claimed) === false) return { verdict: "skip", reason: "price_mismatch" };
+  if (exp.claimed != null && pm.amount_usd != null && priceMatchesClaimed(pm.amount_usd, exp.claimed) === false)
+    return pm.amount_usd < Number(exp.claimed) ? { verdict: "pay", reason: "price_below_listing" } : { verdict: "skip", reason: "price_mismatch" }; // 0.28.0
   return d;
 }
 
@@ -1400,7 +1401,7 @@ export function normReceipt(r) {
   for (const k of ["ref", "caller"]) if (typeof r[k] === "string" && /payscout/i.test(r[k])) r = { ...r, [k]: r[k].replace(/payscout/gi, "402xagent") }; // old site tag
   if (r.url) r = { ...r, url: storedUrl(r.url) };
   if (!["live", "dry-run", "self-checked"].includes(r.check_type)) r = { ...r, check_type: "live", check_note: r.check_type || null };
-  return redactReceipt(r);
+  return redactReceipt(markPriceRule(r));
 }
 // 0.24.0: receipts from OUTSIDE free checks and dry runs show verdict + reason only; the 402 terms (network, asset,
 // amount, pay_to), the approved payment and the cached probe are what the paid check sells. Paid (paid, router-prepaid)
@@ -1425,6 +1426,21 @@ export async function payToChanged(env, url, pm) {
   } catch (_) {
     return { pay_to_changed: null };
   }
+}
+// 0.28.0: receipts are a record of what we answered, so they are not rewritten. A stored skip/price_mismatch whose live
+// price was BELOW the listing gets a read-time note with what the current rule (price_below_listing = pay) would say.
+export const PRICE_RULE_DATE = "2026-10-13";
+export function markPriceRule(r) {
+  if (!r || r.verdict !== "skip" || r.reason !== "price_mismatch") return r;
+  const claimed = Number(r.expected && r.expected.claimed_price_usd);
+  if (!(claimed > 0)) return r;
+  const net = r.expected && r.expected.network;
+  const acc = ((r.live_402 && r.live_402.accepts) || []).filter((a) => a && isUsdcAsset(a.network, a.asset) === true && /^[0-9]{1,30}$/.test(String(a.amount_atomic ?? "")));
+  const a = (net && acc.find((x) => caip(x.network) === caip(net))) || acc[0];
+  if (!a) return r;
+  const live = Number(a.amount_atomic) / 1e6;
+  if (!(live < claimed) || priceMatchesClaimed(live, claimed) !== false) return r;
+  return { ...r, current_rule: { since: PRICE_RULE_DATE, verdict: "pay", reason: "price_below_listing", reason_text: REASON_TEXT.price_below_listing, note: "stored answer kept as given; under the current rule a live price below the listing is pay" } };
 }
 export function receiptIsFull(r) {
   if (r.access_tier === "bazaar" || r.access_tier === "auto") return false; // 0.26.0: /bazaar self-checks link the public (redacted) view
@@ -1526,7 +1542,8 @@ export function applyNoTermsListing(d, probe, q, listing) {
   if (q.pay_to && listing.listed_pay_to && !sameAddr(q.pay_to, listing.listed_pay_to, net)) return skip("pay_to_mismatch");
   if (listing.pay_to && listing.listed_pay_to && !sameAddr(listing.pay_to, listing.listed_pay_to, net)) return skip("pay_to_mismatch");
   if (listing.network && listing.listed_network && caip(listing.network) !== caip(listing.listed_network)) return skip("network_mismatch");
-  if (listing.quoted_price_usd != null && listing.claimed_price_usd != null && priceMatchesClaimed(listing.quoted_price_usd, listing.claimed_price_usd) === false) return skip("price_mismatch");
+  // 0.28.0: the crawl's 402 asking LESS than listed is not a mismatch to skip on
+  if (listing.quoted_price_usd != null && listing.claimed_price_usd != null && priceMatchesClaimed(listing.quoted_price_usd, listing.claimed_price_usd) === false && Number(listing.quoted_price_usd) > Number(listing.claimed_price_usd)) return skip("price_mismatch");
   return out;
 }
 

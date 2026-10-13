@@ -274,12 +274,15 @@ def judge(r, rec, lead, claimed, done):
         if lead.get("payTo") and str(a.get("payTo") or "").lower() != str(lead["payTo"]).lower():
             return done("skip", f"pays a different wallet than listed ({lead['payTo']} listed, {a.get('payTo')} asked)")
         if q is None: return done("skip", f"asks for a token or network we can't price in USDC ({a.get('network')})")
+        below = False
         if claimed is not None and abs(q - claimed) > 1e-9 + claimed * PRICE_TOLERANCE:
-            return done("skip", f"asks a different price than listed (listed ${claimed:g}, asks ${q:g})")
+            if q > claimed: return done("skip", f"asks a different price than listed (listed ${claimed:g}, asks ${q:g})")
+            below = True  # 0.28.0: cheaper than listed is pay (price_below_listing), after the sanity/network checks
         if not (0 < q <= SANE_MAX_USD): return done("skip", f"price looks wrong (${q:g})")
         n_, a_ = str(rec.get("network") or "").lower(), str(rec.get("asset") or "").lower()
         if n_ not in USDC_MAINNET: return done("skip", f"wants payment on a testnet or a network we don't support ({rec.get('network')})")
         if a_ != USDC_MAINNET[n_]: return done("skip", f"asks for a token other than USDC on {rec.get('network')} ({rec.get('asset')})")
+        if below: return done("pay", f"live price lower than listed (listed ${claimed:g}, asks ${q:g})")
         return done("pay", "payment request matches the listing (price, token, network, wallet)" if claimed is not None else "valid payment request, no listed price to compare")
     except requests.exceptions.Timeout:
         return done("recheck", "endpoint did not answer in 5 s, try again later")
