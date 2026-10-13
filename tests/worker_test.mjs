@@ -853,7 +853,7 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   assert.equal(r.body.verdict, "pay");
   assert.equal(r.body.reason, "listed $0.001, payment request matches the listed price");
   // free tier: verdict + plain reason + access only (quoted/claimed price, pay_to, network, asset are paid)
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "history", "pay_to_changed", "payment_terms_sha256", "prior_checks", "reason", "receipt_id", "receipt_url", "upsell", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "confidence", "history", "pay_to_changed", "payment_terms_sha256", "prior_checks", "reason", "reason_code", "receipt_id", "receipt_url", "upsell", "verdict"]);
   assert.equal(r.body.upsell, "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01");
   assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.match(r.body.payment_terms_sha256, /^[0-9a-f]{64}$/);
@@ -1499,7 +1499,7 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   const u = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001";
   const r = await send(u + "&mode=dry-run&ref=via-agentkit&client=dry-client-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
   assert.equal(r.status, 200);
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "check_type", "history", "mode", "payment_terms_sha256", "prior_checks", "reason", "receipt_id", "receipt_url", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "check_type", "confidence", "history", "mode", "payment_terms_sha256", "prior_checks", "reason", "reason_code", "receipt_id", "receipt_url", "verdict"]);
   assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.equal(r.body.mode, "dry-run");
   assert.equal(r.body.verdict, "pay");
@@ -2285,6 +2285,53 @@ test("0.29.0: endpoint history in D1: summary only (no price/wallet), fresh prob
   for (let i = 0; i < HISTORY_KEEP + 5; i++) await recordHistory({ RECEIPTS_DB: db2 }, "h:x", observation({ http_status: 402 }, { amount_atomic: "1", network: "n", pay_to: "p" }, "pay", new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString()), true);
   assert.equal(db2.hist.length, HISTORY_KEEP);
   assert.equal(await recordHistory({ RECEIPTS_DB: { prepare() { throw new Error("down"); } } }, "h:x", {}, true), null, "fails open");
+});
+
+test("0.30.0: reason_code + confidence on every verdict; /rules + /rules.json published and linked (llms, OpenAPI, well-known, MCP)", async () => {
+  const { REASON_CODES, confidenceFor } = await import("../worker/src/rules.js");
+  const raw = async (path) => { const e = meteredEnv(); const r = await worker.fetch(new Request("https://lookup.test" + path, { headers: { "user-agent": "agent-x/1.0" } }), e.env, { waitUntil() {} }); return { status: r.status, text: await r.text(), ct: r.headers.get("content-type") }; };
+  const rj = await send("/rules.json");
+  assert.equal(rj.status, 200);
+  const codes = rj.body.reason_codes.map((r) => r.code);
+  const oa = (await send("/openapi.json")).body;
+  const enumCodes = JSON.stringify(oa).match(/"enum":\["price_ok"[^\]]*\]/)[0].match(/"([a-z_]+)"/g).map((x) => x.slice(1, -1)).filter((x) => x !== "enum");
+  for (const c of enumCodes) assert.ok(codes.includes(c), "documented: " + c);
+  assert.ok(oa.paths["/rules"] && oa.paths["/rules.json"]);
+  const html = await raw("/rules");
+  assert.match(html.ct, /text\/html/);
+  assert.match(html.text, /price_below_listing/);
+  assert.match((await raw("/llms.txt")).text, /\/rules\.json/);
+  assert.equal((await send("/.well-known/x402")).body.free_pages.rules, "https://402xagent.com/rules.json");
+  const tl = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+  assert.match(tl.body.result.tools.find((x) => x.name === "endpoint_spot_check").description, /reason_code.*confidence.*rules\.json/);
+  // rules
+  assert.equal(confidenceFor({ verdict: "recheck", reason: "timeout" }), "low");
+  assert.equal(confidenceFor({ verdict: "pay", reason: "price_ok" }, 0.01), "high");
+  assert.equal(confidenceFor({ verdict: "pay", reason: "price_ok" }, null), "medium");
+  assert.equal(confidenceFor({ verdict: "pay", reason: "price_ok" }, 0.01, { drift: true }), "medium");
+  assert.equal(confidenceFor({ verdict: "skip", reason: "no_paywall" }), "medium");
+  assert.equal(confidenceFor({ verdict: "skip", reason: "pay_to_mismatch" }), "high");
+  assert.equal(confidenceFor({ verdict: "skip", reason: "something_new" }), "low");
+  assert.ok(REASON_CODES.every((r) => ["high", "medium", "low"].includes(r.confidence)));
+  // live answers (free, full, dry run) and stored receipts carry them; human reason unchanged
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db });
+  spotTargetMode = "402";
+  const u = "?url=" + encodeURIComponent("https://spot.target.test/rc") + "&claimed_price=0.001";
+  const free = await send(SPOT + u + "&client=rc-free-1", { envo: e });
+  assert.equal(free.body.reason_code, "price_ok");
+  assert.equal(free.body.confidence, "high");
+  assert.match(free.body.reason, /matches/);
+  const full = await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
+  assert.deepEqual([full.body.reason, full.body.reason_code, full.body.confidence], ["price_ok", "price_ok", "high"]);
+  const dry = await send(SPOT + u + "&client=rc-dry-1&mode=dry-run", { envo: e });
+  assert.equal(dry.body.reason_code, "price_ok");
+  const rc = await send("/v1/receipts/" + free.body.receipt_id, { envo: e });
+  assert.deepEqual([rc.body.reason_code, rc.body.confidence], ["price_ok", "high"]);
+  // a pre-0.30 receipt gets the fields on read
+  db.rows.push({ id: "sc-00000000000000aa", url: "https://x.test/a", created_at: "2026-10-01T00:00:00Z", verdict: "skip", reason: "no_paywall", check_type: "dry-run", body: JSON.stringify({ id: "sc-00000000000000aa", url: "https://x.test/a", verdict: "skip", reason: "no_paywall", check_type: "dry-run" }) });
+  const old = await send("/v1/receipts/sc-00000000000000aa", { envo: e });
+  assert.deepEqual([old.body.reason_code, old.body.confidence], ["no_paywall", "medium"]);
 });
 
 let passed = 0;

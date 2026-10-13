@@ -104,6 +104,11 @@ per IP hash per UTC day across refs (`SPOT_DRY_PER_IP_DAY`), then 429; a capped 
 blob13 are `dry-run` (`dry-run-capped` on a 429), never qualifying; demand_weekly.py leaves them out of paid and
 real-client counts.
 
+## History, reason codes and confidence (0.29.0, 0.30.0)
+
+- Every check records one observation per fresh probe in D1 (`endpoint_history`, last 30 per normalized URL; key is a hash of the URL). Answers and receipts carry `history`: `observations`, `stable_for_days`, `stable_since`, `last_changed`, `drift` (summary only, never the raw price or wallet).
+- Every verdict carries `reason_code` (stable machine code) and `confidence` (`high` | `medium` | `low`). Free answers keep the plain-words `reason`. Codes and confidence rules: `/rules` (HTML) and `/rules.json`.
+
 ## Local test (no account needed)
 
 ```
