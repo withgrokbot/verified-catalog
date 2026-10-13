@@ -2457,6 +2457,39 @@ test("0.34.0: paid/exempt answers carry the full last-30 history_observations; f
   assert.ok(rc.body.history && rc.body.history_observations === undefined && !JSON.stringify(rc.body.history).includes(o.pay_to));
 });
 
+test("0.35.0: /saves behind SAVES_PAGE (off = 404); real listing differences only, no wallets, no query, no templates, no self tests, 30 days", async () => {
+  const { liveSave, savesJson } = await import("../worker/src/saves.js");
+  const e = spotEnv({ RECEIPTS_DB: fakeD1() });
+  assert.equal((await send("/saves.json", { envo: e })).status, 404, "off by default");
+  const now = new Date();
+  const iso = (d) => new Date(now.getTime() - d * 86400000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const W1 = "0x" + "a1".repeat(20), W2 = "0x" + "b2".repeat(20);
+  const base = (o) => ({ verdict: "skip", checked_at: iso(1), id: "sc-00000000000000c1", url: "https://seller.example.com/api?key=secret", expected: { source: "listing", claimed_price_usd: 0.003, network: "eip155:8453", pay_to: W1 }, live_402: { accepts: [{ network: "eip155:8453", amount_atomic: "15000", pay_to: W2 }] }, ...o });
+  const p = liveSave(base({ reason: "price_mismatch" }), now);
+  assert.deepEqual([p.endpoint, p.kind, p.what], ["https://seller.example.com/api", "price_higher", "asked $0.015, listed $0.003"]);
+  const w = liveSave(base({ reason: "pay_to_mismatch" }), now);
+  assert.equal(w.what, "pays a different wallet");
+  assert.ok(!JSON.stringify(w).includes(W1) && !JSON.stringify(w).includes(W2));
+  assert.match(liveSave(base({ reason: "network_mismatch", live_402: { accepts: [{ network: "eip155:137", amount_atomic: "3000" }] } }), now).what, /asks for payment on eip155:137, listed eip155:8453/);
+  assert.equal(liveSave(base({ reason: "price_mismatch", live_402: { accepts: [{ network: "eip155:8453", amount_atomic: "1000" }] } }), now), null, "cheaper is not a save");
+  assert.equal(liveSave(base({ reason: "pay_to_mismatch", checked_at: iso(31) }), now), null, "older than 30 days");
+  assert.equal(liveSave(base({ reason: "pay_to_mismatch", url: "https://seller.example.com/api/{id}" }), now), null, "path template");
+  assert.equal(liveSave(base({ reason: "pay_to_mismatch", caller: "self-test" }), now), null, "our own test");
+  assert.equal(liveSave(base({ reason: "pay_to_mismatch", url: "https://api.402xagent.com/x" }), now), null, "our own host");
+  assert.equal(liveSave(base({ reason: "pay_to_mismatch", expected: { source: "request" } }), now), null, "caller-typed expectations");
+  assert.equal(liveSave(base({ reason: "no_paywall" }), now), null);
+  // on
+  e.env.SAVES_PAGE = "on";
+  const r = await send("/saves.json", { envo: e });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body.saves) && r.body.count === r.body.saves.length);
+  for (const s of r.body.saves.slice(0, 200)) { assert.ok(!/[?#]/.test(s.endpoint)); assert.ok(!/0x[0-9a-fA-F]{40}/.test(JSON.stringify(s)), "no wallet"); }
+  const cr = r.body.saves.find((x) => x.source === "crawl");
+  if (cr) assert.match(cr.receipt, /\?view=redacted$/);
+  const html = await worker.fetch(new Request("https://lookup.test/saves"), e.env, { waitUntil() {} });
+  assert.match(html.headers.get("content-type"), /text\/html/);
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {

@@ -137,7 +137,12 @@ export async function handleReceipts(url, env = {}) {
   const path = url.pathname.replace(/\/+$/, "");
   const id = path.slice("/v1/receipts".length).replace(/^\//, "");
   if (!id) return j({ ...skipsSummary(CANON_ORIGIN), note: "Every receipt: /v1/receipts/<id> or /v1/receipts/by-url?url=. Skips page by page: /v1/skips.json?page=N. Page 1:", receipts: RECEIPTS });
-  const r = await crawlReceipt(env, id);
+  let r = await crawlReceipt(env, id);
   if (!r) return j({ error: "receipt not found", receipts: CANON_ORIGIN + "/v1/receipts" }, 404);
+  // 0.35.0: ?view=redacted (used by /saves): no wallets, and the reason without the wallets it quotes. Default unchanged.
+  if (url.searchParams.get("view") === "redacted") {
+    const { pay_to, listed_pay_to, ...rest } = r;
+    r = { ...rest, reason: String(r.reason || "").replace(/0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44}/g, "<wallet>"), redacted: "wallets removed; the full crawl receipt is at the same URL without ?view=redacted" };
+  }
   return j({ service: SPOT_SERVICE_NAME, ...r, permalink: CANON_ORIGIN + "/v1/receipts/" + r.id, on_page: r.verdict === "skip" ? CANON_ORIGIN + "/v1/skips" : null, spot_check: spotHowTo(CANON_ORIGIN) });
 }

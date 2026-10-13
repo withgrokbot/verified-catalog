@@ -44,10 +44,11 @@ import { staleStep, STALE_REF } from "./stale.js";
 import { observation, recordHistory, historyObservations } from "./history.js";
 import { reasonFields, rulesJson, rulesHtml } from "./rules.js";
 import { handleBadge, badgeSnippets } from "./badge.js";
+import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.34.0";
+export const VERSION = "0.35.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
@@ -3130,6 +3131,7 @@ const routeInnerHolder = {
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
     if (path === "/.well-known/x402") return json(wellKnownX402(env, url.hostname), 200, { "cache-control": "public, max-age=300" });
     if (path.startsWith("/badge/")) return handleBadge(req, env, url, CANON_ORIGIN);
+    if (path === "/saves" || path === "/saves.json") { const r = await handleSaves(req, env, url, CANON_ORIGIN); if (r) return r; } // 0.35.0: SAVES_PAGE flag, off by default
     if (path === "/rules.json") return json(rulesJson(CANON_ORIGIN), 200, { "cache-control": "public, max-age=300" });
     if (path === "/rules") return new Response(rulesHtml(CANON_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" } });
     if (path === "/.well-known/402index-verify.txt") {
