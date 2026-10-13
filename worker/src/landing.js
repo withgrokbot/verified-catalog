@@ -83,7 +83,7 @@ curl "https://api.402xagent.com/v1/products/endpoint-spot-check?url=https://api.
 <link rel="icon" type="image/png" sizes="16x16" href="/brand/favicon-16.png?v=${V}">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${V}">
 <link rel="preload" as="image" href="/brand/logo-light.png?v=${V}">
-<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "402xAgent", applicationCategory: "DeveloperApplication", operatingSystem: "Any", url: "https://402xagent.com/", image: "https://402xagent.com/og.png", description: desc, offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "1 free check per client per UTC day" } })}</script>
+<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "402xAgent", applicationCategory: "DeveloperApplication", operatingSystem: "Any", url: "https://402xagent.com/", image: "https://402xagent.com/og.png", description: desc, offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "5 free checks per client per UTC day" } })}</script>
 <style>
 :root{--bg:#ffffff;--bg2:#f8fafc;--fg:#0b0b0f;--muted:#475569;--faint:#64748b;--line:#e2e8f0;--line2:#cbd5e1;--orange:#f5a623;--red:#ef4423;--yellow:#ffc93c;--blue:#2f80ed;--grad:linear-gradient(100deg,#ffb238 0%,#f5a623 30%,#ef4423 100%);--code:#0d1117;--codefg:#e6edf3;--pay:#047857;--skip:#c2410c;--recheck:#a16207;--r:14px;--shadow:0 1px 2px rgba(15,23,42,.04),0 6px 24px -8px rgba(15,23,42,.10)}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
