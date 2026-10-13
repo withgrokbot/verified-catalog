@@ -84,6 +84,12 @@ export async function handleBadge(req, env, url, origin, now = new Date()) {
   try { row = env.RECEIPTS_DB ? pickBadgeRow(await latestForBadge(env.RECEIPTS_DB, host, path), now) : null; } catch (_) { ok = false; }
   const st = badgeState(row, now);
   const receipt = st.receipt_id ? origin + "/v1/receipts/" + st.receipt_id : origin + "/v1/receipts/by-url?url=" + encodeURIComponent("https://" + host + (path || "/"));
-  if (!m[2]) return Response.redirect(receipt, 302); // /badge/<host> (the snippet's link): the receipt (redacted public view)
+  if (!m[2]) {
+    // /badge/<host> (the snippet's link): a small page with the badge, its current status, the receipt (redacted public
+    // view) and the embed snippets. 200 so link checkers and directories can follow it.
+    const sn = badgeSnippets(origin, host, path);
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>402xAgent status: ${esc(host + (path || ""))}</title><style>body{font:15px/1.5 system-ui,sans-serif;max-width:760px;margin:24px auto;padding:0 16px}pre{background:#f5f5f5;padding:8px;white-space:pre-wrap;word-break:break-all}</style></head><body><h1>402xAgent status</h1><p><code>${esc(host + (path || ""))}</code></p><p><img src="${esc(sn.svg)}" alt="402xAgent status"></p><p>Current: <b>${esc(st.text)}</b>. ${st.receipt_id ? `Receipt: <a href="${esc(receipt)}">${esc(receipt)}</a>` : `No check yet: <a href="${esc(receipt)}">receipts for this URL</a>`}.</p><p>Green only when the latest live verdict is pay and under ${BADGE_FRESH_H} h old; otherwise grey. <a href="/rules">Rules</a>.</p><h2>Embed</h2><p>Markdown</p><pre>${esc(sn.markdown)}</pre><p>HTML</p><pre>${esc(sn.html)}</pre></body></html>`;
+    return new Response(html, { status: 200, headers: hdr("text/html; charset=utf-8", ok ? 300 : 60) });
+  }
   return new Response(badgeSvg("402xAgent", st.text, st.color), { status: 200, headers: { ...hdr("image/svg+xml; charset=utf-8", ok ? 300 : 60), "x-402xagent-badge": st.state, link: `<${receipt}>; rel="describedby"` } });
 }

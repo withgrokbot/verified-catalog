@@ -111,7 +111,7 @@ real-client counts.
 
 ## Status badge (0.32.0)
 
-`/badge/<host>.svg` (optional `?path=/exact/path`) shows only the real current status: green **pay · stable N days** when the latest stored live verdict is pay and under 72 h old; grey **stale** (pay, older) or **not verified** (skip, recheck, nothing yet). The badge never fetches the host and never writes; one D1 read, `Cache-Control: max-age=300`. `/badge/<host>` redirects to the receipt (redacted public view). Every receipt includes `badge.markdown` and `badge.html`.
+`/badge/<host>.svg` (optional `?path=/exact/path`) shows only the real current status: green **pay · stable N days** when the latest stored live verdict is pay and under 72 h old; grey **stale** (pay, older) or **not verified** (skip, recheck, nothing yet). The badge never fetches the host and never writes; one D1 read, `Cache-Control: max-age=300`. `/badge/<host>` is a small page with the current status, the receipt link (redacted public view) and these embed snippets. Every receipt includes `badge.markdown` and `badge.html`.
 
 ```markdown
 [![402xAgent status](https://402xagent.com/badge/api.example.com.svg)](https://402xagent.com/badge/api.example.com)
