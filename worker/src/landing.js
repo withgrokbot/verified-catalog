@@ -15,7 +15,7 @@ export const LANDING_EXAMPLES = [
 // A real free-tier answer from api.402xagent.com for the default Try-it URL (receipt sc-67c41ed764517284, Oct 10 2026 6:3x PM PT, Worker 0.20.0), verbatim.
 export const LANDING_SAMPLE = {
   "verdict": "pay",
-  "reason": "listed $0.001, payment request matches, details locked",
+  "reason": "listed $0.001, payment request matches the listed price",
   "payment_terms_sha256": "6ddcc14caebdf8cf0f7eb183c0916b2dc2d36500875d99d039c81e4ea5f2844e",
   "receipt_id": "sc-67c41ed764517284",
   "receipt_url": "https://402xagent.com/v1/receipts/sc-67c41ed764517284",
@@ -272,7 +272,7 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
     <div class="card stat"><div class="n skip">${esc(m.skip ?? 0)}</div><div class="l">skip</div></div>
     <div class="card stat"><div class="n recheck">${esc(m.recheck ?? 0)}</div><div class="l">recheck</div></div>
   </div>
-  <div class="cta" style="justify-content:flex-start"><a class="btn" href="/v1/skips">See the skips →</a><a class="btn" href="/v1/receipts?type=dry-run">Recent receipts</a></div>
+  <div class="cta" style="justify-content:flex-start"><a class="btn" href="/v1/skips">See the skips →</a><a class="btn" href="/bazaar">Bazaar check</a><a class="btn" href="/v1/receipts?type=dry-run">Recent receipts</a></div>
 </div></section>
 
 <section aria-labelledby="offer-h"><div class="wrap">

@@ -17,8 +17,21 @@ exec > >(tee -a "$LOG") 2>&1
 echo "== weekly refresh $STAMP (log $LOG)"
 WR() { (cd "$APP/worker" && env -u CF_API_TOKEN -u CLOUDFLARE_API_TOKEN npx -y -p node@22 -p wrangler@latest wrangler "$@"); }
 
-# 1) lists -> temp dir; swap into crawl/ only if the Bazaar lists came back complete
+# 0) deploy only committed code: the factory worker + tests must equal withgrokbot/verified-catalog HEAD
+#    (receipts-data.js is the one generated file; it is committed below before the deploy). Checked now and again before deploy.
+export GH_CONFIG_DIR=/workspace/.gh-brand
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+REPO="$TMP/vc"
+clean_or_die() {
+  rm -rf "$REPO" && gh repo clone withgrokbot/verified-catalog "$REPO" -- -q
+  local d
+  d=$(diff -rq --exclude=node_modules --exclude=.wrangler --exclude=receipts-data.js "$APP/worker" "$REPO/worker"; diff -rq --exclude=run_tests.py --exclude=__pycache__ "$APP/tests" "$REPO/tests") || true
+  if [ -n "$d" ]; then echo "REFUSING ($1): factory tree differs from withgrokbot/verified-catalog HEAD $(git -C "$REPO" rev-parse --short HEAD):"; echo "$d"; exit 1; fi
+  echo "factory tree == repo HEAD $(git -C "$REPO" rev-parse --short HEAD) ($1)"
+}
+[ "${DRY_RUN:-0}" = "1" ] || clean_or_die "start"
+
+# 1) lists -> temp dir; swap into crawl/ only if the Bazaar lists came back complete
 if [ "${SKIP_FETCH:-0}" != "1" ]; then
   mkdir -p "$TMP/lists" && python3 "$S/fetch_lists.py" "$TMP/lists"
   mkdir -p "$R/crawl" && find "$R/crawl" -maxdepth 1 -type f -delete && cp "$TMP/lists"/* "$R/crawl/"
@@ -49,7 +62,14 @@ if [ "$N" -gt 0 ]; then
 fi
 echo "kv keys written: $N"
 
-# 6) deploy + verify live (cache-busted)
+# 6) commit the data locally, re-check the tree is clean, deploy that commit, verify live (cache-busted)
+REPO_HEAD_BEFORE=$(git -C "$REPO" rev-parse HEAD)
+clean_or_die "pre-deploy"
+cp "$APP/worker/src/receipts-data.js" "$REPO/worker/src/receipts-data.js"
+mkdir -p "$REPO/scripts/weekly-crawl" && cp "$S"/{fetch_lists.py,crawl_probe.py,build_worker_data.py,payai_credits.py,weekly_refresh_skips.sh} "$REPO/scripts/weekly-crawl/" && cp "$APP/scripts/almost_paid.py" "$APP/scripts/funnel_weekly.py" "$REPO/scripts/"
+git -C "$REPO" add worker/src/receipts-data.js scripts/weekly-crawl scripts/almost_paid.py scripts/funnel_weekly.py
+if git -C "$REPO" diff --cached --quiet; then CHANGED=0; else CHANGED=1; git -C "$REPO" -c user.name=withgrokbot -c user.email=336192572+withgrokbot@users.noreply.github.com commit -qm "Weekly /v1/skips refresh: $COV"; fi
+[ "$(git -C "$REPO" log -1 --format=%an)" = "withgrokbot" ] || { echo "REFUSING: commit author is not withgrokbot"; exit 1; }
 WR deploy
 WANT=$(python3 -c "import json,re;s=open('$APP/worker/src/receipts-data.js').read();m=json.loads(re.search(r'RECEIPTS_META = (\{.*?\});', s).group(1));print(m['crawled_at'], m['endpoints_covered'])")
 GOT=""
@@ -62,15 +82,10 @@ LAST=$(python3 -c "import json;s=json.load(open('$R/kv/bulk.json'));print(max(in
 curl -fsS -H "accept: application/json" "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/skips.json?page=$LAST&cb=$RANDOM" | python3 -c "import json,sys;j=json.load(sys.stdin);assert j['skips'], 'last skip page empty';print('live last skip page', j['page'], 'ok')"
 echo "live /v1/skips: $GOT"
 
-# 7) push data + crawl scripts to the public repo (brand identity only)
-export GH_CONFIG_DIR=/workspace/.gh-brand
-REPO="$TMP/vc"; gh repo clone withgrokbot/verified-catalog "$REPO" -- -q
-cp "$APP/worker/src/receipts-data.js" "$REPO/worker/src/receipts-data.js"
-mkdir -p "$REPO/scripts/weekly-crawl" && cp "$S"/{fetch_lists.py,crawl_probe.py,build_worker_data.py,payai_credits.py,weekly_refresh_skips.sh} "$REPO/scripts/weekly-crawl/" && cp "$APP/scripts/almost_paid.py" "$APP/scripts/funnel_weekly.py" "$REPO/scripts/"
-cd "$REPO" && git add worker/src/receipts-data.js scripts/weekly-crawl scripts/almost_paid.py scripts/funnel_weekly.py
-if git diff --cached --quiet; then echo "repo already up to date"; else
-  git -c user.name=withgrokbot -c user.email=336192572+withgrokbot@users.noreply.github.com commit -qm "Weekly /v1/skips refresh: $COV"
-  git push -q origin HEAD:main && echo "pushed $(git rev-parse --short HEAD)"
+# 7) push the commit that was deployed (brand identity only); rebase over any github-actions commit meanwhile
+cd "$REPO"
+if [ "$CHANGED" = "0" ]; then echo "repo already up to date"; else
+  git pull -q --rebase origin main && git push -q origin HEAD:main && echo "pushed $(git rev-parse --short HEAD)"
 fi
 
 # 8) PayAI free credits left (read-only estimate) + the one-line summary

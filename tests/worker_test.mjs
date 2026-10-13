@@ -115,6 +115,7 @@ globalThis.fetch = async (url, init = {}) => {
     if (spotTargetMode === "timeout") {
       const err = new Error("timeout"); err.name = "AbortError"; throw err;
     }
+    if (spotTargetMode === "postonly" && String(init.method || "GET").toUpperCase() !== "POST") return new Response('{"error":"method not allowed"}', { status: 405, headers: { "content-type": "application/json" } });
     if (spotTargetMode === "ok200") return new Response('{"data":1}', { status: 200, headers: { "content-type": "application/json" } });
     if (spotTargetMode === "trial") return new Response('{"data":1}', { status: 200, headers: { "content-type": "application/json", "x-free-trial": "true", "x-free-trial-remaining": "3" } });
     if (spotTargetMode === "trialflag") return new Response('{"data":1}', { status: 200, headers: { "x-free-trial": "true", "x-free-trial-remaining": "n/a" } });
@@ -850,9 +851,9 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   assert.equal(r.status, 200);
   assert.equal(r.body.access.tier, "free");
   assert.equal(r.body.verdict, "pay");
-  assert.equal(r.body.reason, "listed $0.001, payment request matches, details locked");
+  assert.equal(r.body.reason, "listed $0.001, payment request matches the listed price");
   // free tier: verdict + plain reason + access only (quoted/claimed price, pay_to, network, asset are paid)
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "payment_terms_sha256", "prior_checks", "reason", "receipt_id", "receipt_url", "upsell", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "pay_to_changed", "payment_terms_sha256", "prior_checks", "reason", "receipt_id", "receipt_url", "upsell", "verdict"]);
   assert.equal(r.body.upsell, "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01");
   assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.match(r.body.payment_terms_sha256, /^[0-9a-f]{64}$/);
@@ -950,7 +951,7 @@ test("no 402 terms is skip/no_paywall; trial headers are recheck/free_trial_acti
   spotTargetMode = "trial";
   const f = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/e") + "&claimed_price=0.05&client=trial-free-1", { envo: e });
   assert.equal(f.body.verdict, "recheck");
-  assert.equal(f.body.reason, "listed $0.05, seller reports a free trial in use, no payment terms yet, check again (3 trial calls left), details locked");
+  assert.equal(f.body.reason, "listed $0.05, seller says a free trial is active, so there is no price to check yet, try again later (3 trial calls left)");
   spotTargetMode = "402";
 });
 
@@ -998,7 +999,7 @@ test("MCP endpoint_spot_check listed; unpaid after free returns pay instructions
   const free = await rpc(call, { envo: e });
   assert.equal(free.body.result.isError, undefined);
   assert.equal(free.body.result.structuredContent.verdict, "pay");
-  assert.match(free.body.result.structuredContent.reason, /details locked/);
+  assert.match(free.body.result.structuredContent.reason, /^listed \$/);
   assert.equal(free.body.result.structuredContent.quoted_price_usd, undefined);
   const paidNeed = await rpc(call, { envo: e });
   assert.equal(paidNeed.body.result.isError, true);
@@ -1183,7 +1184,7 @@ test("spot-check expected pay_to / network: mismatches are skip; our crawl's lis
   // free tier states it in plain words
   const free = await send(SPOT + "?url=" + encodeURIComponent("https://topagentx402.vercel.app/api/send-token") + "&client=free-real-1", { envo: e });
   assert.equal(free.body.access.tier, "free");
-  assert.equal(free.body.reason, "listed $0.001, asks for a different network than expected, details locked");
+  assert.equal(free.body.reason, "listed $0.001, asks for payment on a different network than listed");
 });
 
 test("PAY STEP: paid pay verdict returns the exact signable payment; hash commits to it; skip approves nothing", async () => {
@@ -1211,6 +1212,17 @@ test("PAY STEP: picks the accept matching the expectation; non-USDC asset is ski
   const usdc = { scheme: "exact", network: "eip155:8453", asset: USDC, amount: "10000", payTo: "0x" + "aa".repeat(20), amount_usd: 0.01 };
   const sep = { scheme: "exact", network: "eip155:84532", asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", amount: "10000", payTo: "0x" + "bb".repeat(20), amount_usd: 0.01 };
   assert.equal(pickPayment({ accepts: [usdc, sep] }, { network: "eip155:84532" }).pay_to, sep.payTo);
+  // 0.27.0 fix: listing names only Base Sepolia, the same seller's 402 also offers Base mainnet USDC -> judge the mainnet offer
+  const sepSame = { ...sep, payTo: usdc.payTo };
+  for (const exp of [{ network: "eip155:84532" }, { network: "eip155:84532", pay_to: usdc.payTo }]) {
+    const pmx = pickPayment({ accepts: [sepSame, usdc] }, exp);
+    assert.equal(pmx.network, "eip155:8453");
+    assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pmx, { claimed: 0.01 }), { verdict: "pay", reason: "price_ok" });
+  }
+  assert.equal(pickPayment({ accepts: [sepSame] }, { network: "eip155:84532" }).network, "eip155:84532", "testnet-only 402 unchanged");
+  // 0.27.0 fix: within 1% of the listed price is a match (dynamic pricing drift); further is still a mismatch
+  assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pickPayment({ accepts: [{ ...usdc, amount: "1869" }] }, {}), { claimed: 0.001866 }), { verdict: "pay", reason: "price_ok" });
+  assert.deepEqual(applyPayment({ verdict: "pay", reason: "price_ok" }, pickPayment({ accepts: [{ ...usdc, amount: "1890" }] }, {}), { claimed: 0.001866 }), { verdict: "skip", reason: "price_mismatch" });
   const weird = { ...usdc, asset: "0x" + "99".repeat(20) };
   assert.equal(pickPayment({ accepts: [weird, usdc] }, {}).asset, USDC, "prefers the USDC accept when nothing is expected");
   const pm = pickPayment({ accepts: [weird] }, {});
@@ -1271,7 +1283,7 @@ function fakeD1() {
               }
               if (/WHERE id = \?/.test(sql)) return rows.find((r) => r.id === a[0]) || null;
               if (/WHERE norm_key = \?/.test(sql)) return rows.filter((r) => r.norm_key === a[0] && r.probed_at >= a[1]).sort((x, y) => (x.probed_at < y.probed_at ? 1 : -1))[0] || null;
-              if (/WHERE url = \?/.test(sql)) return rows.filter((r) => r.url === a[0]).sort((x, y) => (x.created_at < y.created_at ? 1 : x.created_at > y.created_at ? -1 : 0))[0] || null;
+              if (/WHERE url = \?/.test(sql)) return rows.map((r, i) => [r, i]).filter(([r]) => r.url === a[0]).sort(([x, i], [y, j]) => (x.created_at < y.created_at ? 1 : x.created_at > y.created_at ? -1 : /rowid DESC/.test(sql) ? j - i : 0)).map(([r]) => r)[0] || null;
               return null;
             },
           };
@@ -1486,7 +1498,7 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.equal(r.body.mode, "dry-run");
   assert.equal(r.body.verdict, "pay");
-  assert.equal(r.body.reason, "listed $0.001, payment request matches");
+  assert.equal(r.body.reason, "listed $0.001, payment request matches the listed price");
   assert.equal(r.body.payment_terms_sha256, null, "a dry run never approves terms");
   assert.equal(r.body.access.tier, "dry-run");
   assert.deepEqual([r.body.access.dry_runs_per_day, r.body.access.dry_runs_used_today, r.body.access.dry_runs_remaining_today], [3, 1, 2]);
@@ -1964,7 +1976,7 @@ test("0.24.0: outside free/dry-run receipts redacted in every view; paid/exempt 
   const hide = (o, why) => { const t = JSON.stringify(o); assert.ok(!t.includes(PAY_TO) && !/amount_atomic|probe_snapshot|norm_key|SECRET123/.test(t), why + ": " + t.slice(0, 300)); };
   const one = (await send("/v1/receipts/" + free.body.receipt_id, { envo: e })).body;
   hide(one, "by id");
-  assert.deepEqual([one.verdict, one.reason, one.reason_text, one.approved_payment, one.url], ["pay", "price_ok", "payment request matches", null, "https://spot.target.test/q"]);
+  assert.deepEqual([one.verdict, one.reason, one.reason_text, one.approved_payment, one.url], ["pay", "price_ok", "payment request matches the listed price", null, "https://spot.target.test/q"]);
   assert.match(one.redacted, /paid check/);
   hide((await send("/v1/receipts?type=dry-run", { envo: e })).body, "type list");
   const by = (await send("/v1/receipts/by-url?url=" + encodeURIComponent(T), { envo: e })).body;
@@ -2018,7 +2030,7 @@ test("0.25.0: recent_checks in /v1/skips.json: outside free checks only, URL pat
   assert.equal(sk.recent_checks.length, 1, JSON.stringify(sk.recent_checks));
   const x = sk.recent_checks[0];
   assert.deepEqual(Object.keys(x), ["url", "verdict", "reason", "checked_at", "receipt_url", "caller"]);
-  assert.deepEqual([x.url, x.verdict, x.reason, x.caller, x.receipt_url], [R, "pay", "payment request matches", "outside", "https://402xagent.com/v1/receipts/" + a.body.receipt_id]);
+  assert.deepEqual([x.url, x.verdict, x.reason, x.caller, x.receipt_url], [R, "pay", "payment request matches the listed price", "outside", "https://402xagent.com/v1/receipts/" + a.body.receipt_id]);
   assert.match(x.checked_at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
   const txt = JSON.stringify(sk.recent_checks);
   assert.ok(!/SECRET999|0\.001|\$|0x[0-9a-fA-F]{40}|sha256|eip155/.test(txt), txt);
@@ -2096,6 +2108,83 @@ test("0.26.0: /bazaar: daily cron checks Bazaar results as self-checked, redacte
   // off switch: route gone, cron does nothing
   const off = spotEnv({ CRAWL_KV: kv, BAZAAR_PAGE: "off" });
   assert.equal((await send("/bazaar.json", { envo: off })).status, 404);
+});
+
+test("0.27.0: stale receipts are rechecked on idle cron steps (capped, self-checked, redacted), never on Bazaar steps", async () => {
+  const { staleStep, staleCheckUrl, STALE_PER_DAY } = await import("../worker/src/stale.js");
+  const now = new Date("2026-10-20T12:00:00Z");
+  const old = (d) => new Date(now.getTime() - d * 86400e3).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const seen = [];
+  const mk = (todayCount, rows) => ({ prepare(sql) { return { bind(...a) { seen.push([sql, a]); return {
+    async first() { return { n: todayCount }; },
+    async all() { return { results: rows }; } }; } }; } });
+  const rows = [
+    { url: "https://api.realx402.dev/a", last: old(5), first: old(6), method: "POST", expected: JSON.stringify({ source: "request", claimed_price_usd: 0.01, pay_to: "0x" + "ab".repeat(20), network: "eip155:8453" }) },
+    { url: "https://example.com/api/paid", last: old(5), first: old(6), method: "GET", expected: null },
+    ...Array.from({ length: 8 }, (_, i) => ({ url: "https://api.realx402.dev/s" + i, last: old(4), first: old(4), method: "GET", expected: JSON.stringify({ source: "listing", claimed_price_usd: 1 }) })),
+  ];
+  const calls = [];
+  const runCheck = async (u) => { calls.push(u); return new Response("{}"); };
+  const r = await staleStep({ RECEIPTS_DB: mk(0, rows) }, { now, runCheck, origin: "https://api.402xagent.com" });
+  assert.deepEqual([r.did, r.n], ["rechecked", 5]);
+  assert.ok(calls.every((u) => /client=withgrokbot-selftest/.test(u) && /ref=stale-recheck/.test(u)));
+  assert.ok(!calls.some((u) => u.includes("example.com")), "junk hosts are not rechecked");
+  assert.match(calls[0], /method=POST/); assert.match(calls[0], /claimed_price=0.01/); assert.match(calls[0], /pay_to=0x/);
+  assert.ok(!/claimed_price/.test(calls[1]), "listing expectations are re-read from the listing, not frozen");
+  const [, bind] = seen.find(([q]) => /GROUP BY url/.test(q));
+  assert.deepEqual(bind, ["2026-10-17T12:00:00Z", "2026-09-20T12:00:00Z"]);
+  calls.length = 0;
+  assert.equal((await staleStep({ RECEIPTS_DB: mk(STALE_PER_DAY, rows) }, { now, runCheck, origin: "x" })).did, "cap"); assert.equal(calls.length, 0);
+  assert.equal((await staleStep({ RECEIPTS_DB: mk(STALE_PER_DAY - 2, rows) }, { now, runCheck, origin: "x" })).n, 2);
+  assert.equal(staleCheckUrl("o", { url: "https://a.dev/x?q=1", method: "GET" }), "o/v1/products/endpoint-spot-check?url=https%3A%2F%2Fa.dev%2Fx%3Fq%3D1&client=withgrokbot-selftest&ref=stale-recheck");
+  // a stale-recheck receipt is self-checked, stored as tier "auto", and shown redacted
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db });
+  spotTargetMode = "402";
+  const a = await send(SPOT + "?url=" + encodeURIComponent("https://api.realx402.dev/stale1") + "&claimed_price=0.001&client=withgrokbot-selftest&ref=stale-recheck", { envo: e });
+  const row = db.rows.find((x) => x.id === a.body.receipt_id);
+  assert.equal(row.check_type, "self-checked"); assert.equal(JSON.parse(row.body).access_tier, "auto");
+  const rec = (await send("/v1/receipts/" + row.id, { envo: e })).body;
+  assert.equal(rec.approved_payment, undefined === rec.approved_payment ? undefined : null);
+  assert.ok(!JSON.stringify(rec.live_402 || {}).includes("pay_to\":\"0x"), "redacted receipt");
+});
+
+test("0.27.0: pay_to_changed flags a wallet change since the previous receipt for the URL (verdict unchanged)", async () => {
+  const { payToChangedFrom } = await import("../worker/src/lib.js");
+  const prev = { live_402: { accepts: [{ network: "eip155:8453", pay_to: "0x" + "aa".repeat(20) }, { network: "eip155:84532", pay_to: "0x" + "cc".repeat(20) }] } };
+  assert.equal(payToChangedFrom(prev, { network: "eip155:8453", pay_to: "0x" + "AA".repeat(20) }), false);
+  assert.equal(payToChangedFrom(prev, { network: "eip155:8453", pay_to: "0x" + "bb".repeat(20) }), true);
+  assert.equal(payToChangedFrom(prev, { network: "eip155:137", pay_to: "0x" + "bb".repeat(20) }), null, "other network: nothing to compare");
+  assert.equal(payToChangedFrom(null, { network: "eip155:8453", pay_to: "0x1" }), null);
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db });
+  spotTargetMode = "402";
+  const U = SPOT + "?url=" + encodeURIComponent("https://api.realx402.dev/ptc") + "&client=withgrokbot-selftest";
+  const first = await send(U, { envo: e });
+  assert.equal(first.body.pay_to_changed, null);
+  const r1 = db.rows.find((x) => x.id === first.body.receipt_id);
+  const b = JSON.parse(r1.body); b.live_402.accepts = b.live_402.accepts.map((x) => ({ ...x, pay_to: "0x" + "ee".repeat(20) })); r1.body = JSON.stringify(b);
+  r1.norm_key = "stale"; r1.created_at = "2026-01-01T00:00:00Z"; // no probe-cache hit; older than the next receipts
+  const second = await send(U, { envo: e });
+  assert.equal(second.body.pay_to_changed, true);
+  assert.equal(second.body.verdict, first.body.verdict, "flag only");
+  assert.equal(JSON.parse(db.rows.find((x) => x.id === second.body.receipt_id).body).previous_receipt_id, r1.id);
+  const third = await send(U, { envo: e });
+  assert.equal(third.body.pay_to_changed, false);
+});
+
+test("0.27.0: a GET that answers 405 is probed once with POST; the 402 from POST is used (false-skip fix)", async () => {
+  const e = spotEnv({ RECEIPTS_DB: fakeD1() });
+  spotTargetMode = "postonly";
+  try {
+    const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/postonly") + "&claimed_price=0.001&client=withgrokbot-selftest", { envo: e });
+    assert.equal(r.body.verdict, "pay", JSON.stringify(r.body).slice(0, 300));
+    assert.equal(r.body.probe.method_used, "POST");
+    const plain = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/postonly2") + "&claimed_price=0.001&client=withgrokbot-selftest&method=POST", { envo: e });
+    assert.equal(plain.body.probe.method_used, undefined, "explicit POST: no retry marker");
+  } finally { spotTargetMode = "402"; }
+  const r2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/normal") + "&claimed_price=0.001&client=withgrokbot-selftest", { envo: e });
+  assert.equal(r2.body.probe.method_used, undefined);
 });
 
 test("0.26.1: GET/HEAD with no url -> 200 + the usage/help body; malformed url and bad POST bodies stay 400", async () => {
