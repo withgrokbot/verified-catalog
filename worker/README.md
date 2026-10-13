@@ -109,6 +109,10 @@ real-client counts.
 - Every check records one observation per fresh probe in D1 (`endpoint_history`, last 30 per normalized URL; key is a hash of the URL). Answers and receipts carry `history`: `observations`, `stable_for_days`, `stable_since`, `last_changed`, `drift` (summary only, never the raw price or wallet).
 - Every verdict carries `reason_code` (stable machine code) and `confidence` (`high` | `medium` | `low`). Free answers keep the plain-words `reason`. Codes and confidence rules: `/rules` (HTML) and `/rules.json`.
 
+## Free-check network cap (0.33.0)
+
+Free live checks: 5 per client name per UTC day **and** at most 25 per network (IP; IPv6 /64) per UTC day across all client names. Over the network cap the check answers HTTP 429 with `Retry-After` (seconds to 00:00 UTC) and points to the paid check (one tenth of the endpoint's price, $0.01 to $0.25) and the router pack ($0.01 for 10 checks). The IP is only kept as a salted hash (`CLIENT_SALT`) in the QuotaCounter Durable Object. Paid, router, dry-run and self-test checks are unchanged.
+
 ## Status badge (0.32.0)
 
 `/badge/<host>.svg` (optional `?path=/exact/path`) shows only the real current status: green **pay · stable N days** when the latest stored live verdict is pay and under 72 h old; grey **stale** (pay, older) or **not verified** (skip, recheck, nothing yet). The badge never fetches the host and never writes; one D1 read, `Cache-Control: max-age=300`. `/badge/<host>` is a small page with the current status, the receipt link (redacted public view) and these embed snippets. Every receipt includes `badge.markdown` and `badge.html`.
