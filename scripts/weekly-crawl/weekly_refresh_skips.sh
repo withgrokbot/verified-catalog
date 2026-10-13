@@ -53,20 +53,16 @@ COV=$(grep '^COVERAGE' "$TMP/build.out")
 cd "$APP" && node tests/worker_test.mjs
 if [ "${DRY_RUN:-0}" = "1" ]; then echo "DRY_RUN: stopping before KV upload/deploy"; echo "$COV"; exit 0; fi
 
-# 5) KV first (changed keys only), so the new bundle never points at missing pages
-N=$(python3 -c "import json;print(len(json.load(open('$R/kv/changed.json'))))")
-if [ "$N" -gt 0 ]; then
-  [ "$N" -le 900 ] || { echo "KV change set $N > 900 (free plan: 1,000 writes/day); not uploading"; exit 1; }
-  WR kv bulk put "$R/kv/changed.json" --binding CRAWL_KV --remote
-  cp "$R/kv/pending.json" "$R/kv/uploaded.json"
-fi
-echo "kv keys written: $N"
+# 5) KV first (changed keys only, under a daily write budget), so the new bundle never points at missing pages
+set +e; python3 "$S/kv_upload.py"; KRC=$?; set -e
+[ "$KRC" = 3 ] && { echo "KV budget reached: rest deferred; rerun tomorrow (UTC) to finish, then deploy"; exit 3; }
+[ "$KRC" = 0 ] || { echo "KV upload failed"; exit 1; }
 
 # 6) commit the data locally, re-check the tree is clean, deploy that commit, verify live (cache-busted)
 REPO_HEAD_BEFORE=$(git -C "$REPO" rev-parse HEAD)
 clean_or_die "pre-deploy"
 cp "$APP/worker/src/receipts-data.js" "$REPO/worker/src/receipts-data.js"
-mkdir -p "$REPO/scripts/weekly-crawl" && cp "$S"/{fetch_lists.py,crawl_probe.py,build_worker_data.py,payai_credits.py,weekly_refresh_skips.sh} "$REPO/scripts/weekly-crawl/" && cp "$APP/scripts/almost_paid.py" "$APP/scripts/funnel_weekly.py" "$REPO/scripts/"
+mkdir -p "$REPO/scripts/weekly-crawl" && cp "$S"/{fetch_lists.py,crawl_probe.py,build_worker_data.py,payai_credits.py,weekly_refresh_skips.sh,kv_upload.py} "$REPO/scripts/weekly-crawl/" && cp "$APP/scripts/almost_paid.py" "$APP/scripts/funnel_weekly.py" "$REPO/scripts/"
 git -C "$REPO" add worker/src/receipts-data.js scripts/weekly-crawl scripts/almost_paid.py scripts/funnel_weekly.py
 if git -C "$REPO" diff --cached --quiet; then CHANGED=0; else CHANGED=1; git -C "$REPO" -c user.name=withgrokbot -c user.email=336192572+withgrokbot@users.noreply.github.com commit -qm "Weekly /v1/skips refresh: $COV"; fi
 [ "$(git -C "$REPO" log -1 --format=%an)" = "withgrokbot" ] || { echo "REFUSING: commit author is not withgrokbot"; exit 1; }

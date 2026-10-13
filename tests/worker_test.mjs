@@ -2226,6 +2226,23 @@ test("0.28.0: live price more than 1% BELOW the listing is pay/price_below_listi
   assert.equal(markPriceRule({ ...old, live_402: { accepts: [{ network: "eip155:8453", asset: USDCb, amount_atomic: "900000" }] } }).current_rule, undefined, "above listing: no note");
 });
 
+test("0.28.1: bazaar cron fails open on KV write errors (quota) and skips the KV read once today's snapshot is live", async () => {
+  const { bazaarStep, _resetBazaarIdle } = await import("../worker/src/bazaar.js");
+  _resetBazaarIdle();
+  const now = new Date("2026-10-13T12:00:00Z");
+  let reads = 0;
+  const failing = { get: async () => { reads++; return null; }, put: async () => { throw new Error("KV put() limit exceeded for the day"); } };
+  const fakeFetch = async () => new Response(JSON.stringify({ items: [{ resource: "https://x.test/a", accepts: [] }] }), { headers: { "content-type": "application/json" } });
+  const r1 = await bazaarStep({ CRAWL_KV: failing }, { now, fetchImpl: fakeFetch, runCheck: async () => new Response("{}"), origin: "https://o.test" });
+  assert.ok(["kv-write-failed", "search-empty"].includes(r1.did), "no throw: " + r1.did);
+  const live = { get: async () => { reads++; return { live: { day: "2026-10-13" }, build: null }; }, put: async () => {} };
+  reads = 0;
+  assert.equal((await bazaarStep({ CRAWL_KV: live }, { now, runCheck: null, origin: "" })).did, "idle");
+  assert.equal((await bazaarStep({ CRAWL_KV: live }, { now, runCheck: null, origin: "" })).did, "idle");
+  assert.equal(reads, 1, "second idle step reads nothing");
+  _resetBazaarIdle();
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {
