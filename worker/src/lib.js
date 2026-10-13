@@ -41,10 +41,11 @@ import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
 import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
 import { staleStep, STALE_REF } from "./stale.js";
+import { observation, recordHistory } from "./history.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.28.2";
+export const VERSION = "0.29.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
@@ -938,6 +939,7 @@ export const SPOT_PAID_EXAMPLE = {
   receipt_id: "sc-0123456789abcdef",
   receipt_url: "https://402xagent.com/v1/receipts/sc-0123456789abcdef",
   pay_to_changed: false,
+  history: { observations: 12, stable_for_days: 9, stable_since: "2026-10-01T17:00:00Z", last_changed: "2026-10-01T17:00:00Z", drift: false },
   access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
 };
 export const SPOT_FREE_EXAMPLE = {
@@ -947,6 +949,7 @@ export const SPOT_FREE_EXAMPLE = {
   receipt_id: "sc-0123456789abcdef",
   receipt_url: "https://402xagent.com/v1/receipts/sc-0123456789abcdef",
   pay_to_changed: false,
+  history: { observations: 12, stable_for_days: 9, stable_since: "2026-10-01T17:00:00Z", last_changed: "2026-10-01T17:00:00Z", drift: false },
   prior_checks: "https://402xagent.com/v1/skips",
   upsell: FREE_UPSELL,
   access: { tier: "free", free_per_day: 1, free_used_today: 1, free_remaining_today: 0, then: "$0.01 USDC on Base for the full check of this endpoint via x402 (HTTP 402)" },
@@ -984,6 +987,7 @@ export const SPOT_PAID_SCHEMA = {
     receipt_id: { type: ["string", "null"], description: "public receipt id for this decision (sc-...)" },
     receipt_url: { type: ["string", "null"], description: "free, public: GET it to show as the reason for paying or aborting" },
     pay_to_changed: { type: ["boolean", "null"], description: "true if the wallet differs from the previous receipt for this URL (same network); null if there is nothing to compare. A flag only: the verdict is unchanged." },
+    history: { type: ["object", "null"], description: "0.29.0 summary of the last 30 observations of this endpoint (D1; price, wallet and network are not shown). stable_for_days = whole days the payment terms (price, network, asset, pay_to) have been the same; stable_since/last_changed = when the current terms were first seen (last_changed null if they never changed in the kept history); drift = the terms differ from the previous observation (null if nothing to compare). Observations without payment terms (timeouts, errors) do not reset stability. null when the store is unavailable.", properties: { observations: { type: "integer" }, stable_for_days: { type: ["integer", "null"] }, stable_since: { type: ["string", "null"] }, last_changed: { type: ["string", "null"] }, drift: { type: ["boolean", "null"] } } },
     access: { type: "object", properties: { tier: { const: "paid" }, charged_usd: { type: "string" }, tx: { type: "string" } } },
   },
   required: ["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source", "payment", "payment_terms_sha256", "probe", "check_type", "receipt_id", "receipt_url", "access"],
@@ -998,6 +1002,7 @@ export const SPOT_FREE_SCHEMA = {
     receipt_id: { type: ["string", "null"], description: "public receipt id for this decision (sc-...)" },
     receipt_url: { type: ["string", "null"], description: "free, public: GET it to show as the reason for paying or aborting" },
     pay_to_changed: { type: ["boolean", "null"], description: "true if the wallet differs from the previous receipt for this URL (same network); null if there is nothing to compare. A flag only: the verdict is unchanged." },
+    history: { type: ["object", "null"], description: "0.29.0 summary of the last 30 observations of this endpoint (D1; price, wallet and network are not shown). stable_for_days = whole days the payment terms (price, network, asset, pay_to) have been the same; stable_since/last_changed = when the current terms were first seen (last_changed null if they never changed in the kept history); drift = the terms differ from the previous observation (null if nothing to compare). Observations without payment terms (timeouts, errors) do not reset stability. null when the store is unavailable.", properties: { observations: { type: "integer" }, stable_for_days: { type: ["integer", "null"] }, stable_since: { type: ["string", "null"] }, last_changed: { type: ["string", "null"] }, drift: { type: ["boolean", "null"] } } },
     access: { type: "object", properties: { tier: { const: "free" } } },
   },
   required: ["verdict", "reason", "payment_terms_sha256", "receipt_id", "receipt_url", "access"],
@@ -1048,6 +1053,7 @@ export function spotPaymentRequired(c, resourceUrl, error, used, target = "") {
       receipt_id: "sc-0123456789abcdef",
       receipt_url: "https://402xagent.com/v1/receipts/sc-0123456789abcdef",
       pay_to_changed: null,
+      history: { observations: 12, stable_for_days: 9, stable_since: "2026-10-01T17:00:00Z", last_changed: "2026-10-01T17:00:00Z", drift: false },
   pay_to_changed: false,
       access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
     },
@@ -1263,6 +1269,12 @@ export function applyPayment(d, pm, exp) {
 // Every delivered Spot-Check decision is stored as a public receipt: listing URL, live 402 terms, verdict, reason,
 // timestamp, id. Reading is free (GET /v1/receipts/<id>, GET /v1/receipts/by-url?url=). No client ids/IPs/payers stored.
 export const LIVE_RECEIPT_RE = /^sc-[0-9a-f]{16}$/;
+// 0.29.0: endpoint history key = sha256 of the normalized URL (method-independent; the URL itself never lands in the table).
+export async function historyKey(u) {
+  let n = String(u || "");
+  try { n = normUrl(u); } catch (_) {}
+  return "h:" + (await sha256hex(n));
+}
 export function newReceiptId() {
   const b = new Uint8Array(8);
   crypto.getRandomValues(b);
@@ -1700,10 +1712,11 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const payment = paymentObject(pm, pr.probedAt);
     const rid = env.RECEIPTS_DB ? newReceiptId() : null;
     const ptc = rid ? await payToChanged(env, q.url, pm0) : { pay_to_changed: null };
-    const receiptFields = { receipt_id: rid, receipt_url: rid ? CANON_ORIGIN + "/v1/receipts/" + rid : null, pay_to_changed: ptc.pay_to_changed };
+    const history = await recordHistory(env, await historyKey(q.url), observation(probe, pm0, d.verdict, pr.probedAt), !pr.cached);
+    const receiptFields = { receipt_id: rid, receipt_url: rid ? CANON_ORIGIN + "/v1/receipts/" + rid : null, pay_to_changed: ptc.pay_to_changed, history };
     if (rid) {
       const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && q.ref === STALE_REF ? "auto" : (access && access.tier) || null });
-      Object.assign(rec, ptc);
+      Object.assign(rec, ptc, { history });
       await saveLiveReceipt(env, rec); // awaited: the next call's cache lookup must see it
     }
     // Free tier: verdict + plain reason + a hash of the approved terms (enough for x402-spotcheck to refuse a
@@ -1916,10 +1929,13 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
   if (!env.RECEIPTS_DB) { point(503, "dry-run-no-store"); return json({ error: "dry runs are always stored as receipts; the receipt store is unavailable, try again shortly", mode: "dry-run" }, 503); }
   const pr = await getProbe(env, q, probeOpts);
   const probe = pr.probe;
-  const d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pickPayment(probe, exp), exp), probe, q, listing);
+  const pmD = pickPayment(probe, exp);
+  const d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pmD, exp), probe, q, listing);
+  const history = await recordHistory(env, await historyKey(q.url), observation(probe, pmD, d.verdict, pr.probedAt), !pr.cached);
   const rid = newReceiptId();
   const reason = spotLossReason(d, exp.claimed).replace(/, details locked$/, "");
   const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: reason, pm: null, termsHash: null, exp, checkType: exempt ? "self-checked" : "dry-run", mode: "dry-run", ref: q.ref, caller: q.dry_caller || (exempt ? "self-test" : null), probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: exempt ? "exempt" : "dry-run" });
+  rec.history = history;
   if (!(await saveLiveReceipt(env, rec))) { point(503, "dry-run-store-failed"); return json({ error: "dry runs are always stored as receipts; storing failed, try again shortly", mode: "dry-run" }, 503); }
   point(200, "dry-run", d.verdict);
   return json({
@@ -1930,6 +1946,7 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
     payment_terms_sha256: null,
     receipt_id: rid,
     receipt_url: CANON_ORIGIN + "/v1/receipts/" + rid,
+    history,
     prior_checks: PRIOR_CHECKS,
     access: {
       tier: exempt ? "dry-run-exempt" : "dry-run",

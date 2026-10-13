@@ -853,7 +853,7 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   assert.equal(r.body.verdict, "pay");
   assert.equal(r.body.reason, "listed $0.001, payment request matches the listed price");
   // free tier: verdict + plain reason + access only (quoted/claimed price, pay_to, network, asset are paid)
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "pay_to_changed", "payment_terms_sha256", "prior_checks", "reason", "receipt_id", "receipt_url", "upsell", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "history", "pay_to_changed", "payment_terms_sha256", "prior_checks", "reason", "receipt_id", "receipt_url", "upsell", "verdict"]);
   assert.equal(r.body.upsell, "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01");
   assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.match(r.body.payment_terms_sha256, /^[0-9a-f]{64}$/);
@@ -1245,13 +1245,17 @@ test("PAY STEP: picks the accept matching the expectation; non-USDC asset is ski
 // In-memory D1 stand-in (prepare/bind/run/first) for the receipts table.
 function fakeD1() {
   const rows = [];
+  const hist = [];
   return {
     rows,
+    hist,
     prepare(sql) {
       return {
         bind(...a) {
           return {
             async run() {
+              if (/^INSERT INTO endpoint_history/.test(sql)) { const k = ["hkey", "observed_at", "http_status", "amount_atomic", "price_usd", "network", "asset", "pay_to", "verdict"]; hist.push(Object.fromEntries(k.map((x, i) => [x, a[i]]))); return { success: true }; }
+              if (/^DELETE FROM endpoint_history/.test(sql)) { for (let i = hist.length - 1; i >= 0; i--) if (hist[i].hkey === a[0] && hist[i].observed_at < a[1]) hist.splice(i, 1); return { success: true }; }
               if (/^UPDATE spot_receipts SET pub_url/.test(sql)) {
                 const r = rows.find((x) => x.id === a[2] && !x.pub_url);
                 if (rows.some((x) => x.pub_day === a[1] && x.pub_url === a[0])) throw new Error("UNIQUE pub");
@@ -1260,6 +1264,7 @@ function fakeD1() {
               }
               if (/^INSERT/.test(sql)) { if (rows.some((r) => r.id === a[0])) throw new Error("UNIQUE"); rows.push({ id: a[0], url: a[1], created_at: a[2], verdict: a[3], reason: a[4], check_type: a[5], ref: a[6], norm_key: a[7], probed_at: a[8], body: a[9] }); } return { success: true }; },
             async all() {
+              if (/FROM endpoint_history/.test(sql)) return { results: hist.filter((h) => h.hkey === a[0]).sort((x, y) => (x.observed_at < y.observed_at ? 1 : -1)).slice(0, a[1]).map(({ hkey, ...r }) => r) };
               if (/WHERE pub_url IS NOT NULL ORDER BY/.test(sql)) {
                 const out = rows.filter((r) => r.pub_url).sort((x, y) => (x.created_at === y.created_at ? (x.id < y.id ? 1 : -1) : x.created_at < y.created_at ? 1 : -1));
                 return { results: out.slice(0, a[0]) };
@@ -1494,7 +1499,7 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   const u = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001";
   const r = await send(u + "&mode=dry-run&ref=via-agentkit&client=dry-client-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
   assert.equal(r.status, 200);
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "check_type", "mode", "payment_terms_sha256", "prior_checks", "reason", "receipt_id", "receipt_url", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "check_type", "history", "mode", "payment_terms_sha256", "prior_checks", "reason", "receipt_id", "receipt_url", "verdict"]);
   assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.equal(r.body.mode, "dry-run");
   assert.equal(r.body.verdict, "pay");
@@ -2241,6 +2246,45 @@ test("0.28.1: bazaar cron fails open on KV write errors (quota) and skips the KV
   assert.equal((await bazaarStep({ CRAWL_KV: live }, { now, runCheck: null, origin: "" })).did, "idle");
   assert.equal(reads, 1, "second idle step reads nothing");
   _resetBazaarIdle();
+});
+
+test("0.29.0: endpoint history in D1: summary only (no price/wallet), fresh probes recorded, cached not, pruned to 30, drift/stable rules", async () => {
+  const { historySummary, recordHistory, observation, HISTORY_KEEP } = await import("../worker/src/history.js");
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db, SPOT_PROBE_CACHE_S: "0" });
+  spotTargetMode = "402";
+  const u = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/hist") + "&client=withgrokbot-selftest";
+  const a = await send(u, { envo: e });
+  assert.equal(a.body.history.observations, 1);
+  assert.equal(a.body.history.drift, null);
+  const b = await send(u, { envo: e });
+  assert.equal(b.body.history.observations, 2);
+  assert.equal(b.body.history.drift, false);
+  assert.equal(b.body.history.stable_for_days, 0);
+  assert.equal(db.hist.length, 2);
+  const free = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/hist") + "&client=hist-free-1", { envo: e });
+  assert.deepEqual(Object.keys(free.body.history).sort(), ["drift", "last_changed", "observations", "stable_for_days", "stable_since"]);
+  const rec = JSON.parse(db.rows.find((r) => r.id === free.body.receipt_id).body);
+  assert.deepEqual(rec.history, free.body.history, "receipt carries the same summary");
+  // cached probes are not new observations
+  const e2 = spotEnv({ RECEIPTS_DB: db });
+  const n0 = db.hist.length;
+  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/hist2") + "&client=withgrokbot-selftest", { envo: e2 });
+  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/hist2") + "&client=withgrokbot-selftest", { envo: e2 });
+  assert.equal(db.hist.length, n0 + 1);
+  // rules
+  const T = (d) => new Date(Date.UTC(2026, 9, d)).toISOString();
+  const o = (d, amt, to = "0xA", st = 402) => ({ observed_at: T(d), http_status: st, amount_atomic: amt, network: "eip155:8453", asset: "0xU", pay_to: to });
+  const now = new Date(Date.UTC(2026, 9, 13, 12));
+  assert.deepEqual(historySummary([o(13, "10"), o(12, null, null, 504), o(5, "10"), o(1, "20")], now), { observations: 4, stable_for_days: 8, stable_since: T(5), last_changed: T(5), drift: false });
+  assert.equal(historySummary([o(13, "10", "0xB"), o(12, "10")], now).drift, true);
+  assert.equal(historySummary([o(13, "10"), o(1, "10")], now).last_changed, null);
+  assert.equal(historySummary([o(13, null, null, 404), o(12, "10")], now).stable_for_days, null, "no terms now: no stability claim");
+  // prune
+  const db2 = fakeD1();
+  for (let i = 0; i < HISTORY_KEEP + 5; i++) await recordHistory({ RECEIPTS_DB: db2 }, "h:x", observation({ http_status: 402 }, { amount_atomic: "1", network: "n", pay_to: "p" }, "pay", new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString()), true);
+  assert.equal(db2.hist.length, HISTORY_KEEP);
+  assert.equal(await recordHistory({ RECEIPTS_DB: { prepare() { throw new Error("down"); } } }, "h:x", {}, true), null, "fails open");
 });
 
 let passed = 0;
