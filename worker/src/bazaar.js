@@ -79,19 +79,27 @@ export function bazaarCounts(rows) {
 }
 
 // One cron step. runCheck(urlString) -> Response from our own check handler (no network hop).
+// 0.28.1: once today's snapshot is live, an isolate remembers it and skips the 20-min KV read until the UTC day changes.
+let idleDay = null;
+export function _resetBazaarIdle() { idleDay = null; }
+// KV writes can fail when the daily free-plan write quota is spent; the cron then just tries again next step (fail open).
+async function kvPut(kv, key, val) {
+  try { await kv.put(key, val); return true; } catch (_) { return false; }
+}
 export async function bazaarStep(env, { now = new Date(), fetchImpl = fetch, runCheck, origin }) {
   const kv = env.CRAWL_KV;
   if (!kv) return { did: "no-kv" };
+  if (idleDay === day(now)) return { did: "idle" };
   let st = null;
   try { st = await kv.get(BAZAAR_KEY, "json"); } catch (_) { st = null; }
   st = st || { live: null, build: null };
   const today = day(now);
-  if (!st.build && st.live && st.live.day === today) return { did: "idle" };
+  if (!st.build && st.live && st.live.day === today) { idleDay = today; return { did: "idle" }; }
   if (!st.build || st.build.day !== today) {
     const items = await bazaarSearch(fetchImpl);
     if (!items.length) return { did: "search-empty" }; // keep yesterday's page; retry next step
     st.build = { day: today, started_at: now.toISOString(), pending: items, rows: [] };
-    await kv.put(BAZAAR_KEY, JSON.stringify(st));
+    if (!(await kvPut(kv, BAZAAR_KEY, JSON.stringify(st)))) return { did: "kv-write-failed" };
     return { did: "searched", n: items.length };
   }
   const batch = st.build.pending.splice(0, BAZAAR_BATCH);
@@ -109,7 +117,7 @@ export async function bazaarStep(env, { now = new Date(), fetchImpl = fetch, run
     st.live = { day: today, generated_at: now.toISOString(), queries: BAZAAR_QUERIES, counts: bazaarCounts(rows), rows };
     st.build = null;
   }
-  await kv.put(BAZAAR_KEY, JSON.stringify(st));
+  if (!(await kvPut(kv, BAZAAR_KEY, JSON.stringify(st)))) return { did: "kv-write-failed" };
   return { did: "checked", n: batch.length, done: !st.build };
 }
 
