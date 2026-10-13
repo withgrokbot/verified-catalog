@@ -2334,6 +2334,27 @@ test("0.30.0: reason_code + confidence on every verdict; /rules + /rules.json pu
   assert.deepEqual([old.body.reason_code, old.body.confidence], ["no_paywall", "medium"]);
 });
 
+test("0.31.0: default free tier is 5 live checks per caller per UTC day, then the 402; dry-run caps unchanged", async () => {
+  const e = spotEnv({ RECEIPTS_DB: fakeD1() });
+  delete e.env.SPOT_FREE_PER_DAY;
+  spotTargetMode = "402";
+  const u = (i) => SPOT + "?url=" + encodeURIComponent("https://spot.target.test/f" + i) + "&client=five-free-1";
+  for (let i = 1; i <= 5; i++) {
+    const r = await send(u(i), { envo: e });
+    assert.equal(r.status, 200, "free #" + i);
+    assert.deepEqual([r.body.access.tier, r.body.access.free_per_day, r.body.access.free_remaining_today], ["free", 5, 5 - i]);
+  }
+  const sixth = await send(u(6), { envo: e });
+  assert.equal(sixth.status, 402);
+  assert.match(sixth.body.error, /\(5 per UTC day\)/);
+  const other = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/f7") + "&client=five-free-2", { envo: e });
+  assert.equal(other.status, 200, "per caller");
+  const { spotCfg } = await import("../worker/src/lib.js");
+  const c = spotCfg({});
+  assert.equal(c.freePerDay, 5);
+  assert.equal(c.dryPerDay, spotCfg({ SPOT_FREE_PER_DAY: "1" }).dryPerDay, "dry-run cap independent of the free tier");
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {
