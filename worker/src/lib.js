@@ -47,7 +47,7 @@ import { handleBadge, badgeSnippets } from "./badge.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.32.1";
+export const VERSION = "0.32.2";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
@@ -2290,7 +2290,7 @@ export function openapi(origin, env = {}) {
         get: {
           operationId: "statusBadge",
           security: [],
-          summary: "Free SVG status badge for a host (or ?path= for one endpoint). Green 'pay · stable N days' only when the latest stored live verdict is pay and under 72 h old (and, for a host, no other endpoint on it has a fresher non-pay); otherwise grey 'stale' or 'not verified'. Never fetches the host, one D1 read, Cache-Control max-age=300. /badge/{host} (no .svg) redirects to the receipt (redacted public view). Embed: [![402xAgent status](https://402xagent.com/badge/{host}.svg)](https://402xagent.com/badge/{host}).",
+          summary: "Free SVG status badge for a host (or ?path= for one endpoint). Green 'pay · stable N days' only when the latest stored live verdict is pay and under 72 h old (and, for a host, no other endpoint on it has a fresher non-pay); otherwise grey 'stale' or 'not verified'. Never fetches the host, one D1 read, Cache-Control max-age=300. /badge/{host} (no .svg) is a small HTML page with the current status, the receipt link (redacted public view) and the embed snippets. Embed: [![402xAgent status](https://402xagent.com/badge/{host}.svg)](https://402xagent.com/badge/{host}).",
           parameters: [{ name: "host", in: "path", required: true, schema: { type: "string" } }, { name: "path", in: "query", required: false, schema: { type: "string" } }],
           responses: { 200: { description: "SVG badge", content: { "image/svg+xml": { schema: { type: "string" } } } }, 400: { description: "invalid host (grey SVG)" } },
         },

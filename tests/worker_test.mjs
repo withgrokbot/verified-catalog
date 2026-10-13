@@ -2391,9 +2391,11 @@ test("0.32.0: /badge/<host>.svg shows only real current status (pay+fresh = gree
     assert.ok(!/<script/i.test(r.text));
   }
   assert.equal((await get("/badge/good.example.com.svg?path=%2Fa%3Fq")).status, 400);
-  const red = await get("/badge/good.example.com");
-  assert.equal(red.status, 302);
-  assert.equal(red.h.get("location"), "https://402xagent.com/v1/receipts/sc-00000000000000b1");
+  const pg = await get("/badge/good.example.com");
+  assert.equal(pg.status, 200);
+  assert.match(pg.text, /href="https:\/\/402xagent\.com\/v1\/receipts\/sc-00000000000000b1"/);
+  assert.match(pg.text, /\[!\[402xAgent status\]/);
+  assert.ok(!(await get("/badge/none.example.com")).text.includes("<script"));
   assert.ok(!badgeSvg("a<b", "c&d", "#fff\"").includes("a<b"));
   assert.equal(validBadgeHost("API.Example.com"), "api.example.com");
   assert.equal(badgeState(null).text, "not verified");
