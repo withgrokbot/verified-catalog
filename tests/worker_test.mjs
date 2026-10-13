@@ -2435,6 +2435,28 @@ test("0.33.0: free live checks capped at 25 per network per UTC day across clien
   assert.ok(!e.points.some((p) => JSON.stringify(p).includes(ip)), "raw IP never in analytics points");
 });
 
+test("0.34.0: paid/exempt answers carry the full last-30 history_observations; free answers, dry runs and receipts keep only the summary", async () => {
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db, SPOT_PROBE_CACHE_S: "0" });
+  spotTargetMode = "402";
+  const u = "?url=" + encodeURIComponent("https://spot.target.test/hs");
+  await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
+  const full = await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
+  assert.equal(full.body.history_observations.length, 2);
+  const o = full.body.history_observations[0];
+  assert.deepEqual(Object.keys(o).sort(), ["amount_atomic", "asset", "http_status", "network", "observed_at", "pay_to", "price_usd"]);
+  assert.equal(o.http_status, 402);
+  assert.ok(o.pay_to);
+  const free = await send(SPOT + u + "&client=hs-free-1", { envo: e });
+  assert.equal(free.body.history_observations, undefined);
+  assert.ok(!JSON.stringify(free.body).includes(o.pay_to), "free answer never shows the wallet");
+  const dry = await send(SPOT + u + "&client=hs-dry-1&mode=dry-run", { envo: e });
+  assert.equal(dry.body.history_observations, undefined);
+  for (const r of db.rows) assert.ok(!("history_observations" in JSON.parse(r.body)), "receipts keep the summary only");
+  const rc = await send("/v1/receipts/" + free.body.receipt_id, { envo: e });
+  assert.ok(rc.body.history && rc.body.history_observations === undefined && !JSON.stringify(rc.body.history).includes(o.pay_to));
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {

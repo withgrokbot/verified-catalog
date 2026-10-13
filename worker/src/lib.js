@@ -41,13 +41,13 @@ import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
 import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
 import { staleStep, STALE_REF } from "./stale.js";
-import { observation, recordHistory } from "./history.js";
+import { observation, recordHistory, historyObservations } from "./history.js";
 import { reasonFields, rulesJson, rulesHtml } from "./rules.js";
 import { handleBadge, badgeSnippets } from "./badge.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.33.0";
+export const VERSION = "0.34.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
@@ -959,6 +959,7 @@ export const SPOT_PAID_EXAMPLE = {
   reason_code: "price_ok",
   confidence: "high",
   history: { observations: 12, stable_for_days: 9, stable_since: "2026-10-01T17:00:00Z", last_changed: "2026-10-01T17:00:00Z", drift: false },
+  history_observations: [{ observed_at: "2026-10-10T17:00:00Z", http_status: 402, price_usd: 0.05, amount_atomic: "50000", network: "eip155:8453", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", pay_to: "0x..." }],
   access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
 };
 export const SPOT_FREE_EXAMPLE = {
@@ -1010,6 +1011,7 @@ export const SPOT_PAID_SCHEMA = {
     pay_to_changed: { type: ["boolean", "null"], description: "true if the wallet differs from the previous receipt for this URL (same network); null if there is nothing to compare. A flag only: the verdict is unchanged." },
     reason_code: { type: ["string", "null"], description: "0.30.0 stable machine code for the verdict (see /rules.json); in free answers `reason` is plain words, here is the code" },
     confidence: { type: "string", enum: ["high", "medium", "low"], description: "0.30.0 confidence in the verdict; rules at /rules.json" },
+    history_observations: { type: ["array", "null"], description: "0.34.0, paid / router / exempt answers only: the last 30 observations of this endpoint, newest first (observed_at, http_status, price_usd, amount_atomic, network, asset, pay_to). Free answers, dry runs and receipts keep only the history summary.", items: { type: "object" } },
     history: { type: ["object", "null"], description: "0.29.0 summary of the last 30 observations of this endpoint (D1; price, wallet and network are not shown). stable_for_days = whole days the payment terms (price, network, asset, pay_to) have been the same; stable_since/last_changed = when the current terms were first seen (last_changed null if they never changed in the kept history); drift = the terms differ from the previous observation (null if nothing to compare). Observations without payment terms (timeouts, errors) do not reset stability. null when the store is unavailable.", properties: { observations: { type: "integer" }, stable_for_days: { type: ["integer", "null"] }, stable_since: { type: ["string", "null"] }, last_changed: { type: ["string", "null"] }, drift: { type: ["boolean", "null"] } } },
     access: { type: "object", properties: { tier: { const: "paid" }, charged_usd: { type: "string" }, tx: { type: "string" } } },
   },
@@ -1081,6 +1083,7 @@ export function spotPaymentRequired(c, resourceUrl, error, used, target = "") {
       reason_code: "no_paywall",
       confidence: "medium",
       history: { observations: 12, stable_for_days: 9, stable_since: "2026-10-01T17:00:00Z", last_changed: "2026-10-01T17:00:00Z", drift: false },
+      history_observations: [],
   pay_to_changed: false,
       access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
     },
@@ -1778,6 +1781,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       check_type: checkType,
       ...(d.reason === "free_trial_active" ? { free_trial_remaining: d.free_trial_remaining ?? null } : {}),
       ...receiptFields,
+      history_observations: history ? historyObservations(history) : null, // 0.34.0: paid/router/exempt only
       access,
     };
   };
