@@ -109,6 +109,18 @@ real-client counts.
 - Every check records one observation per fresh probe in D1 (`endpoint_history`, last 30 per normalized URL; key is a hash of the URL). Answers and receipts carry `history`: `observations`, `stable_for_days`, `stable_since`, `last_changed`, `drift` (summary only, never the raw price or wallet).
 - Every verdict carries `reason_code` (stable machine code) and `confidence` (`high` | `medium` | `low`). Free answers keep the plain-words `reason`. Codes and confidence rules: `/rules` (HTML) and `/rules.json`.
 
+## Status badge (0.32.0)
+
+`/badge/<host>.svg` (optional `?path=/exact/path`) shows only the real current status: green **pay · stable N days** when the latest stored live verdict is pay and under 72 h old; grey **stale** (pay, older) or **not verified** (skip, recheck, nothing yet). The badge never fetches the host and never writes; one D1 read, `Cache-Control: max-age=300`. `/badge/<host>` redirects to the receipt (redacted public view). Every receipt includes `badge.markdown` and `badge.html`.
+
+```markdown
+[![402xAgent status](https://402xagent.com/badge/api.example.com.svg)](https://402xagent.com/badge/api.example.com)
+```
+
+```html
+<a href="https://402xagent.com/badge/api.example.com"><img src="https://402xagent.com/badge/api.example.com.svg" alt="402xAgent status"></a>
+```
+
 ## Local test (no account needed)
 
 ```
