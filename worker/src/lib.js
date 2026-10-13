@@ -44,7 +44,7 @@ import { staleStep, STALE_REF } from "./stale.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.28.1";
+export const VERSION = "0.28.2";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
@@ -3023,6 +3023,10 @@ const routeInnerHolder = {
     if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return handleReceipts(url, env);
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
     if (path === "/.well-known/x402") return json(wellKnownX402(env, url.hostname), 200, { "cache-control": "public, max-age=300" });
+    if (path === "/.well-known/402index-verify.txt") {
+      let h = ""; try { h = JSON.parse(String(env.INDEX402_VERIFY || "{}"))[url.hostname] || ""; } catch {}
+      return h ? new Response(h, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } }) : json({ error: "not found" }, 404);
+    }
     if (path === "/.well-known/agent-tools-verify.txt") {
       const tok = agentToolsToken(env, url.hostname);
       return tok ? new Response(tok + "\n", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } }) : json({ error: "not found" }, 404);
