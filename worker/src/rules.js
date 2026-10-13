@@ -58,6 +58,11 @@ export function rulesJson(origin) {
       history: "summary of the last 30 observations: stable_for_days, stable_since, last_changed, drift",
     },
     price_tolerance: "within 1% of the listed price counts as the listed price",
+    limits: {
+      free_live_checks: "5 per client name per UTC day, and at most 25 per network (IP; IPv6 /64) per UTC day across all client names; over the network cap: HTTP 429 with Retry-After until 00:00 UTC. The IP is only kept as a salted hash.",
+      dry_runs: "separate caps per caller and per network; never an approval to pay",
+      paid: "one tenth of the endpoint's quoted price (min $0.01, cap $0.25) per check; router tier $0.01 for 10 checks; rate limited per payer per hour",
+    },
   };
 }
 
@@ -71,6 +76,7 @@ export function rulesHtml(origin) {
 <h2>Reason codes</h2><table><tr><th>reason_code</th><th>verdict</th><th>default confidence</th><th>rule</th></tr>${rows}</table>
 <p>${esc(j.price_tolerance)}.</p>
 <h2>Confidence</h2><ul>${j.confidence.rules.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
+<h2>Limits</h2><ul>${Object.entries(j.limits).map(([k, v]) => `<li><b>${esc(k)}</b>: ${esc(v)}</li>`).join("")}</ul>
 <h2>Fields</h2><ul>${Object.entries(j.fields).map(([k, v]) => `<li><code>${esc(k)}</code>: ${esc(v)}</li>`).join("")}</ul>
 <p><a href="/">402xAgent</a></p></body></html>`;
 }

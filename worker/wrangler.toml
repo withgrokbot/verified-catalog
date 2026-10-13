@@ -60,6 +60,7 @@ PACK_PRICE_ATOMIC = "9000000"
 # SELF_CLIENTS exempt from free quota only (still SSRF-gated). Never pays the URL under test.
 SPOT_PRICE_ATOMIC = "250000"  # legacy flat price; 0.6.3+ prices per target: 1/10 of its quote, min $0.01, cap $0.25
 SPOT_FREE_PER_DAY = "5"
+SPOT_FREE_PER_IP_DAY = "25"
 SPOT_PAID_PER_HOUR = "30"
 
 # One data point per lookup (free plan: 100k writes/day, kept 3 months).

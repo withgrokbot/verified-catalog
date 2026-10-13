@@ -2405,6 +2405,36 @@ test("0.32.0: /badge/<host>.svg shows only real current status (pay+fresh = gree
   assert.match(rc.body.badge.html, /^<a href="https:\/\/402xagent\.com\/badge\/good\.example\.com\?path=%2Fapi"><img src=/);
 });
 
+test("0.33.0: free live checks capped at 25 per network per UTC day across client names (salted hash), 429 + Retry-After; paid/exempt/dry-run unchanged", async () => {
+  const { freeIpKey, secondsToUtcMidnight } = await import("../worker/src/lib.js");
+  const e = spotEnv({ RECEIPTS_DB: fakeD1() });
+  e.env.CLIENT_SALT = "test-salt";
+  e.env.SPOT_FREE_PER_DAY = "5";
+  spotTargetMode = "402";
+  const ip = "198.51.100.23";
+  const go = (cl, i, extra = "") => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/ip" + i) + "&client=" + cl + extra, { envo: e, ip });
+  let n = 0;
+  for (let c = 0; c < 5; c++) for (let i = 0; i < 5; i++) { const r = await go("rot-" + c, n++); assert.equal(r.status, 200, "free #" + n); assert.equal(r.body.access.tier, "free"); }
+  const over = await go("rot-new", n++);
+  assert.equal(over.status, 429, "26th free check from one network is 429 even with a fresh client name");
+  assert.match(over.body.error, /25 free live checks per UTC day from one network/);
+  assert.match(over.body.router_pack.price, /\$0\.01 USDC for 10 checks/);
+  assert.match(over.body.paid_check.url, /endpoint-spot-check\?url=/);
+  const ra = Number(over.headers.get("retry-after"));
+  assert.ok(ra > 0 && ra <= 86400 && Math.abs(ra - secondsToUtcMidnight()) < 5);
+  assert.ok(!JSON.stringify(over.body).includes(ip));
+  // other network still fine; exempt + dry-run unaffected
+  assert.equal((await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/o") + "&client=rot-x", { envo: e, ip: "203.0.113.99" })).status, 200);
+  assert.equal((await go("withgrokbot-selftest", n++)).status, 200, "self-test exempt");
+  assert.equal((await go("rot-dry", n++, "&mode=dry-run")).status, 200, "dry run has its own caps");
+  // hash only
+  const k = await freeIpKey(new Request("https://x/", { headers: { "cf-connecting-ip": ip } }), { CLIENT_SALT: "test-salt" });
+  assert.match(k, /^fip:[0-9a-f]{32}$/);
+  assert.ok(!k.includes(ip) && !k.includes("198.51"));
+  assert.notEqual(k, await freeIpKey(new Request("https://x/", { headers: { "cf-connecting-ip": ip } }), { CLIENT_SALT: "other" }), "salted");
+  assert.ok(!e.points.some((p) => JSON.stringify(p).includes(ip)), "raw IP never in analytics points");
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {

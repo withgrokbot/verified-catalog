@@ -54,7 +54,7 @@ export async function crawlReceiptForUrl(env, u) {
 }
 
 export function spotHowTo(origin) {
-  return `Free check first: GET ${FREE_CHECK_URL} (optional &claimed_price=0.01; or POST JSON {"url":"<endpoint>"}) returns verdict pay|skip|recheck. 5 free/day plus free dry runs (&mode=dry-run); after that, the paid check is $0.01-$0.25 USDC via x402 on Base (one tenth of the target's quoted price). Never pays the target.`;
+  return `Free check first: GET ${FREE_CHECK_URL} (optional &claimed_price=0.01; or POST JSON {"url":"<endpoint>"}) returns verdict pay|skip|recheck. 5 free/day (25 per network) plus free dry runs (&mode=dry-run); after that, the paid check is $0.01-$0.25 USDC via x402 on Base (one tenth of the target's quoted price). Never pays the target.`;
 }
 
 export function coverage() {
@@ -118,7 +118,7 @@ export async function handleSkips(req, url, env = {}) {
 <link rel="canonical" href="${CANON_ORIGIN}/v1/skips${page > 1 ? "?page=" + page : ""}">
 <style>body{font:14px/1.45 system-ui,sans-serif;margin:1.5rem;max-width:1200px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:4px 6px;vertical-align:top;text-align:left}.u{word-break:break-all;font-family:ui-monospace,monospace;font-size:12px}tr:target,.featured{background:#fff6d5}header p{margin:.3rem 0}code{background:#f3f3f3;padding:1px 4px}.cov{font-size:16px}</style></head><body>
 <header><h1>402xAgent skips: self-checked x402 receipts</h1>
-<div class="free" style="border:1px solid #fde2c4;background:#fffaf3;border-radius:8px;padding:10px 12px;margin:0 0 12px"><b>Check your endpoint free first:</b> <code class="u">GET ${esc(FREE_CHECK_URL)}</code><br><small>Real example: <a class="u" href="${esc(FREE_CHECK_EXAMPLE_URL)}">${esc(FREE_CHECK_EXAMPLE_URL)}</a> → <code class="u">${esc(JSON.stringify(FREE_CHECK_EXAMPLE))}</code>. 5 free per day, free dry runs with &amp;mode=dry-run. Then, only for the full payment terms, the paid check (HTTP 402).</small></div>
+<div class="free" style="border:1px solid #fde2c4;background:#fffaf3;border-radius:8px;padding:10px 12px;margin:0 0 12px"><b>Check your endpoint free first:</b> <code class="u">GET ${esc(FREE_CHECK_URL)}</code><br><small>Real example: <a class="u" href="${esc(FREE_CHECK_EXAMPLE_URL)}">${esc(FREE_CHECK_EXAMPLE_URL)}</a> → <code class="u">${esc(JSON.stringify(FREE_CHECK_EXAMPLE))}</code>. 5 free per day (25 per network), free dry runs with &amp;mode=dry-run. Then, only for the full payment terms, the paid check (HTTP 402).</small></div>
 <p><small>402xAgent · <a href="${CANON_ORIGIN}">402xagent.com</a></small></p>
 <p class="cov"><b>${cov.endpoints_covered}</b> endpoints covered · <b>${cov.new_this_week ?? "—"}</b> new this week${cov.previous_run ? "" : " (first full crawl)"} · crawled ${esc(m.crawled_at)} (UTC)</p>
 <p><b>${m.skip}</b> skip · ${m.pay} pay · ${m.recheck} recheck · lists: ${esc(Object.entries(m.listed_in || m.lists).map(([k, v]) => k + " " + v).join(", "))}</p>
