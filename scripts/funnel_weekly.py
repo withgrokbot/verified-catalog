@@ -70,8 +70,14 @@ def main(argv=None):
     if o["mistakes"]:
         print("400 mistakes: " + " ".join(f"{k}={n}" for k, n in o["mistakes"].most_common(8)))
     if a.json:
-        json.dump({k: ({h: dict(c) for h, c in x.items()} if isinstance(x, dict) else dict(x)) for k, x in o.items()}, open(a.json, "w"), indent=2)
+        def plain(x):  # nested Counters/dicts -> dicts; scalars (counts) as-is
+            return {k: plain(v) for k, v in x.items()} if isinstance(x, dict) else x
+        json.dump(plain(o), open(a.json, "w"), indent=2)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:  # one line, no traceback: outputs are kept in reports and must not carry local paths
+        print(f"funnel_weekly failed: {type(e).__name__}: {str(e)[:200]}", file=sys.stderr)
+        sys.exit(1)
