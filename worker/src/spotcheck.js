@@ -466,12 +466,15 @@ export async function spotProbe(rawUrl, opts = {}) {
   };
 }
 
+export const PRICE_TOLERANCE = 0.01;
 export function priceMatchesClaimed(quoted, claimed) {
   if (claimed === null || claimed === undefined || claimed === "") return null;
   const c = Number(claimed);
   const q = Number(quoted);
   if (!Number.isFinite(c) || !Number.isFinite(q)) return null;
-  return Math.abs(c - q) < 1e-9 + Math.max(c, q) * 1e-6;
+  // 0.27.0 fix (false skip): dynamic sellers drift a fraction of a percent from their listing (e.g. $0.001866 listed,
+  // $0.001869 asked). Within 1% of the listed price counts as a match; anything further stays price_mismatch.
+  return Math.abs(c - q) <= 1e-9 + c * PRICE_TOLERANCE;
 }
 
 // 0.12.0: a seller's own free-trial signal (x-free-trial / x-free-trial-remaining). A route that answers 200 while a
@@ -526,5 +529,5 @@ export const FREE_CHECK_EXAMPLE_TARGET = "https://api.402rates.com/v1/ping";
 export const FREE_CHECK_EXAMPLE_URL = API_ORIGIN + "/v1/products/endpoint-spot-check?url=" + FREE_CHECK_EXAMPLE_TARGET;
 // Real free answer for FREE_CHECK_EXAMPLE_URL (receipt sc-1373dc485641b938, Oct 10 2026 5:30 PM PT; same verdict on repeat
 // exempt self-test calls Oct 10 6:2x PM PT), trimmed to one line.
-export const FREE_CHECK_EXAMPLE = { verdict: "pay", reason: "listed $0.001, payment request matches, details locked", receipt_url: "https://402xagent.com/v1/receipts/sc-1373dc485641b938" };
+export const FREE_CHECK_EXAMPLE = { verdict: "pay", reason: "listed $0.001, payment request matches the listed price", receipt_url: "https://402xagent.com/v1/receipts/sc-1373dc485641b938" };
 export const PRIOR_CHECKS = CANON_ORIGIN + "/v1/skips";

@@ -25,8 +25,9 @@ if prev_name and prev_name != name and os.path.exists(os.path.join(ROOT, prev_na
 cur = {norm_url(r["url"]) for r in rs}
 new = cur - prev if prev else set()
 # skips, clearest first: listing-vs-402 mismatches, then missing 402, then the rest
-rank = lambda r: (0 if "network mismatch" in r["reason"] else 1 if "payTo differs" in r["reason"] else 2 if "price mismatch" in r["reason"]
-                  else 3 if "asset mismatch" in r["reason"] else 4 if "no 402" in r["reason"] else 5, r["url"])
+_has = lambda r, *ks: any(k in r["reason"] for k in ks)  # 0.27.0 plain texts; the old texts still rank the same
+rank = lambda r: (0 if _has(r, "network mismatch", "different network") else 1 if _has(r, "payTo differs", "different wallet") else 2 if _has(r, "price mismatch", "different price")
+                  else 3 if _has(r, "asset mismatch", "different token") else 4 if _has(r, "no 402", "no x402 payment") else 5, r["url"])
 skips = sorted((r for r in rs if r["verdict"] == "skip"), key=rank)
 if not any(r["id"] == FEATURED for r in skips):
     assert skips, "crawl has no skip receipts"

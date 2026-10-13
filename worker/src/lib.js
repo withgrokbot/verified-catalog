@@ -37,13 +37,16 @@ import {
 } from "./spotcheck.js";
 
 import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skips.js";
-import { RECEIPTS } from "./receipts-data.js";
+import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
 import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
+import { staleStep, STALE_REF } from "./stale.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.26.1";
+export const VERSION = "0.27.0";
+// 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
+const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
@@ -618,9 +621,14 @@ export function hintFields(origin) {
       note: "Always-paid x402 product: prompts + HTML template + PDF guide after $9 USDC on Base.",
     },
     skips_page: {
-      description: "Free: 500 self-checked x402 endpoints, with the ones to skip before paying (claimed vs 402 price, pay-to, network).",
+      description: `Free: ${COVERED()} self-checked x402 endpoints (weekly crawl), with the ones to skip before paying (claimed vs 402 price, pay-to, network).`,
       url: origin + "/v1/skips",
       json: origin + "/v1/skips.json",
+    },
+    bazaar_page: {
+      description: "Free: our daily check of the top CDP Bazaar search results (pay, skip or recheck, with a receipt each).",
+      url: CANON_ORIGIN + "/bazaar",
+      json: CANON_ORIGIN + "/bazaar.json",
     },
     also_available_spot_check: {
       product: SPOT_ID,
@@ -929,14 +937,16 @@ export const SPOT_PAID_EXAMPLE = {
   check_type: "dry-run",
   receipt_id: "sc-0123456789abcdef",
   receipt_url: "https://402xagent.com/v1/receipts/sc-0123456789abcdef",
+  pay_to_changed: false,
   access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
 };
 export const SPOT_FREE_EXAMPLE = {
   verdict: "pay",
-  reason: "listed $0.05, payment request matches, details locked",
+  reason: "listed $0.05, payment request matches the listed price",
   payment_terms_sha256: "<sha256 of network|asset|amount_atomic|pay_to (EVM lower-case; Solana mint/pay_to as-is)>",
   receipt_id: "sc-0123456789abcdef",
   receipt_url: "https://402xagent.com/v1/receipts/sc-0123456789abcdef",
+  pay_to_changed: false,
   prior_checks: "https://402xagent.com/v1/skips",
   upsell: FREE_UPSELL,
   access: { tier: "free", free_per_day: 1, free_used_today: 1, free_remaining_today: 0, then: "$0.01 USDC on Base for the full check of this endpoint via x402 (HTTP 402)" },
@@ -968,11 +978,12 @@ export const SPOT_PAID_SCHEMA = {
       },
       required: ["network", "asset", "amount", "pay_to", "deadline"],
     },
-    probe: { type: "object", description: "the live probe this decision used: probed_at, cached (true = reused within cache_ttl_s for the same normalized URL + method, so consecutive calls agree)", properties: { probed_at: { type: "string" }, cached: { type: "boolean" }, cache_ttl_s: { type: "integer" } } },
+    probe: { type: "object", description: "the live probe this decision used: probed_at, cached (true = reused within cache_ttl_s for the same normalized URL + method, so consecutive calls agree)", properties: { probed_at: { type: "string" }, cached: { type: "boolean" }, cache_ttl_s: { type: "integer" }, method_used: { type: "string", description: "present only when the listed GET answered 405 and the 402 came from POST" } } },
     check_type: { type: "string", enum: ["dry-run", "self-checked"], description: "receipt label: self-checked for our own self-test client, dry-run for everyone else" },
     payment_terms_sha256: { type: ["string", "null"], description: "sha256 hex of lower-case network|asset|amount_atomic|pay_to (null unless pay)" },
     receipt_id: { type: ["string", "null"], description: "public receipt id for this decision (sc-...)" },
     receipt_url: { type: ["string", "null"], description: "free, public: GET it to show as the reason for paying or aborting" },
+    pay_to_changed: { type: ["boolean", "null"], description: "true if the wallet differs from the previous receipt for this URL (same network); null if there is nothing to compare. A flag only: the verdict is unchanged." },
     access: { type: "object", properties: { tier: { const: "paid" }, charged_usd: { type: "string" }, tx: { type: "string" } } },
   },
   required: ["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source", "payment", "payment_terms_sha256", "probe", "check_type", "receipt_id", "receipt_url", "access"],
@@ -982,10 +993,11 @@ export const SPOT_FREE_SCHEMA = {
   description: "free response (1 per client per UTC day): verdict and a plain-words reason only",
   properties: {
     verdict: SPOT_VERDICT_SCHEMA,
-    reason: { type: "string", description: "plain words, e.g. 'listed $0.01, no payment request, details locked'" },
+    reason: { type: "string", description: "plain words, e.g. 'listed $0.01, no x402 payment request at this URL'" },
     payment_terms_sha256: { type: ["string", "null"], description: "sha256 hex of lower-case network|asset|amount_atomic|pay_to of the approved payment (null unless pay)" },
     receipt_id: { type: ["string", "null"], description: "public receipt id for this decision (sc-...)" },
     receipt_url: { type: ["string", "null"], description: "free, public: GET it to show as the reason for paying or aborting" },
+    pay_to_changed: { type: ["boolean", "null"], description: "true if the wallet differs from the previous receipt for this URL (same network); null if there is nothing to compare. A flag only: the verdict is unchanged." },
     access: { type: "object", properties: { tier: { const: "free" } } },
   },
   required: ["verdict", "reason", "payment_terms_sha256", "receipt_id", "receipt_url", "access"],
@@ -1035,6 +1047,8 @@ export function spotPaymentRequired(c, resourceUrl, error, used, target = "") {
       check_type: "dry-run",
       receipt_id: "sc-0123456789abcdef",
       receipt_url: "https://402xagent.com/v1/receipts/sc-0123456789abcdef",
+      pay_to_changed: null,
+  pay_to_changed: false,
       access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
     },
     paid_example_note: "Real case: https://kr-intel-agent-production.up.railway.app/api/briefing is listed as a $0.35 x402 endpoint; the live probe gets HTTP 404 with no 402 challenge, so there is nothing safe to pay. Receipt: " + origin + "/v1/receipts/395e5cd716. (Any response without 402 terms is skip/no_paywall, except recheck/free_trial_active when the seller sends x-free-trial headers; recheck is only for timeouts, 5xx and network errors.)",
@@ -1171,7 +1185,13 @@ export function pickPayment(probe, exp = {}) {
   const accepts = (Array.isArray(probe && probe.accepts) ? probe.accepts : []).filter((a) => a && a.network && a.payTo && a.amount != null && /^[0-9]{1,30}$/.test(String(a.amount)) && (!a.scheme || a.scheme === "exact" || (a.scheme === "upto" && isSolana(a.network))));
   if (!accepts.length) return null;
   const usdc = (a) => isUsdcAsset(a.network, a.asset);
-  const score = (a) => (exp.network && caip(a.network) === caip(exp.network) ? 8 : 0) + (exp.pay_to && sameAddr(a.payTo, exp.pay_to, a.network) ? 4 : 0) + (usdc(a) === true ? 2 : 0) + (a.scheme !== "upto" ? 1 : 0);
+  // 0.27.0 fix (false skip): a listing that names only a testnet, when the same 402 also offers supported-mainnet USDC
+  // to the listed wallet, is judged on the mainnet offer (before, the testnet offer won and the answer was skip).
+  const listedTest = exp.network ? accepts.filter((x) => caip(x.network) === caip(exp.network)) : [];
+  const sameSeller = (a) => (exp.pay_to ? sameAddr(a.payTo, exp.pay_to, a.network) : listedTest.some((x) => sameAddr(a.payTo, x.payTo, a.network)));
+  const mainnetOk = (a) => !!USDC_BY_NETWORK[caip(a.network)] && usdc(a) === true && sameSeller(a);
+  const expNet = exp.network && TESTNET_USDC_BY_NETWORK[caip(exp.network)] && accepts.some(mainnetOk) ? null : exp.network;
+  const score = (a) => (expNet && caip(a.network) === caip(expNet) ? 8 : 0) + (!expNet && exp.network && mainnetOk(a) ? 8 : 0) + (exp.pay_to && sameAddr(a.payTo, exp.pay_to, a.network) ? 4 : 0) + (usdc(a) === true ? 2 : 0) + (a.scheme !== "upto" ? 1 : 0);
   const a = [...accepts].sort((x, y) => score(y) - score(x))[0];
   const isUsdc = usdc(a);
   const testnet = !USDC_BY_NETWORK[caip(a.network)] && !!TESTNET_USDC_BY_NETWORK[caip(a.network)];
@@ -1297,7 +1317,7 @@ export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText
     verdict: d.verdict,
     reason: d.reason,
     reason_text: reasonText,
-    probe: { probed_at: probedAt, cached: !!cached, cache_ttl_s: SPOT_PROBE_CACHE_S },
+    probe: { probed_at: probedAt, cached: !!cached, cache_ttl_s: SPOT_PROBE_CACHE_S, ...(probe && probe.method_used ? { method_used: probe.method_used } : {}) },
     live_402: {
       http_status: probe.http_status ?? null,
       x402_challenge: !!probe.x402_challenge,
@@ -1328,7 +1348,7 @@ export async function probeKeyHash(u, method) {
 }
 export function probeSnapshot(p) {
   if (!p) return null;
-  const keep = ["reachable", "http_status", "ssrf_blocked", "error", "x402_challenge", "accepts", "quoted_price_usd", "known_answer", "free_trial", "body_truncated"];
+  const keep = ["method_used", "reachable", "http_status", "ssrf_blocked", "error", "x402_challenge", "accepts", "quoted_price_usd", "known_answer", "free_trial", "body_truncated"];
   const o = {};
   for (const k of keep) if (p[k] !== undefined) o[k] = p[k];
   return o;
@@ -1346,7 +1366,14 @@ async function getProbe(env, q, probeOpts, now = new Date()) {
       // cache miss on any store error
     }
   }
-  const probe = await spotProbe(q.url, { ...probeOpts, method: q.method });
+  let probe = await spotProbe(q.url, { ...probeOpts, method: q.method });
+  // 0.27.0 fix (false skip): a POST-only route answers 405 to GET. Probe it once with POST; use that only if it is a 402.
+  if (probe && probe.http_status === 405 && !probe.x402_challenge && String(q.method || "GET").toUpperCase() === "GET") {
+    try {
+      const p2 = await spotProbe(q.url, { ...probeOpts, method: "POST" });
+      if (p2 && p2.x402_challenge) probe = { ...p2, method_used: "POST" };
+    } catch (_) {}
+  }
   return { probe, probedAt: now.toISOString().replace(/\.\d{3}Z$/, "Z"), cached: false, key };
 }
 export async function saveLiveReceipt(env, r) {
@@ -1379,8 +1406,28 @@ export function normReceipt(r) {
 // amount, pay_to), the approved payment and the cached probe are what the paid check sells. Paid (paid, router-prepaid)
 // and our own exempt/self-checked receipts stay full. Rows stored before 0.24.0 carry no tier: full only when self.
 const FULL_TIERS = new Set(["paid", "router-prepaid", "exempt"]);
+// 0.27.0: did the wallet move since the previous receipt for this URL? One indexed read (url, created_at DESC).
+// true = the last receipt's 402 offered other wallet(s) on this network; false = same wallet; null = nothing to compare.
+// A flag only: the verdict is unchanged. Never breaks an answer.
+export function payToChangedFrom(prev, pm) {
+  if (!prev || !pm || !pm.pay_to) return null;
+  const same = ((prev.live_402 && prev.live_402.accepts) || []).filter((a) => a && a.pay_to && caip(a.network) === caip(pm.network));
+  if (!same.length) return null;
+  return !same.some((a) => sameAddr(a.pay_to, pm.pay_to, pm.network));
+}
+export async function payToChanged(env, url, pm) {
+  if (!env.RECEIPTS_DB || !pm) return { pay_to_changed: null };
+  try {
+    const row = await env.RECEIPTS_DB.prepare("SELECT id, body FROM spot_receipts WHERE url = ? ORDER BY created_at DESC, rowid DESC LIMIT 1").bind(storedUrl(url)).first();
+    const prev = row && row.body ? JSON.parse(row.body) : null;
+    const v = payToChangedFrom(prev, pm);
+    return v === true ? { pay_to_changed: true, previous_receipt_id: row.id } : { pay_to_changed: v };
+  } catch (_) {
+    return { pay_to_changed: null };
+  }
+}
 export function receiptIsFull(r) {
-  if (r.access_tier === "bazaar") return false; // 0.26.0: /bazaar self-checks link the public (redacted) view
+  if (r.access_tier === "bazaar" || r.access_tier === "auto") return false; // 0.26.0: /bazaar self-checks link the public (redacted) view
   return r.check_type === "self-checked" || r.caller === "self-test" || FULL_TIERS.has(r.access_tier);
 }
 export function redactReceipt(r) {
@@ -1594,9 +1641,9 @@ export function spotDynCfg(c, quotedUsd) {
 export function spotLossReason(d, claimed) {
   const listed = claimed !== null && claimed !== undefined && claimed !== "" ? `listed $${Number(claimed)}` : "price unlisted";
   const what = REASON_TEXT[d.reason] || d.reason;
-  if (d.reason === "free_trial_active" && d.free_trial_remaining != null) return `${listed}, ${what} (${d.free_trial_remaining} trial calls left), details locked`;
-  if (d.reason === "price_ok" && listed === "price unlisted") return "payment request found, pass claimed_price to compare, details locked";
-  return `${listed}, ${what}, details locked`;
+  if (d.reason === "free_trial_active" && d.free_trial_remaining != null) return `${listed}, ${what} (${d.free_trial_remaining} trial calls left)`;
+  if (d.reason === "price_ok" && listed === "price unlisted") return "payment request found (pass claimed_price to compare the price)";
+  return `${listed}, ${what}`;
 }
 
 async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
@@ -1635,9 +1682,11 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const termsHash = await termsSha256(pm);
     const payment = paymentObject(pm, pr.probedAt);
     const rid = env.RECEIPTS_DB ? newReceiptId() : null;
-    const receiptFields = { receipt_id: rid, receipt_url: rid ? CANON_ORIGIN + "/v1/receipts/" + rid : null };
+    const ptc = rid ? await payToChanged(env, q.url, pm0) : { pay_to_changed: null };
+    const receiptFields = { receipt_id: rid, receipt_url: rid ? CANON_ORIGIN + "/v1/receipts/" + rid : null, pay_to_changed: ptc.pay_to_changed };
     if (rid) {
-      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : (access && access.tier) || null });
+      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && q.ref === STALE_REF ? "auto" : (access && access.tier) || null });
+      Object.assign(rec, ptc);
       await saveLiveReceipt(env, rec); // awaited: the next call's cache lookup must see it
     }
     // Free tier: verdict + plain reason + a hash of the approved terms (enough for x402-spotcheck to refuse a
@@ -1662,7 +1711,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       expected_source: exp.source,
       payment,
       payment_terms_sha256: termsHash,
-      probe: { probed_at: pr.probedAt, cached: pr.cached, cache_ttl_s: SPOT_PROBE_CACHE_S },
+      probe: { probed_at: pr.probedAt, cached: pr.cached, cache_ttl_s: SPOT_PROBE_CACHE_S, ...(pr.probe && pr.probe.method_used ? { method_used: pr.probe.method_used } : {}) },
       check_type: checkType,
       ...(d.reason === "free_trial_active" ? { free_trial_remaining: d.free_trial_remaining ?? null } : {}),
       ...receiptFields,
@@ -2179,6 +2228,22 @@ export function openapi(origin, env = {}) {
           security: [],
           summary: "Free: public page of self-checked x402 endpoints whose 402 disagrees with their listing (verdict skip). HTML; ?format=json or /v1/skips.json for JSON. Each row has an anchor #<id>.",
           responses: { 200: { description: "HTML or JSON list of skip receipts with totals and crawl time" } },
+        },
+      },
+      "/bazaar": {
+        get: {
+          operationId: "bazaarPage",
+          security: [],
+          summary: "Free: our daily check of the top public CDP Bazaar search results for a few common queries (endpoint without query string, verdict, short reason, public receipt). HTML for browsers; JSON otherwise.",
+          responses: { 200: { description: "HTML (Accept: text/html) or the same JSON as /bazaar.json" } },
+        },
+      },
+      "/bazaar.json": {
+        get: {
+          operationId: "bazaarJson",
+          security: [],
+          summary: "Free: JSON of /bazaar: generated_at, queries, counts {pay, skip, recheck}, rows [{query, rank, service, endpoint, method, verdict, reason, reason_text, receipt_url}].",
+          responses: { 200: { description: "Bazaar check snapshot", content: { "application/json": { schema: { type: "object", properties: { generated_at: { type: ["string", "null"] }, queries: { type: "array", items: { type: "string" } }, counts: { type: "object" }, rows: { type: "array", items: { type: "object" } } } } } } } },
         },
       },
       "/v1/receipts/by-url": {
@@ -2829,7 +2894,10 @@ export const handler = {
   async scheduled(event, env, ctx) {
     if (env.BAZAAR_PAGE === "off") return;
     const runCheck = (u) => { const url = new URL(u); return handleEndpointSpotCheck(new Request(url, { method: "GET", headers: { accept: "application/json", "user-agent": "402xagent-bazaar/1" } }), env, ctx, url); };
-    await bazaarStep(env, { now: new Date(event && event.scheduledTime ? event.scheduledTime : Date.now()), runCheck, origin: API_ORIGIN });
+    const now = new Date(event && event.scheduledTime ? event.scheduledTime : Date.now());
+    const b = await bazaarStep(env, { now, runCheck, origin: API_ORIGIN });
+    // 0.27.0: steps with no Bazaar work recheck a few stale receipts instead (never both in one step: subrequest budget).
+    if (b && (b.did === "idle" || b.did === "no-kv") && env.STALE_RECHECK !== "off") await staleStep(env, { now, runCheck, origin: API_ORIGIN });
   },
 };
 
@@ -2890,6 +2958,7 @@ export function wellKnownX402(env, host = "") {
     homepage: CANON_ORIGIN,
     // 0.20.0: descriptive only (no URL list, no payment block): the free check comes first, the paid 402 after.
     free_check: { url: FREE_CHECK_URL, example: FREE_CHECK_EXAMPLE_URL, example_response: FREE_CHECK_EXAMPLE, prior_checks: PRIOR_CHECKS, then: "the paid check (HTTP 402) for the full payment terms" },
+    free_pages: { skips: CANON_ORIGIN + "/v1/skips.json", bazaar: CANON_ORIGIN + "/bazaar.json", receipts: CANON_ORIGIN + "/v1/receipts", openapi: API_ORIGIN + "/openapi.json", llms: CANON_ORIGIN + "/llms.txt" },
     resources: [R("/v1/lookup/paid"), R("/v1/products/overnight-cos-pack"), R("/v1/products/endpoint-spot-check")],
     payment: { x402: { version: 2, scheme: "exact", networks: [c.network], primaryNetwork: c.network, currency: "USDC", asset: USDC_BASE, payTo: c.payTo } },
     resourceCatalog: [
@@ -2958,7 +3027,7 @@ const routeInnerHolder = {
     }
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${CANON_ORIGIN}/sitemap.xml\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/v1/skips", "/v1/skips.json", "/v1/receipts", "/", "/openapi.json", "/llms.txt"].map((u) => `<url><loc>${CANON_ORIGIN}${u}</loc><changefreq>daily</changefreq></url>`).join("")}</urlset>\n`, { headers: { "content-type": "application/xml; charset=utf-8" } });
-    if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\nStart with the free check: GET ${FREE_CHECK_URL}\nReal example: GET ${FREE_CHECK_EXAMPLE_URL}\n  -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}\n1 free check per client per UTC day, free dry runs with &mode=dry-run, prior checks at ${PRIOR_CHECKS}. After that, the paid check (HTTP 402, $0.01 to $0.25 USDC on Base via x402) adds the full payment terms.\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). 500 self-checked x402 endpoints; the skip list shows which ones disagree with their listing.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (live receipts: ${CANON_ORIGIN}/v1/receipts/sc-<id>; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 1 free/day, then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402.\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
+    if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\nStart with the free check: GET ${FREE_CHECK_URL}\nReal example: GET ${FREE_CHECK_EXAMPLE_URL}\n  -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}\n1 free check per client per UTC day, free dry runs with &mode=dry-run, prior checks at ${PRIOR_CHECKS}. After that, the paid check (HTTP 402, $0.01 to $0.25 USDC on Base via x402) adds the full payment terms.\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). ${COVERED()} self-checked x402 endpoints (weekly crawl); the skip list shows which ones disagree with their listing.\n- Bazaar check (free): ${CANON_ORIGIN}/bazaar (JSON: ${CANON_ORIGIN}/bazaar.json). Our daily check of the top CDP Bazaar search results.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (live receipts: ${CANON_ORIGIN}/v1/receipts/sc-<id>; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 1 free/day, then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402.\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (path === "/" && url.hostname === "402xagent.com" && /text\/html/.test(req.headers.get("accept") || ""))
       return new Response(landingHtml(CANON_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", vary: "accept", "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "access-control-allow-origin": "*" } });
     if (path === "/")

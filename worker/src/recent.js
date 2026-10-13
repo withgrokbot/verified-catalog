@@ -1,19 +1,21 @@
 // Shared short reason texts (no prices). 0.24.0: used by redacted receipts and the free answer's plain reason.
 export const REASON_TEXT = {
-  no_x402: "no payment request",
-  no_paywall: "no paywall (no payment request)",
-  server_error: "server error, check again",
-  network_unsupported: "asks for a network we do not support (testnet or unknown)",
-  free_trial_active: "seller reports a free trial in use, no payment terms yet, check again",
+  // 0.27.0: plain words, one line; codes unchanged. Rechecks say "try again", skips say what we saw.
+  no_x402: "no x402 payment request at this URL",
+  no_paywall: "no x402 payment request at this URL",
+  server_error: "endpoint returned a server error, try again shortly",
+  network_unsupported: "wants payment on a testnet or a network we don't support",
+  free_trial_active: "seller says a free trial is active, so there is no price to check yet, try again later",
   price_mismatch: "asks a different price than listed",
-  timeout: "endpoint timed out, check again",
-  unreachable: "endpoint unreachable, check again",
-  ambiguous: "payment request unclear",
-  bad_challenge: "payment request unreadable",
-  price_ok: "payment request matches",
-  network_mismatch: "asks for a different network than expected",
-  pay_to_mismatch: "pays a different wallet than expected",
+  timeout: "endpoint did not answer in time, try again shortly",
+  unreachable: "could not reach the endpoint, try again shortly",
+  ambiguous: "payment request is unclear",
+  bad_challenge: "payment request has no readable USDC price",
+  price_ok: "payment request matches the listed price",
+  network_mismatch: "asks for payment on a different network than listed",
+  pay_to_mismatch: "pays a different wallet than listed",
   asset_not_usdc: "asks for a token other than USDC",
+  ssrf_blocked: "private or local address, not checked",
 };
 export const shortReason = (code) => REASON_TEXT[code] || "see receipt";
 

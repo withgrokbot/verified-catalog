@@ -22,11 +22,13 @@ SANE_MAX_USD = 10.0
 def net(n): return NET_ALIAS.get(str(n or "").lower(), str(n or ""))
 def amt(a): return a.get("amount", a.get("maxAmountRequired"))
 def usd(a):
-    """USD for a USDC accept (6 decimals); None for other assets."""
+    """USD for a USDC accept (6 decimals); None for other assets. 0.27.0: every supported mainnet's canonical USDC
+    counts (before, only Base/Base Sepolia/Solana did, so valid Polygon/Arbitrum/... prices read as unparseable)."""
     n, asset = net(a.get("network")), str(a.get("asset") or "").lower()
     try: v = int(str(amt(a)))
     except Exception: return None
-    return round(v / 1e6, 6) if USDC.get(n) == asset else None
+    return round(v / 1e6, 6) if (USDC.get(n) == asset or USDC_MAINNET.get(n.lower()) == asset) else None
+PRICE_TOLERANCE = 0.01  # 0.27.0: same as the Worker: within 1% of the listed price is a match (dynamic-pricing drift)
 
 def blocked_ip(ip):
     ip = ipaddress.ip_address(ip)
@@ -168,10 +170,18 @@ def probe(c):
         rec.update(verdict=v, reason=why, timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"))
         return rec
     url = c["url"]
-    if ":" in urlparse(url).path or "{" in url:  # path templates like /wiki/:title
-        return done("skip", "listing url is a path template, not a callable endpoint")
+    if any(seg.startswith(":") or "{" in seg or "%7b" in seg.lower() for seg in urlparse(url).path.split("/")):  # path templates like /wiki/:title or /{id} (0.27.0: "app:x" is not one)
+        # 0.27.0: not a disagreement with the listing, so not a skip
+        return done("recheck", "listing URL is a template (like /:id), check a filled-in URL")
     r = fetch(url, c, done)  # probe exactly as listed first
     if isinstance(r, dict): return r
+    if r.status_code == 405 and c["method"] in ("GET", "POST"):
+        # 0.27.0 fix (false skip): POST-only (or GET-only) routes answer 405 to the other method; try it once
+        other = dict(c, method="POST" if c["method"] == "GET" else "GET", body=c["body"] if c["method"] == "GET" else None)
+        r2 = fetch(url, other, done)
+        if not isinstance(r2, dict):  # a failed retry keeps the original 405 answer
+            if r2.status_code != 405: r.close(); r = r2; rec["method"] = other["method"]
+            else: r2.close()
     if 400 <= r.status_code < 500 and r.status_code != 402 and c["query"] and "?" not in url:
         # some sellers validate params before the 402: retry once with the listing's own example params
         r2 = fetch(url + "?" + urlencode({k: (json.dumps(v) if isinstance(v, (dict, list)) else v) for k, v in c["query"].items()}), c, done)
@@ -189,8 +199,8 @@ def fetch(url, c, done):
     try:
         for _ in range(4):
             bad = ssrf_check(url)
-            if bad == "dns_failed": return done("skip", "dns lookup failed (host does not resolve)")
-            if bad: return done("skip", "ssrf_blocked: " + bad)
+            if bad == "dns_failed": return done("skip", "domain does not resolve (DNS)")
+            if bad: return done("skip", "private or local address, not checked (" + bad + ")")
             r = requests.request(c["method"] if c["method"] in ("GET", "POST") else "GET", url, headers=hdrs, timeout=TIMEOUT,
                                  allow_redirects=False, stream=True, **kw)
             if r.status_code in (301, 302, 303, 307, 308) and r.headers.get("location"):
@@ -200,9 +210,9 @@ def fetch(url, c, done):
             return done("skip", "too many redirects")
         return r
     except requests.exceptions.Timeout:
-        return done("recheck", "timeout (5s)")
+        return done("recheck", "endpoint did not answer in 5 s, try again later")
     except requests.exceptions.RequestException as e:
-        return done("recheck", "connection error: " + type(e).__name__)
+        return done("recheck", "could not connect (" + type(e).__name__ + "), try again later")
 
 # 0.14.0 policy (same table as the Worker's USDC_BY_NETWORK): pay only on a supported mainnet with its canonical USDC.
 USDC_MAINNET = {
@@ -217,22 +227,22 @@ def mainnet_policy(r):
     if r.get("verdict") != "pay": return r
     n, a = str(r.get("network") or "").lower(), str(r.get("asset") or "").lower()
     if n not in USDC_MAINNET:
-        r["verdict"], r["reason"] = "skip", f"network not a supported mainnet ({r.get('network')})"
+        r["verdict"], r["reason"] = "skip", f"wants payment on a testnet or a network we don't support ({r.get('network')})"
     elif a != USDC_MAINNET[n]:
-        r["verdict"], r["reason"] = "skip", f"token is not the canonical USDC contract on {r.get('network')} ({r.get('asset')})"
+        r["verdict"], r["reason"] = "skip", f"asks for a token other than USDC on {r.get('network')} ({r.get('asset')})"
     return r
 
 def judge(r, rec, lead, claimed, done):
     try:
         rec["http_status"] = r.status_code
-        if r.status_code >= 500: return done("recheck", f"HTTP {r.status_code} (server error)")
+        if r.status_code >= 500: return done("recheck", f"server error (HTTP {r.status_code}), try again later")
         if r.status_code != 402:  # 0.14.0: no terms = skip (no paywall), except a seller's own free-trial signal = recheck
             ft, rem = r.headers.get("x-free-trial"), r.headers.get("x-free-trial-remaining")
             if (ft is not None and ft.strip().lower() not in ("false", "0", "no")) or (ft is None and rem is not None):
                 n = int(rem) if rem is not None and rem.strip().isdigit() else None
                 rec["free_trial_remaining"] = n
-                return done("recheck", f"free trial active, no payment terms seen (HTTP {r.status_code}" + (f", {n} trial calls left)" if n is not None else ")"))
-            return done("skip", f"no 402 challenge (HTTP {r.status_code})")
+                return done("recheck", f"seller says a free trial is active, no price to check yet (HTTP {r.status_code}" + (f", {n} trial calls left)" if n is not None else ")"))
+            return done("skip", f"no x402 payment request (HTTP {r.status_code})")
         buf, t_end = b"", time.monotonic() + 8  # hard wall-clock cap: a trickling server can't hold a lane
         while len(buf) < 65536 and time.monotonic() < t_end:
             chunk = r.raw.read(4096, decode_content=True)
@@ -240,31 +250,41 @@ def judge(r, rec, lead, claimed, done):
             buf += chunk
         r._content = buf
         accs = decode_402(r)
-        if not accs: return done("skip", "malformed 402 (no parseable accepts)")
+        if not accs: return done("skip", "payment request has no readable payment options")
         want_net = net(lead.get("network")) if "network" in lead else None
         same_net = [a for a in accs if net(a.get("network")) == want_net] if want_net else accs
+        # 0.27.0 fix (false skip): the listing names only a testnet but the same seller's 402 also offers a supported
+        # mainnet's canonical USDC -> judge the mainnet offer (same rule as the Worker's pickPayment).
+        if want_net and want_net.lower() not in USDC_MAINNET and same_net:
+            sellers = {str(lead.get("payTo") or "").lower()} if lead.get("payTo") else {str(x.get("payTo") or "").lower() for x in same_net}
+            main = [a for a in accs if net(a.get("network")).lower() in USDC_MAINNET and str(a.get("asset") or "").lower() == USDC_MAINNET[net(a.get("network")).lower()] and str(a.get("payTo") or "").lower() in sellers]
+            if main: same_net, lead = main, {k: v for k, v in lead.items() if k not in ("network", "asset")}
+        elif not want_net:
+            # no listed network: prefer supported-mainnet USDC offers when the 402 has several
+            main = [a for a in accs if net(a.get("network")).lower() in USDC_MAINNET and str(a.get("asset") or "").lower() == USDC_MAINNET[net(a.get("network")).lower()]]
+            if main: same_net = main + [a for a in accs if a not in main]
         if not same_net:
             a = accs[0]; rec.update(network=net(a.get("network")), asset=a.get("asset"), pay_to=a.get("payTo"), quoted_price_usd=usd(a))
-            return done("skip", f"network mismatch: listed {want_net}, 402 offers {sorted({net(x.get('network')) for x in accs})}")
+            return done("skip", f"asks for payment on a different network than listed (listed {want_net}, offers {', '.join(sorted({net(x.get('network')) for x in accs}))})")
         same_asset = [a for a in same_net if str(a.get("asset") or "").lower() == str(lead.get("asset") or "").lower()] if lead.get("asset") else same_net
         a = (same_asset or same_net)[0]
         q = usd(a)
         rec.update(network=net(a.get("network")), asset=a.get("asset"), pay_to=a.get("payTo"), quoted_price_usd=q)
-        if not same_asset: return done("skip", f"asset mismatch: listed {lead.get('asset')}, 402 asks {a.get('asset')}")
+        if not same_asset: return done("skip", f"asks for a different token than listed (listed {lead.get('asset')}, asks {a.get('asset')})")
         if lead.get("payTo") and str(a.get("payTo") or "").lower() != str(lead["payTo"]).lower():
-            return done("skip", f"payTo differs from listing ({lead['payTo']} listed, {a.get('payTo')} in 402)")
-        if q is None: return done("skip", "402 price not parseable as USDC amount")
-        if claimed is not None and abs(q - claimed) > 1e-9 + max(q, claimed) * 1e-6:
-            return done("skip", f"price mismatch: listed ${claimed:g}, 402 asks ${q:g}")
-        if not (0 < q <= SANE_MAX_USD): return done("skip", f"price not sane (${q:g})")
+            return done("skip", f"pays a different wallet than listed ({lead['payTo']} listed, {a.get('payTo')} asked)")
+        if q is None: return done("skip", f"asks for a token or network we can't price in USDC ({a.get('network')})")
+        if claimed is not None and abs(q - claimed) > 1e-9 + claimed * PRICE_TOLERANCE:
+            return done("skip", f"asks a different price than listed (listed ${claimed:g}, asks ${q:g})")
+        if not (0 < q <= SANE_MAX_USD): return done("skip", f"price looks wrong (${q:g})")
         n_, a_ = str(rec.get("network") or "").lower(), str(rec.get("asset") or "").lower()
-        if n_ not in USDC_MAINNET: return done("skip", f"network not a supported mainnet ({rec.get('network')})")
-        if a_ != USDC_MAINNET[n_]: return done("skip", f"token is not the canonical USDC contract on {rec.get('network')} ({rec.get('asset')})")
-        return done("pay", "402 matches listing (price, asset, network, payTo)" if claimed is not None else "valid 402, no listed price to compare")
+        if n_ not in USDC_MAINNET: return done("skip", f"wants payment on a testnet or a network we don't support ({rec.get('network')})")
+        if a_ != USDC_MAINNET[n_]: return done("skip", f"asks for a token other than USDC on {rec.get('network')} ({rec.get('asset')})")
+        return done("pay", "payment request matches the listing (price, token, network, wallet)" if claimed is not None else "valid payment request, no listed price to compare")
     except requests.exceptions.Timeout:
-        return done("recheck", "timeout (5s)")
+        return done("recheck", "endpoint did not answer in 5 s, try again later")
     except requests.exceptions.RequestException as e:
-        return done("recheck", "connection error: " + type(e).__name__)
+        return done("recheck", "could not connect (" + type(e).__name__ + "), try again later")
 
 def run_lane(cands):
     out, t_lane = [], time.monotonic() + LANE_BUDGET_S
