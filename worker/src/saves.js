@@ -6,6 +6,9 @@ import { SAVES, SAVES_META } from "./saves-data.js";
 const MAX_AGE_D = 30, TOL = 0.01;
 const OWN = /(^|\.)(402xagent\.com|payscout\.dev|withgrokbot\.workers\.dev|target\.test)$/i;
 const TEMPLATE = /(\{[^}/]*\}|\/:[A-Za-z_]|\[[^\]/]*\]|%7B|%7D)/i;
+const ADDRISH = /0x[0-9a-fA-F]{40}|(?<![A-Za-z0-9])[1-9A-HJ-NP-Za-km-z]{32,44}(?![A-Za-z0-9])/;
+const SOL = { "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "Solana mainnet", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": "Solana devnet", "solana:4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z": "Solana testnet" };
+const netName = (n) => SOL[n] || n;
 const LIVE_REASONS = ["price_mismatch", "pay_to_mismatch", "network_mismatch"];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const money = (x) => "$" + Number(x).toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
@@ -23,7 +26,7 @@ export function liveSave(b, now = new Date()) {
   if (b.caller === "self-test" || b.access_tier === "exempt" || b.check_type === "self-checked" && b.access_tier !== "bazaar" && b.access_tier !== "auto") return null;
   if (b.expected && b.expected.source === "request") return null; // compared with what a caller typed, not with a listing
   const u = endpointOf(b.url);
-  if (!u || TEMPLATE.test(u) || OWN.test(u.split("/")[2].split(":")[0])) return null;
+  if (!u || TEMPLATE.test(u) || ADDRISH.test(u) || OWN.test(u.split("/")[2].split(":")[0])) return null;
   const t = Date.parse(b.checked_at || "");
   if (!(t > 0) || (now.getTime() - t) / 86400000 > MAX_AGE_D) return null;
   const exp = b.expected || {};
@@ -37,9 +40,10 @@ export function liveSave(b, now = new Date()) {
   } else if (b.reason === "pay_to_mismatch") {
     kind = "pay_to_changed"; what = "pays a different wallet";
   } else {
-    const nets = [...new Set(acc.map((x) => x && x.network).filter(Boolean))].join(", ");
-    kind = "network_changed"; what = exp.network && nets ? `asks for payment on ${nets}, listed ${exp.network}` : "asks for payment on a different network";
+    const nets = [...new Set(acc.map((x) => x && x.network).filter(Boolean))].map(netName).join(", ");
+    kind = "network_changed"; what = exp.network && nets ? `asks for payment on ${nets}, listed ${netName(exp.network)}` : "asks for payment on a different network";
   }
+  if (ADDRISH.test(what)) return null;
   return { endpoint: u, kind, what, date: String(b.checked_at).slice(0, 10), source: "live", receipt_id: b.id };
 }
 
@@ -60,7 +64,7 @@ export async function savesJson(env, origin, now = new Date()) {
   const cutoff = new Date(now.getTime() - MAX_AGE_D * 86400000).toISOString().slice(0, 10);
   const seen = new Set(), rows = [];
   for (const s of [...live, ...SAVES]) {
-    if (s.date < cutoff || seen.has(s.endpoint)) continue; // newest per endpoint (live first)
+    if (s.date < cutoff || seen.has(s.endpoint) || ADDRISH.test(s.endpoint + " " + s.what)) continue; // newest per endpoint (live first)
     seen.add(s.endpoint);
     // live sc- receipts from outside checks are redacted already; crawl receipts get ?view=redacted (no wallets)
     rows.push({ ...s, receipt: s.receipt_id ? origin + "/v1/receipts/" + s.receipt_id + (s.source === "crawl" ? "?view=redacted" : "") : null });

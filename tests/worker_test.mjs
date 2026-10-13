@@ -2478,6 +2478,8 @@ test("0.35.0: /saves behind SAVES_PAGE (off = 404); real listing differences onl
   assert.equal(liveSave(base({ reason: "pay_to_mismatch", url: "https://api.402xagent.com/x" }), now), null, "our own host");
   assert.equal(liveSave(base({ reason: "pay_to_mismatch", expected: { source: "request" } }), now), null, "caller-typed expectations");
   assert.equal(liveSave(base({ reason: "no_paywall" }), now), null);
+  assert.equal(liveSave(base({ reason: "pay_to_mismatch", url: "https://seller.example.com/token/0x" + "c3".repeat(20) }), now), null, "address-like path segment");
+  assert.equal(liveSave(base({ reason: "network_mismatch", expected: { source: "listing", network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" }, live_402: { accepts: [{ network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" }] } }), now).what, "asks for payment on Solana mainnet, listed Solana devnet");
   // on
   e.env.SAVES_PAGE = "on";
   const r = await send("/saves.json", { envo: e });
