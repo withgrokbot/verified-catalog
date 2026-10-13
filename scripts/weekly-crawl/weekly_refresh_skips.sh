@@ -4,12 +4,12 @@
 # /v1/receipts (page 1 bundled, everything else in Workers KV, changed keys only); run the Worker tests; upload KV;
 # deploy; verify live; push the data + scripts to withgrokbot/verified-catalog (withgrokbot identity only).
 # Prints one COVERAGE line at the end for the weekly report.
-# Usage: bash /workspace/factory/jobs/BM-001-verified-catalog/receipts/scripts/weekly_refresh_skips.sh
+# Usage: bash <job>/receipts/scripts/weekly_refresh_skips.sh   (job root is derived from this file; override with BM_JOB)
 #   DRY_RUN=1   -> stop after tests (no KV upload, no deploy, no push)
 #   SKIP_FETCH=1 -> reuse the lists already in receipts/crawl (debugging only)
 # Never pays anything: no payment headers are ever sent, no wallet is loaded.
 set -euo pipefail
-JOB=/workspace/factory/jobs/BM-001-verified-catalog
+JOB="${BM_JOB:-$(cd "$(dirname "$0")/../.." && pwd)}"
 R=$JOB/receipts; APP=$JOB/app; S=$R/scripts
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p "$R/logs"; LOG="$R/logs/weekly-$STAMP.log"
@@ -19,7 +19,7 @@ WR() { (cd "$APP/worker" && env -u CF_API_TOKEN -u CLOUDFLARE_API_TOKEN npx -y -
 
 # 0) deploy only committed code: the factory worker + tests must equal withgrokbot/verified-catalog HEAD
 #    (receipts-data.js is the one generated file; it is committed below before the deploy). Checked now and again before deploy.
-export GH_CONFIG_DIR=/workspace/.gh-brand
+export GH_CONFIG_DIR="${VC_GH_CONFIG_DIR:-$(cd "$JOB/../../.." && pwd)/.gh-brand}"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 REPO="$TMP/vc"
 clean_or_die() {

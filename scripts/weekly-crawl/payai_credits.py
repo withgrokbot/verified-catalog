@@ -4,7 +4,7 @@ at PayAI's live Base rate (GET /pricing; settlements before 2026-09-21 count 1 c
 Settlements = our own self-test payments in the spend ledger (service ids verified-catalog-lookup*) + outside paid
 calls from Analytics Engine (needs CF_API_TOKEN analytics-read; skipped if absent). Prints one JSON line. Never pays."""
 import json, os, sys, datetime, urllib.request, urllib.parse, urllib.error
-JOB = "/workspace/factory/jobs/BM-001-verified-catalog"
+JOB = os.environ.get("BM_JOB") or os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 ACCOUNT = os.environ.get("CF_ACCOUNT_ID", "aa4453a0042a949537d2fcae99590a5f")
 ALLOWANCE, CUTOVER = 1000.0, "2026-09-21"
 
