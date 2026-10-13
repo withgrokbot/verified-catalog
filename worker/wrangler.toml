@@ -47,6 +47,8 @@ FACILITATOR_URL = "https://facilitator.payai.network"
 # served top-level as "agentToolsVerify" in that host's /.well-known/x402 and at /.well-known/agent-tools-verify.txt.
 # They re-check daily; keep these in place. Each token appears only on its own host.
 AGENT_TOOLS_VERIFY = '{"verified-catalog-lookup.withgrokbot.workers.dev":"atc_oJX_-ffIMuHMZlBzXhs7VRRvItaalGby","api.402xagent.com":"atc_Wsn-DeMuouw4l37sPpLuVW6PC-4LiWoo"}'
+# 402index.io domain claim (https://402index.io/verify): public SHA-256 hash only, served at /.well-known/402index-verify.txt per host.
+INDEX402_VERIFY = '{"api.402xagent.com":"41c5d46f1d1727aa4e6100eeb61a390ac044ad7feb93ea9da311151e83b36689"}'
 # Fallback (NOT active; see FACILITATOR_FALLBACK.md). Config-only, no key, $0 fee per their docs:
 #   FACILITATOR_URL = "https://x402.dexter.cash"      # or "https://facilitator.xpay.sh"
 # Coinbase CDP (1,000 settlements/month free, then $0.001): apply patches/cdp-facilitator.patch, then
