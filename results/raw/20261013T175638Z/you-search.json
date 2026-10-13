@@ -1,0 +1,94 @@
+{
+  "service_id": "you-search",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.you.com/v1/search?count=10&query=x402+payment+protocol",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 810,
+    "headers": {
+      "date": "Tue, 13 Oct 2026 17:57:04 GMT",
+      "content-type": "application/problem+json",
+      "content-length": "201",
+      "server": "cloudflare",
+      "www-authenticate": "Payment id=\"6HwqgOioQe-t62kC9a9OrBCIpA8YFYICKibGWRgdhHc\", realm=\"api.you.com\", method=\"tempo\", intent=\"charge\", request=\"eyJhbW91bnQiOiIxMDAwMCIsImN1cnJlbmN5IjoiMHgyMGMwMDAwMDAwMDAwMDAwMDAwMDAwMDBiOTUzN2QxMWM2MGU4YjUwIiwibWV0aG9kRGV0YWlscyI6eyJjaGFpbklkIjo0MjE3fSwicmVjaXBpZW50IjoiMHgzYjdhMThiOTk3NTEzMzgzOTVhYmJhMGExMDIzMDNmZmNjNjhjNDNkIn0\", expires=\"2026-10-13T18:07:03Z\", description=\"You.com pay-per-call (Tempo USDC)\"",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://api.you.com/v1/search",
+            "description": "You.com Search API: real-time web search returning ranked results grouped by section (results.web, results.news), each with url, title and description; web results also carry snippets. Use when an agent needs fresh, citable web data (news, markets, company facts) to ground a decision. Query params: query (required), count 1-100 (default 10), livecrawl (web|news|all; fetches live page contents, charged per result), country, freshness. Paid per call in USDC.",
+            "mimeType": "application/json"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "5000",
+              "payTo": "0xc327D0aEb5f65B514b193b5e5A95cC6F4060815f",
+              "maxTimeoutSeconds": 600,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "amount": "5000",
+              "payTo": "GBQ2FrH49gvKXu1zg7tguoLwaofn5S4NnuMs5JSYQ5GX",
+              "maxTimeoutSeconds": 600,
+              "extra": {
+                "feePayer": "D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 201,
+    "body_sha256": "514989005bfa6cc63c5201baf35b1c5658e6caf0f8a80baf02f90f9287a642f5",
+    "body_excerpt": "{\"type\": \"https://paymentauth.org/problems/payment-required\", \"title\": \"Payment Required\", \"status\": 402, \"detail\": \"Payment is required.\", \"challengeId\": \"6HwqgOioQe-t62kC9a9OrBCIpA8YFYICKibGWRgdhHc\"}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1267,
+    "headers": {
+      "date": "Tue, 13 Oct 2026 17:57:05 GMT",
+      "content-type": "application/json",
+      "server": "cloudflare",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x2ba08f3ab1414de2d388603cfda7877bdea3bdc7fa79be09fee8ec8960429eb0",
+          "network": "eip155:8453"
+        }
+      }
+    },
+    "body_bytes": 20174,
+    "body_sha256": "1a7e80ccb6ef59fa4d1e268c4788113a7a875e74d33bdd6326e3366ab467089f",
+    "body_excerpt": "{\"results\":{\"web\":[{\"url\":\"https://x402.org/\",\"title\":\"x402\",\"description\":\"It\u2019s designed for API monetization, agentic commerce, paywalled content, and any scenario where traditional payment methods are too slow or expensive. Yes, x402 is production-ready and has processed millions of transactions. The protocol is open-source and has been audited for security.\",\"thumbnail_url\":\"https://x402.org/wp-content/uploads/sites/10/2026/06/Untitled-design.png\",\"original_thumbnail_url\":\"https://x402.org/wp-content/uploads/sites/10/2026/06/Untitled-design.png\",\"page_age\":\"2026-07-19T19:15:02\",\"favicon_url\":\"https://you.com/favicon?domain=x402.org&size=128\",\"snippets\":[\"x402 is the internet's payment standard. An open standard for internet-native payments that empowers agentic payments at scale. Build a more free and fair internet.\",\"Filling out a form is a human behavior that doesn\u2019t match the programmatic nature of the internet. It\u2019s time for an open, internet-native form of payments. Payments that are amazing for humans and AI agents. x402 is built-in to existing HTTP requests, with no additional communication required.\",\"The old way of doing payments is barely working for a human world, let alone an agentic future. x402 does in moments what existing systems can\u2019t do at all.\",\"x402 is an open, neutral standard for internet-native payments. It absolves the Internet\u2019s original sin by natively making payments possible between clients and servers, creating win-win economies that empower agentic payments at scale. x402 exists to build a more free and fair internet.\"]},{\"url\":\"https://docs.stripe.com/payments/machine/x402\",\"title\":\"x402 | Stripe Documentation\",\"description\":\"x402 is a payment protocol that enables automated systems and AI agents to make payments.\",\"thumbnail_url\":\"https://d37ugbyn3rpeym.cloudfront.net/docs/og-image/payments.machine.x402.ogimage.png\",\"original_thumbnail_url\":\"https://d37ugbyn3rpeym.cloudfront.net/docs/og-image/payments.machine.x402.ogimage.png\",\"favicon_url\":\"https://you.com/favicon?domain=docs.stripe.com&size=128\",\"snippets\":[\"x402 is a protocol for internet payments. When a client requests a paid resource, your server returns an HTTP 402 response with payment details, including a Stripe deposit address. The client pays, then retries the request with authorization.\",\"In this guide, you build the server. Your server indicates that payment is required and returns the content after successful payment. You interact with Stripe and a facilitator to complete the payment. You can build an API that uses x402 with a single prompt to your coding agent:\",\"To build the integration yourself, follow the steps in this guide to install the dependencies, create an endpoint that returns an HTTP 402 challenge and verifies payments, record the payments with Stripe, and test the full flow. You can also review the app\u2019s complete source code on GitHub. x402 mainnet payments settle through the Coinbase Developer Platform (CDP) facilitator.\",\"Because you created the deposit address ahead of time, incoming payments on Base are sent to that static address. After the x402 facilitator settles a payment, record the on-chain transaction as a PaymentIntent using transaction_\"]},{\"url\":\"https://solana.com/x402/what-is-x402\",\"title\":\"What is x402? | Payment Protocol for AI Agents on Solana\",\"description\":\"Solana's 400ms finality and $0.00025 ... for x402 payments. Whether it's an AI agent making thousands of API calls or a user accessing premium content, Solana enables instant, low-cost payments that provides stable, predictable pricing for global services. Further, its low latency makes it easy to add layers like escrow and dispute resolution without noticeably increasing transfer time. AI is no longer confined to generating text or images. Improvements in tool use and context protocols have accelerated ...\",\"favicon_url\":\"https://you.com/favicon?domain=solana.com&size=128\",\"snippets\":[\"Solana's 400ms finality and $0.00025 transaction costs make it an efficient settlement layer for x402 payments. Whether it's an AI agent making thousa"
+  },
+  "quality": {
+    "result": "not_graded",
+    "reason": "facts only: On 2026-09-30 the endpoint answered our x402 payment with a second HTTP 402 asking to pay again by another method (Tempo), so nothing was delivered.",
+    "observed": {},
+    "expected": {},
+    "test": {
+      "input": "x402 payment protocol",
+      "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402"
+    },
+    "facts_only": true,
+    "graded_at": "2026-10-13T17:57:05Z"
+  },
+  "run_id": "20261013T175638Z",
+  "checked_at": "2026-10-13T17:57:04Z"
+}
