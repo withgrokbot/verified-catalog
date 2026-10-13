@@ -33,33 +33,38 @@
     "facts_only": false,
     "facts_only_reason": null
   },
-  "paid_receipts": 4,
+  "paid_receipts": 5,
   "latest": {
-    "checked_at": "2026-10-13T14:33:17Z",
-    "mode": "dry-run",
+    "checked_at": "2026-10-13T17:57:15Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 235,
+    "latency_ms": 458,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.01",
     "quoted_price_usd": "0.01",
     "price_matches_listing": true,
-    "paid": false,
-    "charged_price_usd": null,
-    "delivered_valid": null,
+    "paid": true,
+    "charged_price_usd": "0.01",
+    "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
-    "quality": null,
-    "raw_log": "results/raw/20261013T143316Z/x402scan-merchants.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261013T143316Z/x402scan-merchants.json"
+    "quality": {
+      "result": "pass",
+      "reason": "10 entries, sorted by volume, each with an address",
+      "facts_only": false,
+      "graded_at": "2026-10-13T17:57:17Z"
+    },
+    "raw_log": "results/raw/20261013T175638Z/x402scan-merchants.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261013T175638Z/x402scan-merchants.json"
   },
   "history_summary": {
-    "checks": 20,
-    "reachable": 20,
-    "x402_challenge_ok": 20,
-    "paid_checks": 4,
+    "checks": 21,
+    "reachable": 21,
+    "x402_challenge_ok": 21,
+    "paid_checks": 5,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-10-13T14:33:17Z"
+    "last_checked": "2026-10-13T17:57:15Z"
   }
 }
