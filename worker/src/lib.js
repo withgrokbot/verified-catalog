@@ -43,7 +43,7 @@ import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.26.0";
+export const VERSION = "0.26.1";
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
@@ -1548,7 +1548,7 @@ async function parseSpotQuery(req, url) {
   ctx.unknown = [...new Set([...p.keys(), ...Object.keys(body)])].filter((k) => !SPOT_KNOWN_PARAMS.has(k));
   if (!target) {
     const unknown = ctx.unknown;
-    errors.push({ field: "url", problem: unknown.length ? `Missing "url" (unknown param "${String(unknown[0]).slice(0, 40).replace(/[^\x20-\x7e]/g, "")}"; use "url")` : 'Missing "url"' });
+    errors.push({ missing: true, field: "url", problem: unknown.length ? `Missing "url" (unknown param "${String(unknown[0]).slice(0, 40).replace(/[^\x20-\x7e]/g, "")}"; use "url")` : 'Missing "url"' });
   } else {
     let u = null;
     try { u = new URL(target); } catch (_) { u = null; }
@@ -1613,7 +1613,10 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   if (q.errors.length) {
     const fix = spotFix(q);
     writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-bad-params", failReason: fix.mistake, shape }));
-    return json(spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem, fix), 400);
+    // 0.26.1: a GET/HEAD with no url and no misnamed param is a usage/health request (directory health probes): same help body,
+    // HTTP 200. A malformed url, or a POST with bad params, stays 400.
+    const usage = q.errors[0].missing && !(q.ctx.unknown || []).length && (req.method === "GET" || req.method === "HEAD"); // a misnamed param (?link=) stays 400
+    return json(spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem, fix), usage ? 200 : 400);
   }
 
   const listing = await listingForAsync(env, q.url);

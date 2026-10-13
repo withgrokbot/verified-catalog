@@ -1034,7 +1034,7 @@ test("spot-check aliases: endpoint= and claimed_price_usd= accepted (0.6.3); /v1
   assert.equal(a.body.verdict, "skip");
   assert.equal(a.body.claimed_price_usd, 9.99);
   const none = await send(SPOT + "?client=withgrokbot-selftest", { envo: e });
-  assert.equal(none.status, 400);
+  assert.equal(none.status, 200, "0.26.1: GET with no url = usage/help, HTTP 200");
   assert.deepEqual(Object.keys(none.body), ["error", "field", "example", "mistake", "hint", "fixed_example", "docs"]);
   assert.equal(none.body.field, "url");
   assert.ok(none.body.error.startsWith('Missing "url". Example: ') && !none.body.error.includes("\n"));
@@ -1805,7 +1805,7 @@ test("0.22.0: 400s name the mistake + a copy-pasteable fixed free check; /v1/ski
   const e = spotEnv();
   // bare call -> real example
   let r = await send(SPOT, { envo: e, ua: "node" });
-  assert.equal(r.status, 400); assert.equal(r.body.mistake, "no_params"); ok(r.body);
+  assert.equal(r.status, 200); assert.equal(r.body.mistake, "no_params"); ok(r.body); // 0.26.1: usage/health GET
   assert.deepEqual(r.body.fixed_example, { method: "GET", url: R + "?url=https://api.402rates.com/v1/ping" });
   assert.equal(r.points.at(-1).blobs[16], "no_params"); assert.equal(r.points.at(-1).blobs[17], "GET||");
   assert.equal(r.points.at(-1).blobs[19], "lookup.test");
@@ -2096,6 +2096,25 @@ test("0.26.0: /bazaar: daily cron checks Bazaar results as self-checked, redacte
   // off switch: route gone, cron does nothing
   const off = spotEnv({ CRAWL_KV: kv, BAZAAR_PAGE: "off" });
   assert.equal((await send("/bazaar.json", { envo: off })).status, 404);
+});
+
+test("0.26.1: GET/HEAD with no url -> 200 + the usage/help body; malformed url and bad POST bodies stay 400", async () => {
+  const e = spotEnv();
+  const g = await send(SPOT, { envo: e });
+  assert.equal(g.status, 200);
+  assert.equal(g.body.field, "url"); assert.equal(g.body.mistake, "no_params");
+  assert.ok(g.body.fixed_example && g.body.docs && g.body.error.startsWith('Missing "url"'));
+  const h = await worker.fetch(new Request("https://lookup.test" + SPOT, { method: "HEAD" }), e.env, { waitUntil() {} });
+  assert.equal(h.status, 200);
+  assert.equal((await send(SPOT + "?url=notaurl", { envo: e })).status, 400, "malformed url");
+  assert.equal((await send(SPOT + "?url=api.example.org/v1/ping", { envo: e })).status, 400, "no scheme");
+  assert.equal((await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, 400, "POST without url");
+  assert.equal((await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ target_url: "https://a.dev/x" }) })).status, 400, "POST wrong field");
+  assert.equal((await send(SPOT, { envo: e, method: "POST", body: "nope" })).status, 400, "POST bad body");
+  assert.equal((await send(SPOT + "?link=https://a.test/x", { envo: e })).status, 400, "misnamed url param stays 400");
+  assert.equal((await send(SPOT + "?cb=123&client=hc", { envo: e })).status, 200, "cache-buster / client only = usage");
+  // no payment, no probe on the usage answer
+  assert.equal(g.headers.get("payment-required"), null);
 });
 
 let passed = 0;
