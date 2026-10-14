@@ -32,36 +32,31 @@
   "quality_test": null,
   "paid_receipts": 2,
   "latest": {
-    "checked_at": "2026-10-13T17:57:24Z",
-    "mode": "paid",
+    "checked_at": "2026-10-14T14:39:59Z",
+    "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 539,
+    "latency_ms": 306,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.02",
     "quoted_price_usd": "0.02",
     "price_matches_listing": true,
-    "paid": true,
-    "charged_price_usd": "0.02",
-    "delivered_valid": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
     "payment_refused_reason": null,
     "error": null,
-    "quality": {
-      "result": "not_graded",
-      "reason": "no known-answer test for this service",
-      "facts_only": false,
-      "graded_at": "2026-10-13T17:57:27Z"
-    },
-    "raw_log": "results/raw/20261013T175638Z/kronos-btc-liquidations.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261013T175638Z/kronos-btc-liquidations.json"
+    "quality": null,
+    "raw_log": "results/raw/20261014T143958Z/kronos-btc-liquidations.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261014T143958Z/kronos-btc-liquidations.json"
   },
   "history_summary": {
-    "checks": 9,
-    "reachable": 9,
-    "x402_challenge_ok": 9,
+    "checks": 10,
+    "reachable": 10,
+    "x402_challenge_ok": 10,
     "paid_checks": 2,
     "first_checked": "2026-10-06T17:58:46Z",
-    "last_checked": "2026-10-13T17:57:24Z"
+    "last_checked": "2026-10-14T14:39:59Z"
   }
 }
