@@ -71,14 +71,17 @@ export async function savesJson(env, origin, now = new Date()) {
   }
   rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   const counts = { price_higher: 0, pay_to_changed: 0, network_changed: 0 };
-  for (const r of rows) counts[r.kind]++;
+  let live_count = 0, crawl_count = 0;
+  for (const r of rows) { counts[r.kind]++; if (r.source === "live") live_count++; else crawl_count++; }
   return {
     title: "402xAgent saves: payments an agent would have made to terms that differ from the listing",
     window_days: MAX_AGE_D,
     crawl_built_at: SAVES_META.built_at || null,
     crawl_total_before_cap: SAVES_META.total ?? null,
     crawl_counts_before_cap: SAVES_META.counts || null,
-    count: rows.length,
+    count: rows.length, // = live_count + crawl_count (kept for backward compatibility)
+    live_count,
+    crawl_count,
     counts,
     rules: origin + "/rules.json",
     note: "Endpoints are shown without query strings; wallets are never printed. Each row links its receipt (redacted public view).",
@@ -91,6 +94,9 @@ export async function handleSaves(req, env, url, origin) {
   const j = await savesJson(env, origin);
   const hdr = { "cache-control": "public, max-age=300", "access-control-allow-origin": "*" };
   if (url.pathname === "/saves.json" || url.searchParams.get("format") === "json") return new Response(JSON.stringify(j, null, 2), { headers: { ...hdr, "content-type": "application/json; charset=utf-8" } });
+  const n = (x) => Number(x).toLocaleString("en-US");
+  const total = j.crawl_total_before_cap != null && j.crawl_total_before_cap > j.crawl_count ? j.crawl_total_before_cap : null;
+  const summary = (total != null ? `showing ${n(j.crawl_count)} of ${n(total)} crawl findings` : `${n(j.crawl_count)} crawl findings`) + ` + ${n(j.live_count)} live check${j.live_count === 1 ? "" : "s"}`;
   const tr = j.saves.slice(0, 500).map((s) => `<tr><td><code>${esc(s.endpoint)}</code></td><td>${esc(s.what)}</td><td>${esc(s.date)}</td><td>${s.receipt ? `<a href="${esc(s.receipt)}">receipt</a>` : ""}</td></tr>`).join("");
-  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>402xAgent saves</title><link rel="alternate" type="application/json" href="/saves.json"><style>body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:24px auto;padding:0 16px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eee;padding:5px 8px;text-align:left;vertical-align:top}code{word-break:break-all}</style></head><body><h1>Saves</h1><p>${esc(j.count)} endpoints in the last ${esc(j.window_days)} days where the live payment request differed from the listing: ${esc(j.counts.price_higher)} asked more than listed, ${esc(j.counts.pay_to_changed)} pay a different wallet, ${esc(j.counts.network_changed)} ask for another network. JSON: <a href="/saves.json">/saves.json</a>. Rules: <a href="/rules">/rules</a>.</p><table><tr><th>endpoint</th><th>what differed</th><th>date</th><th></th></tr>${tr}</table></body></html>`, { headers: { ...hdr, "content-type": "text/html; charset=utf-8" } });
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>402xAgent saves</title><link rel="alternate" type="application/json" href="/saves.json"><style>body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:24px auto;padding:0 16px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eee;padding:5px 8px;text-align:left;vertical-align:top}code{word-break:break-all}</style></head><body><h1>Saves</h1><p>${esc(summary)} in the last ${esc(j.window_days)} days where the live payment request differed from the listing: ${esc(j.counts.price_higher)} asked more than listed, ${esc(j.counts.pay_to_changed)} pay a different wallet, ${esc(j.counts.network_changed)} ask for another network. JSON: <a href="/saves.json">/saves.json</a>. Rules: <a href="/rules">/rules</a>.</p><table><tr><th>endpoint</th><th>what differed</th><th>date</th><th></th></tr>${tr}</table></body></html>`, { headers: { ...hdr, "content-type": "text/html; charset=utf-8" } });
 }

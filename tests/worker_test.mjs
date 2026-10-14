@@ -2492,6 +2492,29 @@ test("0.35.0: /saves behind SAVES_PAGE (off = 404); real listing differences onl
   assert.match(html.headers.get("content-type"), /text\/html/);
 });
 
+test("0.35.2: /saves.json splits live_count and crawl_count; HTML says showing X of Y crawl findings + N live checks", async () => {
+  const { savesJson, handleSaves } = await import("../worker/src/saves.js");
+  const { SAVES, SAVES_META } = await import("../worker/src/saves-data.js");
+  const now = new Date();
+  const body = { verdict: "skip", reason: "pay_to_mismatch", checked_at: now.toISOString().replace(/\.\d{3}Z$/, "Z"), id: "sc-00000000000000d1", url: "https://live-only.example.com/api", expected: { source: "listing" }, live_402: { accepts: [] } };
+  const db = { prepare: () => ({ bind: () => ({ all: async () => ({ results: [{ body: JSON.stringify(body) }] }) }) }) };
+  const j = await savesJson({ RECEIPTS_DB: db }, "https://o.test", now);
+  assert.equal(j.live_count, 1);
+  assert.equal(j.count, j.live_count + j.crawl_count, "count kept as the total");
+  assert.equal(j.count, j.saves.length);
+  assert.equal(j.crawl_count, j.saves.filter((x) => x.source === "crawl").length);
+  assert.ok(j.crawl_count <= SAVES.length);
+  assert.equal(j.crawl_total_before_cap, SAVES_META.total);
+  const res = await handleSaves(new Request("https://o.test/saves"), { SAVES_PAGE: "on", RECEIPTS_DB: db }, new URL("https://o.test/saves"), "https://o.test");
+  const html = await res.text();
+  const n = (x) => Number(x).toLocaleString("en-US");
+  if (SAVES_META.total > j.crawl_count) assert.ok(html.includes(`showing ${n(j.crawl_count)} of ${n(SAVES_META.total)} crawl findings + 1 live check `), "capped wording");
+  else assert.ok(html.includes(`${n(j.crawl_count)} crawl findings + 1 live check `));
+  const j0 = await savesJson({}, "https://o.test", now);
+  assert.equal(j0.live_count, 0);
+  assert.equal(j0.count, j0.crawl_count);
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {
