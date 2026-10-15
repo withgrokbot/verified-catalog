@@ -167,3 +167,12 @@ No existing field, verdict, reason_code or confidence changes (x402-spotcheck 1.
 - Stored: D1 `endpoint_quality` (migrations/0007), one row per fresh probe, last 30 per URL hash; metadata only (status, media type, bytes, schema flags, code, host). No bodies, headers, paths or query strings.
 - `reputation` (src/reputation.js): one 0..100 score per seller host, computed on read (4 indexed D1 reads, no writes) from spot_receipts, endpoint_history and endpoint_quality. `score = round(100 * Σ w·c / Σ w)` over components with data; weights stability 25, drift 20, verdicts 30, freshness 10, quality 15; verdicts = pay_share × (0.5 + 0.5 × consistency); a host with ≥ 5 pay/skip checks and pay_share < 0.2 is capped at 49 (low). Under 5 observations or first seen < 2 days ago: `insufficient_data`, score null. Published at /rules and /rules.json `reputation`. Paid/router/exempt: score, band, confidence, breakdown, inputs; free and dry runs: `{host, band}`. Free page: `/reputation/<host>` (+ `.json`), band only. Cron self-checks skip the reputation read.
 - Apply before deploy: `npx wrangler d1 migrations apply vc-spot-receipts --remote`. Without it the Worker fails open (no quality rows; reputation leaves out the quality component).
+
+## Signed receipts (0.37.3)
+
+New receipts carry `kid` + `signature`: ed25519 (base64url) over the RFC 8785 (JCS) canonical JSON of the served receipt minus `signature`. Public keys: `/.well-known/402xagent-keys.json` (alias `/.well-known/402xagent-receipt-key.json`; linked from `/.well-known/x402` as `receipt_keys`). Verify offline: `/docs#receipt-signatures` or `x402-spotcheck` 1.1.0 `verifyReceipt()`.
+
+- Key generation (local, once): `node worker/scripts/gen-receipt-key.mjs` writes the private JWK to `~/.secrets/402xagent-receipt-ed25519.json` (mode 600, never printed) and the public part into `src/sign.js`.
+- Secret (deploy step, operator only): `wrangler secret put RECEIPT_SIGNING_KEY < ~/.secrets/402xagent-receipt-ed25519.json`.
+- No secret, an unpublished key, or any error: receipts are stored unsigned exactly as before. 0 KV writes.
+- Rotation: generate a new key (`--out` a new path), deploy with both public keys listed, then switch the secret. Keep old keys listed.

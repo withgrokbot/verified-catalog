@@ -12,3 +12,7 @@ results/spend_ledger.json.tmp
 worker/.wrangler/
 node_modules/
 .dev.vars
+# 0.37.3: receipt-signing private key lives outside the repo (~/.secrets); never commit one
+.secrets/
+*-ed25519.json
+*receipt-ed25519*

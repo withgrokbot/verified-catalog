@@ -2633,7 +2633,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.37.2");
+  assert.equal(VERSION, "0.37.3");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2841,6 +2841,58 @@ test("0.37.2: stale free-tier text says 5/day; sitemap lists rules/bazaar/saves;
   assert.equal((src.match(/^\s*pay_to_changed: (false|null),$/gm) || []).length, 3);
   const sj = JSON.parse((await import("node:fs")).readFileSync(new URL("../server.json", import.meta.url), "utf8")); assert.equal(sj.version, VERSION);
   assert.equal(puts, 0);
+});
+
+test("0.37.3 signed receipts: ed25519 over JCS minus signature, key at /.well-known, kid-matched; no secret = unsigned and unchanged; bad secret = unsigned, no error", async () => {
+  const { generateKeyPairSync, createPublicKey, verify } = await import("node:crypto");
+  const S = await import("../worker/src/sign.js");
+  const pub = (await send("/.well-known/402xagent-keys.json")).body;
+  assert.ok(pub.keys.length >= 1 && pub.keys.every((k) => k.kty === "OKP" && k.crv === "Ed25519" && /^[A-Za-z0-9_-]{43}$/.test(k.x) && k.kid && !("d" in k)), "public keys only");
+  assert.deepEqual((await send("/.well-known/402xagent-receipt-key.json")).body, pub);
+  assert.equal((await send("/.well-known/x402")).body.receipt_keys, "https://api.402xagent.com/.well-known/402xagent-keys.json");
+  const t = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001";
+  spotTargetMode = "402";
+  // no secret: unsigned, same receipt as before
+  const db0 = fakeD1(), e0 = spotEnv({ RECEIPTS_DB: db0 });
+  const r0 = await send(t + "&client=sig-0", { envo: e0 });
+  const g0 = (await send("/v1/receipts/" + r0.body.receipt_id, { envo: e0 })).body;
+  assert.ok(!("signature" in g0) && !("kid" in g0) && !db0.rows[0].body.includes("signed_view"));
+  // a key that is not published, or junk: unsigned, no error
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const jwk = { ...privateKey.export({ format: "jwk" }), kid: "test-sig-1" };
+  for (const bad of [JSON.stringify(jwk), "not json", "{}"]) {
+    S._resetSigner();
+    const db = fakeD1(), e = spotEnv({ RECEIPTS_DB: db, RECEIPT_SIGNING_KEY: bad });
+    const r = await send(t + "&client=sig-bad", { envo: e });
+    assert.equal(r.status, 200);
+    assert.ok(!("signature" in (await send("/v1/receipts/" + r.body.receipt_id, { envo: e })).body));
+  }
+  // a published key: signed and verifiable offline
+  S._addTestKey({ kid: jwk.kid, x: jwk.x });
+  S._resetSigner();
+  const db = fakeD1(), e = spotEnv({ RECEIPTS_DB: db, RECEIPT_SIGNING_KEY: JSON.stringify(jwk) });
+  const r = await send(t + "&client=sig-ok", { envo: e });
+  assert.deepEqual(Object.keys(r.body).sort(), Object.keys(r0.body).sort(), "check response shape unchanged");
+  const g = (await send("/v1/receipts/" + r.body.receipt_id, { envo: e })).body;
+  assert.equal(g.kid, "test-sig-1");
+  assert.match(g.signature, /^[A-Za-z0-9_-]{86}$/);
+  const { signature, ...rest } = g;
+  const key = createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: jwk.x }, format: "jwk" });
+  assert.ok(verify(null, Buffer.from(S.canonicalize(rest)), key, Buffer.from(signature, "base64url")));
+  assert.ok(!verify(null, Buffer.from(S.canonicalize({ ...rest, verdict: "skip" })), key, Buffer.from(signature, "base64url")));
+  const { signature: _s, kid: _k, ...g0rest } = g;
+  assert.deepEqual(Object.keys(g0rest).sort(), Object.keys(g0).sort(), "signed view = the served receipt + kid + signature");
+  assert.equal(g.redacted, g0.redacted, "free-tier redaction still applies");
+  assert.ok(!db.rows[0].body.includes(jwk.d) && !JSON.stringify(g).includes(jwk.d), "private key never stored or served");
+  const { normReceipt } = await import("../worker/src/lib.js");
+  assert.deepEqual(normReceipt(JSON.parse(db.rows[0].body)), g, "every read path (lists too) serves the signed view");
+  // the docs snippet verifies the served receipt too (same JCS, no dependencies)
+  const { VERIFY_SNIPPET } = await import("../worker/src/pages.js");
+  const jcsSrc = VERIFY_SNIPPET.slice(VERIFY_SNIPPET.indexOf("const jcs = ") + 12, VERIFY_SNIPPET.indexOf("\nconst receipt")).trim().replace(/;$/, "");
+  const jcs = new Function("const jcs = " + jcsSrc + "; return jcs;")();
+  assert.equal(jcs(rest), S.canonicalize(rest));
+  try { const W = await import("/workspace/products/x402-spotcheck/receipt.js"); assert.equal((await W.verifyReceipt(g, { publicKey: { keys: [{ kty: "OKP", crv: "Ed25519", kid: jwk.kid, x: jwk.x }] } })).valid, true); } catch (err) { if (err.code !== "ERR_MODULE_NOT_FOUND") throw err; }
+  S._resetSigner();
 });
 
 let passed = 0;

@@ -27,6 +27,16 @@ export function pricingHtml(origin, p) {
 <p>Details: <a href="/rules">rules</a> · <a href="/openapi.json">OpenAPI spec</a> · <a href="/docs">docs</a></p>`);
 }
 
+export const VERIFY_SNIPPET = `import { createPublicKey, verify } from "node:crypto";
+const jcs = (v) => v === null || typeof v !== "object" ? JSON.stringify(v)
+  : Array.isArray(v) ? "[" + v.map(jcs).join(",") + "]"
+  : "{" + Object.keys(v).filter((k) => v[k] !== undefined).sort().map((k) => JSON.stringify(k) + ":" + jcs(v[k])).join(",") + "}";
+const receipt = await (await fetch("https://402xagent.com/v1/receipts/sc-...")).json();
+const { keys } = await (await fetch("https://api.402xagent.com/.well-known/402xagent-keys.json")).json(); // or a saved copy
+const jwk = keys.find((k) => k.kid === receipt.kid);
+const { signature, ...signed } = receipt;
+const ok = verify(null, Buffer.from(jcs(signed)), createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: jwk.x }, format: "jwk" }), Buffer.from(signature, "base64url"));
+console.log(ok ? "valid" : "INVALID");`;
 export function docsHtml(origin, apiOrigin) {
   const links = [
     ["/openapi.json", "OpenAPI spec", "every route, parameter and price"],
@@ -41,5 +51,9 @@ export function docsHtml(origin, apiOrigin) {
 <ul>${links.map(([h, t, d]) => `<li><a href="${h}">${t}</a>: ${esc(d)}</li>`).join("")}
 <li>MCP: <code>POST ${esc(apiOrigin)}/mcp</code> (JSON-RPC, tools listed by <code>tools/list</code>)</li>
 <li>Client guard for @x402/fetch and @x402/axios: <a href="https://github.com/withgrokbot/x402-spotcheck">github.com/withgrokbot/x402-spotcheck</a></li></ul>
-<p>Quick start: <code>GET ${esc(apiOrigin)}/v1/products/endpoint-spot-check?url=&lt;endpoint&gt;&amp;mode=dry-run</code></p>`);
+<p>Quick start: <code>GET ${esc(apiOrigin)}/v1/products/endpoint-spot-check?url=&lt;endpoint&gt;&amp;mode=dry-run</code></p>
+<h2 id="receipt-signatures">Receipt signatures</h2>
+<p>New receipts (<code>/v1/receipts/&lt;id&gt;</code>) carry <code>kid</code> and <code>signature</code>: ed25519 (base64url, 64 bytes) over the RFC 8785 (JCS) canonical JSON of the receipt with only <code>signature</code> removed. Public keys: <a href="/.well-known/402xagent-keys.json">/.well-known/402xagent-keys.json</a> (match <code>kid</code>). Older receipts are unsigned. A signature proves 402xAgent issued the receipt; it does not change the verdict.</p>
+<p>Offline, with <code>x402-spotcheck</code> 1.1.0+: <code>await verifyReceipt(receipt, { publicKey })</code>. Or with Node 20+ and no dependencies:</p>
+<pre><code>${esc(VERIFY_SNIPPET)}</code></pre>`);
 }
