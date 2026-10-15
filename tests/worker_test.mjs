@@ -2921,6 +2921,26 @@ test("0.38.0 flat $0.02: 402 amount 20000 for any quote; well-known/OpenAPI/llms
   assert.ok(!/\$0\.0/.test(await b.text()), "badges carry no price");
 });
 
+test("0.38.0 crawl schedule copy: 'Updated weekly (last crawl Oct 13, next crawl Oct 19)' computed from crawled_at on home + skips", async () => {
+  const { crawlSchedule, crawlScheduleText } = await import("../worker/src/skips.js");
+  const { landingHtml } = await import("../worker/src/landing.js");
+  assert.deepEqual(crawlSchedule("2026-10-13T14:36:14Z"), { last: "Oct 13", next: "Oct 19", last_iso: "2026-10-13", next_iso: "2026-10-19" });
+  assert.equal(crawlSchedule("2026-10-19T09:00:00Z").next, "Oct 26", "on its Monday: last + 7 days");
+  assert.equal(crawlSchedule("2026-12-28T23:59:00Z").next, "Jan 4", "year rollover");
+  assert.equal(crawlScheduleText("nope"), "Updated weekly.");
+  const html = landingHtml("https://402xagent.com", { crawled_at: "2026-11-02T14:00:00Z", endpoints_covered: 9 });
+  assert.match(html, /Updated weekly \(last crawl Nov 2, next crawl Nov 9\)\. Each row has a public receipt\./);
+  assert.match(html, /self-checked · last crawl Nov 2</);
+  assert.ok(!/crawl of 20/.test(html));
+  const live = landingHtml("https://402xagent.com");
+  const exp = crawlScheduleText(RECEIPTS_META.crawled_at);
+  assert.ok(live.includes(exp.replace(/\(/g, "(")), "home uses the bundled crawl date");
+  const sk = await worker.fetch(new Request("https://402xagent.com/v1/skips", { headers: { accept: "text/html" } }), mkEnv().env, { waitUntil() {} });
+  const skt = await sk.text();
+  assert.ok(skt.includes(exp), "skips page uses the same wording");
+  assert.ok(!/crawled 20\d\d-/.test(skt));
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {

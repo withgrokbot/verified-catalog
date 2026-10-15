@@ -39,6 +39,21 @@ async function kvJson(env, key) {
     return null;
   }
 }
+/** 0.38.0: "Updated weekly (last crawl Oct 13, next crawl Oct 19)." from the crawl timestamp. The crawl is weekly on
+ * Mondays (UTC): next = the first Monday after the last crawl (= last + 7 days when it ran on its Monday). */
+export function crawlSchedule(crawledAt) {
+  const t = Date.parse(String(crawledAt || ""));
+  if (!Number.isFinite(t)) return null;
+  const d = new Date(t);
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const next = new Date(last.getTime() + (((8 - last.getUTCDay()) % 7) || 7) * 86400000);
+  const fmt = (x) => x.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  return { last: fmt(last), next: fmt(next), last_iso: last.toISOString().slice(0, 10), next_iso: next.toISOString().slice(0, 10) };
+}
+export function crawlScheduleText(crawledAt) {
+  const s = crawlSchedule(crawledAt);
+  return s ? `Updated weekly (last crawl ${s.last}, next crawl ${s.next}).` : "Updated weekly.";
+}
 /** One crawl receipt by id: bundled page 1 first, then the KV shard. */
 export async function crawlReceipt(env, id) {
   if (!/^[0-9a-f]{10}$/.test(String(id || ""))) return null;
@@ -120,7 +135,7 @@ export async function handleSkips(req, url, env = {}) {
 <header><h1>402xAgent skips: self-checked x402 receipts</h1>
 <div class="free" style="border:1px solid #fde2c4;background:#fffaf3;border-radius:8px;padding:10px 12px;margin:0 0 12px"><b>Check your endpoint free first:</b> <code class="u">GET ${esc(FREE_CHECK_URL)}</code><br><small>Real example: <a class="u" href="${esc(FREE_CHECK_EXAMPLE_URL)}">${esc(FREE_CHECK_EXAMPLE_URL)}</a> → <code class="u">${esc(JSON.stringify(FREE_CHECK_EXAMPLE))}</code>. 5 free per day (25 per network), free dry runs with &amp;mode=dry-run. Then, only for the full payment terms, the paid check (HTTP 402).</small></div>
 <p><small>402xAgent · <a href="${CANON_ORIGIN}">402xagent.com</a></small></p>
-<p class="cov"><b>${cov.endpoints_covered}</b> endpoints covered · <b>${cov.new_this_week ?? "—"}</b> new this week${cov.previous_run ? "" : " (first full crawl)"} · crawled ${esc(m.crawled_at)} (UTC)</p>
+<p class="cov"><b>${cov.endpoints_covered}</b> endpoints covered · <b>${cov.new_this_week ?? "—"}</b> new this week${cov.previous_run ? "" : " (first full crawl)"} · ${esc(crawlScheduleText(m.crawled_at))}</p>
 <p><b>${m.skip}</b> skip · ${m.pay} pay · ${m.recheck} recheck · lists: ${esc(Object.entries(m.listed_in || m.lists).map(([k, v]) => k + " " + v).join(", "))}</p>
 <p>${esc(spotHowTo(origin))}</p>
 <p><small>Self-checked: ${esc(m.method)} Deduped by ${esc(m.dedupe || "URL")}. Skip = no paywall (no 402), a malformed 402, price mismatch, wrong or unsupported network, a token other than canonical USDC, or a payTo that differs from the listing. Recheck = transient (timeout, network error, 5xx) or a free trial in use. JSON: <a href="/v1/skips.json">/v1/skips.json</a> · one receipt: /v1/receipts/&lt;id&gt; · by URL: /v1/receipts/by-url?url=&lt;endpoint&gt;. Facts only, not endorsements.</small></p>
