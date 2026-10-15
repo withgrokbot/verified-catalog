@@ -1,6 +1,6 @@
 // 0.37.1: small static HTML pages for /pricing and /docs, built from the real price constants (no KV, no I/O).
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-const usd = (atomic) => "$" + (Number(atomic) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+const usd = (atomic) => "$" + (Number(atomic) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, "").replace(/(\.\d)$/, "$10"); // $0.20, $9, $0.001
 const page = (title, desc, origin, path, body) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc)}"><link rel="canonical" href="${esc(origin + path)}">
@@ -10,17 +10,17 @@ ${body}
 </body></html>
 `;
 
-// p: { freePerDay, freePerIpDay, paidMinAtomic, paidMaxAtomic, routerPackAtomic, routerPackChecks, routerCheckAtomic, lookupFreePerDay, lookupAtomic, packAtomic, apiOrigin }
+// p: { freePerDay, freePerIpDay, paidAtomic, routerPackAtomic, routerPackChecks, routerCheckAtomic, lookupFreePerDay, lookupAtomic, packAtomic, apiOrigin }
 export function pricingHtml(origin, p) {
   const rows = [
     ["Free check", `$0: ${p.freePerDay} live checks per client per UTC day, at most ${p.freePerIpDay} per network (IP) per day across client names. Dry runs (<code>&amp;mode=dry-run</code>) are free.`],
-    ["Paid check", `One tenth of the target endpoint's quoted x402 price, minimum ${usd(p.paidMinAtomic)}, maximum ${usd(p.paidMaxAtomic)} (no quote: ${usd(p.paidMinAtomic)}). Adds full payment terms and the payment object to sign.`],
+    ["Paid check", `${usd(p.paidAtomic)} per check, flat, whatever the target endpoint charges. Adds full payment terms and the payment object to sign.`],
     ["Router pack", `${usd(p.routerPackAtomic)} for ${p.routerPackChecks} checks (${usd(p.routerCheckAtomic)} each), paid as one x402 payment; for registered router clients.`],
     ["Catalog lookup (<code>/v1/lookup</code>)", `${p.lookupFreePerDay} free per client per UTC day, then ${usd(p.lookupAtomic)} per call; <code>/v1/lookup/paid</code> is always ${usd(p.lookupAtomic)}.`],
     ["Overnight chief-of-staff pack", `${usd(p.packAtomic)} (<code>/v1/products/overnight-cos-pack</code>).`],
     ["Free to read", `Skips, receipts, Bazaar check, badges, rules, OpenAPI, MCP.`],
   ];
-  return page("Pricing · 402xAgent", "402xAgent prices: free checks, paid checks from $0.01, USDC on Base via x402.", origin, "/pricing", `<h1>Pricing</h1>
+  return page("Pricing · 402xAgent", "402xAgent prices: free checks, paid checks $0.02, USDC on Base via x402.", origin, "/pricing", `<h1>Pricing</h1>
 <p>All payments are USDC on Base via x402. No account, no key. Payment buys access only; it never changes a verdict.</p>
 <table><tbody>${rows.map(([k, v]) => `<tr><th scope="row">${k}</th><td>${v}</td></tr>`).join("")}</tbody></table>
 <p>Check endpoint: <code>${esc(p.apiOrigin)}/v1/products/endpoint-spot-check?url=&lt;endpoint&gt;</code></p>
