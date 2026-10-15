@@ -44,12 +44,14 @@ import { staleStep, STALE_REF } from "./stale.js";
 import { dailySeed, dailyStep, DAILY_CRON, DAILY_REF } from "./daily.js";
 import { observation, recordHistory, historyObservations } from "./history.js";
 import { reasonFields, rulesJson, rulesHtml } from "./rules.js";
+import { qualityFor, qualityPublic, recordQuality } from "./quality.js";
+import { hostReputation, reputationPublic, hostOf, handleReputation } from "./reputation.js";
 import { handleBadge, badgeSnippets } from "./badge.js";
 import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.36.0";
+export const VERSION = "0.37.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
@@ -962,6 +964,8 @@ export const SPOT_PAID_EXAMPLE = {
   confidence: "high",
   history: { observations: 12, stable_for_days: 9, stable_since: "2026-10-01T17:00:00Z", last_changed: "2026-10-01T17:00:00Z", drift: false },
   history_observations: [{ observed_at: "2026-10-10T17:00:00Z", http_status: 402, price_usd: 0.05, amount_atomic: "50000", network: "eip155:8453", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", pay_to: "0x..." }],
+  quality: { code: "quality_unverified", checks: { reachable: true, http_status: 402, status_is_402: true, content_type: "application/json", content_type_ok: true, body_bytes: 612, schema_declared: false, schema_source: null, schema_match: null }, note: "metadata of the unpaid 402 response only; never pays the seller, stores no body; does not change verdict or reason_code", rules: "https://402xagent.com/rules.json" },
+  reputation: { host: "api.example.com", score: 86, band: "high", confidence: "medium", low_data: false, breakdown: { stability: { value: 1, weight: 25, points: 25 }, drift: { value: 1, weight: 20, points: 20 }, verdicts: { value: 0.795, weight: 30, points: 23.85 }, freshness: { value: 1, weight: 10, points: 10 }, quality: { value: 0.45, weight: 15, points: 6.75 } }, capped: false, inputs: { endpoints: 2, observations: 14, checks_30d: 14, pay_30d: 12, skip_30d: 2, recheck_30d: 0, term_transitions: 10, pay_to_changes: 0, network_or_asset_changes: 0, price_changes: 0, stable_for_days_min: 9, stable_for_days_max: 9, last_checked: "2026-10-10T17:00:00Z", first_seen: "2026-10-01T17:00:00Z", tracking_days: 9, quality_codes: { quality_unverified: 1, quality_bad_status: 1 } }, formula_version: "2026-10-15", rules: "https://402xagent.com/rules.json" },
   access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
 };
 export const SPOT_FREE_EXAMPLE = {
@@ -974,6 +978,8 @@ export const SPOT_FREE_EXAMPLE = {
   reason_code: "price_ok",
   confidence: "high",
   history: { observations: 12, stable_for_days: 9, stable_since: "2026-10-01T17:00:00Z", last_changed: "2026-10-01T17:00:00Z", drift: false },
+  quality: { code: "quality_unverified", rules: "https://402xagent.com/rules.json" },
+  reputation: { host: "api.example.com", band: "high", rules: "https://402xagent.com/rules.json" },
   prior_checks: "https://402xagent.com/v1/skips",
   upsell: FREE_UPSELL,
   access: { tier: "free", free_per_day: 5, free_used_today: 1, free_remaining_today: 4, then: "$0.01 USDC on Base for the full check of this endpoint via x402 (HTTP 402)" },
@@ -1015,6 +1021,8 @@ export const SPOT_PAID_SCHEMA = {
     confidence: { type: "string", enum: ["high", "medium", "low"], description: "0.30.0 confidence in the verdict; rules at /rules.json" },
     history_observations: { type: ["array", "null"], description: "0.34.0, paid / router / exempt answers only: the last 30 observations of this endpoint, newest first (observed_at, http_status, price_usd, amount_atomic, network, asset, pay_to). Free answers, dry runs and receipts keep only the history summary.", items: { type: "object" } },
     history: { type: ["object", "null"], description: "0.29.0 summary of the last 30 observations of this endpoint (D1; price, wallet and network are not shown). stable_for_days = whole days the payment terms (price, network, asset, pay_to) have been the same; stable_since/last_changed = when the current terms were first seen (last_changed null if they never changed in the kept history); drift = the terms differ from the previous observation (null if nothing to compare). Observations without payment terms (timeouts, errors) do not reset stability. null when the store is unavailable.", properties: { observations: { type: "integer" }, stable_for_days: { type: ["integer", "null"] }, stable_since: { type: ["string", "null"] }, last_changed: { type: ["string", "null"] }, drift: { type: ["boolean", "null"] } } },
+    quality: { type: ["object", "null"], description: "0.37.0 (additive): quality of the unpaid 402 response (metadata only; codes at /rules.json quality_codes). Never changes verdict or reason_code.", properties: { code: { type: "string", enum: ["quality_ok", "quality_unverified", "quality_bad_content_type", "quality_schema_mismatch", "quality_bad_status", "quality_unreachable"] }, checks: { type: "object" } } },
+    reputation: { type: ["object", "null"], description: "0.37.0 (additive): seller host reputation 0..100 (formula and weights at /rules.json reputation): score (null when low on data), band, confidence, low_data, provisional_score, breakdown, inputs. null when the store is unavailable.", properties: { host: { type: "string" }, score: { type: ["integer", "null"] }, band: { type: "string", enum: ["high", "medium", "low", "insufficient_data"] } } },
     access: { type: "object", properties: { tier: { const: "paid" }, charged_usd: { type: "string" }, tx: { type: "string" } } },
   },
   required: ["verdict", "reason", "quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source", "payment", "payment_terms_sha256", "probe", "check_type", "receipt_id", "receipt_url", "access"],
@@ -1032,6 +1040,8 @@ export const SPOT_FREE_SCHEMA = {
     reason_code: { type: ["string", "null"], description: "0.30.0 stable machine code for the verdict (see /rules.json); in free answers `reason` is plain words, here is the code" },
     confidence: { type: "string", enum: ["high", "medium", "low"], description: "0.30.0 confidence in the verdict; rules at /rules.json" },
     history: { type: ["object", "null"], description: "0.29.0 summary of the last 30 observations of this endpoint (D1; price, wallet and network are not shown). stable_for_days = whole days the payment terms (price, network, asset, pay_to) have been the same; stable_since/last_changed = when the current terms were first seen (last_changed null if they never changed in the kept history); drift = the terms differ from the previous observation (null if nothing to compare). Observations without payment terms (timeouts, errors) do not reset stability. null when the store is unavailable.", properties: { observations: { type: "integer" }, stable_for_days: { type: ["integer", "null"] }, stable_since: { type: ["string", "null"] }, last_changed: { type: ["string", "null"] }, drift: { type: ["boolean", "null"] } } },
+    quality: { type: ["object", "null"], description: "0.37.0 (additive): {code} of the unpaid 402 response's quality check (codes at /rules.json); full checks in the paid answer", properties: { code: { type: "string" }, rules: { type: "string" } } },
+    reputation: { type: ["object", "null"], description: "0.37.0 (additive): coarse seller band only: high | medium | low | insufficient_data; score and breakdown in the paid answer", properties: { host: { type: "string" }, band: { type: "string", enum: ["high", "medium", "low", "insufficient_data"] }, rules: { type: "string" } } },
     access: { type: "object", properties: { tier: { const: "free" } } },
   },
   required: ["verdict", "reason", "payment_terms_sha256", "receipt_id", "receipt_url", "access"],
@@ -1086,6 +1096,8 @@ export function spotPaymentRequired(c, resourceUrl, error, used, target = "") {
       confidence: "medium",
       history: { observations: 12, stable_for_days: 9, stable_since: "2026-10-01T17:00:00Z", last_changed: "2026-10-01T17:00:00Z", drift: false },
       history_observations: [],
+      quality: { code: "quality_bad_status", checks: { reachable: true, http_status: 404, status_is_402: false, content_type: "text/html", content_type_ok: null, body_bytes: 1834, schema_declared: false, schema_source: null, schema_match: null }, note: "metadata of the unpaid 402 response only; never pays the seller, stores no body; does not change verdict or reason_code", rules: "https://402xagent.com/rules.json" },
+      reputation: SPOT_PAID_EXAMPLE.reputation,
   pay_to_changed: false,
       access: { tier: "paid", charged_usd: "0.01", asset: "USDC on Base", tx: "0x...", basescan_url: "https://basescan.org/tx/0x...", payer: "0x..." },
     },
@@ -1393,7 +1405,7 @@ export async function probeKeyHash(u, method) {
 }
 export function probeSnapshot(p) {
   if (!p) return null;
-  const keep = ["method_used", "reachable", "http_status", "ssrf_blocked", "error", "x402_challenge", "accepts", "quoted_price_usd", "known_answer", "free_trial", "body_truncated"];
+  const keep = ["method_used", "reachable", "http_status", "ssrf_blocked", "error", "x402_challenge", "accepts", "quoted_price_usd", "known_answer", "free_trial", "body_truncated", "quality_meta"];
   const o = {};
   for (const k of keep) if (p[k] !== undefined) o[k] = p[k];
   return o;
@@ -1748,8 +1760,15 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const payment = paymentObject(pm, pr.probedAt);
     const rid = env.RECEIPTS_DB ? newReceiptId() : null;
     const ptc = rid ? await payToChanged(env, q.url, pm0) : { pay_to_changed: null };
-    const history = await recordHistory(env, await historyKey(q.url), observation(probe, pm0, d.verdict, pr.probedAt), !pr.cached);
+    const hk = await historyKey(q.url);
+    const history = await recordHistory(env, hk, observation(probe, pm0, d.verdict, pr.probedAt), !pr.cached);
     const rf = reasonFields(d, exp.claimed, history);
+    // 0.37.0 (additive): quality of the unpaid 402 response + seller reputation; neither changes verdict/reason_code
+    const quality = qualityFor(probe);
+    await recordQuality(env, hk, hostOf(q.url), quality, pr.probedAt, !pr.cached);
+    // cron self-checks (bazaar / stale / daily) keep their D1 budget: nobody reads those answers, so no reputation read
+    const internal = selfChecked && (q.ref === BAZAAR_REF || q.ref === STALE_REF || q.ref === DAILY_REF);
+    const reputation = internal ? null : await hostReputation(env, hostOf(q.url), historyKey);
     const receiptFields = { receipt_id: rid, receipt_url: rid ? CANON_ORIGIN + "/v1/receipts/" + rid : null, pay_to_changed: ptc.pay_to_changed, history };
     if (rid) {
       const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && (q.ref === STALE_REF || q.ref === DAILY_REF) ? "auto" : (access && access.tier) || null });
@@ -1762,7 +1781,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       // 0.25.0: an outside free check with a clear verdict is listed in /v1/skips.json recent_checks (URL path only)
       const pub = publishable({ tier: "free", verdict: d.verdict, botTag: spotExcluded, client: q.client, ref: q.ref, url: q.url });
       if (pub && rid) await publishRecent(env, rid, pub);
-      return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), ...rf, payment_terms_sha256: termsHash, ...receiptFields, prior_checks: PRIOR_CHECKS, upsell: FREE_UPSELL, access };
+      return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), ...rf, payment_terms_sha256: termsHash, ...receiptFields, quality: qualityPublic(quality), reputation: reputationPublic(reputation), prior_checks: PRIOR_CHECKS, upsell: FREE_UPSELL, access };
     }
     const acc = Array.isArray(probe.accepts) ? probe.accepts.find((a) => a && a.payTo) : null;
     return {
@@ -1784,6 +1803,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       ...(d.reason === "free_trial_active" ? { free_trial_remaining: d.free_trial_remaining ?? null } : {}),
       ...receiptFields,
       history_observations: history ? historyObservations(history) : null, // 0.34.0: paid/router/exempt only
+      quality, // 0.37.0: paid/router/exempt get the full checks
+      reputation, // 0.37.0: paid/router/exempt get score + breakdown + inputs (null when the store is unavailable)
       access,
     };
   };
@@ -1992,7 +2013,11 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
   const probe = pr.probe;
   const pmD = pickPayment(probe, exp);
   const d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pmD, exp), probe, q, listing);
-  const history = await recordHistory(env, await historyKey(q.url), observation(probe, pmD, d.verdict, pr.probedAt), !pr.cached);
+  const hk = await historyKey(q.url);
+  const history = await recordHistory(env, hk, observation(probe, pmD, d.verdict, pr.probedAt), !pr.cached);
+  const quality = qualityFor(probe); // 0.37.0: metadata of the same unpaid probe; dry runs get the code + coarse band
+  await recordQuality(env, hk, hostOf(q.url), quality, pr.probedAt, !pr.cached);
+  const reputation = await hostReputation(env, hostOf(q.url), historyKey);
   const rid = newReceiptId();
   const reason = spotLossReason(d, exp.claimed).replace(/, details locked$/, "");
   const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: reason, pm: null, termsHash: null, exp, checkType: exempt ? "self-checked" : "dry-run", mode: "dry-run", ref: q.ref, caller: q.dry_caller || (exempt ? "self-test" : null), probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: exempt ? "exempt" : "dry-run" });
@@ -2010,6 +2035,8 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
     receipt_id: rid,
     receipt_url: CANON_ORIGIN + "/v1/receipts/" + rid,
     history,
+    quality: qualityPublic(quality),
+    reputation: reputationPublic(reputation),
     prior_checks: PRIOR_CHECKS,
     access: {
       tier: exempt ? "dry-run-exempt" : "dry-run",
@@ -2364,8 +2391,17 @@ export function openapi(origin, env = {}) {
         get: {
           operationId: "rulesJson",
           security: [],
-          summary: "Free: machine-readable verdict rules (rules_version, reason_codes[{code, verdict, confidence, rule, text}], confidence.rules).",
+          summary: "Free: machine-readable verdict rules (rules_version, reason_codes[{code, verdict, confidence, rule, text}], confidence.rules; 0.37.0: quality_codes and reputation {formula, weights, components, bands}).",
           responses: { 200: { description: "JSON rules", content: { "application/json": { schema: { type: "object" } } } } },
+        },
+      },
+      "/reputation/{host}": {
+        get: {
+          operationId: "reputationBand",
+          security: [],
+          summary: "Free (0.37.0): coarse seller reputation band for a host: high | medium | low | insufficient_data. HTML for browsers; JSON with Accept: application/json or /reputation/{host}.json. Score, breakdown and inputs are in paid / router answers (reputation). Formula at /rules.json.",
+          parameters: [{ name: "host", in: "path", required: true, schema: { type: "string" } }],
+          responses: { 200: { description: "band", content: { "application/json": { schema: { type: "object", properties: { host: { type: "string" }, band: { type: "string", enum: ["high", "medium", "low", "insufficient_data"] } } } } } }, 400: { description: "not a host" } },
         },
       },
       "/bazaar": {
@@ -3062,6 +3098,7 @@ export function viewName(path) {
   if (path === "/llms.txt") return "docs-llms";
   if (path === "/rules" || path === "/rules.json") return "docs-rules";
   if (path.startsWith("/badge/")) return "badge";
+  if (path.startsWith("/reputation/")) return "reputation";
   if (path === "/saves" || path === "/saves.json") return "saves";
   if (path === "/.well-known/x402") return "docs-wellknown";
   if (path === "/") return "docs-home";
@@ -3161,6 +3198,7 @@ const routeInnerHolder = {
     if (path === "/.well-known/x402") return json(wellKnownX402(env, url.hostname), 200, { "cache-control": "public, max-age=300" });
     if (path.startsWith("/badge/")) return handleBadge(req, env, url, CANON_ORIGIN);
     if (path === "/saves" || path === "/saves.json") { const r = await handleSaves(req, env, url, CANON_ORIGIN); if (r) return r; } // 0.35.0: SAVES_PAGE flag, off by default
+    if (path.startsWith("/reputation/")) return handleReputation(req, env, url, historyKey); // 0.37.0: free, coarse band only
     if (path === "/rules.json") return json(rulesJson(CANON_ORIGIN), 200, { "cache-control": "public, max-age=300" });
     if (path === "/rules") return new Response(rulesHtml(CANON_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" } });
     if (path === "/.well-known/402index-verify.txt") {

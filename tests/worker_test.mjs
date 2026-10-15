@@ -853,7 +853,7 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   assert.equal(r.body.verdict, "pay");
   assert.equal(r.body.reason, "listed $0.001, payment request matches the listed price");
   // free tier: verdict + plain reason + access only (quoted/claimed price, pay_to, network, asset are paid)
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "confidence", "history", "pay_to_changed", "payment_terms_sha256", "prior_checks", "reason", "reason_code", "receipt_id", "receipt_url", "upsell", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "confidence", "history", "pay_to_changed", "payment_terms_sha256", "prior_checks", "quality", "reason", "reason_code", "receipt_id", "receipt_url", "reputation", "upsell", "verdict"]);
   assert.equal(r.body.upsell, "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01");
   assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.match(r.body.payment_terms_sha256, /^[0-9a-f]{64}$/);
@@ -1246,15 +1246,19 @@ test("PAY STEP: picks the accept matching the expectation; non-USDC asset is ski
 function fakeD1() {
   const rows = [];
   const hist = [];
+  const qual = []; // 0.37.0 endpoint_quality
   return {
     rows,
     hist,
+    qual,
     prepare(sql) {
       return {
         bind(...a) {
           return {
             async run() {
               if (/^INSERT INTO endpoint_history/.test(sql)) { const k = ["hkey", "observed_at", "http_status", "amount_atomic", "price_usd", "network", "asset", "pay_to", "verdict"]; hist.push(Object.fromEntries(k.map((x, i) => [x, a[i]]))); return { success: true }; }
+              if (/^INSERT INTO endpoint_quality/.test(sql)) { const k = ["hkey", "host", "observed_at", "http_status", "content_type", "body_bytes", "schema_declared", "schema_match", "code"]; qual.push(Object.fromEntries(k.map((x, i) => [x, a[i]]))); return { success: true }; }
+              if (/^DELETE FROM endpoint_quality/.test(sql)) { const mine = qual.filter((q) => q.hkey === a[0]).sort((x, y) => (x.observed_at < y.observed_at ? 1 : -1)); for (const q of mine.slice(a[2])) qual.splice(qual.indexOf(q), 1); return { success: true }; }
               if (/^DELETE FROM endpoint_history/.test(sql)) { for (let i = hist.length - 1; i >= 0; i--) if (hist[i].hkey === a[0] && hist[i].observed_at < a[1]) hist.splice(i, 1); return { success: true }; }
               if (/^UPDATE spot_receipts SET pub_url/.test(sql)) {
                 const r = rows.find((x) => x.id === a[2] && !x.pub_url);
@@ -1268,6 +1272,10 @@ function fakeD1() {
                 const m = /url >= \?/.test(sql) ? (r) => (r.url >= a[0] && r.url < a[1]) || (r.url >= a[2] && r.url < a[3]) : (r) => r.url === a[0] || r.url === a[1];
                 return { results: rows.filter(m).sort((x, y) => (x.created_at < y.created_at ? 1 : -1)).slice(0, 25) };
               }
+              // 0.37.0 reputation reads
+              if (/SELECT url, created_at, verdict FROM spot_receipts WHERE/.test(sql)) return { results: rows.filter((r) => (r.url >= a[0] && r.url < a[1]) || (r.url >= a[2] && r.url < a[3])).sort((x, y) => (x.created_at < y.created_at ? 1 : -1)).slice(0, 500).map(({ url, created_at, verdict }) => ({ url, created_at, verdict })) };
+              if (/FROM endpoint_history WHERE hkey IN/.test(sql)) return { results: hist.filter((h) => a.includes(h.hkey)).sort((x, y) => (x.observed_at < y.observed_at ? 1 : -1)).slice(0, 300) };
+              if (/FROM endpoint_quality WHERE host = \?/.test(sql)) return { results: qual.filter((q) => q.host === a[0]).sort((x, y) => (x.observed_at < y.observed_at ? 1 : -1)).slice(0, 100) };
               if (/FROM endpoint_history/.test(sql)) return { results: hist.filter((h) => h.hkey === a[0]).sort((x, y) => (x.observed_at < y.observed_at ? 1 : -1)).slice(0, a[1]).map(({ hkey, ...r }) => r) };
               if (/WHERE pub_url IS NOT NULL ORDER BY/.test(sql)) {
                 const out = rows.filter((r) => r.pub_url).sort((x, y) => (x.created_at === y.created_at ? (x.id < y.id ? 1 : -1) : x.created_at < y.created_at ? 1 : -1));
@@ -1285,6 +1293,7 @@ function fakeD1() {
               return { results: out.slice(0, lim) };
             },
             async first() {
+              if (/MIN\(created_at\) AS first_seen/.test(sql)) { const m = rows.filter((r) => (r.url >= a[0] && r.url < a[1]) || (r.url >= a[2] && r.url < a[3])).map((r) => r.created_at).sort()[0]; return { first_seen: m || null }; }
               if (/COUNT\(\*\) AS n/.test(sql)) {
                 const d = rows.filter((r) => r.pub_day === a[2] && r.pub_url);
                 const pre = a[1].slice(0, -1);
@@ -1503,7 +1512,7 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   const u = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001";
   const r = await send(u + "&mode=dry-run&ref=via-agentkit&client=dry-client-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
   assert.equal(r.status, 200);
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "check_type", "confidence", "history", "mode", "payment_terms_sha256", "prior_checks", "reason", "reason_code", "receipt_id", "receipt_url", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "check_type", "confidence", "history", "mode", "payment_terms_sha256", "prior_checks", "quality", "reason", "reason_code", "receipt_id", "receipt_url", "reputation", "verdict"]);
   assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.equal(r.body.mode, "dry-run");
   assert.equal(r.body.verdict, "pay");
@@ -2624,7 +2633,158 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.36.0");
+  assert.equal(VERSION, "0.37.0");
+});
+
+// 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
+test("0.37.0 quality: codes from 402 metadata only; schema declared + validated from the challenge's own sample; never changes the verdict", async () => {
+  const { qualityMeta, qualityFor, validateSchema, outputSchemaCheck, QUALITY_CODES } = await import("../worker/src/quality.js");
+  assert.deepEqual(QUALITY_CODES.map((q) => q.code), ["quality_ok", "quality_unverified", "quality_bad_content_type", "quality_schema_mismatch", "quality_bad_status", "quality_unreachable"]);
+  assert.equal(validateSchema({ a: 1, b: "x" }, { type: "object", required: ["a"], properties: { a: { type: "integer" }, b: { type: "string" } } }), true);
+  assert.equal(validateSchema({ b: "x" }, { type: "object", required: ["a"] }), false);
+  assert.equal(validateSchema({ a: "1" }, { type: "object", properties: { a: { type: "number" } } }), false);
+  assert.equal(validateSchema({ a: 1, z: 2 }, { type: "object", properties: { a: {} }, additionalProperties: false }), false);
+  assert.equal(validateSchema([1, "2"], { type: "array", items: { type: "integer" } }), false);
+  assert.equal(validateSchema(null, { type: ["string", "null"] }), true);
+  // x402 v2 bazaar extension: info validated against the declared schema
+  const bz = (example) => ({ extensions: { bazaar: { info: { input: { type: "http", method: "GET" }, output: { type: "json", example } }, schema: { type: "object", properties: { input: { type: "object", required: ["type"] }, output: { type: "object", required: ["type"], properties: { example: { type: "object", required: ["temp"], properties: { temp: { type: "number" } } } } } } } } } });
+  assert.deepEqual(outputSchemaCheck(bz({ temp: 21.5 })), { declared: true, source: "bazaar", match: true });
+  assert.deepEqual(outputSchemaCheck(bz({ temp: "warm" })), { declared: true, source: "bazaar", match: false });
+  assert.deepEqual(outputSchemaCheck({ accepts: [{ outputSchema: { input: {}, output: { type: "object" } } }] }), { declared: true, source: "outputSchema", match: null });
+  assert.deepEqual(outputSchemaCheck({ accepts: [{}] }), { declared: false, source: null, match: null });
+  const H = (o) => new Headers(o);
+  const ch = (extra) => JSON.stringify({ x402Version: 2, accepts: [{ scheme: "exact" }], ...extra });
+  const probe = (status, headers, body, x402 = true) => ({ reachable: true, http_status: status, x402_challenge: x402, quality_meta: qualityMeta({ status, headers: H(headers), bodyText: body }) });
+  assert.equal(qualityFor(probe(402, { "content-type": "application/json" }, ch(bz({ temp: 1 })))).code, "quality_ok");
+  assert.equal(qualityFor(probe(402, { "content-type": "application/json" }, ch(bz({ temp: "x" })))).code, "quality_schema_mismatch");
+  assert.equal(qualityFor(probe(402, { "content-type": "application/json; charset=utf-8" }, ch({}))).code, "quality_unverified");
+  assert.equal(qualityFor(probe(402, { "content-type": "text/html" }, ch({}))).code, "quality_bad_content_type");
+  assert.equal(qualityFor(probe(402, { "content-type": "text/html", "payment-required": btoa(ch({})) }, "<html>")).code, "quality_unverified", "terms in the header: body type does not matter");
+  assert.equal(qualityFor(probe(404, { "content-type": "text/html" }, "nope", false)).code, "quality_bad_status");
+  assert.equal(qualityFor({ reachable: false, error: "fetch timeout" }).code, "quality_unreachable");
+  assert.equal(qualityFor({ reachable: false, ssrf_blocked: true }).code, "quality_unreachable");
+  const q = qualityFor(probe(402, { "content-type": "application/json" }, ch({})));
+  assert.deepEqual(Object.keys(q.checks).sort(), ["body_bytes", "content_type", "content_type_ok", "http_status", "reachable", "schema_declared", "schema_match", "schema_source", "status_is_402"]);
+  assert.equal(q.checks.body_bytes, ch({}).length);
+  // live path: same verdict and reason_code as before; metadata stored in D1 (no body, no query); paid gets checks, free gets the code
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db, SPOT_PROBE_CACHE_S: "0" });
+  spotTargetMode = "402";
+  const u = "?url=" + encodeURIComponent("https://spot.target.test/q?apikey=SECRET123") + "&claimed_price=0.001";
+  const full = await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
+  assert.equal(full.body.verdict, "pay");
+  assert.equal(full.body.reason_code, "price_ok");
+  assert.equal(full.body.quality.code, "quality_unverified");
+  assert.equal(full.body.quality.checks.http_status, 402);
+  assert.equal(full.body.quality.checks.content_type, "application/json");
+  assert.equal(db.qual.length, 1);
+  assert.deepEqual(Object.keys(db.qual[0]).sort(), ["body_bytes", "code", "content_type", "hkey", "host", "http_status", "observed_at", "schema_declared", "schema_match"]);
+  assert.equal(db.qual[0].host, "spot.target.test");
+  assert.ok(!JSON.stringify(db.qual).includes("SECRET123") && !JSON.stringify(db.qual).includes("/q"), "no URL path or query stored");
+  const free = await send(SPOT + u + "&client=q-free-1", { envo: e });
+  assert.equal(free.body.verdict, "pay");
+  assert.deepEqual(free.body.quality, { code: "quality_unverified", rules: "https://402xagent.com/rules.json" });
+  const dry = await send(SPOT + u + "&client=q-dry-1&mode=dry-run", { envo: e });
+  assert.deepEqual(Object.keys(dry.body.quality), ["code", "rules"]);
+  spotTargetMode = "notfound";
+  const nf = await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
+  assert.equal(nf.body.reason_code, "no_paywall");
+  assert.equal(nf.body.quality.code, "quality_bad_status");
+  spotTargetMode = "402";
+  // cached probe: no second quality row (same observation)
+  const e2 = spotEnv({ RECEIPTS_DB: db });
+  const n = db.qual.length;
+  await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e2 });
+  await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e2 });
+  assert.equal(db.qual.length, n, "cached probes (within 5 min of the last fresh one) are the same observation: nothing new stored");
+});
+
+test("0.37.0 reputation: documented weighted formula; new hosts are insufficient_data (never low); paid full, free/dry-run band only; /reputation/<host>; rules.json; 0 KV writes", async () => {
+  const { computeReputation, REPUTATION_WEIGHTS, bandFor } = await import("../worker/src/reputation.js");
+  const { rulesJson } = await import("../worker/src/rules.js");
+  assert.deepEqual(REPUTATION_WEIGHTS, { stability: 25, drift: 20, verdicts: 30, freshness: 10, quality: 15 });
+  assert.deepEqual([bandFor(75), bandFor(74), bandFor(50), bandFor(49), bandFor(null)], ["high", "medium", "medium", "low", "insufficient_data"]);
+  const now = new Date("2026-10-15T12:00:00Z");
+  const at = (d) => new Date(now.getTime() - d * 86400000).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const ob = (d, pay_to = "0xa", amount = "1000") => ({ observed_at: at(d), amount_atomic: amount, network: "eip155:8453", asset: "0xusdc", pay_to, verdict: "pay" });
+  // steady seller: 10 days of identical terms, all pay, fresh, quality_ok
+  const steady = computeReputation({ host: "s.test", now, firstSeen: at(10), receipts: Array.from({ length: 10 }, (_, i) => ({ url: "https://s.test/a", created_at: at(i), verdict: "pay" })), histories: { h1: Array.from({ length: 10 }, (_, i) => ob(i)) }, quality: [{ hkey: "h1", observed_at: at(0), code: "quality_ok" }] });
+  assert.equal(steady.score, 100);
+  assert.equal(steady.band, "high");
+  assert.equal(steady.confidence, "medium");
+  assert.deepEqual(steady.breakdown.drift, { value: 1, weight: 20, points: 20 });
+  // always-skip seller with perfectly stable (wrong) terms: capped to low
+  const sk = computeReputation({ host: "k.test", now, firstSeen: at(10), receipts: Array.from({ length: 10 }, (_, i) => ({ url: "https://k.test/a", created_at: at(i), verdict: "skip" })), histories: { h1: Array.from({ length: 10 }, (_, i) => ob(i)) } });
+  assert.equal(sk.breakdown.verdicts.value, 0);
+  assert.equal(sk.capped, true);
+  assert.equal(sk.score, 49);
+  assert.equal(sk.band, "low");
+  // wallet hopper: pay_to flips every observation -> drift 0, stability low, skips
+  const hop = computeReputation({ host: "h.test", now, firstSeen: at(10), receipts: Array.from({ length: 10 }, (_, i) => ({ url: "https://h.test/a", created_at: at(i), verdict: i % 2 ? "pay" : "skip" })), histories: { h1: Array.from({ length: 10 }, (_, i) => ob(i, i % 2 ? "0xa" : "0xb")) }, quality: [] });
+  assert.equal(hop.breakdown.drift.value, 0);
+  assert.equal(hop.breakdown.quality.value, null, "no quality data: weight renormalized, not zero");
+  assert.equal(hop.inputs.pay_to_changes, 9);
+  assert.equal(hop.band, "low");
+  assert.ok(hop.score < 50);
+  // price-only change counts half
+  const pr = computeReputation({ host: "p.test", now, firstSeen: at(10), receipts: [], histories: { h1: [ob(0, "0xa", "2000"), ob(1), ob(2), ob(3), ob(4)] } });
+  assert.equal(pr.inputs.price_changes, 1);
+  assert.equal(pr.breakdown.drift.value, 0.75); // 1 - 2*0.5/4
+  // new host: 2 observations today -> insufficient_data, score null, provisional kept for paid
+  const fresh = computeReputation({ host: "n.test", now, firstSeen: at(0), receipts: [{ url: "https://n.test/a", created_at: at(0), verdict: "skip" }, { url: "https://n.test/a", created_at: at(0), verdict: "skip" }], histories: {} });
+  assert.equal(fresh.band, "insufficient_data");
+  assert.equal(fresh.score, null);
+  assert.equal(fresh.low_data, true);
+  assert.equal(typeof fresh.provisional_score, "number");
+  // rules.json publishes the exact formula, weights and quality codes; existing reason codes untouched
+  const rj = rulesJson("https://402xagent.com");
+  assert.deepEqual(rj.reputation.weights, REPUTATION_WEIGHTS);
+  assert.match(rj.reputation.formula, /sum\(w_i \* c_i\)/);
+  assert.equal(rj.reason_codes.length, 15);
+  assert.ok(rj.quality_codes.some((q) => q.code === "quality_schema_mismatch"));
+  assert.ok(rj.fields.reputation && rj.fields.quality);
+  const html = await (await worker.fetch(new Request("https://lookup.test/rules", { headers: { "user-agent": "agent-x/1.0" } }), spotEnv().env, { waitUntil() {} })).text();
+  assert.match(html, /Seller reputation/);
+  assert.match(html, /quality_unreachable/);
+  // live: paid/exempt full object; free + dry-run band only; KV never written
+  let kvPuts = 0;
+  const kv = { get: async () => null, put: async () => { kvPuts++; } };
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db, SPOT_PROBE_CACHE_S: "0", CRAWL_KV: kv });
+  spotTargetMode = "402";
+  const u = "?url=" + encodeURIComponent("https://spot.target.test/rep") + "&claimed_price=0.001";
+  const first = await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
+  assert.equal(first.body.reputation.host, "spot.target.test");
+  assert.equal(first.body.reputation.band, "insufficient_data", "one observation: not scored");
+  for (let i = 0; i < 5; i++) await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
+  const full = await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
+  assert.equal(full.body.verdict, "pay");
+  assert.equal(full.body.reason_code, "price_ok");
+  const rep = full.body.reputation;
+  assert.deepEqual(Object.keys(rep.breakdown), ["stability", "drift", "verdicts", "freshness", "quality"]);
+  assert.ok(rep.inputs.observations >= 5);
+  assert.equal(rep.band, "insufficient_data", "tracked < 2 days stays insufficient_data");
+  const free = await send(SPOT + u + "&client=rep-free-1", { envo: e });
+  assert.deepEqual(Object.keys(free.body.reputation).sort(), ["band", "host", "rules"]);
+  const dry = await send(SPOT + u + "&client=rep-dry-1&mode=dry-run", { envo: e });
+  assert.deepEqual(Object.keys(dry.body.reputation).sort(), ["band", "host", "rules"]);
+  // age the data 3 days: now scored
+  for (const r of db.rows) r.created_at = "2026-10-01T00:00:00Z";
+  const aged = await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
+  assert.equal(typeof aged.body.reputation.score, "number");
+  assert.notEqual(aged.body.reputation.band, "insufficient_data");
+  const pg = await send("/reputation/spot.target.test.json", { envo: e });
+  assert.equal(pg.status, 200);
+  assert.equal(pg.body.band, aged.body.reputation.band);
+  assert.equal(pg.body.score, undefined, "free page: band only");
+  assert.equal((await send("/reputation/not a host", { envo: e })).status, 400);
+  assert.equal(kvPuts, 0, "no KV writes");
+  // no store: answers still work, reputation null
+  const none = await send(SPOT + u + "&client=withgrokbot-selftest", { envo: spotEnv() });
+  assert.equal(none.body.reputation, null);
+  assert.equal(none.body.verdict, "pay");
+  const mig = (await import("node:fs")).readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "migrations", "0007_endpoint_quality.sql"), "utf8");
+  assert.match(mig, /CREATE TABLE IF NOT EXISTS endpoint_quality/);
 });
 
 let passed = 0;

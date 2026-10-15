@@ -1,5 +1,6 @@
 // Endpoint spot-check: SSRF-safe probe of a public URL for an x402 PAYMENT-REQUIRED challenge.
 // NEVER sends PAYMENT-SIGNATURE / X-PAYMENT / settles to the target. Probe only (GET/HEAD).
+import { qualityMeta } from "./quality.js";
 
 export const SPOT_ID = "endpoint-spot-check";
 export const SPOT_SERVICE_NAME = "402xAgent";
@@ -436,8 +437,10 @@ export async function spotProbe(rawUrl, opts = {}) {
         continue;
       }
 
-      const { text, truncated } = await readBodyCapped(resp, maxBody);
+      const { text, truncated, bytes } = await readBodyCapped(resp, maxBody);
       const parsed = parseX402Challenge({ status: resp.status, headers: resp.headers, bodyText: text });
+      let quality_meta = null; // 0.37.0: metadata only (status, media type, size, schema declared/matched); no body kept
+      try { quality_meta = qualityMeta({ status: resp.status, headers: resp.headers, bodyText: text, bytes }); } catch (_) {}
       return {
         reachable: true,
         http_status: resp.status,
@@ -447,6 +450,7 @@ export async function spotProbe(rawUrl, opts = {}) {
         body_truncated: truncated,
         free_trial: freeTrialSignal(resp.headers),
         ...parsed,
+        quality_meta,
       };
     }
   } finally {
