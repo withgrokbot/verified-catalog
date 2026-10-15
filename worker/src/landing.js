@@ -1,6 +1,7 @@
 // 402xAgent landing page (0.18.0 light redesign around the logo): browser view of https://402xagent.com only. Inline CSS/JS,
 // no external fonts or scripts; images are the Worker's own /brand assets. Every example below is a real live answer (re-checked before each release).
 import { RECEIPTS_META } from "./receipts-data.js";
+import { crawlSchedule, crawlScheduleText } from "./skips.js";
 import { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE } from "./spotcheck.js";
 
 const esc = (x) => String(x ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -196,7 +197,7 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
 <main id="main">
 <div class="hero"><div class="wrap">
   <img class="hero-logo" src="/brand/logo-light.png?v=${V}" width="560" height="459" alt="402xAgent logo">
-  <span class="eyebrow"><span class="dot" aria-hidden="true"></span>${esc(covered)} x402 endpoints self-checked · ${esc(crawled)}</span>
+  <span class="eyebrow"><span class="dot" aria-hidden="true"></span>${esc(covered)} x402 endpoints self-checked · last crawl ${esc((crawlSchedule(m.crawled_at) || { last: crawled }).last)}</span>
   <h1>Check before your <span class="grad">agent pays</span></h1>
   <p class="sub">402xAgent probes an x402 endpoint once, unpaid, compares the live 402 with its listing, and tells your agent to pay, skip or recheck, with the exact payment to sign.</p>
   <p class="saves">Stops your agent paying dead, mispriced or wrong-network endpoints, or the wrong token or payee.</p>
@@ -265,7 +266,7 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
 <section class="alt" aria-labelledby="skips-h"><div class="wrap">
   <p class="kicker blue">Receipts</p>
   <h2 id="skips-h">What it finds</h2>
-  <p class="lead">Our weekly self-checked crawl of listed x402 endpoints (crawl of ${esc(crawled)}, UTC). Each row has a public receipt.</p>
+  <p class="lead">${esc(crawlScheduleText(m.crawled_at))} Each row has a public receipt.</p>
   <div class="stats">
     <div class="card stat"><div class="n">${esc(covered)}</div><div class="l">endpoints checked</div></div>
     <div class="card stat"><div class="n pay">${esc(m.pay ?? 0)}</div><div class="l">pay</div></div>
