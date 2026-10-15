@@ -53,10 +53,10 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.37.3";
+export const VERSION = "0.38.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
-export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
+export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -395,7 +395,7 @@ export function packCfg(env) {
   };
 }
 
-// Spot-check product: $0.25 USDC, 5 free checks per client per UTC day (at most 25 per network) (separate DO counter).
+// Spot-check product: flat $0.02 USDC (0.38.0), 5 free checks per client per UTC day (at most 25 per network) (separate DO counter).
 export function spotCfg(env) {
   const c = cfg(env);
   const price = /^[0-9]{1,12}$/.test(String(env.SPOT_PRICE_ATOMIC || ""))
@@ -512,13 +512,13 @@ export async function routerCredits(env, cid, op, n = 0) {
     return { ok: false, balance: null };
   }
 }
-// Router tier (0.10.0): allowlisted router client ids pay $0.001/check, billed in packs (default 10 checks = $0.01,
-// one settlement). PayAI charges the payee ~2.2 credits ($0.0022) per Base settlement after its free allowance,
-// so a single $0.001 settlement would lose money; one settlement per pack keeps the per-check price at $0.001.
-// Config: SPOT_ROUTER_CLIENTS = "id,id2" (Worker secret), SPOT_ROUTER_PACK_CHECKS (default 10), SPOT_ROUTER_CHECK_ATOMIC (default 1000).
+// Router tier (0.10.0): allowlisted router client ids prepay checks in packs (default 10 checks, one settlement, so the
+// facilitator's per-settlement charge is paid once per pack). 0.38.0: default $0.02/check ($0.20 per 10-check pack),
+// the same per-check price as the paid check; volume discounts later. SPOT_ROUTER_CHECK_ATOMIC still overrides.
+// Config: SPOT_ROUTER_CLIENTS = "id,id2" (Worker secret), SPOT_ROUTER_PACK_CHECKS (default 10), SPOT_ROUTER_CHECK_ATOMIC (default 20000).
 export function spotRouterCfg(env) {
   const ids = new Set(String(env.SPOT_ROUTER_CLIENTS || "").split(",").map((x) => x.trim().toLowerCase()).filter((x) => /^[a-z0-9._\-]{1,64}$/.test(x)));
-  const per = Math.max(1, parseInt(env.SPOT_ROUTER_CHECK_ATOMIC || "1000", 10) || 1000);
+  const per = Math.max(1, parseInt(env.SPOT_ROUTER_CHECK_ATOMIC || "20000", 10) || 20000);
   const pack = Math.max(1, Math.min(250, parseInt(env.SPOT_ROUTER_PACK_CHECKS || "10", 10) || 10));
   return { ids, perCheckAtomic: per, packChecks: pack, packAtomic: Math.max(10000, per * pack) };
 }
@@ -622,7 +622,7 @@ export function freeCheckField(target = "") {
     example: FREE_CHECK_EXAMPLE_URL,
     example_response: FREE_CHECK_EXAMPLE,
     free: "5 checks per client per UTC day (at most 25 per network), plus free dry runs (&mode=dry-run). No payment, no key.",
-    then: "the paid check (HTTP 402, $0.01 to $0.25 USDC on Base) only for the full payment terms",
+    then: "the paid check (HTTP 402, $0.02 USDC on Base) only for the full payment terms",
     prior_checks: PRIOR_CHECKS,
   };
 }
@@ -657,10 +657,10 @@ export function hintFields(origin) {
     also_available_spot_check: {
       product: SPOT_ID,
       title: SPOT_SERVICE_NAME,
-      price_usdc: "0.01-0.25",
+      price_usdc: "0.02",
       free_per_day: 5,
       url: origin + "/v1/products/endpoint-spot-check?url=https%3A%2F%2Fexample.com&client=YOUR_CLIENT_ID&ref=via-402-hint",
-      note: "5 free SSRF-safe x402 challenge probes per client per UTC day (25 per network across client names), then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base. Free result: verdict + plain reason; paid adds quoted/claimed price, pay-to, network.",
+      note: "5 free SSRF-safe x402 challenge probes per client per UTC day (25 per network across client names), then $0.02 USDC a check on Base. Free result: verdict + plain reason; paid adds quoted/claimed price, pay-to, network.",
     },
   };
 }
@@ -872,7 +872,7 @@ async function handleOvernightCosPack(req, env, ctx, url) {
 }
 
 
-// ------------------------------------------------------------------ Endpoint Spot-Check ($0.25, 5 free/day (25 per network))
+// ------------------------------------------------------------------ Endpoint Spot-Check ($0.02 flat since 0.38.0, 5 free/day (25 per network))
 export function spotBazaarExtension() {
   return {
     info: {
@@ -984,7 +984,7 @@ export const SPOT_FREE_EXAMPLE = {
   reputation: { host: "api.example.com", band: "high", rules: "https://402xagent.com/rules.json" },
   prior_checks: "https://402xagent.com/v1/skips",
   upsell: FREE_UPSELL,
-  access: { tier: "free", free_per_day: 5, free_used_today: 1, free_remaining_today: 4, then: "$0.01 USDC on Base for the full check of this endpoint via x402 (HTTP 402)" },
+  access: { tier: "free", free_per_day: 5, free_used_today: 1, free_remaining_today: 4, then: "$0.02 USDC on Base for the full check of this endpoint via x402 (HTTP 402)" },
 };
 const SPOT_VERDICT_SCHEMA = { type: "string", enum: ["pay", "skip", "recheck"] };
 export const SPOT_PAID_SCHEMA = {
@@ -1058,14 +1058,14 @@ export function spotPaymentRequired(c, resourceUrl, error, used, target = "") {
     error: error + ` The free check (${c.freePerDay}/day, resets 00:00 UTC) is ${FREE_CHECK_URL}; a free dry run works now: add &mode=dry-run.`,
     resource: {
       url: resourceUrl,
-      description: `${SPOT_SERVICE_NAME}: SSRF-safe probe of a public URL for an x402 PAYMENT-REQUIRED challenge. Never pays the target. $${c.priceUsd} USDC on Base after ${c.freePerDay} free check per UTC day.`,
+      description: `${SPOT_SERVICE_NAME}: SSRF-safe probe of a public URL for an x402 PAYMENT-REQUIRED challenge. Never pays the target. $${c.priceUsd} USDC on Base after ${c.freePerDay} free checks per UTC day.`,
       mimeType: "application/json",
       serviceName: SPOT_SERVICE_NAME,
       tags: SPOT_TAGS,
     },
     accepts: [paymentRequirements(c, resourceUrl, 2, {
       paidPath: false,
-      description: `${SPOT_SERVICE_NAME}: one probe after the ${c.freePerDay} free check per UTC day. $${c.priceUsd} USDC on Base. Never pays the target under test.`,
+      description: `${SPOT_SERVICE_NAME}: one probe after the ${c.freePerDay} free checks per UTC day. $${c.priceUsd} USDC on Base. Never pays the target under test.`,
     })],
     extensions: { bazaar: spotBazaarExtension() },
     price_usd: c.priceUsd,
@@ -1715,13 +1715,13 @@ async function parseSpotQuery(req, url) {
   return { url: target, task: taskSlug, claimed_price, client, ref, method, pay_to, network, mode, dry_caller, errors, ctx };
 }
 
-export const SPOT_PAID_MIN_ATOMIC = 10000; // $0.01
-export const SPOT_PAID_MAX_ATOMIC = 250000; // $0.25
-// Paid spot-check price: one tenth of the target's quoted x402 price, min $0.01, cap $0.25 (no quote -> $0.01).
-export function spotDynCfg(c, quotedUsd) {
-  const q = Number(quotedUsd);
-  let atomic = Number.isFinite(q) && q > 0 ? Math.round((q * 1e6) / 10) : SPOT_PAID_MIN_ATOMIC;
-  atomic = Math.min(SPOT_PAID_MAX_ATOMIC, Math.max(SPOT_PAID_MIN_ATOMIC, atomic));
+// 0.38.0: the paid check is a flat $0.02 (20000 atomic USDC), whatever the target quotes. (0.37.x: one tenth of the quote,
+// $0.01 to $0.25.) MIN = MAX = the flat price, kept so older callers and the pricing page read one number.
+export const SPOT_PAID_ATOMIC = "20000"; // $0.02
+export const SPOT_PAID_MIN_ATOMIC = 20000;
+export const SPOT_PAID_MAX_ATOMIC = 20000;
+export function spotDynCfg(c, _quotedUsd) {
+  const atomic = Number(SPOT_PAID_ATOMIC);
   return { ...c, priceAtomic: String(atomic), priceUsd: (atomic / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, "") };
 }
 // Free-tier reason: names the loss in plain words; quoted price, claimed-vs-quoted detail and pay-to stay behind the 402.
@@ -1823,8 +1823,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const deny = (error, used, kind = "payment-required", payer = "") => {
     const body = spotPaymentRequired(cd, resourceUrl, error, used, q.url || "");
     body.pricing = typeof isRouter !== "undefined" && isRouter
-      ? "router tier: $0.001 per check, billed per pack of checks in one settlement"
-      : "one tenth of this endpoint's quoted x402 price, minimum $0.01, cap $0.25";
+      ? `router tier: $${rcfg.perCheckAtomic / 1e6} per check, billed per pack of checks in one settlement`
+      : "flat $0.02 USDC per check (any target price)";
     writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 402, referer, access: kind, freeUsed: used, paidBy: payer, failReason: kind === "payment-failed" ? error : "", shape }));
     return json(body, 402, { "payment-required": b64encode(body) });
   };
@@ -1892,8 +1892,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         product: SPOT_ID,
         resets: "00:00 UTC",
         retry_after_s: retry,
-        paid_check: { url: API_ORIGIN + "/v1/products/endpoint-spot-check?url=" + encodeURIComponent(q.url), price: "one tenth of the endpoint's quoted x402 price, minimum $0.01, cap $0.25 USDC on Base via x402 (send the request without a payment header to get the 402)" },
-        router_pack: { price: "$" + (rcfg.packAtomic / 1e6) + " USDC for " + Math.floor(rcfg.packAtomic / rcfg.perCheckAtomic) + " checks ($" + rcfg.perCheckAtomic / 1e6 + " each)", how: "router tier: ask for a router client id, then pay one pack via x402" },
+        paid_check: { url: API_ORIGIN + "/v1/products/endpoint-spot-check?url=" + encodeURIComponent(q.url), price: "$0.02 USDC on Base via x402 (send the request without a payment header to get the 402)" },
+        router_pack: { price: "$" + (rcfg.packAtomic / 1e6).toFixed(2) + " USDC for " + Math.floor(rcfg.packAtomic / rcfg.perCheckAtomic) + " checks ($" + rcfg.perCheckAtomic / 1e6 + " each)", how: "router tier: ask for a router client id, then pay one pack via x402" },
         free_dry_runs: "still available: add &mode=dry-run",
         rules: CANON_ORIGIN + "/rules.json",
       }, 429, { "retry-after": String(retry), "cache-control": "no-store" });
@@ -1930,8 +1930,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       const payload = decodePaymentHeader(hdr);
       if (!payload) return deny("payment header is not valid base64 JSON x402 payload", t.used, "payment-failed");
       {
-        // Price race guard: if the target's quote moved between our 402 and the retry, accept any signed amount
-        // between the current dynamic price and the $0.25 cap instead of rejecting the buyer.
+        // Price race guard (kept for the 0.37 -> 0.38 overlap): a buyer holding an older dynamic 402 may sign more than the
+        // flat price; accept any signed amount from the current price up to the old $0.25 cap instead of rejecting them.
         const amt = String((payload.accepted || {}).amount ?? ((payload.payload || {}).authorization || {}).value ?? "");
         if (!isRouter && /^[0-9]{1,12}$/.test(amt) && Number(amt) >= Number(cd.priceAtomic) && Number(amt) <= 250000) cd = { ...cd, priceAtomic: amt, priceUsd: (Number(amt) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, "") };
       }
@@ -2238,7 +2238,7 @@ export function pricingDoc(c) {
     free_scope: "per client per UTC day; client = the client value when sent, otherwise a salted hash of your IP",
     then: `HTTP 402 x402 payment requirement: $${c.priceUsd} USDC on Base (eip155:8453), scheme exact, payTo ${c.payTo}`,
     facilitator: c.facilitator,
-    metered: "/v1/lookup after the free quota; /v1/lookup/paid always (same results); /v1/products/overnight-cos-pack always $9 USDC; /v1/products/endpoint-spot-check 5 free/day (25 per network) then $0.01 to $0.25 USDC (one tenth of the target's quoted price). /mcp, /v1/tasks, /openapi.json, /health are free (MCP lookup shares vc-mcp quota; get_overnight_cos_pack paid; endpoint_spot_check shares the 402xAgent check quota)",
+    metered: "/v1/lookup after the free quota; /v1/lookup/paid always (same results); /v1/products/overnight-cos-pack always $9 USDC; /v1/products/endpoint-spot-check 5 free/day (25 per network) then $0.02 USDC a check. /mcp, /v1/tasks, /openapi.json, /health are free (MCP lookup shares vc-mcp quota; get_overnight_cos_pack paid; endpoint_spot_check shares the 402xAgent check quota)",
   };
 }
 
@@ -2250,9 +2250,9 @@ export function openapi(origin, env = {}) {
       title: "402xAgent: x402 pre-payment checks + verified catalog",
       version: VERSION,
       contact: { url: "https://github.com/withgrokbot/verified-catalog/issues" },
-      "x-guidance": `Ask GET /v1/lookup?task=<task>&max_price=<usd> (task names: /v1/tasks). ${c.freePerDay} free calls per client per UTC day, then the same path answers 402; /v1/lookup/paid is the always-paid twin ($${c.priceUsd} USDC on Base via x402) with identical results. Products: GET /v1/products/overnight-cos-pack ($9 USDC); GET /v1/products/endpoint-spot-check (5 free/day (25 per network) then $0.01 to $0.25 USDC (one tenth of the target's quoted price), SSRF-safe x402 probe). Free MCP: POST /mcp.`,
+      "x-guidance": `Ask GET /v1/lookup?task=<task>&max_price=<usd> (task names: /v1/tasks). ${c.freePerDay} free calls per client per UTC day, then the same path answers 402; /v1/lookup/paid is the always-paid twin ($${c.priceUsd} USDC on Base via x402) with identical results. Products: GET /v1/products/overnight-cos-pack ($9 USDC); GET /v1/products/endpoint-spot-check (5 free/day (25 per network) then $0.02 USDC a check, SSRF-safe x402 probe). Free MCP: POST /mcp.`,
       description:
-        `Start free: GET ${FREE_CHECK_URL} (5 free checks per client per UTC day (at most 25 per network); free dry runs with &mode=dry-run). Real example: GET ${FREE_CHECK_EXAMPLE_URL} -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}. Prior checks: ${PRIOR_CHECKS}. Then, only for the full payment terms: the paid check (HTTP 402, $0.01 to $0.25 USDC on Base via x402). ` +
+        `Start free: GET ${FREE_CHECK_URL} (5 free checks per client per UTC day (at most 25 per network); free dry runs with &mode=dry-run). Real example: GET ${FREE_CHECK_EXAMPLE_URL} -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}. Prior checks: ${PRIOR_CHECKS}. Then, only for the full payment terms: the paid check (HTTP 402, $0.02 USDC on Base via x402). ` +
         `Also: is an x402 endpoint reliable for task X at price <= Y? Facts from our own paid calls: receipts with settlement tx, delivered yes/no and a known-answer pass/fail. Pricing: ${c.freePerDay} free lookups per client per UTC day, then HTTP 402 with an x402 payment requirement of $${c.priceUsd} USDC on Base per lookup. ${PAYMENT_POLICY} Not investment advice; we hold no customer funds.`,
     },
     servers: [API_ORIGIN, CANON_ORIGIN, LEGACY_ORIGIN].map((u) => ({ url: u, description: u === API_ORIGIN ? "402xAgent API (canonical)" : u === CANON_ORIGIN ? "402xAgent (same API on the apex)" : "legacy host (same Worker, still supported; older hosts keep answering API calls too)" })),
@@ -2323,7 +2323,7 @@ export function openapi(origin, env = {}) {
       "/v1/products/endpoint-spot-check": {
         get: {
           operationId: "endpointSpotCheck",
-          summary: "Decision-shaped 402xAgent check: probe a public URL for PAYMENT-REQUIRED (never pays the target). Returns verdict/reason/quoted vs claimed. 5 free/client/UTC day (25/network), then $0.01-$0.25 (one tenth of the target quote) USDC on Base",
+          summary: "Decision-shaped 402xAgent check: probe a public URL for PAYMENT-REQUIRED (never pays the target). Returns verdict/reason/quoted vs claimed. 5 free/client/UTC day (25/network), then $0.02 USDC a check on Base",
           parameters: [
             { name: "url", in: "query", required: true, schema: { type: "string" }, description: "public http(s) URL to probe" },
             { name: "task", in: "query", schema: { type: "string" } },
@@ -2336,13 +2336,13 @@ export function openapi(origin, env = {}) {
             { name: "mode", in: "query", schema: { type: "string", enum: ["live", "dry-run"], default: "live" }, description: "free dry run: one unpaid probe, nothing signed or paid, always stored as a public receipt (check_type dry-run). Returns the free-tier shape with payment_terms_sha256 null (never an approval). 50 per caller (ref, else client, else IP) per UTC day. ref=dry-run-<caller> also sets it" },
           ],
           "x-payment-info": {
-            price: { mode: "dynamic", currency: "USD", min: "0.01", max: "0.25", rule: "one tenth of the target endpoint's quoted x402 price" },
+            price: { mode: "fixed", currency: "USD", amount: "0.02", amount_atomic: "20000" },
             protocols: [{ x402: { scheme: "exact", network: spotCfg(env).network, asset: USDC_BASE, payTo: spotCfg(env).payTo } }],
           },
           responses: {
             200: { description: "No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx and network errors; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. Free tier: verdict (pay|skip|recheck), a plain-words reason, access. Paid tier: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, payment (the exact signable payment when verdict is pay), payment_terms_sha256, access (with settlement tx). Free tier also carries payment_terms_sha256", content: { "application/json": { schema: { oneOf: [SPOT_PAID_SCHEMA, SPOT_FREE_SCHEMA] }, examples: { paid: { value: SPOT_PAID_EXAMPLE }, free: { value: SPOT_FREE_EXAMPLE } } } } },
             400: { description: "bad params, or SSRF-blocked URL as verdict=skip reason=ssrf_blocked (no fetch)" },
-            402: { description: "free quota used: x402 v2 payment requirement ($0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base)" },
+            402: { description: "free quota used: x402 v2 payment requirement ($0.02 USDC on Base, amount 20000)" },
             429: { description: "paid rate limit (per payer per UTC hour), or (0.33.0) the free-check network cap: 25 free live checks per network per UTC day across all client names; JSON points to the paid check and the router pack; Retry-After = seconds to 00:00 UTC" },
           },
         },
@@ -2466,7 +2466,7 @@ export function openapi(origin, env = {}) {
         post: {
           operationId: "mcp",
           security: [],
-          summary: "Free remote MCP server (Streamable HTTP, stateless JSON-RPC 2.0): tools search_catalog, get_service, lookup, get_overnight_cos_pack, endpoint_spot_check (lookup shares vc-mcp quota; pack always paid; 402xAgent check 5 free/day (25 per network) then $0.01-$0.25 by target quote)",
+          summary: "Free remote MCP server (Streamable HTTP, stateless JSON-RPC 2.0): tools search_catalog, get_service, lookup, get_overnight_cos_pack, endpoint_spot_check (lookup shares vc-mcp quota; pack always paid; 402xAgent check 5 free/day (25 per network) then $0.02 a check)",
           responses: { 200: { description: "JSON-RPC response" }, 202: { description: "notification accepted" } },
         },
       },
@@ -2814,7 +2814,7 @@ export const MCP_TOOLS = [
       "Free: verdict (pay|skip|recheck), a plain-words reason, payment_terms_sha256 (hash of the approved payment), and access. Paid: verdict, reason code, quoted/claimed price, pay_to, network, asset, and payment = the exact {network, asset, amount_atomic, amount_usd, pay_to} a router may sign (verdict pay only), plus access with the settlement tx. " +
       "No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx and network errors; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. " +
       "mode=dry-run: free dry run (nothing signed or paid, stored as a public receipt, no approval hash, 50/caller/day). " +
-      "Never pays the target (probe GET only). 5 free checks per client per UTC day (at most 25 per network) (client=vc-mcp), then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402. " +
+      "Never pays the target (probe GET only). 5 free checks per client per UTC day (at most 25 per network) (client=vc-mcp), then $0.02 USDC a check on Base via x402. " +
       "Unpaid after free quota: payment instructions. Forward PAYMENT-SIGNATURE for a paid check.",
     inputSchema: {
       type: "object",
@@ -2971,7 +2971,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         } else if (r.status === 402) {
           const freeLeft = body && body.free_per_day != null ? Math.max(0, (body.free_per_day || 0) - (body.free_used_today || 0)) : 0;
           return err(
-            "Payment required: $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402 for endpoint_spot_check after free quota. " +
+            "Payment required: $0.02 USDC on Base via x402 for endpoint_spot_check after free quota. " +
             "Free remaining today (approx): " + freeLeft + ". Pay at " + u.toString() +
             " with PAYMENT-SIGNATURE, or retry this MCP call with the same header. Requirements: " + JSON.stringify(body)
           );
@@ -3172,7 +3172,7 @@ export function wellKnownX402(env, host = "") {
     resourceCatalog: [
       { url: R("/v1/lookup/paid"), method: "GET", description: "Reliability lookup: x402 services for a task at a price, ranked by known-answer pass rate", accepts: [acc(c.priceAtomic)] },
       { url: R("/v1/products/overnight-cos-pack"), methods: ["GET", "POST"], description: "Overnight Chief of Staff Setup Pack (prompts, template, PDF guide)", accepts: [acc(pk.priceAtomic)] },
-      { url: R("/v1/products/endpoint-spot-check"), methods: ["GET", "POST"], description: "402xAgent check: pay, skip or recheck for an x402 endpoint before your agent pays. 5 free per day (25 per network), then one tenth of the target's price ($0.01 to $0.25)", price: { mode: "dynamic", currency: "USD", min: "0.01", max: "0.25" }, accepts: [acc(null)] },
+      { url: R("/v1/products/endpoint-spot-check"), methods: ["GET", "POST"], description: "402xAgent check: pay, skip or recheck for an x402 endpoint before your agent pays. 5 free per day (25 per network), then $0.02 a check", price: { mode: "fixed", currency: "USD", amount: "0.02" }, accepts: [acc(SPOT_PAID_ATOMIC)] },
     ],
     openapi: API_ORIGIN + "/openapi.json",
     mcp: API_ORIGIN + "/mcp",
@@ -3223,7 +3223,7 @@ const routeInnerHolder = {
     if (path === "/receipts" || path === "/skips.json") return new Response(null, { status: 301, headers: { location: "/v1" + path + url.search, "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" } });
     if (path === "/pricing") {
       const sc = spotCfg(env), rc = spotRouterCfg(env), lc = cfg(env);
-      const body = pricingHtml(CANON_ORIGIN, { freePerDay: sc.freePerDay, freePerIpDay: sc.freePerIpDay, paidMinAtomic: SPOT_PAID_MIN_ATOMIC, paidMaxAtomic: SPOT_PAID_MAX_ATOMIC, routerPackAtomic: rc.packAtomic, routerPackChecks: Math.floor(rc.packAtomic / rc.perCheckAtomic), routerCheckAtomic: rc.perCheckAtomic, lookupFreePerDay: lc.freePerDay, lookupAtomic: lc.priceAtomic, packAtomic: packCfg(env).priceAtomic, apiOrigin: API_ORIGIN });
+      const body = pricingHtml(CANON_ORIGIN, { freePerDay: sc.freePerDay, freePerIpDay: sc.freePerIpDay, paidAtomic: SPOT_PAID_ATOMIC, routerPackAtomic: rc.packAtomic, routerPackChecks: Math.floor(rc.packAtomic / rc.perCheckAtomic), routerCheckAtomic: rc.perCheckAtomic, lookupFreePerDay: lc.freePerDay, lookupAtomic: lc.priceAtomic, packAtomic: packCfg(env).priceAtomic, apiOrigin: API_ORIGIN });
       return new Response(body, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" } });
     }
     if (path === "/docs") return new Response(docsHtml(CANON_ORIGIN, API_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" } });
@@ -3254,7 +3254,7 @@ const routeInnerHolder = {
     }
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${CANON_ORIGIN}/sitemap.xml\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
     if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/v1/skips", "/v1/skips.json", "/v1/receipts", "/", "/openapi.json", "/llms.txt", "/pricing", "/docs", "/rules", "/rules.json", "/bazaar", "/bazaar.json", ...(env.SAVES_PAGE === "on" ? ["/saves", "/saves.json"] : [])].map((u) => `<url><loc>${CANON_ORIGIN}${u}</loc><changefreq>daily</changefreq></url>`).join("")}</urlset>\n`, { headers: { "content-type": "application/xml; charset=utf-8", "access-control-allow-origin": "*" } });
-    if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\nStart with the free check: GET ${FREE_CHECK_URL}\nReal example: GET ${FREE_CHECK_EXAMPLE_URL}\n  -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}\n5 free checks per client per UTC day (at most 25 per network), free dry runs with &mode=dry-run, prior checks at ${PRIOR_CHECKS}. After that, the paid check (HTTP 402, $0.01 to $0.25 USDC on Base via x402) adds the full payment terms.\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). ${COVERED()} self-checked x402 endpoints (weekly crawl); the skip list shows which ones disagree with their listing.\n- Bazaar check (free): ${CANON_ORIGIN}/bazaar (JSON: ${CANON_ORIGIN}/bazaar.json). Our daily check of the top CDP Bazaar search results.\n- Status badge (free): ${CANON_ORIGIN}/badge/api.402rates.com.svg (any host in place of api.402rates.com; optional ?path=/exact/path). Green "pay · stable N days" only when the latest check is pay and under 72 h old; otherwise grey "stale" or "not verified". Embed: [![402xAgent status](${CANON_ORIGIN}/badge/api.402rates.com.svg)](${CANON_ORIGIN}/badge/api.402rates.com). Every receipt carries its own badge snippet (Markdown + HTML).\n- Saves (free): ${CANON_ORIGIN}/saves (JSON: ${CANON_ORIGIN}/saves.json). Endpoints from the last 30 days whose live 402 differed from the listing (asked more, paid a different wallet, or another network), with redacted receipts.\n- Rules (free): ${CANON_ORIGIN}/rules (JSON: ${CANON_ORIGIN}/rules.json). Every verdict carries a stable reason_code and a confidence (high|medium|low); the codes and confidence rules are listed there.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (live receipts: ${CANON_ORIGIN}/v1/receipts/sc-<id>; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 5 free/day (25 per network), then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402.\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n- Pricing: ${CANON_ORIGIN}/pricing  Docs: ${CANON_ORIGIN}/docs\n- Signed receipts: new receipts carry kid + signature (ed25519 over RFC 8785 JCS of the receipt minus signature). Public keys: ${API_ORIGIN}/.well-known/402xagent-keys.json. Verify offline: ${CANON_ORIGIN}/docs#receipt-signatures or x402-spotcheck 1.1.0 verifyReceipt().\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
+    if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\nStart with the free check: GET ${FREE_CHECK_URL}\nReal example: GET ${FREE_CHECK_EXAMPLE_URL}\n  -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}\n5 free checks per client per UTC day (at most 25 per network), free dry runs with &mode=dry-run, prior checks at ${PRIOR_CHECKS}. After that, the paid check (HTTP 402, $0.02 USDC on Base via x402) adds the full payment terms.\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). ${COVERED()} self-checked x402 endpoints (weekly crawl); the skip list shows which ones disagree with their listing.\n- Bazaar check (free): ${CANON_ORIGIN}/bazaar (JSON: ${CANON_ORIGIN}/bazaar.json). Our daily check of the top CDP Bazaar search results.\n- Status badge (free): ${CANON_ORIGIN}/badge/api.402rates.com.svg (any host in place of api.402rates.com; optional ?path=/exact/path). Green "pay · stable N days" only when the latest check is pay and under 72 h old; otherwise grey "stale" or "not verified". Embed: [![402xAgent status](${CANON_ORIGIN}/badge/api.402rates.com.svg)](${CANON_ORIGIN}/badge/api.402rates.com). Every receipt carries its own badge snippet (Markdown + HTML).\n- Saves (free): ${CANON_ORIGIN}/saves (JSON: ${CANON_ORIGIN}/saves.json). Endpoints from the last 30 days whose live 402 differed from the listing (asked more, paid a different wallet, or another network), with redacted receipts.\n- Rules (free): ${CANON_ORIGIN}/rules (JSON: ${CANON_ORIGIN}/rules.json). Every verdict carries a stable reason_code and a confidence (high|medium|low); the codes and confidence rules are listed there.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (live receipts: ${CANON_ORIGIN}/v1/receipts/sc-<id>; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 5 free/day (25 per network), then $0.02 USDC a check on Base via x402.\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n- Pricing: ${CANON_ORIGIN}/pricing  Docs: ${CANON_ORIGIN}/docs\n- Signed receipts: new receipts carry kid + signature (ed25519 over RFC 8785 JCS of the receipt minus signature). Public keys: ${API_ORIGIN}/.well-known/402xagent-keys.json. Verify offline: ${CANON_ORIGIN}/docs#receipt-signatures or x402-spotcheck 1.1.0 verifyReceipt().\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
     if (path === "/" && url.hostname === "402xagent.com" && /text\/html/.test(req.headers.get("accept") || ""))
       return new Response(landingHtml(CANON_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", vary: "accept", "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "access-control-allow-origin": "*" } });
     if (path === "/")
@@ -3274,9 +3274,9 @@ const routeInnerHolder = {
           "endpoint-spot-check": {
             url: CANON_ORIGIN + "/v1/products/endpoint-spot-check",
             title: SPOT_SERVICE_NAME,
-            price_usdc: "0.01-0.25",
+            price_usdc: "0.02",
             free_per_day: 5,
-            note: "5 free SSRF-safe x402 challenge probes per client per UTC day (25 per network across client names), then $0.01 to $0.25 USDC (one tenth of the target's quoted price); never pays the target. SELF_CLIENTS exempt from free quota only.",
+            note: "5 free SSRF-safe x402 challenge probes per client per UTC day (25 per network across client names), then $0.02 USDC a check; never pays the target. SELF_CLIENTS exempt from free quota only.",
           },
         },
         mcp: CANON_ORIGIN + "/mcp",

@@ -69,7 +69,7 @@ export function rulesJson(origin) {
     limits: {
       free_live_checks: "5 per client name per UTC day, and at most 25 per network (IP; IPv6 /64) per UTC day across all client names; over the network cap: HTTP 429 with Retry-After until 00:00 UTC. The IP is only kept as a salted hash.",
       dry_runs: "separate caps per caller and per network; never an approval to pay",
-      paid: "one tenth of the endpoint's quoted price (min $0.01, cap $0.25) per check; router tier $0.01 for 10 checks; rate limited per payer per hour",
+      paid: "$0.02 USDC per check (flat); router tier $0.20 for 10 checks; rate limited per payer per hour",
     },
   };
 }

@@ -111,7 +111,7 @@ real-client counts.
 
 ## Free-check network cap (0.33.0)
 
-Free live checks: 5 per client name per UTC day **and** at most 25 per network (IP; IPv6 /64) per UTC day across all client names. Over the network cap the check answers HTTP 429 with `Retry-After` (seconds to 00:00 UTC) and points to the paid check (one tenth of the endpoint's price, $0.01 to $0.25) and the router pack ($0.01 for 10 checks). The IP is only kept as a salted hash (`CLIENT_SALT`) in the QuotaCounter Durable Object. Paid, router, dry-run and self-test checks are unchanged.
+Free live checks: 5 per client name per UTC day **and** at most 25 per network (IP; IPv6 /64) per UTC day across all client names. Over the network cap the check answers HTTP 429 with `Retry-After` (seconds to 00:00 UTC) and points to the paid check ($0.02 flat) and the router pack ($0.20 for 10 checks). The IP is only kept as a salted hash (`CLIENT_SALT`) in the QuotaCounter Durable Object. Paid, router, dry-run and self-test checks are unchanged.
 
 ## Status badge (0.32.0)
 

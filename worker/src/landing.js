@@ -22,10 +22,10 @@ export const LANDING_SAMPLE = {
   "prior_checks": "https://402xagent.com/v1/skips",
   "access": {
     "tier": "free",
-    "free_per_day": 1,
+    "free_per_day": 5,
     "free_used_today": 1,
-    "free_remaining_today": 0,
-    "then": "$0.01 USDC on Base for the full check of this endpoint via x402 (HTTP 402)"
+    "free_remaining_today": 4,
+    "then": "$0.02 USDC on Base for the full check of this endpoint via x402 (HTTP 402)"
   }
 };
 
@@ -205,7 +205,7 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
     <code class="fc-url">GET ${esc(FREE_CHECK_URL)}</code>
     <p class="fc-ex">Real answer for <a href="${esc(FREE_CHECK_EXAMPLE_URL)}">api.402rates.com/v1/ping</a>:</p>
     <code class="fc-res">${esc(JSON.stringify(FREE_CHECK_EXAMPLE))}</code>
-    <p class="fc-then">Then, only if you want the full payment terms: the paid check (HTTP 402, from $0.01).</p>
+    <p class="fc-then">Then, only if you want the full payment terms: the paid check (HTTP 402, $0.02).</p>
   </div>
   <div class="cta"><a class="btn primary" href="#try">Try it</a><a class="btn" href="https://github.com/withgrokbot/x402-spotcheck"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a></div>
 </div></div>
@@ -253,12 +253,12 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
 
 <section id="pricing" aria-labelledby="pricing-h"><div class="wrap">
   <p class="kicker">Pricing</p>
-  <h2 id="pricing-h" class="bigprice">Free to try, paid checks from $0.01</h2>
+  <h2 id="pricing-h" class="bigprice">5 free checks a day, from $0.02</h2>
   <p class="lead">USDC on Base via x402. No account, no key.</p>
   <div class="grid3 tiers">
     <div class="card price p1"><h3>Free</h3><p><b>$0</b>: 5 checks per client per UTC day, at most 25 per network (verdict, plain-words reason and a hash of the approved terms). Dry runs are free too.</p></div>
-    <div class="card price p2"><h3>Paid check</h3><p><b>1/10 of the target's price</b>, $0.01 min to $0.25 max. Full detail plus the payment object to sign.</p></div>
-    <div class="card price p3"><h3>Router tier</h3><p><b>$0.001/check</b> in packs of 10, billed as one $0.01 x402 payment; the other 9 are prepaid on your router id.</p></div>
+    <div class="card price p2"><h3>Paid check</h3><p><b>$0.02 a check</b>, any target price. Full detail plus the payment object to sign.</p></div>
+    <div class="card price p3"><h3>Router tier</h3><p><b>$0.02/check</b> in packs of 10, billed as one $0.20 x402 payment; the other 9 are prepaid on your router id.</p></div>
   </div>
 </div></section>
 

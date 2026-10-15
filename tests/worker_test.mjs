@@ -402,7 +402,7 @@ test("402 shape: x402 v2 PAYMENT-REQUIRED header and body, $0.02 USDC on Base to
   assert.ok(r.body.try_free_lookup.url.includes("ref=via-402-hint"));
   assert.match(r.body.also_available.url, /\/v1\/products\/overnight-cos-pack$/);
   assert.match(r.body.also_available_spot_check.url, /\/v1\/products\/endpoint-spot-check/);
-  assert.equal(r.body.also_available_spot_check.price_usdc, "0.01-0.25");
+  assert.equal(r.body.also_available_spot_check.price_usdc, "0.02");
   assert.match(r.headers.get("access-control-expose-headers"), /PAYMENT-REQUIRED/);
   // OpenAPI and the help page document the 402 and the policy
   const oa = (await call("/openapi.json", { envo: e })).body;
@@ -854,7 +854,7 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   assert.equal(r.body.reason, "listed $0.001, payment request matches the listed price");
   // free tier: verdict + plain reason + access only (quoted/claimed price, pay_to, network, asset are paid)
   assert.deepEqual(Object.keys(r.body).sort(), ["access", "confidence", "history", "pay_to_changed", "payment_terms_sha256", "prior_checks", "quality", "reason", "reason_code", "receipt_id", "receipt_url", "reputation", "upsell", "verdict"]);
-  assert.equal(r.body.upsell, "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01");
+  assert.equal(r.body.upsell, "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02");
   assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.match(r.body.payment_terms_sha256, /^[0-9a-f]{64}$/);
   assert.ok(lastSpotFetchInit);
@@ -862,15 +862,15 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   const hdrObj = h instanceof Headers ? Object.fromEntries(h.entries()) : h;
   const keys = Object.keys(hdrObj).map((k) => k.toLowerCase());
   assert.ok(!keys.includes("payment-signature") && !keys.includes("x-payment"), "never send payment headers outbound");
-  // second call same day → 402 priced at 1/10 of the $0.001 quote, floored at $0.01
+  // second call same day → 402 at the flat $0.02 (0.38.0)
   const r2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-free-1", { envo: e });
   assert.equal(r2.status, 402);
-  assert.equal(r2.body.accepts[0].amount, "10000");
-  assert.equal(r2.body.price_usd, "0.01");
+  assert.equal(r2.body.accepts[0].amount, "20000");
+  assert.equal(r2.body.price_usd, "0.02");
   assert.equal(r2.body.product, "endpoint-spot-check");
 });
 
-test("spot-check unpaid after free exhausted → 402 amount 10000 (1/10 of quote, min $0.01); paid path works; never pays target", async () => {
+test("spot-check unpaid after free exhausted → 402 amount 20000 (flat $0.02, 0.38.0); paid path works; never pays target", async () => {
   const e = spotEnv();
   facCalls.length = 0;
   facMode = "ok";
@@ -878,14 +878,14 @@ test("spot-check unpaid after free exhausted → 402 amount 10000 (1/10 of quote
   await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", { envo: e });
   const unpaid = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", { envo: e });
   assert.equal(unpaid.status, 402);
-  assert.equal(unpaid.body.accepts[0].amount, "10000");
+  assert.equal(unpaid.body.accepts[0].amount, "20000");
   // 0.19.0 analytics: the free answer and the 402 carry client id, target URL, UA family, ref and product "spot"
   const sp = e.points.filter((x) => x.blobs[15] === "spot").slice(-2);
   assert.deepEqual(sp.map((x) => x.blobs[12]), ["free", "payment-required"]);
   for (const x of sp) assert.deepEqual([x.blobs[0], x.blobs[3]], [sp[0].blobs[0], "https://spot.target.test/api"]);
   assert.ok(sp[1].blobs[0] && "blob9 UA family" && typeof sp[1].blobs[8] === "string" && typeof sp[1].blobs[10] === "string");
   facMode = "invalid";
-  const failed = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
+  const failed = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
   assert.equal(failed.status, 402);
   const fp = e.points[e.points.length - 1];
   assert.deepEqual([fp.blobs[12], fp.blobs[15], fp.blobs[3]], ["payment-failed", "spot", "https://spot.target.test/api"]);
@@ -896,11 +896,11 @@ test("spot-check unpaid after free exhausted → 402 amount 10000 (1/10 of quote
   lastSpotFetchInit = null;
   const paid = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", {
     envo: e,
-    headers: { "payment-signature": spotPayment({ amount: "10000" }) },
+    headers: { "payment-signature": spotPayment({ amount: "20000" }) },
   });
   assert.equal(paid.status, 200);
   assert.equal(paid.body.access.tier, "paid");
-  assert.equal(paid.body.access.charged_usd, "0.01");
+  assert.equal(paid.body.access.charged_usd, "0.02");
   assert.equal(paid.body.pay_to, PAY_TO);
   assert.equal(paid.body.network, "eip155:8453");
   assert.equal(paid.body.asset, USDC);
@@ -1003,7 +1003,7 @@ test("MCP endpoint_spot_check listed; unpaid after free returns pay instructions
   assert.equal(free.body.result.structuredContent.quoted_price_usd, undefined);
   const paidNeed = await rpc(call, { envo: e });
   assert.equal(paidNeed.body.result.isError, true);
-  assert.match(paidNeed.body.result.content[0].text, /Payment required: \$0\.01 to \$0\.25 USDC/);
+  assert.match(paidNeed.body.result.content[0].text, /Payment required: \$0\.02 USDC/);
   const health = (await send("/health", { envo: e })).body;
   assert.equal(health.version, VERSION);
   const oa = (await send("/openapi.json", { envo: e })).body;
@@ -1067,7 +1067,7 @@ test("spot-check Bazaar/402 examples match the real paid and free response shape
   const target = "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=shape-1";
   const free = await send(target, { envo: e });
   const unpaid = await send(target, { envo: e });
-  const paid = await send(target, { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
+  const paid = await send(target, { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
   assert.equal(free.body.access.tier, "free");
   assert.equal(unpaid.status, 402);
   assert.equal(paid.body.access.tier, "paid");
@@ -1097,7 +1097,7 @@ test("spot-check paid by our own wallet (payer = payTo) is recorded as self, not
   await send(target, { envo: e });
   facPayer = PAY_TO;
   try {
-    const paid = await send(target, { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
+    const paid = await send(target, { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
     assert.equal(paid.status, 200);
     assert.equal(paid.body.access.self_test, true);
     const pt = e.points.filter((p) => p.blobs[12] === "paid").pop();
@@ -1107,7 +1107,7 @@ test("spot-check paid by our own wallet (payer = payTo) is recorded as self, not
     facPayer = "0x" + "11".repeat(20);
   }
   const outside = await send(target.replace("selfpay-1", "selfpay-2"), { envo: e });
-  const paid2 = await send(target.replace("selfpay-1", "selfpay-2"), { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
+  const paid2 = await send(target.replace("selfpay-1", "selfpay-2"), { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
   assert.equal(outside.status, 200);
   assert.equal(paid2.status, 200);
   assert.equal(paid2.body.access.self_test, undefined);
@@ -1381,7 +1381,7 @@ test("public receipts: store outage never breaks an answer; no DB -> receipt fie
   assert.equal(n.body.receipt_url, null);
 });
 
-test("router tier: allowlisted router pays $0.01 for a 10-check pack ($0.001/check), one settlement; credits then spent; others unchanged", async () => {
+test("router tier: allowlisted router pays $0.20 for a 10-check pack ($0.02/check, 0.38.0), one settlement; credits then spent; others unchanged", async () => {
   const e = spotEnv({ SPOT_ROUTER_CLIENTS: "router-test-1", SPOT_PARTNER_CLIENTS: "router-test-1:1" });
   facCalls.length = 0;
   facMode = "ok";
@@ -1391,10 +1391,10 @@ test("router tier: allowlisted router pays $0.01 for a 10-check pack ($0.001/che
   assert.equal((await send(T, { envo: e })).body.access.tier, "free", "then the daily free check");
   const unpaid = await send(T, { envo: e });
   assert.equal(unpaid.status, 402);
-  assert.equal(unpaid.body.accepts[0].amount, "10000");
-  assert.match(unpaid.body.error, /buys 10 checks \(\$0\.001\/check\)/);
+  assert.equal(unpaid.body.accepts[0].amount, "200000");
+  assert.match(unpaid.body.error, /buys 10 checks \(\$0\.02\/check\)/);
   assert.match(unpaid.body.pricing, /router tier/);
-  const paid = await send(T, { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
+  const paid = await send(T, { envo: e, headers: { "payment-signature": spotPayment({ amount: "200000" }) } });
   assert.equal(paid.status, 200);
   assert.equal(paid.body.access.tier, "router-pack");
   assert.equal(paid.body.access.credits_added, 9);
@@ -1411,11 +1411,11 @@ test("router tier: allowlisted router pays $0.01 for a 10-check pack ($0.001/che
   assert.equal((await send(T, { envo: e })).status, 402, "pack used up -> next pack");
   assert.equal(facCalls.filter((x) => x[0] === "/settle").length, 1, "10 checks, one settlement");
   // a higher signed amount is not accepted on the router tier (exact pack price only)
-  assert.equal((await send(T, { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } })).status, 402);
-  // non-router clients keep the 1/10-of-quote price
+  assert.equal((await send(T, { envo: e, headers: { "payment-signature": spotPayment({ amount: "250000" }) } })).status, 402);
+  // non-router clients pay the flat $0.02
   await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=not-a-router", { envo: e });
   const other = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=not-a-router", { envo: e });
-  assert.match(other.body.pricing, /one tenth/);
+  assert.match(other.body.pricing, /flat \$0\.02/);
 });
 
 test("weekly crawl coverage (0.11.0): normUrl matches crawl_probe.py; KV-backed receipts, skip pages, by-url and spot-check listing", async () => {
@@ -1510,7 +1510,7 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   spotTargetMode = "402";
   lastSpotFetchInit = null;
   const u = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001";
-  const r = await send(u + "&mode=dry-run&ref=via-agentkit&client=dry-client-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "10000" }) } });
+  const r = await send(u + "&mode=dry-run&ref=via-agentkit&client=dry-client-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
   assert.equal(r.status, 200);
   assert.deepEqual(Object.keys(r.body).sort(), ["access", "check_type", "confidence", "history", "mode", "payment_terms_sha256", "prior_checks", "quality", "reason", "reason_code", "receipt_id", "receipt_url", "reputation", "verdict"]);
   assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
@@ -1712,7 +1712,7 @@ test("landing page (0.17.0): HTML to browsers on 402xagent.com only, real counts
   assert.equal(html.status, 200);
   assert.match(html.headers.get("content-type"), /text\/html/);
   const t = await html.text();
-  for (const re of [/<h1>Check before your <span class="grad">agent pays<\/span><\/h1>/, /og:title" content="402xAgent/, /rel="canonical" href="https:\/\/402xagent.com\/"/, /og:url" content="https:\/\/402xagent.com\/"/, /id="try"/, /wrapFetchWithPayment\(spotCheckFetch\(fetch\), client\)/, /wrapAxiosWithPayment\(spotCheckAxios\(axios.create\(\)\), client\)/, /class="bigprice">Free to try, paid checks from \$0\.01<\/h2>/, /1\/10 of the target's price<\/b>, \$0\.01 min to \$0\.25 max/, /\$0\.001\/check<\/b> in packs of 10/, /<details class="sample" id="resp">\s*<summary>Show response<\/summary>/, /Stops your agent paying dead, mispriced or wrong-network endpoints/, /First router integration gets 1,000 free checks/, /withgrokbot\/x402-spotcheck\/issues\/new/, /href="\/mcp"/, /href="\/llms.txt"/, /href="\/openapi.json"/, /href="\/v1\/skips"/, /curl &quot;https:\/\/api\.402xagent\.com\/v1\/products\/endpoint-spot-check/])
+  for (const re of [/<h1>Check before your <span class="grad">agent pays<\/span><\/h1>/, /og:title" content="402xAgent/, /rel="canonical" href="https:\/\/402xagent.com\/"/, /og:url" content="https:\/\/402xagent.com\/"/, /id="try"/, /wrapFetchWithPayment\(spotCheckFetch\(fetch\), client\)/, /wrapAxiosWithPayment\(spotCheckAxios\(axios.create\(\)\), client\)/, /class="bigprice">5 free checks a day, from \$0\.02<\/h2>/, /\$0\.02 a check<\/b>, any target price/, /\$0\.02\/check<\/b> in packs of 10, billed as one \$0\.20/, /<details class="sample" id="resp">\s*<summary>Show response<\/summary>/, /Stops your agent paying dead, mispriced or wrong-network endpoints/, /First router integration gets 1,000 free checks/, /withgrokbot\/x402-spotcheck\/issues\/new/, /href="\/mcp"/, /href="\/llms.txt"/, /href="\/openapi.json"/, /href="\/v1\/skips"/, /curl &quot;https:\/\/api\.402xagent\.com\/v1\/products\/endpoint-spot-check/])
     assert.match(t, re);
   assert.ok(t.includes(`>${RECEIPTS_META.skip}</div><div class="l">skip`), "skip count is the real crawl number");
   assert.ok(t.includes(`>${RECEIPTS_META.pay}</div><div class="l">pay`));
@@ -2029,7 +2029,7 @@ test("0.25.0: recent_checks in /v1/skips.json: outside free checks only, URL pat
   const chk = (u, extra = "", o = {}) => send(SPOT + "?url=" + encodeURIComponent(u) + "&claimed_price=0.001" + (extra.includes("client=") ? "" : "&client=outside-" + ++n) + extra, { envo: e, ...o });
   const R = "https://api.realx402.dev/v1/quote";
   const a = await chk(R + "?api_key=SECRET999#x");
-  assert.equal(a.body.upsell, "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01");
+  assert.equal(a.body.upsell, "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02");
   await chk(R); // same URL, same UTC day: deduped
   // not published: junk, tests, bots, secrets
   await chk("https://example.com/api/paid");
@@ -2427,7 +2427,7 @@ test("0.33.0: free live checks capped at 25 per network per UTC day across clien
   const over = await go("rot-new", n++);
   assert.equal(over.status, 429, "26th free check from one network is 429 even with a fresh client name");
   assert.match(over.body.error, /25 free live checks per UTC day from one network/);
-  assert.match(over.body.router_pack.price, /\$0\.01 USDC for 10 checks/);
+  assert.match(over.body.router_pack.price, /\$0\.20 USDC for 10 checks \(\$0\.02 each\)/);
   assert.match(over.body.paid_check.url, /endpoint-spot-check\?url=/);
   const ra = Number(over.headers.get("retry-after"));
   assert.ok(ra > 0 && ra <= 86400 && Math.abs(ra - secondsToUtcMidnight()) < 5);
@@ -2633,7 +2633,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.37.3");
+  assert.equal(VERSION, "0.38.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2799,8 +2799,8 @@ test("0.37.1: /receipts and /skips.json 301 to /v1 keeping the query; /pricing a
     r = await raw("/pricing", host); assert.equal(r.status, 200); assert.match(r.headers.get("content-type"), /text\/html/);
     const ph = await r.text();
     assert.match(ph, /5 live checks per client per UTC day, at most 25 per network/);
-    assert.match(ph, /minimum \$0\.01, maximum \$0\.25/);
-    assert.match(ph, /\$0\.01 for 10 checks \(\$0\.001 each\)/);
+    assert.match(ph, /\$0\.02 per check, flat/);
+    assert.match(ph, /\$0\.20 for 10 checks \(\$0\.02 each\)/);
     assert.match(ph, /\$9/); assert.match(ph, /href="\/rules"/); assert.match(ph, /href="\/openapi\.json"/);
     r = await raw("/docs", host); assert.equal(r.status, 200);
     const dh = await r.text();
@@ -2893,6 +2893,32 @@ test("0.37.3 signed receipts: ed25519 over JCS minus signature, key at /.well-kn
   assert.equal(jcs(rest), S.canonicalize(rest));
   try { const W = await import("/workspace/products/x402-spotcheck/receipt.js"); assert.equal((await W.verifyReceipt(g, { publicKey: { keys: [{ kty: "OKP", crv: "Ed25519", kid: jwk.kid, x: jwk.x }] } })).valid, true); } catch (err) { if (err.code !== "ERR_MODULE_NOT_FOUND") throw err; }
   S._resetSigner();
+});
+
+test("0.38.0 flat $0.02: 402 amount 20000 for any quote; well-known/OpenAPI/llms/home/pricing say $0.02; pack $9 and badges unchanged; old 1/10 copy gone", async () => {
+  const L = await import("../worker/src/lib.js");
+  for (const q of [null, 0.0001, 0.001, 0.2, 5, 1000]) assert.equal(L.spotDynCfg({ priceAtomic: "250000" }, q).priceAtomic, "20000", String(q));
+  assert.equal(L.spotDynCfg({}, 5).priceUsd, "0.02");
+  const wk = (await send("/.well-known/x402")).body;
+  const sc = wk.resourceCatalog.find((r) => r.url.endsWith("/endpoint-spot-check"));
+  assert.equal(sc.accepts[0].amount, "20000");
+  assert.deepEqual(sc.price, { mode: "fixed", currency: "USD", amount: "0.02" });
+  assert.equal(wk.resourceCatalog.find((r) => r.url.endsWith("/overnight-cos-pack")).accepts[0].amount, "9000000", "pack unchanged");
+  const oa = (await send("/openapi.json")).body;
+  assert.equal(oa.paths["/v1/products/endpoint-spot-check"].get["x-payment-info"].price.amount, "0.02");
+  const raw = async (p, h = {}) => worker.fetch(new Request("https://402xagent.com" + p, { headers: h }), mkEnv().env, { waitUntil() {} });
+  const llms = await (await raw("/llms.txt")).text();
+  assert.match(llms, /\$0\.02 USDC a check/);
+  const home = await (await raw("/", { accept: "text/html" })).text();
+  const pricing = await (await raw("/pricing")).text();
+  for (const [n, t] of [["llms", llms], ["home", home], ["pricing", pricing], ["openapi", JSON.stringify(oa)], ["well-known", JSON.stringify(wk)]]) {
+    assert.ok(!/one tenth|1\/10 of the target|\$0\.01 to \$0\.25|\$0\.01-\$0\.25|from \$0\.01/.test(t), n + " still has the old price copy");
+  }
+  assert.match(home, /5 free checks a day, from \$0\.02/);
+  assert.match(home, /free_per_day(&quot;|"|&#34;): 5/);
+  assert.match(pricing, /\$9 \(<code>\/v1\/products\/overnight-cos-pack/);
+  const b = await raw("/badge/api.402rates.com.svg"); assert.equal(b.status, 200);
+  assert.ok(!/\$0\.0/.test(await b.text()), "badges carry no price");
 });
 
 let passed = 0;

@@ -54,7 +54,7 @@ export async function crawlReceiptForUrl(env, u) {
 }
 
 export function spotHowTo(origin) {
-  return `Free check first: GET ${FREE_CHECK_URL} (optional &claimed_price=0.01; or POST JSON {"url":"<endpoint>"}) returns verdict pay|skip|recheck. 5 free/day (25 per network) plus free dry runs (&mode=dry-run); after that, the paid check is $0.01-$0.25 USDC via x402 on Base (one tenth of the target's quoted price). Never pays the target.`;
+  return `Free check first: GET ${FREE_CHECK_URL} (optional &claimed_price=0.01; or POST JSON {"url":"<endpoint>"}) returns verdict pay|skip|recheck. 5 free/day (25 per network) plus free dry runs (&mode=dry-run); after that, the paid check is $0.02 USDC via x402 on Base. Never pays the target.`;
 }
 
 export function coverage() {
