@@ -149,3 +149,12 @@ Then set `lookup_url` in `data/site.json` to the Worker URL (with a trailing sla
 and the lookup section appears in `llms.txt`, the agent card and `catalog.json`.
 
 Self-tests must send `client=withgrokbot-selftest` so they are not counted.
+
+## 0.36.0: daily re-check (badge hosts)
+
+- Cron `17 10 * * *` (10:17 UTC = 03:17 PDT / 02:17 PST), alongside the existing `*/20 * * * *`.
+- Re-runs the free, unpaid 402 probe (same endpoint-spot-check handler, exempt `withgrokbot-selftest` client, ref `daily-recheck`, access_tier `auto` so receipts stay redacted) on one listed endpoint per badge host (26, `src/daily.js`). Never pays.
+- Batching: the daily trigger seeds today's queue in D1 and checks 8 URLs (~3 subrequests each, ~24 + a few D1 calls, under 50). The rest drain on the 20-min cron's idle steps (8 per step, in place of that step's stale recheck; never on a Bazaar step), so 26 hosts finish in the daily run + 3 steps (~1 h).
+- No duplicate work: a URL with a non-request-sourced receipt under 20 h old is marked done without a probe. The Bazaar list's endpoints are not probed here; the 20-min cron already re-checks all of them once per UTC day.
+- Storage: D1 tables `daily_runs` + `daily_queue` (migrations/0006, queue rows older than 14 days pruned). **KV writes per run: 0.** Apply before deploy: `npx wrangler d1 migrations apply vc-spot-receipts --remote`. Without it the job fails open (no-op) and pages show "Last checked: pending".
+- Pages: `last_checked` in /saves.json (latest daily re-check) and /bazaar.json (= generated_at); a "Last checked: YYYY-MM-DD HH:MM UTC" line on /saves, /bazaar and /badge/<host> (that host's latest receipt); `x-402xagent-last-checked` header on badge SVGs. Off switch: `DAILY_RECHECK = "off"`.

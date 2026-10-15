@@ -2515,6 +2515,118 @@ test("0.35.2: /saves.json splits live_count and crawl_count; HTML says showing X
   assert.equal(j0.count, j0.crawl_count);
 });
 
+// 0.36.0: daily re-check. A tiny in-memory stand-in for the D1 statements daily.js uses.
+function dailyDb({ fresh = {}, throwAll = false } = {}) {
+  const runs = new Map(), queue = new Map(), log = [];
+  const run = (sql, a) => {
+    log.push(sql);
+    if (throwAll) throw new Error("no such table");
+    if (/^DELETE FROM daily_queue/.test(sql)) { for (const [k, q] of queue) if (q.day < a[0]) queue.delete(k); return {}; }
+    if (/INSERT OR IGNORE INTO daily_runs/.test(sql)) { if (!runs.has(a[0])) runs.set(a[0], { day: a[0], started_at: a[1], total: a[2], finished_at: null, done: 0 }); return {}; }
+    if (/INSERT OR IGNORE INTO daily_queue/.test(sql)) { const k = a[0] + " " + a[1]; if (!queue.has(k)) queue.set(k, { day: a[0], url: a[1], method: a[2], host: a[3], done_at: null }); return {}; }
+    if (/^SELECT url, method, host FROM daily_queue/.test(sql)) return { results: [...queue.values()].filter((q) => q.day === a[0] && !q.done_at).sort((x, y) => (x.host < y.host ? -1 : 1)).slice(0, a[1]) };
+    if (/FROM spot_receipts WHERE url = \?/.test(sql)) return fresh[a[0]] || null;
+    if (/^UPDATE daily_queue/.test(sql)) { const q = queue.get(a[3] + " " + a[4]); Object.assign(q, { done_at: a[0], verdict: a[1], receipt_id: a[2] }); return {}; }
+    if (/^UPDATE daily_runs/.test(sql)) { const r = runs.get(a[2]); r.finished_at = a[0]; r.done = [...queue.values()].filter((q) => q.day === a[1] && q.done_at).length; return {}; }
+    if (/MAX\(finished_at\)/.test(sql)) return { t: [...runs.values()].map((r) => r.finished_at).filter(Boolean).sort().pop() || null };
+    throw new Error("unexpected sql " + sql);
+  };
+  const stmt = (sql, a = []) => ({ bind: (...b) => stmt(sql, b), all: async () => run(sql, a), first: async () => run(sql, a), run: async () => run(sql, a), _x: () => run(sql, a) });
+  return { runs, queue, log, prepare: (sql) => stmt(sql), batch: async (list) => list.map((x) => x._x()) };
+}
+
+test("0.36.0: daily re-check seeds the 26 badge hosts, checks in capped batches as the exempt self-test client (no payment), skips fresh URLs, writes no KV", async () => {
+  const { BADGE_HOSTS, DAILY_BATCH, DAILY_CRON, dailySeed, dailyStep, dailyCheckUrl, lastDailyCheck } = await import("../worker/src/daily.js");
+  assert.equal(BADGE_HOSTS.length, 26);
+  assert.equal(new Set(BADGE_HOSTS.map((x) => x.host)).size, 26);
+  assert.ok(BADGE_HOSTS.every((x) => new URL(x.url).hostname === x.host && !x.url.includes("?")));
+  assert.match(DAILY_CRON, /^17 10 \* \* \*$/);
+  assert.ok(DAILY_BATCH * 3 <= 30, "~3 subrequests per check stays well under 50");
+  const db = dailyDb({ fresh: { [BADGE_HOSTS[0].url]: { id: "sc-fresh", verdict: "pay" } } });
+  const t = new Date("2026-10-14T10:17:00Z");
+  assert.equal((await dailySeed({ RECEIPTS_DB: db }, { now: t })).n, 26);
+  await dailySeed({ RECEIPTS_DB: db }, { now: t }); // idempotent
+  assert.equal(db.queue.size, 26);
+  const calls = [];
+  const runCheck = async (u) => { calls.push(u); return new Response(JSON.stringify({ verdict: "pay", receipt_id: "sc-" + calls.length })); };
+  let steps = 0, r;
+  do { r = await dailyStep({ RECEIPTS_DB: db }, { now: t, runCheck, origin: "https://api.402xagent.com" }); steps++; assert.ok(steps < 10); if (r.did === "checked") assert.ok(r.n + r.skipped <= DAILY_BATCH); } while (r.did === "checked");
+  assert.equal(r.did, "drained");
+  assert.equal(steps, Math.ceil(26 / DAILY_BATCH) + 1);
+  assert.equal(calls.length, 25, "the URL with a receipt under 20 h old is not probed again");
+  assert.ok(calls.every((u) => /^https:\/\/api\.402xagent\.com\/v1\/products\/endpoint-spot-check\?/.test(u) && /client=withgrokbot-selftest/.test(u) && /ref=daily-recheck/.test(u) && !/claimed_price|pay_to|network|mode=paid/.test(u)));
+  assert.ok([...db.queue.values()].every((q) => q.done_at && q.verdict === "pay"));
+  assert.equal(db.runs.get("2026-10-14").done, 26);
+  assert.equal(await lastDailyCheck(db), t.toISOString());
+  assert.match(dailyCheckUrl("o", { url: "https://a.dev/x", method: "POST" }), /method=POST/);
+  // missing tables (migration not applied yet): fail open, nothing thrown
+  const bad = dailyDb({ throwAll: true });
+  assert.equal((await dailySeed({ RECEIPTS_DB: bad }, { now: t })).did, "db-error");
+  assert.equal((await dailyStep({ RECEIPTS_DB: bad }, { now: t, runCheck, origin: "o" })).did, "none");
+  assert.equal(await lastDailyCheck(bad), null);
+});
+
+test("0.36.0: scheduled routes the daily cron to the daily queue only; the 20-min cron drains it on idle steps before any stale recheck; KV untouched", async () => {
+  const { DAILY_CRON } = await import("../worker/src/daily.js");
+  const { _resetBazaarIdle } = await import("../worker/src/bazaar.js");
+  const db = dailyDb();
+  let kvPuts = 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const kv = { get: async () => ({ live: { day: today, generated_at: new Date().toISOString(), queries: [], counts: {}, rows: [] }, build: null }), put: async () => { kvPuts++; } };
+  const env = { RECEIPTS_DB: db, CRAWL_KV: kv, SPOT_PROBE_CACHE_S: "0" };
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response("no", { status: 404 });
+  try {
+    _resetBazaarIdle();
+    await worker.scheduled({ cron: DAILY_CRON, scheduledTime: Date.now() }, env, { waitUntil() {} });
+    assert.equal(db.queue.size, 26);
+    assert.ok(!db.log.some((q) => /stale-recheck|GROUP BY url/.test(q)), "daily trigger never runs the stale step");
+    const pend = () => [...db.queue.values()].filter((q) => !q.done_at).length;
+    const before = pend();
+    assert.ok(before <= 26 - 1);
+    await worker.scheduled({ cron: "*/20 * * * *", scheduledTime: Date.now() }, env, { waitUntil() {} });
+    assert.ok(pend() < before, "20-min idle step drains the daily queue");
+    assert.equal(kvPuts, 0, "no KV writes");
+    // off switch: the daily trigger does nothing
+    const db2 = dailyDb();
+    await worker.scheduled({ cron: DAILY_CRON, scheduledTime: Date.now() }, { ...env, RECEIPTS_DB: db2, DAILY_RECHECK: "off" }, { waitUntil() {} });
+    assert.equal(db2.log.length, 0);
+  } finally { globalThis.fetch = origFetch; _resetBazaarIdle(); }
+});
+
+test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /bazaar, /bazaar.json and the badge page; wrangler has both crons", async () => {
+  const { lastCheckedText } = await import("../worker/src/daily.js");
+  assert.equal(lastCheckedText("2026-10-14T10:21:33.000Z"), "Last checked: 2026-10-14 10:21 UTC");
+  assert.equal(lastCheckedText(null), "Last checked: pending");
+  const { savesJson, handleSaves } = await import("../worker/src/saves.js");
+  const db = dailyDb(); db.runs.set("2026-10-14", { day: "2026-10-14", finished_at: "2026-10-14T10:40:00.000Z" });
+  const sdb = { prepare: (sql) => /MAX\(finished_at\)/.test(sql) ? db.prepare(sql) : { bind: () => ({ all: async () => ({ results: [] }) }) } };
+  const j = await savesJson({ RECEIPTS_DB: sdb }, "https://o.test");
+  assert.equal(j.last_checked, "2026-10-14T10:40:00.000Z");
+  assert.equal((await savesJson({}, "https://o.test")).last_checked, null);
+  const html = await (await handleSaves(new Request("https://o.test/saves"), { SAVES_PAGE: "on", RECEIPTS_DB: sdb }, new URL("https://o.test/saves"), "https://o.test")).text();
+  assert.ok(html.includes('<p class="last-checked">Last checked: 2026-10-14 10:40 UTC</p>'));
+  const { bazaarJson, bazaarHtml } = await import("../worker/src/bazaar.js");
+  const bj = bazaarJson({ day: "2026-10-14", generated_at: "2026-10-14T01:40:00.000Z", queries: ["q"], counts: { pay: 0, skip: 0, recheck: 0 }, rows: [] }, "https://o.test");
+  assert.equal(bj.last_checked, "2026-10-14T01:40:00.000Z");
+  assert.ok(bazaarHtml(bj).includes("Last checked: 2026-10-14 01:40 UTC"));
+  assert.equal(bazaarJson(null, "o").last_checked, null);
+  assert.ok(bazaarHtml(bazaarJson(null, "o")).includes("Last checked: pending"));
+  const { handleBadge } = await import("../worker/src/badge.js");
+  const n = new Date("2026-10-14T12:00:00Z");
+  const row = { id: "sc-1", url: "https://h.example.com/x", created_at: "2026-10-14T10:18:00Z", verdict: "pay", body: "{}" };
+  const bdb = { prepare: () => ({ bind: () => ({ all: async () => ({ results: [row] }) }) }) };
+  const page = await (await handleBadge(new Request("https://o.test/badge/h.example.com"), { RECEIPTS_DB: bdb }, new URL("https://o.test/badge/h.example.com"), "https://o.test", n)).text();
+  assert.ok(page.includes("Last checked: 2026-10-14 10:18 UTC"));
+  const svg = await handleBadge(new Request("https://o.test/badge/h.example.com.svg"), { RECEIPTS_DB: bdb }, new URL("https://o.test/badge/h.example.com.svg"), "https://o.test", n);
+  assert.equal(svg.headers.get("x-402xagent-last-checked"), "2026-10-14T10:18:00Z");
+  assert.equal(svg.headers.get("x-402xagent-badge"), "pay");
+  const { readFileSync } = await import("node:fs");
+  const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
+  assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
+  assert.equal(VERSION, "0.36.0");
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {

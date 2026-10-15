@@ -41,6 +41,7 @@ import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
 import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
 import { staleStep, STALE_REF } from "./stale.js";
+import { dailySeed, dailyStep, DAILY_CRON, DAILY_REF } from "./daily.js";
 import { observation, recordHistory, historyObservations } from "./history.js";
 import { reasonFields, rulesJson, rulesHtml } from "./rules.js";
 import { handleBadge, badgeSnippets } from "./badge.js";
@@ -48,7 +49,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.35.2";
+export const VERSION = "0.36.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
@@ -1751,7 +1752,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const rf = reasonFields(d, exp.claimed, history);
     const receiptFields = { receipt_id: rid, receipt_url: rid ? CANON_ORIGIN + "/v1/receipts/" + rid : null, pay_to_changed: ptc.pay_to_changed, history };
     if (rid) {
-      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && q.ref === STALE_REF ? "auto" : (access && access.tier) || null });
+      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && (q.ref === STALE_REF || q.ref === DAILY_REF) ? "auto" : (access && access.tier) || null });
       Object.assign(rec, ptc, { history }, rf);
       await saveLiveReceipt(env, rec); // awaited: the next call's cache lookup must see it
     }
@@ -3033,9 +3034,20 @@ export const handler = {
     if (env.BAZAAR_PAGE === "off") return;
     const runCheck = (u) => { const url = new URL(u); return handleEndpointSpotCheck(new Request(url, { method: "GET", headers: { accept: "application/json", "user-agent": "402xagent-bazaar/1" } }), env, ctx, url); };
     const now = new Date(event && event.scheduledTime ? event.scheduledTime : Date.now());
+    // 0.36.0: the daily trigger (DAILY_CRON) seeds today's badge-host queue and checks one batch; nothing else.
+    if (event && event.cron === DAILY_CRON) {
+      if (env.DAILY_RECHECK === "off") return;
+      await dailySeed(env, { now });
+      await dailyStep(env, { now, runCheck, origin: API_ORIGIN });
+      return;
+    }
     const b = await bazaarStep(env, { now, runCheck, origin: API_ORIGIN });
     // 0.27.0: steps with no Bazaar work recheck a few stale receipts instead (never both in one step: subrequest budget).
-    if (b && (b.did === "idle" || b.did === "no-kv") && env.STALE_RECHECK !== "off") await staleStep(env, { now, runCheck, origin: API_ORIGIN });
+    // 0.36.0: an idle step first drains today's daily queue (if any); the stale recheck runs only once it is drained.
+    if (b && (b.did === "idle" || b.did === "no-kv")) {
+      const dq = env.DAILY_RECHECK === "off" ? { did: "none" } : await dailyStep(env, { now, runCheck, origin: API_ORIGIN });
+      if (dq.did !== "checked" && env.STALE_RECHECK !== "off") await staleStep(env, { now, runCheck, origin: API_ORIGIN });
+    }
   },
 };
 

@@ -4,6 +4,7 @@
 // Checks run as our exempt self-test client with ref "bazaar-daily": check_type self-checked (never outside, never in
 // recent_checks), and their receipts are stored with access_tier "bazaar" so they stay redacted like any free receipt.
 import { publicUrl, shortReason } from "./recent.js";
+import { lastCheckedText } from "./daily.js";
 
 export const BAZAAR_SEARCH = "https://api.cdp.coinbase.com/platform/v2/x402/discovery/search";
 export const BAZAAR_QUERIES = ["weather forecast", "crypto token price", "web search"];
@@ -130,8 +131,8 @@ export function bazaarJson(live, origin) {
     source: BAZAAR_SEARCH,
     page: origin + "/bazaar",
   };
-  if (!live) return { ...base, generated_at: null, queries: BAZAAR_QUERIES, counts: { pay: 0, skip: 0, recheck: 0 }, rows: [], note: "first daily refresh pending" };
-  return { ...base, generated_at: live.generated_at, queries: live.queries, counts: live.counts, rows: live.rows.map(({ query, rank, service, endpoint, method, verdict, reason, reason_text, receipt_url }) => ({ query, rank, service, endpoint, method, verdict, reason, reason_text, receipt_url })) };
+  if (!live) return { ...base, generated_at: null, last_checked: null, queries: BAZAAR_QUERIES, counts: { pay: 0, skip: 0, recheck: 0 }, rows: [], note: "first daily refresh pending" };
+  return { ...base, generated_at: live.generated_at, last_checked: live.generated_at || null, queries: live.queries, counts: live.counts, rows: live.rows.map(({ query, rank, service, endpoint, method, verdict, reason, reason_text, receipt_url }) => ({ query, rank, service, endpoint, method, verdict, reason, reason_text, receipt_url })) };
 }
 
 export function bazaarHtml(j) {
@@ -141,7 +142,7 @@ export function bazaarHtml(j) {
     return `<h2>“${esc(q)}”</h2><table><thead><tr><th>#</th><th>Endpoint</th><th>Verdict</th><th>Why</th><th></th></tr></thead><tbody>${trs || '<tr><td colspan="5">no results</td></tr>'}</tbody></table>`;
   }).join("");
   const c = j.counts;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bazaar check · 402xAgent</title><link rel="alternate" type="application/json" href="/bazaar.json"><style>body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:2rem auto;padding:0 1rem;color:#111}table{border-collapse:collapse;width:100%;margin-bottom:1.5rem}td,th{border-bottom:1px solid #ddd;padding:.4rem;text-align:left;vertical-align:top}code{font-size:13px;word-break:break-all}.v{font-weight:600}.pay{color:#08710f}.skip{color:#b00020}.recheck{color:#8a5a00}small{color:#555}</style></head><body><p><a href="/">402xAgent</a></p><h1>Bazaar check</h1><p>Each day we run our free check on the top public <a href="https://docs.cdp.coinbase.com/x402/bazaar">CDP Bazaar</a> results for ${j.queries.length} common searches: does the live 402 still match what Bazaar lists? <b>pay</b> = terms match, <b>skip</b> = something is off, <b>recheck</b> = we could not get a clean 402 right now.</p><p>${j.generated_at ? `Checked ${esc(j.generated_at)} · pay ${c.pay} · skip ${c.skip} · recheck ${c.recheck}` : "First daily refresh pending."} · <a href="/bazaar.json">JSON</a></p>${groups}<p><small>Endpoints shown without query strings. Receipts are the public view. Want the full terms for one? A paid check from $0.01 re-fetches the live 402 for you: <a href="/v1/products/endpoint-spot-check">endpoint-spot-check</a>.</small></p></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bazaar check · 402xAgent</title><link rel="alternate" type="application/json" href="/bazaar.json"><style>body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:2rem auto;padding:0 1rem;color:#111}table{border-collapse:collapse;width:100%;margin-bottom:1.5rem}td,th{border-bottom:1px solid #ddd;padding:.4rem;text-align:left;vertical-align:top}code{font-size:13px;word-break:break-all}.v{font-weight:600}.pay{color:#08710f}.skip{color:#b00020}.recheck{color:#8a5a00}small{color:#555}</style></head><body><p><a href="/">402xAgent</a></p><h1>Bazaar check</h1><p>Each day we run our free check on the top public <a href="https://docs.cdp.coinbase.com/x402/bazaar">CDP Bazaar</a> results for ${j.queries.length} common searches: does the live 402 still match what Bazaar lists? <b>pay</b> = terms match, <b>skip</b> = something is off, <b>recheck</b> = we could not get a clean 402 right now.</p><p>${j.generated_at ? `Checked ${esc(j.generated_at)} · pay ${c.pay} · skip ${c.skip} · recheck ${c.recheck}` : "First daily refresh pending."} · <a href="/bazaar.json">JSON</a></p><p class="last-checked">${esc(lastCheckedText(j.last_checked))}</p>${groups}<p><small>Endpoints shown without query strings. Receipts are the public view. Want the full terms for one? A paid check from $0.01 re-fetches the live 402 for you: <a href="/v1/products/endpoint-spot-check">endpoint-spot-check</a>.</small></p></body></html>`;
 }
 
 export async function handleBazaar(req, url, env, path, origin) {
