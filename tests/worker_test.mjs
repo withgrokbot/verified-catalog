@@ -2633,7 +2633,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.37.1");
+  assert.equal(VERSION, "0.37.2");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2810,6 +2810,36 @@ test("0.37.1: /receipts and /skips.json 301 to /v1 keeping the query; /pricing a
   const ll = await (await raw("/llms.txt")).text(); assert.match(ll, /Pricing: https:\/\/402xagent\.com\/pricing/);
   assert.equal((await raw("/v1/receipts")).status === 404, false);
   assert.equal((await raw("/nope-404")).status, 404);
+  assert.equal(puts, 0);
+});
+
+test("0.37.2: stale free-tier text says 5/day; sitemap lists rules/bazaar/saves; CORS on llms/sitemap/robots; OpenAPI lists live free routes; reputation JSON charset; no duplicate key; 0 KV writes", async () => {
+  const e = mkEnv(); let puts = 0;
+  for (const k of Object.keys(e.env)) { const b = e.env[k]; if (b && typeof b.put === "function") { const o = b.put.bind(b); b.put = async (...a) => { puts++; return o(...a); }; } }
+  const raw = async (path, host = "https://402xagent.com", accept = "*/*") => worker.fetch(new Request(host + path, { headers: { accept, "user-agent": "agent-x/1.0", "cf-connecting-ip": "203.0.113.7" } }), e.env, { waitUntil() {} });
+  const home = await (await raw("/", "https://402xagent.com", "text/html")).text();
+  assert.ok(!/1 check per client per UTC day/.test(home)); assert.ok(!/one per day per network/.test(home));
+  assert.match(home, /5 checks per client per UTC day, at most 25 per network/);
+  assert.match(home, /real free 402xAgent check: 5 per day \(at most 25 per network\)/);
+  const r402 = await raw("/v1/lookup/paid?task=web-search&max_price=0.01", "https://api.402xagent.com");
+  assert.equal(r402.status, 402);
+  const b = await r402.json(); assert.equal(b.x402Version, 2);
+  assert.match(b.free_check.free, /^5 checks per client per UTC day/);
+  const hdr = JSON.parse(atob(r402.headers.get("payment-required")));
+  assert.equal(hdr.x402Version, 2); for (const k of ["scheme", "network", "amount", "asset", "payTo", "maxTimeoutSeconds"]) assert.ok(hdr.accepts[0][k] != null, k);
+  assert.ok(!(await (await raw("/sitemap.xml")).text()).includes("/saves</loc>"));
+  e.env.SAVES_PAGE = "on";
+  const sm = await raw("/sitemap.xml"); const smt = await sm.text();
+  for (const p of ["/rules", "/rules.json", "/bazaar", "/bazaar.json", "/saves", "/saves.json", "/pricing", "/docs"]) assert.ok(smt.includes("402xagent.com" + p + "</loc>"), p);
+  for (const p of ["/sitemap.xml", "/llms.txt", "/robots.txt"]) assert.equal((await raw(p)).headers.get("access-control-allow-origin"), "*", p);
+  const oa = await (await raw("/openapi.json")).json();
+  for (const p of ["/v1/skips.json", "/badge/{host}", "/pricing", "/docs", "/.well-known/x402", "/health"]) assert.ok(oa.paths[p], p);
+  for (const p of Object.keys(oa.paths)) { if (p.includes("{")) continue; const s = (await raw(p === "/mcp" ? "/health" : p.replace("/v1/lookup/paid", "/health").replace(/^\/v1\/lookup$/, "/health").replace("/v1/receipts/by-url", "/health").replace(/^\/v1\/products\/.*/, "/health"))).status; assert.equal(s, 200, p); }
+  assert.equal((await (await raw("/health")).json()).version, VERSION);
+  const rep = await raw("/reputation/api.402rates.com.json"); assert.equal(rep.headers.get("content-type"), "application/json; charset=utf-8");
+  const src = (await import("node:fs")).readFileSync(new URL("../worker/src/lib.js", import.meta.url), "utf8");
+  assert.equal((src.match(/^\s*pay_to_changed: (false|null),$/gm) || []).length, 3);
+  const sj = JSON.parse((await import("node:fs")).readFileSync(new URL("../server.json", import.meta.url), "utf8")); assert.equal(sj.version, VERSION);
   assert.equal(puts, 0);
 });
 
