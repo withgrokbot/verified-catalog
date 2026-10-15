@@ -2633,7 +2633,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.37.0");
+  assert.equal(VERSION, "0.37.1");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2785,6 +2785,32 @@ test("0.37.0 reputation: documented weighted formula; new hosts are insufficient
   assert.equal(none.body.verdict, "pay");
   const mig = (await import("node:fs")).readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "migrations", "0007_endpoint_quality.sql"), "utf8");
   assert.match(mig, /CREATE TABLE IF NOT EXISTS endpoint_quality/);
+});
+
+test("0.37.1: /receipts and /skips.json 301 to /v1 keeping the query; /pricing and /docs pages; sitemap + llms.txt; 0 KV writes", async () => {
+  const e = mkEnv(); let puts = 0;
+  for (const k of Object.keys(e.env)) { const b = e.env[k]; if (b && typeof b.put === "function") { const o = b.put.bind(b); b.put = async (...a) => { puts++; return o(...a); }; } }
+  const raw = async (path, host = "https://402xagent.com") => worker.fetch(new Request(host + path, { headers: { "user-agent": "agent-x/1.0", "cf-connecting-ip": "203.0.113.7" } }), e.env, { waitUntil() {} });
+  for (const host of ["https://402xagent.com", "https://api.402xagent.com"]) {
+    let r = await raw("/receipts", host); assert.equal(r.status, 301); assert.equal(r.headers.get("location"), "/v1/receipts");
+    r = await raw("/receipts?type=dry-run&page=2", host); assert.equal(r.status, 301); assert.equal(r.headers.get("location"), "/v1/receipts?type=dry-run&page=2");
+    r = await raw("/skips.json?x=1", host); assert.equal(r.status, 301); assert.equal(r.headers.get("location"), "/v1/skips.json?x=1");
+    r = await raw("/receipts/", host); assert.equal(r.status, 301);
+    r = await raw("/pricing", host); assert.equal(r.status, 200); assert.match(r.headers.get("content-type"), /text\/html/);
+    const ph = await r.text();
+    assert.match(ph, /5 live checks per client per UTC day, at most 25 per network/);
+    assert.match(ph, /minimum \$0\.01, maximum \$0\.25/);
+    assert.match(ph, /\$0\.01 for 10 checks \(\$0\.001 each\)/);
+    assert.match(ph, /\$9/); assert.match(ph, /href="\/rules"/); assert.match(ph, /href="\/openapi\.json"/);
+    r = await raw("/docs", host); assert.equal(r.status, 200);
+    const dh = await r.text();
+    for (const l of ['href="/openapi.json"', 'href="/rules"', 'href="/llms.txt"', "/mcp", "github.com/withgrokbot/x402-spotcheck"]) assert.ok(dh.includes(l), l);
+  }
+  const sm = await (await raw("/sitemap.xml")).text(); assert.match(sm, /\/pricing<\/loc>/); assert.match(sm, /\/docs<\/loc>/);
+  const ll = await (await raw("/llms.txt")).text(); assert.match(ll, /Pricing: https:\/\/402xagent\.com\/pricing/);
+  assert.equal((await raw("/v1/receipts")).status === 404, false);
+  assert.equal((await raw("/nope-404")).status, 404);
+  assert.equal(puts, 0);
 });
 
 let passed = 0;

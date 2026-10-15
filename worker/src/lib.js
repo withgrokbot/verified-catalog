@@ -19,6 +19,7 @@
 // Privacy: raw IPs are never stored. Without a `client` value the client id is a hash of the IP /24 (IPv6 /48)
 // plus the User-Agent, salted with a secret that changes every ISO week.
 // No runtime dependencies.
+import { pricingHtml, docsHtml } from "./pages.js";
 import { REASON_TEXT, publishable, publishRecent } from "./recent.js";
 import {
   PACK_ID, PACK_TITLE, PACK_SERVICE_NAME, PACK_TAGS, PACK_DESCRIPTION,
@@ -51,7 +52,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.37.0";
+export const VERSION = "0.37.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint from $0.01";
@@ -1707,11 +1708,13 @@ async function parseSpotQuery(req, url) {
   return { url: target, task: taskSlug, claimed_price, client, ref, method, pay_to, network, mode, dry_caller, errors, ctx };
 }
 
+export const SPOT_PAID_MIN_ATOMIC = 10000; // $0.01
+export const SPOT_PAID_MAX_ATOMIC = 250000; // $0.25
 // Paid spot-check price: one tenth of the target's quoted x402 price, min $0.01, cap $0.25 (no quote -> $0.01).
 export function spotDynCfg(c, quotedUsd) {
   const q = Number(quotedUsd);
-  let atomic = Number.isFinite(q) && q > 0 ? Math.round((q * 1e6) / 10) : 10000;
-  atomic = Math.min(250000, Math.max(10000, atomic));
+  let atomic = Number.isFinite(q) && q > 0 ? Math.round((q * 1e6) / 10) : SPOT_PAID_MIN_ATOMIC;
+  atomic = Math.min(SPOT_PAID_MAX_ATOMIC, Math.max(SPOT_PAID_MIN_ATOMIC, atomic));
   return { ...c, priceAtomic: String(atomic), priceUsd: (atomic / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, "") };
 }
 // Free-tier reason: names the loss in plain words; quoted price, claimed-vs-quoted detail and pay-to stay behind the 402.
@@ -3199,6 +3202,14 @@ const routeInnerHolder = {
     if (path.startsWith("/badge/")) return handleBadge(req, env, url, CANON_ORIGIN);
     if (path === "/saves" || path === "/saves.json") { const r = await handleSaves(req, env, url, CANON_ORIGIN); if (r) return r; } // 0.35.0: SAVES_PAGE flag, off by default
     if (path.startsWith("/reputation/")) return handleReputation(req, env, url, historyKey); // 0.37.0: free, coarse band only
+    // 0.37.1: legacy/guessable paths that used to 404. Redirects keep the query string; pages are static HTML.
+    if (path === "/receipts" || path === "/skips.json") return new Response(null, { status: 301, headers: { location: "/v1" + path + url.search, "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" } });
+    if (path === "/pricing") {
+      const sc = spotCfg(env), rc = spotRouterCfg(env), lc = cfg(env);
+      const body = pricingHtml(CANON_ORIGIN, { freePerDay: sc.freePerDay, freePerIpDay: sc.freePerIpDay, paidMinAtomic: SPOT_PAID_MIN_ATOMIC, paidMaxAtomic: SPOT_PAID_MAX_ATOMIC, routerPackAtomic: rc.packAtomic, routerPackChecks: Math.floor(rc.packAtomic / rc.perCheckAtomic), routerCheckAtomic: rc.perCheckAtomic, lookupFreePerDay: lc.freePerDay, lookupAtomic: lc.priceAtomic, packAtomic: packCfg(env).priceAtomic, apiOrigin: API_ORIGIN });
+      return new Response(body, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" } });
+    }
+    if (path === "/docs") return new Response(docsHtml(CANON_ORIGIN, API_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" } });
     if (path === "/rules.json") return json(rulesJson(CANON_ORIGIN), 200, { "cache-control": "public, max-age=300" });
     if (path === "/rules") return new Response(rulesHtml(CANON_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" } });
     if (path === "/.well-known/402index-verify.txt") {
@@ -3225,8 +3236,8 @@ const routeInnerHolder = {
       return new Response(req.method === "HEAD" ? null : bytes, { headers: { "content-type": asset.type, "cache-control": "public, max-age=604800", "access-control-allow-origin": "*", "x-content-type-options": "nosniff" } });
     }
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${CANON_ORIGIN}/sitemap.xml\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
-    if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/v1/skips", "/v1/skips.json", "/v1/receipts", "/", "/openapi.json", "/llms.txt"].map((u) => `<url><loc>${CANON_ORIGIN}${u}</loc><changefreq>daily</changefreq></url>`).join("")}</urlset>\n`, { headers: { "content-type": "application/xml; charset=utf-8" } });
-    if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\nStart with the free check: GET ${FREE_CHECK_URL}\nReal example: GET ${FREE_CHECK_EXAMPLE_URL}\n  -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}\n5 free checks per client per UTC day (at most 25 per network), free dry runs with &mode=dry-run, prior checks at ${PRIOR_CHECKS}. After that, the paid check (HTTP 402, $0.01 to $0.25 USDC on Base via x402) adds the full payment terms.\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). ${COVERED()} self-checked x402 endpoints (weekly crawl); the skip list shows which ones disagree with their listing.\n- Bazaar check (free): ${CANON_ORIGIN}/bazaar (JSON: ${CANON_ORIGIN}/bazaar.json). Our daily check of the top CDP Bazaar search results.\n- Status badge (free): ${CANON_ORIGIN}/badge/api.402rates.com.svg (any host in place of api.402rates.com; optional ?path=/exact/path). Green "pay · stable N days" only when the latest check is pay and under 72 h old; otherwise grey "stale" or "not verified". Embed: [![402xAgent status](${CANON_ORIGIN}/badge/api.402rates.com.svg)](${CANON_ORIGIN}/badge/api.402rates.com). Every receipt carries its own badge snippet (Markdown + HTML).\n- Saves (free): ${CANON_ORIGIN}/saves (JSON: ${CANON_ORIGIN}/saves.json). Endpoints from the last 30 days whose live 402 differed from the listing (asked more, paid a different wallet, or another network), with redacted receipts.\n- Rules (free): ${CANON_ORIGIN}/rules (JSON: ${CANON_ORIGIN}/rules.json). Every verdict carries a stable reason_code and a confidence (high|medium|low); the codes and confidence rules are listed there.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (live receipts: ${CANON_ORIGIN}/v1/receipts/sc-<id>; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 5 free/day (25 per network), then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402.\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
+    if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/v1/skips", "/v1/skips.json", "/v1/receipts", "/", "/openapi.json", "/llms.txt", "/pricing", "/docs"].map((u) => `<url><loc>${CANON_ORIGIN}${u}</loc><changefreq>daily</changefreq></url>`).join("")}</urlset>\n`, { headers: { "content-type": "application/xml; charset=utf-8" } });
+    if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\nStart with the free check: GET ${FREE_CHECK_URL}\nReal example: GET ${FREE_CHECK_EXAMPLE_URL}\n  -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}\n5 free checks per client per UTC day (at most 25 per network), free dry runs with &mode=dry-run, prior checks at ${PRIOR_CHECKS}. After that, the paid check (HTTP 402, $0.01 to $0.25 USDC on Base via x402) adds the full payment terms.\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). ${COVERED()} self-checked x402 endpoints (weekly crawl); the skip list shows which ones disagree with their listing.\n- Bazaar check (free): ${CANON_ORIGIN}/bazaar (JSON: ${CANON_ORIGIN}/bazaar.json). Our daily check of the top CDP Bazaar search results.\n- Status badge (free): ${CANON_ORIGIN}/badge/api.402rates.com.svg (any host in place of api.402rates.com; optional ?path=/exact/path). Green "pay · stable N days" only when the latest check is pay and under 72 h old; otherwise grey "stale" or "not verified". Embed: [![402xAgent status](${CANON_ORIGIN}/badge/api.402rates.com.svg)](${CANON_ORIGIN}/badge/api.402rates.com). Every receipt carries its own badge snippet (Markdown + HTML).\n- Saves (free): ${CANON_ORIGIN}/saves (JSON: ${CANON_ORIGIN}/saves.json). Endpoints from the last 30 days whose live 402 differed from the listing (asked more, paid a different wallet, or another network), with redacted receipts.\n- Rules (free): ${CANON_ORIGIN}/rules (JSON: ${CANON_ORIGIN}/rules.json). Every verdict carries a stable reason_code and a confidence (high|medium|low); the codes and confidence rules are listed there.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (live receipts: ${CANON_ORIGIN}/v1/receipts/sc-<id>; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 5 free/day (25 per network), then $0.01 to $0.25 USDC (one tenth of the target's quoted price) on Base via x402.\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n- Pricing: ${CANON_ORIGIN}/pricing  Docs: ${CANON_ORIGIN}/docs\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (path === "/" && url.hostname === "402xagent.com" && /text\/html/.test(req.headers.get("accept") || ""))
       return new Response(landingHtml(CANON_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", vary: "accept", "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "access-control-allow-origin": "*" } });
     if (path === "/")
