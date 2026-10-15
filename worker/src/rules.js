@@ -1,8 +1,10 @@
 // 0.30.0: stable reason codes + confidence, published at /rules (HTML) and /rules.json. Additive only: the human
 // reason stays in `reason` (free) / `reason_text` (receipts); `reason_code` is the stable machine code.
 import { REASON_TEXT } from "./recent.js";
+import { QUALITY_CODES } from "./quality.js";
+import { REPUTATION_RULES } from "./reputation.js";
 
-export const RULES_VERSION = "2026-10-13";
+export const RULES_VERSION = "2026-10-15"; // 0.37.0: + quality_codes, reputation (additive)
 // code -> verdict it produces, and its default confidence
 export const REASON_CODES = [
   { code: "price_ok", verdict: "pay", confidence: "high", rule: "Live 402 offers canonical USDC on a supported mainnet, to the listed wallet and network, at the listed price (within 1%)." },
@@ -51,12 +53,17 @@ export function rulesJson(origin) {
     verdicts: { pay: "safe to pay these exact terms now", skip: "do not pay (we saw a concrete problem)", recheck: "no decision yet: try again later" },
     reason_codes: REASON_CODES.map((r) => ({ ...r, text: REASON_TEXT[r.code] || null })),
     confidence: { levels: ["high", "medium", "low"], rules: CONFIDENCE_RULES },
+    // 0.37.0 (additive, separate from reason_code: never changes a verdict)
+    quality_codes: QUALITY_CODES.map((q) => ({ code: q.code, reputation_value: q.score, rule: q.rule })),
+    reputation: REPUTATION_RULES,
     fields: {
       reason_code: "stable machine code (this list); never renamed, new codes may be added",
       reason: "free answers: one plain-words line; paid answers: the code (unchanged since 0.6)",
       confidence: "high | medium | low (rules above)",
       history: "summary of the last 30 observations: stable_for_days, stable_since, last_changed, drift",
       history_observations: "paid, router and exempt answers only: the last 30 observations (time, price, network, pay_to, asset, status)",
+      quality: "0.37.0: paid, router and exempt answers: {code, checks {reachable, http_status, status_is_402, content_type, content_type_ok, body_bytes, schema_declared, schema_source, schema_match}}; free answers and dry runs: {code} only. Metadata of the unpaid 402 response; never changes verdict or reason_code.",
+      reputation: "0.37.0: seller host reputation. Paid, router and exempt answers: {host, score 0..100 or null, band, confidence, low_data, provisional_score?, breakdown, inputs}; free answers and dry runs: {host, band} only. Free page: /reputation/<host>.",
     },
     price_tolerance: "within 1% of the listed price counts as the listed price",
     limits: {
@@ -77,6 +84,8 @@ export function rulesHtml(origin) {
 <h2>Reason codes</h2><table><tr><th>reason_code</th><th>verdict</th><th>default confidence</th><th>rule</th></tr>${rows}</table>
 <p>${esc(j.price_tolerance)}.</p>
 <h2>Confidence</h2><ul>${j.confidence.rules.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
+<h2>Quality codes</h2><p>Separate from reason_code; never changes a verdict. Folded into reputation.</p><table><tr><th>code</th><th>reputation value</th><th>rule</th></tr>${j.quality_codes.map((q) => `<tr><td><code>${esc(q.code)}</code></td><td>${esc(q.reputation_value)}</td><td>${esc(q.rule)}</td></tr>`).join("")}</table>
+<h2>Seller reputation</h2><p>${esc(j.reputation.formula)}</p><table><tr><th>component</th><th>weight</th><th>definition</th></tr>${Object.entries(j.reputation.weights).map(([k, w]) => `<tr><td><code>${esc(k)}</code></td><td>${esc(w)}</td><td>${esc(j.reputation.components[k])}</td></tr>`).join("")}</table><ul><li>${esc(j.reputation.insufficient_data)}</li><li>bands: ${esc(j.reputation.bands)}</li><li>confidence: ${esc(j.reputation.confidence)}</li><li>${esc(j.reputation.tiers)}</li><li>${esc(j.reputation.note)}</li></ul>
 <h2>Limits</h2><ul>${Object.entries(j.limits).map(([k, v]) => `<li><b>${esc(k)}</b>: ${esc(v)}</li>`).join("")}</ul>
 <h2>Fields</h2><ul>${Object.entries(j.fields).map(([k, v]) => `<li><code>${esc(k)}</code>: ${esc(v)}</li>`).join("")}</ul>
 <p><a href="/">402xAgent</a></p></body></html>`;
