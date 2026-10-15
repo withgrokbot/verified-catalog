@@ -213,7 +213,7 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
 <section id="try" class="alt" aria-labelledby="try-h"><div class="wrap">
   <p class="kicker">Live</p>
   <h2 id="try-h">Try it</h2>
-  <p class="lead">Paste a paid x402 URL. This runs the real free 402xAgent check: one per day per network, then a free dry run (nothing signed or paid, never an approval).</p>
+  <p class="lead">Paste a paid x402 URL. This runs the real free 402xAgent check: 5 per day (at most 25 per network), then a free dry run (nothing signed or paid, never an approval).</p>
   <div class="card try">
     <form id="f" class="row" novalidate>
       <label class="sr" for="u">Endpoint URL</label>
@@ -256,7 +256,7 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
   <h2 id="pricing-h" class="bigprice">Free to try, paid checks from $0.01</h2>
   <p class="lead">USDC on Base via x402. No account, no key.</p>
   <div class="grid3 tiers">
-    <div class="card price p1"><h3>Free</h3><p><b>$0</b>: 1 check per client per UTC day (verdict, plain-words reason and a hash of the approved terms). Dry runs are free too.</p></div>
+    <div class="card price p1"><h3>Free</h3><p><b>$0</b>: 5 checks per client per UTC day, at most 25 per network (verdict, plain-words reason and a hash of the approved terms). Dry runs are free too.</p></div>
     <div class="card price p2"><h3>Paid check</h3><p><b>1/10 of the target's price</b>, $0.01 min to $0.25 max. Full detail plus the payment object to sign.</p></div>
     <div class="card price p3"><h3>Router tier</h3><p><b>$0.001/check</b> in packs of 10, billed as one $0.01 x402 payment; the other 9 are prepaid on your router id.</p></div>
   </div>
@@ -297,8 +297,8 @@ async function run(e){if(e)e.preventDefault();const url=u.value.trim();if(!/^htt
 go.disabled=true;msg("Checking…");try{let r=await call(url,false);let j=await r.json().catch(()=>({}));
 if(r.status===200){setResp(j,false);show(j,j.access&&j.access.tier==="free"?"Free check: "+E(j.access.free_remaining_today)+" left today. Full detail and the payment object are in the paid check.":"");}
 else if(r.status===402){const r2=await call(url,true),j2=await r2.json().catch(()=>({}));
-if(r2.status===200){setResp(j2,true);show(j2,"Today's free check is used, so this is a free dry run: nothing signed or paid, and not an approval to pay. A full check costs "+E(j.price_usd?"$"+j.price_usd:"$0.01+")+" in USDC on Base via x402.");}
-else if(r2.status===429)msg("Today's free check and dry runs are used up from this network. They reset at 00:00 UTC.");else msg(E(j2.error||("Dry run failed: HTTP "+r2.status)));}
+if(r2.status===200){setResp(j2,true);show(j2,"Today's free checks are used, so this is a free dry run: nothing signed or paid, and not an approval to pay. A full check costs "+E(j.price_usd?"$"+j.price_usd:"$0.01+")+" in USDC on Base via x402.");}
+else if(r2.status===429)msg("Today's free checks and dry runs are used up from this network. They reset at 00:00 UTC.");else msg(E(j2.error||("Dry run failed: HTTP "+r2.status)));}
 else if(r.status===400)msg(E(j.error||("Bad request: "+(j.reason||r.status))));
 else msg("Unexpected answer: HTTP "+r.status);}catch(err){msg("Could not reach 402xAgent. Try again.");}finally{go.disabled=false;}}
 $("#f").addEventListener("submit",run);

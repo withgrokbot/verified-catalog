@@ -194,7 +194,7 @@ export async function handleReputation(req, env, url, hkeyFn) {
   if (raw.endsWith(".json")) raw = raw.slice(0, -5);
   const hdr = { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" };
   if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(:\d{1,5})?$/.test(raw) || raw.length > 253)
-    return new Response(JSON.stringify({ error: "use /reputation/<host>, e.g. /reputation/api.402rates.com" }), { status: 400, headers: { ...hdr, "content-type": "application/json" } });
+    return new Response(JSON.stringify({ error: "use /reputation/<host>, e.g. /reputation/api.402rates.com" }), { status: 400, headers: { ...hdr, "content-type": "application/json; charset=utf-8" } });
   const rep = await hostReputation(env, raw, hkeyFn);
   const body = {
     host: raw,
@@ -204,6 +204,6 @@ export async function handleReputation(req, env, url, hkeyFn) {
     check: "https://api.402xagent.com/v1/products/endpoint-spot-check?url=<endpoint on this host>",
     rules: "https://402xagent.com/rules.json",
   };
-  if (wantJson) return new Response(JSON.stringify(body), { headers: { ...hdr, "content-type": "application/json" } });
+  if (wantJson) return new Response(JSON.stringify(body), { headers: { ...hdr, "content-type": "application/json; charset=utf-8" } });
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>402xAgent reputation: ${escH(raw)}</title><link rel="alternate" type="application/json" href="/reputation/${escH(raw)}.json"><style>body{font:15px/1.5 system-ui,sans-serif;max-width:720px;margin:24px auto;padding:0 16px}</style></head><body><h1>Seller reputation: ${escH(raw)}</h1><p>Band: <b>${escH(body.band)}</b> (high, medium, low or insufficient_data).</p><p>${escH(body.note)}</p><p>Formula and weights: <a href="/rules">/rules</a> · JSON: <a href="/reputation/${escH(raw)}.json">/reputation/${escH(raw)}.json</a></p></body></html>`, { headers: { ...hdr, "content-type": "text/html; charset=utf-8" } });
 }
