@@ -98,5 +98,6 @@ database_id = "35d1d852-ad3f-471e-9fc6-5b9a9d341e08"
 migrations_dir = "migrations"
 
 # 0.26.0: lean /bazaar refresh; idle steps are one KV read
+# 0.36.0: "17 10 * * *" = daily re-check of the badge hosts (src/daily.js), 10:17 UTC; D1 only, 0 KV writes
 [triggers]
-crons = ["*/20 * * * *"]
+crons = ["*/20 * * * *", "17 10 * * *"]

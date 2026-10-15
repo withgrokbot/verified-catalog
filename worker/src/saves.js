@@ -3,6 +3,7 @@
 // different network. Crawl rows come from saves-data.js (build_saves.py); live rows from D1 receipts of the last 30 days.
 // Excludes path templates, our own hosts and our own test checks. Endpoints are shown without query strings.
 import { SAVES, SAVES_META } from "./saves-data.js";
+import { lastDailyCheck, lastCheckedText } from "./daily.js";
 const MAX_AGE_D = 30, TOL = 0.01;
 const OWN = /(^|\.)(402xagent\.com|payscout\.dev|withgrokbot\.workers\.dev|target\.test)$/i;
 const TEMPLATE = /(\{[^}/]*\}|\/:[A-Za-z_]|\[[^\]/]*\]|%7B|%7D)/i;
@@ -61,6 +62,7 @@ export async function liveSaves(db, now = new Date()) {
 export async function savesJson(env, origin, now = new Date()) {
   let live = [];
   try { live = await liveSaves(env.RECEIPTS_DB, now); } catch (_) { live = []; }
+  const last_checked = await lastDailyCheck(env.RECEIPTS_DB); // 0.36.0: latest daily re-check (UTC), null if none yet
   const cutoff = new Date(now.getTime() - MAX_AGE_D * 86400000).toISOString().slice(0, 10);
   const seen = new Set(), rows = [];
   for (const s of [...live, ...SAVES]) {
@@ -76,6 +78,7 @@ export async function savesJson(env, origin, now = new Date()) {
   return {
     title: "402xAgent saves: payments an agent would have made to terms that differ from the listing",
     window_days: MAX_AGE_D,
+    last_checked,
     crawl_built_at: SAVES_META.built_at || null,
     crawl_total_before_cap: SAVES_META.total ?? null,
     crawl_counts_before_cap: SAVES_META.counts || null,
@@ -98,5 +101,5 @@ export async function handleSaves(req, env, url, origin) {
   const total = j.crawl_total_before_cap != null && j.crawl_total_before_cap > j.crawl_count ? j.crawl_total_before_cap : null;
   const summary = (total != null ? `showing ${n(j.crawl_count)} of ${n(total)} crawl findings` : `${n(j.crawl_count)} crawl findings`) + ` + ${n(j.live_count)} live check${j.live_count === 1 ? "" : "s"}`;
   const tr = j.saves.slice(0, 500).map((s) => `<tr><td><code>${esc(s.endpoint)}</code></td><td>${esc(s.what)}</td><td>${esc(s.date)}</td><td>${s.receipt ? `<a href="${esc(s.receipt)}">receipt</a>` : ""}</td></tr>`).join("");
-  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>402xAgent saves</title><link rel="alternate" type="application/json" href="/saves.json"><style>body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:24px auto;padding:0 16px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eee;padding:5px 8px;text-align:left;vertical-align:top}code{word-break:break-all}</style></head><body><h1>Saves</h1><p>${esc(summary)} in the last ${esc(j.window_days)} days where the live payment request differed from the listing: ${esc(j.counts.price_higher)} asked more than listed, ${esc(j.counts.pay_to_changed)} pay a different wallet, ${esc(j.counts.network_changed)} ask for another network. JSON: <a href="/saves.json">/saves.json</a>. Rules: <a href="/rules">/rules</a>.</p><table><tr><th>endpoint</th><th>what differed</th><th>date</th><th></th></tr>${tr}</table></body></html>`, { headers: { ...hdr, "content-type": "text/html; charset=utf-8" } });
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>402xAgent saves</title><link rel="alternate" type="application/json" href="/saves.json"><style>body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:24px auto;padding:0 16px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eee;padding:5px 8px;text-align:left;vertical-align:top}code{word-break:break-all}</style></head><body><h1>Saves</h1><p>${esc(summary)} in the last ${esc(j.window_days)} days where the live payment request differed from the listing: ${esc(j.counts.price_higher)} asked more than listed, ${esc(j.counts.pay_to_changed)} pay a different wallet, ${esc(j.counts.network_changed)} ask for another network. JSON: <a href="/saves.json">/saves.json</a>. Rules: <a href="/rules">/rules</a>.</p><p class="last-checked">${esc(lastCheckedText(j.last_checked))}</p><table><tr><th>endpoint</th><th>what differed</th><th>date</th><th></th></tr>${tr}</table></body></html>`, { headers: { ...hdr, "content-type": "text/html; charset=utf-8" } });
 }
