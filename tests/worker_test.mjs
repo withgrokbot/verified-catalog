@@ -1034,8 +1034,8 @@ test("spot-check aliases: endpoint= and claimed_price_usd= accepted (0.6.3); /v1
   assert.equal(a.status, 200);
   assert.equal(a.body.verdict, "skip");
   assert.equal(a.body.claimed_price_usd, 0.0001);
-  const none = await send(SPOT + "?client=withgrokbot-selftest", { envo: e });
-  assert.equal(none.status, 200, "0.26.1: GET with no url = usage/help, HTTP 200");
+  const none = await send(SPOT + "?client=withgrokbot-selftest", { envo: e, headers: { "x-payment": "x" } });
+  assert.equal(none.status, 200, "0.26.1: GET with no url (payment header present) = usage/help, HTTP 200");
   assert.deepEqual(Object.keys(none.body), ["error", "field", "example", "mistake", "hint", "fixed_example", "docs"]);
   assert.equal(none.body.field, "url");
   assert.ok(none.body.error.startsWith('Missing "url". Example: ') && !none.body.error.includes("\n"));
@@ -1712,7 +1712,7 @@ test("landing page (0.17.0): HTML to browsers on 402xagent.com only, real counts
   assert.equal(html.status, 200);
   assert.match(html.headers.get("content-type"), /text\/html/);
   const t = await html.text();
-  for (const re of [/<h1>Check before your <span class="grad">agent pays<\/span><\/h1>/, /og:title" content="402xAgent/, /rel="canonical" href="https:\/\/402xagent.com\/"/, /og:url" content="https:\/\/402xagent.com\/"/, /id="try"/, /wrapFetchWithPayment\(spotCheckFetch\(fetch\), client\)/, /wrapAxiosWithPayment\(spotCheckAxios\(axios.create\(\)\), client\)/, /class="bigprice">5 free checks a day, from \$0\.02<\/h2>/, /\$0\.02 a check<\/b>, any target price/, /\$0\.02\/check<\/b> in packs of 10, billed as one \$0\.20/, /<details class="sample" id="resp">\s*<summary>Show response<\/summary>/, /Stops your agent paying dead, mispriced or wrong-network endpoints/, /First router integration gets 1,000 free checks/, /withgrokbot\/x402-spotcheck\/issues\/new/, /href="\/mcp"/, /href="\/llms.txt"/, /href="\/openapi.json"/, /href="\/v1\/skips"/, /curl &quot;https:\/\/api\.402xagent\.com\/v1\/products\/endpoint-spot-check/])
+  for (const re of [/<h1>Check before your <span class="grad">agent pays<\/span><\/h1>/, /og:title" content="402xAgent/, /rel="canonical" href="https:\/\/402xagent.com\/"/, /og:url" content="https:\/\/402xagent.com\/"/, /id="try"/, /wrapFetchWithPayment\(spotCheckFetch\(fetch\), client\)/, /wrapAxiosWithPayment\(spotCheckAxios\(axios.create\(\)\), client\)/, /class="bigprice">5 free checks a day, from \$0\.02<\/h2>/, /\$0\.02 a check<\/b>, any target price/, /\$0\.02\/check<\/b> in packs of 10, billed as one \$0\.20/, /<details class="sample" id="resp">\s*<summary>Show response<\/summary>/, /Stops your agent paying dead, mispriced or wrong-network endpoints/, /href="\/mcp"/, /href="\/llms.txt"/, /href="\/openapi.json"/, /href="\/v1\/skips"/, /curl &quot;https:\/\/api\.402xagent\.com\/v1\/products\/endpoint-spot-check/])
     assert.match(t, re);
   assert.ok(t.includes(`>${RECEIPTS_META.skip}</div><div class="l">skip`), "skip count is the real crawl number");
   assert.ok(t.includes(`>${RECEIPTS_META.pay}</div><div class="l">pay`));
@@ -1834,13 +1834,13 @@ test("0.22.0: 400s name the mistake + a copy-pasteable fixed free check; /v1/ski
   const ok = (b) => assert.equal(b.docs, "https://api.402xagent.com/openapi.json");
   const e = spotEnv();
   // bare call -> real example
-  let r = await send(SPOT, { envo: e, ua: "node" });
+  let r = await send(SPOT, { envo: e, ua: "node", headers: { "x-payment": "x" } });
   assert.equal(r.status, 200); assert.equal(r.body.mistake, "no_params"); ok(r.body); // 0.26.1: usage/health GET
   assert.deepEqual(r.body.fixed_example, { method: "GET", url: R + "?url=https://api.402rates.com/v1/ping" });
   assert.equal(r.points.at(-1).blobs[16], "no_params"); assert.equal(r.points.at(-1).blobs[17], "GET||");
   assert.equal(r.points.at(-1).blobs[19], "lookup.test");
   // cb= alone is not "an unknown param"
-  r = await send(SPOT + "?cb=123", { envo: e });
+  r = await send(SPOT + "?cb=123", { envo: e, headers: { "x-payment": "x" } });
   assert.equal(r.body.mistake, "no_params"); assert.ok(!r.body.error.includes('"cb"'));
   // wrong param name -> their value moved to url=, encoded (query string preserved)
   const tv = "https://api.example.org/v1/quote?sym=ETH&n=2";
@@ -1862,7 +1862,7 @@ test("0.22.0: 400s name the mistake + a copy-pasteable fixed free check; /v1/ski
   // POST form body -> JSON body with their value
   r = await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "url=" + encodeURIComponent("https://api.example.org/y") });
   assert.equal(r.body.mistake, "post_form_body"); assert.deepEqual(r.body.fixed_example.body, { url: "https://api.example.org/y" });
-  r = await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+  r = await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/json", "x-payment": "x" }, body: "{}" });
   assert.equal(r.body.mistake, "no_params"); assert.equal(r.body.fixed_example.method, "POST");
   r = await send(SPOT + "?url=https://a.test/x&claimed_price=abc", { envo: e });
   assert.equal(r.body.mistake, "bad_claimed_price"); assert.equal(r.body.fixed_example.url, R + "?url=" + encodeURIComponent("https://a.test/x"));
@@ -2205,23 +2205,35 @@ test("0.27.0: a GET that answers 405 is probed once with POST; the 402 from POST
   assert.equal(r2.body.probe.method_used, undefined);
 });
 
-test("0.26.1: GET/HEAD with no url -> 200 + the usage/help body; malformed url and bad POST bodies stay 400", async () => {
-  const e = spotEnv();
-  const g = await send(SPOT, { envo: e });
-  assert.equal(g.status, 200);
-  assert.equal(g.body.field, "url"); assert.equal(g.body.mistake, "no_params");
-  assert.ok(g.body.fixed_example && g.body.docs && g.body.error.startsWith('Missing "url"'));
+test("0.39.1: no url + no payment header (GET/HEAD/POST) -> x402 v2 discovery 402 at 20000, same accepts/Bazaar as the paid challenge, Missing url hint, no free check used, nothing written; malformed/misnamed stay 400", async () => {
+  const db = fakeD1(); const e = spotEnv({ RECEIPTS_DB: db });
+  spotTargetMode = "402";
+  const paid = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/disc") + "&client=disc-a", { envo: e, headers: { "x-payment": "" } });
+  const before = { rows: db.rows.length, kv: JSON.stringify([...(e.env.KV && e.env.KV.store ? e.env.KV.store : [])]) };
+  const pts0 = e.points ? e.points.length : 0;
+  for (const [method, init] of [["GET", {}], ["POST", { headers: { "content-type": "application/json" }, body: "{}" }], ["POST", {}]]) {
+    const r = await send(SPOT + "?client=disc-b", { envo: e, method, ...init });
+    assert.equal(r.status, 402, method + " bare -> 402");
+    assert.equal(r.body.x402Version, 2);
+    assert.equal(r.body.accepts[0].amount, "20000");
+    assert.equal(r.body.discovery, true); assert.match(r.body.error, /Missing url/); assert.ok(r.body.hint.startsWith('Missing "url"'));
+    assert.deepEqual(JSON.parse(atob(r.headers.get("payment-required"))).accepts, r.body.accepts);
+    const { amount: _a, ...acc } = r.body.accepts[0];
+    for (const k of Object.keys(acc)) if (k !== "resource" && k !== "extra") assert.deepEqual(acc[k], paid.body.accepts ? paid.body.accepts[0][k] : acc[k], "accepts." + k);
+    if (paid.body.extensions) assert.deepEqual(Object.keys(r.body.extensions || {}), Object.keys(paid.body.extensions));
+  }
   const h = await worker.fetch(new Request("https://lookup.test" + SPOT, { method: "HEAD" }), e.env, { waitUntil() {} });
-  assert.equal(h.status, 200);
+  assert.equal(h.status, 402);
+  assert.equal(db.rows.length, before.rows, "no D1 write");
+  // free quota untouched: disc-b still gets its first free check
+  const f = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/disc2") + "&client=disc-b", { envo: e });
+  assert.equal(f.status, 200); assert.equal(f.body.access.tier, "free"); assert.equal(f.body.access.free_used_today, 1);
+  // with a payment header and no url: old usage answer
+  assert.equal((await send(SPOT, { envo: e, headers: { "x-payment": "x" } })).status, 200);
   assert.equal((await send(SPOT + "?url=notaurl", { envo: e })).status, 400, "malformed url");
   assert.equal((await send(SPOT + "?url=api.example.org/v1/ping", { envo: e })).status, 400, "no scheme");
-  assert.equal((await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, 400, "POST without url");
   assert.equal((await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ target_url: "https://a.dev/x" }) })).status, 400, "POST wrong field");
-  assert.equal((await send(SPOT, { envo: e, method: "POST", body: "nope" })).status, 400, "POST bad body");
   assert.equal((await send(SPOT + "?link=https://a.test/x", { envo: e })).status, 400, "misnamed url param stays 400");
-  assert.equal((await send(SPOT + "?cb=123&client=hc", { envo: e })).status, 200, "cache-buster / client only = usage");
-  // no payment, no probe on the usage answer
-  assert.equal(g.headers.get("payment-required"), null);
 });
 
 test("0.28.0: live price more than 1% BELOW the listing is pay/price_below_listing; above stays skip; stored receipts get a read-time note", async () => {
@@ -2633,7 +2645,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.39.0");
+  assert.equal(VERSION, "0.39.1");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2982,6 +2994,7 @@ test("0.39.0 home: 'Try a check' runs the free Try-it flow; REAL stored example 
   assert.match(html, /can&#39;t verify|can't verify/);
   assert.match(html, /href="\/docs#quick-start"/);
   assert.ok(!/coming soon|Hosted mode/i.test(html), "no hosted coming-soon offer");
+  for (const s of [html, ...await Promise.all(["/llms.txt", "/docs", "/pricing", "/openapi.json", "/.well-known/x402"].map(async (p) => (await worker.fetch(new Request("https://402xagent.com" + p), {}, {})).text()))]) assert.ok(!/router integration gets|1,000 free checks|offer-h/i.test(s), "0.39.1: router-integration offer card removed");
   assert.match(html, /Checks read these networks: /); assert.match(html, /You pay us in USDC on Base\./);
   assert.ok(html.includes(Number(RECEIPTS_META.endpoints_covered).toLocaleString("en-US") + " checks · last crawl"), "hero label formatted from data");
   assert.match(landingHtml("https://402xagent.com", { crawled_at: "2026-10-13T00:00:00Z", endpoints_covered: 121785 }), />121,785 checks · last crawl Oct 13</);

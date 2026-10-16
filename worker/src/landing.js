@@ -191,18 +191,13 @@ pre{margin:0;background:var(--code);color:var(--codefg);padding:20px 22px;overfl
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
 .stat{padding:20px 22px}.stat .n{font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1.1}.stat .l{color:var(--muted);font-size:14px;margin-top:4px}
 .n.pay{color:var(--pay)}.n.skip{color:var(--skip)}.n.recheck{color:var(--recheck)}
-.offer{padding:34px;display:flex;gap:24px;align-items:center;justify-content:space-between;flex-wrap:wrap;position:relative;overflow:hidden}
-.offer:after{content:"";position:absolute;inset:0;background:radial-gradient(50% 120% at 100% 0%,rgba(245,166,35,.13),transparent 60%),radial-gradient(40% 100% at 0% 100%,rgba(47,128,237,.10),transparent 60%);pointer-events:none}
-.offer>*{position:relative}
-.offer h2{margin:0 0 6px}.offer p{margin:0;color:var(--muted);max-width:620px}
 footer{border-top:1px solid var(--line);padding:32px 0 44px;color:var(--muted);font-size:14px;background:#fff}
 footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
 footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}footer a:hover{color:var(--fg)}
 .foot-brand{display:flex;align-items:center;gap:10px}.foot-brand img{height:20px;width:auto}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media (max-width:820px){.steps,.grid3{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.nav nav a.hide-sm{display:none}.hero{padding:48px 0 44px}section{padding:60px 0}.hero-logo{width:180px}}
-@media (max-width:560px){.wrap{padding:0 18px}.row .btn{flex:1 1 100%;justify-content:center}.tab{padding:9px 10px;font-size:13px}.tablist{padding:6px 8px 0 6px}pre{font-size:12.5px;padding:16px}.try{padding:16px}.brand span{font-size:17px}.nav nav a.gh{margin-left:2px}.offer{padding:24px}}
-@media (prefers-reduced-motion:no-preference){.btn,.chip,.tab,.nav nav a{transition:background .15s,border-color .15s,color .15s}}
+@media (max-width:560px){.wrap{padding:0 18px}.row .btn{flex:1 1 100%;justify-content:center}.tab{padding:9px 10px;font-size:13px}.tablist{padding:6px 8px 0 6px}pre{font-size:12.5px;padding:16px}.try{padding:16px}.brand span{font-size:17px}.nav nav a.gh{margin-left:2px}@media (prefers-reduced-motion:no-preference){.btn,.chip,.tab,.nav nav a{transition:background .15s,border-color .15s,color .15s}}
 </style>
 </head>
 <body>
@@ -302,13 +297,6 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
     <div class="card stat"><div class="n recheck">${esc(m.recheck ?? 0)}</div><div class="l">recheck</div></div>
   </div>
   <div class="cta" style="justify-content:flex-start"><a class="btn" href="/v1/skips">See the skips →</a><a class="btn" href="/bazaar">Bazaar check</a><a class="btn" href="/saves">Saves</a><a class="btn" href="/v1/receipts?type=dry-run">Recent receipts</a></div>
-</div></section>
-
-<section aria-labelledby="offer-h"><div class="wrap">
-  <div class="card offer">
-    <div><h2 id="offer-h">First router integration gets 1,000 free checks</h2><p>Building a router or agent framework on x402? The first one to integrate 402xAgent gets 1,000 full checks (paid-tier detail, no payment). Tell us on GitHub and we'll set you up privately.</p></div>
-    <a class="btn primary" href="https://github.com/withgrokbot/x402-spotcheck/issues/new?title=Router%20integration%3A%20free%20checks">Open an issue</a>
-  </div>
 </div></section>
 </main>
 <footer><div class="wrap">
