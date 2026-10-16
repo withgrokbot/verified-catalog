@@ -15,6 +15,7 @@ export function pricingHtml(origin, p) {
   const rows = [
     ["Free check", `$0: ${p.freePerDay} live checks per client per UTC day, at most ${p.freePerIpDay} per network (IP) per day across client names. Dry runs (<code>&amp;mode=dry-run</code>) are free.`],
     ["Paid check", `${usd(p.paidAtomic)} per check, flat, whatever the target endpoint charges. Adds full payment terms and the payment object to sign.`],
+    ["Payment status (after you pay)", `${usd(p.paidAtomic)} per lookup, flat, after the same ${p.freePerDay} free checks per day (shared with the check, same per-network cap). <code>POST /v1/products/payment-status</code>: did your Base USDC payment land, and is it safe to sign a new one? <a href="/docs#payment-status">Docs</a>.`],
     ["Router pack", `${usd(p.routerPackAtomic)} for ${p.routerPackChecks} checks (${usd(p.routerCheckAtomic)} each), paid as one x402 payment; for registered router clients.`],
     ["Catalog lookup (<code>/v1/lookup</code>)", `${p.lookupFreePerDay} free per client per UTC day, then ${usd(p.lookupAtomic)} per call; <code>/v1/lookup/paid</code> is always ${usd(p.lookupAtomic)}.`],
     ["Overnight chief-of-staff pack", `${usd(p.packAtomic)} (<code>/v1/products/overnight-cos-pack</code>).`],
