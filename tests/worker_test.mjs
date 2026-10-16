@@ -3075,7 +3075,7 @@ const psFetch = (orig) => async (url, init = {}) => {
   if (method === "eth_getLogs") {
     assert.deepEqual(params[0].topics.slice(1), [psPad(PS_FROM), PS_NONCE]);
     if (!n.event) return R([]);
-    return R([{ address: USDC, topics: [n.event === "canceled" ? "0x1cdd46ff242716cdaa72d159d339a485b3438398348d68f09d7c8c0a59353d81" : "0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5", psPad(PS_FROM), PS_NONCE], data: "0x", transactionHash: n.event === "canceled" ? null : PS_TX }]);
+    return R([{ address: USDC, topics: [n.event === "canceled" ? "0x1cdd46ff242716cdaa72d159d339a485b3438398348d68f09d7c8c0a59353d81" : "0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5", psPad(PS_FROM), PS_NONCE], data: "0x", blockNumber: psHex(n.eventBlock ?? n.head - 50), transactionHash: n.event === "canceled" ? "0x" + "77".repeat(32) : PS_TX }]);
   }
   if (method === "eth_getTransactionReceipt") return R(n.receipt);
   return Response.json({ jsonrpc: "2.0", id: 1, error: { code: -32601, message: "nope" } });
@@ -3201,8 +3201,16 @@ test("0.40.0 payment-status strict re-sign rule: not_landed only with two source
   r = await ask(psNode(), psNode({ used: true }));
   assert.deepEqual([r.body.status, r.body.safe_to_resign], ["unknown", false]);
   // canceled
-  r = await ask(psNode({ used: true, event: "canceled" }), psNode({ used: true, event: "canceled" }));
-  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign], ["canceled", "authorization_canceled", false]);
+  // canceled: safe only when BOTH sources see AuthorizationCanceled (this authorizer + nonce) with >= 10 confirmations
+  r = await ask(psNode({ used: true, event: "canceled", eventBlock: 4991 }), psNode({ used: true, event: "canceled", eventBlock: 4991 }));
+  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign], ["canceled", "authorization_canceled", true]);
+  r = await ask(psNode({ used: true, event: "canceled", eventBlock: 4992 }), psNode({ used: true, event: "canceled", eventBlock: 4980 }));
+  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign], ["canceled", "canceled_low_confirmations", false], "9 confirmations on one source");
+  r = await ask(psNode({ used: true, event: "canceled", eventBlock: 4000 }), psNode({ fail: true }), psNode({ fail: true }));
+  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign], ["canceled", "canceled_single_source", false]);
+  r = await ask(psNode({ used: true, event: "canceled", eventBlock: 4000 }), psNode({ used: true }));
+  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign], ["canceled", "canceled_sources_disagree", false]);
+  r = await ask(psNode({ used: true, event: "canceled", eventBlock: 4000 }), psNode({ used: true, event: "canceled", eventBlock: 4000 }));
   assert.equal(r.body.authorization.event, "canceled");
   // reorg window: landed with 3 confirmations -> pending, not stored
   const shallow = psReceipt({ block: 4998 });
@@ -3263,6 +3271,14 @@ test("0.40.0 payment-status: chain outage -> 503 (nothing charged, no free check
   // a wrong-amount payment header is refused before any settle
   r = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e, client: "ps-shared", headers: { "payment-signature": v2Payment({ amount: "10000" }) } });
   assert.equal(r.status, 402); assert.match(r.body.error, /amount does not match/);
+  // per-network free cap (shared with the check): 3 free per network, across client names
+  const e3 = psEnv({ SPOT_FREE_PER_IP_DAY: "3" });
+  psSet(psNode(), psNode());
+  for (let i = 0; i < 2; i++) assert.equal((await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e3, client: "ps-ipcap-" + i })).body.access.tier, "free");
+  assert.equal((await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/ipcap") + "&client=ps-ipcap-x", { envo: e3 })).body.access.tier, "free", "3rd free on this network (a check)");
+  r = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e3, client: "ps-ipcap-new" });
+  assert.equal(r.status, 402); assert.match(r.body.error, /per UTC day from one network/);
+  assert.equal((await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/ipcap2") + "&client=ps-ipcap-y", { envo: e3 })).status, 429, "the check sees the same network cap");
   // MCP tool
   const orig = globalThis.fetch; globalThis.fetch = psFetch(orig);
   try {

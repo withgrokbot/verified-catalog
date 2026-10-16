@@ -3505,7 +3505,11 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
   // access (peek only: a chain outage must not use a free check)
   const exempt = isExempt(qLike, env);
   const key = exempt ? null : await quotaKey(req, qLike, env);
-  const peek = exempt ? { free: true, used: null } : await takeFree(env, key, c.freePerDay, new Date(), "peek", SPOT_QUOTA_COUNTER);
+  // Max 2026-10-16: counts toward BOTH the per-client daily free checks and the per-network free cap (same counters as the check)
+  const ipK = exempt ? null : await freeIpKey(req, env);
+  const ipPeek = ipK ? await takeFree(env, ipK, c.freePerIpDay, new Date(), "peek", SPOT_FREE_IP_COUNTER) : { free: true };
+  const peek0 = exempt ? { free: true, used: null } : await takeFree(env, key, c.freePerDay, new Date(), "peek", SPOT_QUOTA_COUNTER);
+  const peek = ipPeek.free === false ? { free: false, used: peek0.used, ipCapped: true } : peek0;
   let payload = null;
   if (!exempt && !peek.free) {
     const deny = (error, kind) => {
@@ -3513,6 +3517,7 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
       point(402, kind);
       return json(body, 402, { "payment-required": b64encode(body) });
     };
+    if (!hdr && peek.ipCapped) return deny(`Free check limit: ${c.freePerIpDay} free checks per UTC day from one network (shared with the 402xAgent check). Pay $${cd.priceUsd} USDC on Base via x402 to continue.`, "ps-free-ip-capped");
     if (!hdr) return deny(`Free checks used up for today (${c.freePerDay} per UTC day, shared with the 402xAgent check). Pay $${cd.priceUsd} USDC on Base via x402 to continue.`, "payment-required");
     payload = decodePaymentHeader(hdr);
     if (!payload) return deny("payment header is not valid base64 JSON x402 payload", "payment-failed");
@@ -3566,6 +3571,7 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
   if (exempt) access = { tier: "exempt", note: "our own self-test client: not metered" };
   else if (peek.free) {
     const t = await takeFree(env, key, c.freePerDay, new Date(), "take", SPOT_QUOTA_COUNTER);
+    if (ipK) await takeFree(env, ipK, c.freePerIpDay, new Date(), "take", SPOT_FREE_IP_COUNTER);
     access = { tier: "free", free_per_day: c.freePerDay, free_used_today: t.used, free_remaining_today: t.used == null ? null : Math.max(0, c.freePerDay - t.used), shared_with: "402xAgent check", then: `$${cd.priceUsd} USDC on Base via x402 (HTTP 402)` };
   } else {
     const r = await verifyAndSettle(cd, payload, resourceUrl, { paidPath: false, description: `402xAgent payment status: one lookup. $${cd.priceUsd} USDC on Base.` });

@@ -95,6 +95,7 @@ export async function readSource(src, q, fetchImpl = (...a) => fetch(...a)) {
       v.event = lc(ev.topics[0]) === TOPIC_AUTH_CANCELED ? "canceled" : "used";
       if (!txHash) txHash = ev.transactionHash || null;
       v.event_tx = ev.transactionHash || null;
+      v.event_block = ev.blockNumber != null ? hexNum(ev.blockNumber) : null;
     }
   }
   if (txHash) v.receipt = parseReceipt(await rpc(src, "eth_getTransactionReceipt", [txHash], fetchImpl));
@@ -140,8 +141,15 @@ export function decide(views, q) {
   const anyUsed = ok.some((v) => v.state === true || v.event === "used");
   const allUnused = q.from && q.nonce ? ok.every((v) => v.state === false && !v.event) : false;
 
-  if (anyCanceled && !anyLanded && !ok.some((v) => v.event === "used"))
-    return no("canceled", "authorization_canceled", "the nonce was canceled on-chain (cancelAuthorization), so this payment can never settle; the strict rule only clears re-signing for an expired, unused nonce confirmed by two sources", { final: ok.every((v) => v.event === "canceled") && ok.length >= 1 });
+  if (anyCanceled && !anyLanded && !ok.some((v) => v.event === "used")) {
+    // Max 2026-10-16: canceled clears re-signing ONLY when two sources each see AuthorizationCanceled for this exact
+    // authorizer + nonce with >= PS_MIN_CONFIRMATIONS confirmations.
+    const deep = (v) => v.event === "canceled" && v.event_block != null && v.head - v.event_block + 1 >= PS_MIN_CONFIRMATIONS;
+    const confs = Math.min(...ok.map((v) => (v.event_block != null ? v.head - v.event_block + 1 : 0)));
+    if (ok.length >= 2 && ok.every(deep))
+      return { status: "canceled", reason: "authorization_canceled", safe_to_resign: true, why: `two independent sources (${ok.map((v) => v.name).join(", ")}) see AuthorizationCanceled for this authorizer + nonce with ${confs}+ confirmations: this payment can never settle, so a new one cannot double-charge`, wait_until: null, agreed: ok.length, confirmations: confs, final: true };
+    return no("canceled", ok.every((v) => v.event === "canceled") ? (ok.length < 2 ? "canceled_single_source" : "canceled_low_confirmations") : "canceled_sources_disagree", `the nonce looks canceled on-chain, but re-signing is cleared only when two sources each see the cancel with ${PS_MIN_CONFIRMATIONS}+ confirmations; ask again shortly, do not re-sign yet`, { confirmations: Number.isFinite(confs) ? confs : null });
+  }
 
   if (anyLanded) {
     const lv = ok[L.indexOf("yes")];
