@@ -198,3 +198,7 @@ Answers name sources only, never URLs. Free-tier limits found on 2026-10-16:
 
 So looking up a payment by from + nonce alone finds its event only within the last ~5 h (send `tx_hash` or `valid_before` for older ones). Alchemy lifts these limits.
 With no secrets set there is only one source, so `safe_to_resign` is never true. Each answer costs 2–4 point RPC reads (`eth_getBlockByNumber`, `eth_call authorizationState`, a bounded topic-filtered `eth_getLogs`, `eth_getTransactionReceipt`). There are no KV writes. D1 table `payment_status` (migration 0008) stores final answers only. Optional `PAYSTATUS_FACILITATORS` takes JSON of the form `{"0xsubmitter":{"name":"…","contact":"…"}}` to name the relayers behind a facilitator.
+
+
+## Hosted mode (0.41.0, part one)
+Integrator keys for routers/wallets: `Authorization: Bearer 402x_live_<id>_<secret>` (or `x-402xagent-key`) on the check and payment status. 1,000 free hosted checks (lifetime), then $0.02, $0.01 for each billable check after the first 1,000 in a UTC month; cached answers count. Credit limit $20 until the first invoice is paid, then $100 (from `hosted_usage`); over it the call takes the normal free/x402 path. D1 only (migration 0009: `integrators` with the key hash only, `hosted_usage` one row per hosted receipt). Secret `HOSTED_KEY_PEPPER` (without it a keyed call gets 501; calls without a key are unchanged). `GET /v1/integrators/me` shows the meter. Owner tool: `node scripts/hosted_key.mjs pepper|issue <name>|revoke <id>|meter <id>`. Not yet: invoices and the invoice cron (part two).

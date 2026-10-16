@@ -2654,7 +2654,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.40.1");
+  assert.equal(VERSION, "0.41.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2965,7 +2965,7 @@ test("0.38.0 crawl schedule copy: 'Updated weekly (last crawl Oct 13, next crawl
 test("0.38.0: no served page, JSON, 402 or MCP text carries the old price copy (one tenth / 1/10 / $0.01-$0.25) or a free_per_day other than 5", async () => {
   const OLD = /one tenth|tenth of the (target|endpoint)|1\/10 of|\$0\.01 ?(to|-) ?\$0\.25|0\.01-0\.25|from \$0\.01|\$0\.01\+|\$0\.001\/check|\$0\.001 per check/i;
   const e = spotEnv({ SPOT_FREE_PER_DAY: "5", SAVES_PAGE: "on" });
-  const paths = ["/", "/llms.txt", "/openapi.json", "/.well-known/x402", "/.well-known/402xagent-keys.json", "/pricing", "/docs", "/blog", "/blog/meet-402xagent-check-before-your-agent-pays", "/blog/preflight-budget-then-check", "/blog/x402-skips-report-what-agents-almost-paid-for", "/rules", "/rules.json", "/v1/skips", "/v1/skips.json", "/bazaar", "/bazaar.json", "/saves", "/saves.json", "/health", "/v1/tasks", "/v1/products/endpoint-spot-check", "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=old-copy", "/v1/lookup/paid", "/badge/api.402rates.com"];
+  const paths = ["/", "/llms.txt", "/openapi.json", "/.well-known/x402", "/.well-known/402xagent-keys.json", "/pricing", "/docs", "/blog", "/blog/meet-402xagent-check-before-your-agent-pays", "/blog/preflight-budget-then-check", "/blog/x402-retry-double-pay-check-before-you-resign", "/blog/x402-skips-report-what-agents-almost-paid-for", "/rules", "/rules.json", "/v1/skips", "/v1/skips.json", "/bazaar", "/bazaar.json", "/saves", "/saves.json", "/health", "/v1/tasks", "/v1/products/endpoint-spot-check", "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=old-copy", "/v1/lookup/paid", "/badge/api.402rates.com"];
   spotTargetMode = "402";
   for (const p of paths) for (const accept of ["application/json", "text/html"]) {
     const r = await worker.fetch(new Request("https://402xagent.com" + p, { headers: { accept, "user-agent": "agent-x/1.0", "cf-connecting-ip": "203.0.113.9" } }), e.env, { waitUntil() {} });
@@ -3356,6 +3356,152 @@ test("0.40.1 payment-status sources: RPC3_BASE_URL (keyed) sits after Alchemy an
   psSet(psNode({ used: true, alchFail: true }), psNode({ used: true }));
   r = await psSend({ from: PS_FROM, nonce: PS_NONCE }, { envo: psEnv(), client: "ps-old4" });
   assert.equal(r.body.safe_to_resign, false);
+});
+
+// 0.41.0 hosted mode: a D1 layer that adds integrators + hosted_usage on top of an existing fake
+function hostedD1(inner) {
+  const integ = [], usage = [];
+  return { integ, usage, rows: inner.rows, prepare(sql) {
+    if (!/integrators|hosted_usage/.test(sql)) return inner.prepare(sql);
+    return { bind(...a) { return {
+      async run() { if (/^INSERT INTO hosted_usage/.test(sql)) { const [receipt_id, integrator_id, product, created_at, month, price_atomic, band, end_user_hash] = a; usage.push({ receipt_id, integrator_id, product, created_at, month, price_atomic, band, end_user_hash, invoiced: 0 }); } return { success: true }; },
+      async first() {
+        if (/FROM integrators WHERE id = \?/.test(sql)) return integ.find((x) => x.id === a[0]) || null;
+        if (/FROM hosted_usage WHERE integrator_id = \?2/.test(sql)) { const [month, id] = a; const u = usage.filter((x) => x.integrator_id === id);
+          return { total: u.length, month_checks: u.filter((x) => x.month === month).length, month_billable: u.filter((x) => x.month === month && x.price_atomic > 0).length, outstanding_atomic: u.filter((x) => !x.invoiced).reduce((t, x) => t + Number(x.price_atomic), 0) }; }
+        return null;
+      },
+      async all() { return { results: [] }; },
+    }; } };
+  } };
+}
+const H_PEPPER = "test-pepper-not-real";
+async function hostedKey(db, { id = "0a1b2c3d", name = "internal-test", status = "active", free_total = 1000, first_invoice_paid = 0 } = {}) {
+  const Hm = await import("../worker/src/hosted.js");
+  const secret = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
+  db.integ.push({ id, name, status, key_hash: await Hm.keyHash(H_PEPPER, secret), free_total, first_invoice_paid });
+  return "402x_live_" + id + "_" + secret;
+}
+const norm = (t) => String(t).replace(/\b(sc|ps)-[0-9a-f]{16}\b/g, "ID").replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z/g, "TS").replace(/"(used|free_used_today|free_remaining_today|latency_ms|probed_at)":[^,}]+/g, '"$1":X');
+
+test("0.41.0 hosted: calls WITHOUT a key are byte-for-byte unchanged (pepper + integrators present or not; a non-402x Bearer is ignored)", async () => {
+  spotTargetMode = "402";
+  const run = async (extra, headers = {}) => {
+    const e = spotEnv({ RECEIPTS_DB: hostedD1(fakeD1()), ...extra });
+    const a = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/nokey") + "&client=nokey", { envo: e, headers });
+    psSet(psNode(), psNode());
+    const b = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: { ...e, env: { ...e.env, ALCHEMY_BASE_RPC_URL: PSA, RPC2_BASE_URL: PSB, PAYSTATUS_PUBLIC_RPC: PSP, PAYSTATUS_PUBLIC_RPC2: "off" } }, client: "nokey", headers });
+    return [a.status, norm(JSON.stringify(a.body)), [...a.headers.keys()].sort().join(","), b.status, norm(JSON.stringify(b.body)), [...b.headers.keys()].sort().join(",")];
+  };
+  const base = await run({});
+  assert.deepEqual(await run({ HOSTED_KEY_PEPPER: H_PEPPER }), base, "pepper set, no key");
+  assert.deepEqual(await run({ HOSTED_KEY_PEPPER: H_PEPPER }, { authorization: "Bearer some-other-token" }), base, "non-402x bearer is not a key");
+  assert.ok(!base[1].includes("hosted") && !base[4].includes("\"hosted\""));
+  const Hm = await import("../worker/src/hosted.js");
+  assert.equal(Hm.hostedKeyFrom(new Request("https://x.test/")), null);
+});
+
+test("0.41.0 hosted spot-check: valid key -> tier hosted, full answer, no free counter, payment header ignored, usage metered, signed receipt with hosted block verifies; bad/revoked/no-pepper refused; /v1/integrators/me", async () => {
+  const S = await import("../worker/src/sign.js");
+  const { privateKey } = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const jwk = { ...(await crypto.subtle.exportKey("jwk", privateKey)), kid: "hosted-key" };
+  S._addTestKey({ kid: jwk.kid, x: jwk.x }); S._resetSigner();
+  const db = hostedD1(fakeD1());
+  const key = await hostedKey(db);
+  const e = spotEnv({ RECEIPTS_DB: db, HOSTED_KEY_PEPPER: H_PEPPER, RECEIPT_SIGNING_KEY: JSON.stringify(jwk), SPOT_FREE_PER_DAY: "0" });
+  spotTargetMode = "402"; facCalls.length = 0;
+  const W = await import("/workspace/products/x402-spotcheck/receipt.js");
+  for (let i = 0; i < 2; i++) {
+    const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/h" + i) + "&client=hosted-agent", { envo: e, headers: { authorization: "Bearer " + key, "x-402xagent-end-user": "agent-42", "payment-signature": spotPayment({ amount: "20000" }) } });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.access.tier, "hosted"); assert.equal(r.body.access.integrator, "0a1b2c3d"); assert.equal(r.body.access.band, "free_allowance"); assert.equal(r.body.access.price_atomic, "0"); assert.equal(r.body.access.billed_on, "invoice");
+    assert.match(r.body.access.end_user_hash, /^[0-9a-f]{24}$/); assert.ok(!JSON.stringify(r.body).includes("agent-42"));
+    assert.ok(r.body.pay_to, "full answer (not the free redacted shape)");
+    const row = db.rows.find((x) => x.id === r.body.receipt_id); const stored = JSON.parse(row.body);
+    const g = stored.signed_view || stored;
+    const rc = await send("/v1/receipts/" + r.body.receipt_id, { envo: e }); const sv = rc.body.receipt || rc.body;
+    assert.equal(sv.access_tier, "hosted"); assert.equal(sv.hosted.integrator, "0a1b2c3d"); assert.equal(sv.hosted.band, "free_allowance");
+    assert.equal((await W.verifyReceipt(sv, { publicKey: { keys: [{ kty: "OKP", crv: "Ed25519", kid: jwk.kid, x: jwk.x }] } })).valid, true);
+    assert.equal((await W.verifyReceipt({ ...sv, hosted: { ...sv.hosted, band: "volume" } }, { publicKey: { keys: [{ kty: "OKP", crv: "Ed25519", kid: jwk.kid, x: jwk.x }] } })).valid, false);
+    void g;
+  }
+  assert.equal(facCalls.length, 0, "no x402 settle for hosted calls");
+  assert.deepEqual(db.usage.map((u) => [u.integrator_id, u.product, u.price_atomic, u.band]), [["0a1b2c3d", "spot", 0, "free_allowance"], ["0a1b2c3d", "spot", 0, "free_allowance"]]);
+  const me = await send("/v1/integrators/me", { envo: e, headers: { authorization: "Bearer " + key } });
+  assert.equal(me.status, 200); assert.equal(me.body.meter.total, 2); assert.equal(me.body.next_check.band, "free_allowance"); assert.equal(me.body.credit_limit_atomic, "20000000");
+  // refusals never fall back to free
+  for (const [hdrs, status, code] of [[{ authorization: "Bearer 402x_live_0a1b2c3d_" + "A".repeat(43) }, 401, "bad_key"], [{ "x-402xagent-key": "nope" }, 401, "bad_key"]]) {
+    const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/bad") + "&client=hosted-agent", { envo: e, headers: hdrs });
+    assert.deepEqual([r.status, r.body.code], [status, code]);
+  }
+  db.integ[0].status = "revoked";
+  let r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/rev") + "&client=hosted-agent", { envo: e, headers: { authorization: "Bearer " + key } });
+  assert.deepEqual([r.status, r.body.code], [401, "key_revoked"]);
+  const e0 = spotEnv({ RECEIPTS_DB: db });
+  r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/np") + "&client=hosted-agent", { envo: e0, headers: { authorization: "Bearer " + key } });
+  assert.deepEqual([r.status, r.body.code], [501, "hosted_not_enabled"]);
+  assert.equal(db.usage.length, 2, "refused calls are not metered");
+});
+
+test("0.41.0 hosted pricing: 1,000 free lifetime, then $0.02, then marginal $0.01 after 1,000 billable in the UTC month; cached billable; credit limit $20 -> x402 fallback, $100 after first paid invoice; rate limit", async () => {
+  const Hm = await import("../worker/src/hosted.js");
+  const month = Hm.utcMonth();
+  assert.deepEqual(Hm.hostedPrice({ total: 999, month_billable: 0 }, { free_total: 1000 }), { price_atomic: 0, band: "free_allowance" });
+  assert.deepEqual(Hm.hostedPrice({ total: 1000, month_billable: 0 }, { free_total: 1000 }), { price_atomic: 20000, band: "standard" });
+  assert.deepEqual(Hm.hostedPrice({ total: 5000, month_billable: 999 }, {}), { price_atomic: 20000, band: "standard" }, "the 1,000th billable is still $0.02");
+  assert.deepEqual(Hm.hostedPrice({ total: 5000, month_billable: 1000 }, {}), { price_atomic: 10000, band: "volume" }, "1,001st is $0.01");
+  assert.equal(Hm.creditLimitAtomic({ first_invoice_paid: 0 }), 20000000); assert.equal(Hm.creditLimitAtomic({ first_invoice_paid: 1 }), 100000000);
+  const db = hostedD1(fakeD1());
+  const key = await hostedKey(db, { free_total: 1 });
+  const e = spotEnv({ RECEIPTS_DB: db, HOSTED_KEY_PEPPER: H_PEPPER, SPOT_FREE_PER_DAY: "5" });
+  spotTargetMode = "402";
+  const call = (p, extra = {}) => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/" + p) + "&client=hp", { envo: e, headers: { authorization: "Bearer " + key, ...extra } });
+  assert.equal((await call("a")).body.access.band, "free_allowance");
+  let r = await call("a"); // same url again: cached probe answer, still billable
+  assert.deepEqual([r.body.access.band, r.body.access.price_atomic], ["standard", "20000"]);
+  assert.equal(db.usage.at(-1).price_atomic, 20000);
+  // last month's checks do not count toward this month's volume band
+  for (let i = 0; i < 1000; i++) db.usage.push({ receipt_id: "old" + i, integrator_id: "0a1b2c3d", product: "spot", month: "2000-01", price_atomic: 20000, band: "standard", invoiced: 1 });
+  assert.equal((await call("b")).body.access.band, "standard");
+  for (let i = 0; i < 998; i++) db.usage.push({ receipt_id: "m" + i, integrator_id: "0a1b2c3d", product: "spot", month, price_atomic: 20000, band: "standard", invoiced: 1 });
+  r = await call("c"); assert.equal(r.body.access.band, "volume", "after 1,000 billable this month"); assert.equal(r.body.access.price_atomic, "10000");
+  // credit limit: $20 outstanding (uninvoiced) -> normal path (here: the normal 5 free/day), header says why, not metered
+  db.usage.push({ receipt_id: "owed", integrator_id: "0a1b2c3d", product: "spot", month, price_atomic: 19990000, band: "standard", invoiced: 0 });
+  const n = db.usage.length;
+  r = await call("d");
+  assert.equal(r.body.access.tier, "free"); assert.equal(r.headers.get("x-402xagent-hosted"), "fallback: credit_limit"); assert.equal(db.usage.length, n);
+  db.integ[0].first_invoice_paid = 1;
+  r = await call("d"); assert.equal(r.body.access.tier, "hosted", "limit is $100 after the first paid invoice");
+  // rate limit per key per minute
+  const e1 = spotEnv({ RECEIPTS_DB: db, HOSTED_KEY_PEPPER: H_PEPPER, HOSTED_PER_MIN: "1" });
+  const c1 = (p) => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/" + p) + "&client=hp", { envo: e1, headers: { "x-402xagent-key": key } });
+  assert.equal((await c1("r1")).status, 200);
+  r = await c1("r2"); assert.deepEqual([r.status, r.body.code], [429, "hosted_rate_limited"]);
+});
+
+test("0.41.0 hosted payment-status: own new ps- receipt (tier hosted, hosted block, chain answer embedded), signed + verifies, cached chain answer still billable, no free counter or x402", async () => {
+  const S = await import("../worker/src/sign.js");
+  const { privateKey } = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const jwk = { ...(await crypto.subtle.exportKey("jwk", privateKey)), kid: "hosted-ps-key" };
+  S._addTestKey({ kid: jwk.kid, x: jwk.x }); S._resetSigner();
+  const db = hostedD1(psD1());
+  const key = await hostedKey(db);
+  const e = psEnv({ RECEIPTS_DB: db, HOSTED_KEY_PEPPER: H_PEPPER, RECEIPT_SIGNING_KEY: JSON.stringify(jwk), SPOT_FREE_PER_DAY: "0" });
+  const rc = psReceipt({ block: 4980 });
+  psSet(psNode({ used: true, event: "used", receipt: rc }), psNode({ used: true, event: "used", receipt: rc }));
+  const W = await import("/workspace/products/x402-spotcheck/receipt.js");
+  const ids = [];
+  for (let i = 0; i < 2; i++) {
+    const r = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e, client: "ps-h", headers: { authorization: "Bearer " + key } });
+    assert.equal(r.status, 200); assert.equal(r.body.access.tier, "hosted");
+    const g = r.body.receipt;
+    assert.equal(g.tier, "hosted"); assert.equal(g.hosted.integrator, "0a1b2c3d"); assert.equal(g.payment_received, undefined); assert.equal(g.status, "landed");
+    assert.equal(g.chain_answer.cached, i === 1);
+    assert.equal((await W.verifyReceipt(g, { publicKey: { keys: [{ kty: "OKP", crv: "Ed25519", kid: jwk.kid, x: jwk.x }] } })).valid, true);
+    ids.push(g.id);
+  }
+  assert.notEqual(ids[0], ids[1]);
+  assert.deepEqual(db.usage.map((u) => [u.receipt_id, u.product]), ids.map((id) => [id, "payment-status"]), "cached answer billable too");
 });
 
 test("0.40.0 payment-status: chain outage -> 503 (nothing charged, no free check); 400s; shared free counter with the check, then 402, then paid via x402; MCP tool", async () => {
