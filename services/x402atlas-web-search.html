@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 13:00:04.672 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-16 14:42:22 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-16 17:48:52 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>234 ms</td></tr>
+<tr><th scope="row">Latency</th><td>252 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.01 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.01</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.01</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>failed (none of 10 result URLs is on x402.org or github.com/coinbase/x402)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.01, exact on eip155:137: 10000 units of 0x3c499c542c, exact on eip155:42161: 10000 units of 0xaf88d065e7, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 10000 units of EPjFWdd5Aufq.</p>
-<p>Evidence: <a href="../results/raw/20261016T144222Z/x402atlas-web-search.json">raw log for this check</a>. Machine-readable: <a href="x402atlas-web-search.json">x402atlas-web-search.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261016T174843Z/x402atlas-web-search.json">raw log for this check</a>. Machine-readable: <a href="x402atlas-web-search.json">x402atlas-web-search.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: x402 payment protocol. Passes if: at least 1 result URL on x402.org or github.com/coinbase/x402.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-10-16 17:48:52 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>failed (none of 10 result URLs is on x402.org or github.com/coinbase/x402)</td><td><a href="https://basescan.org/tx/0x6bfabc443e5b77c33037e3d55807e582c4673838cac250e687608a7fc04256c0">0x6bfabc44...</a></td></tr>
 <tr><td>2026-10-13 17:56:50 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>failed (none of 10 result URLs is on x402.org or github.com/coinbase/x402)</td><td><a href="https://basescan.org/tx/0x04a1630328c987be10ff13dbbf00921b732ab25452996844732a25077441ec01">0x04a16303...</a></td></tr>
 <tr><td>2026-10-06 17:58:21 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>failed (none of 10 result URLs is on x402.org or github.com/coinbase/x402)</td><td><a href="https://basescan.org/tx/0x75987715da807a9188c9b1e5b7c47762c8622461bebe6bc7b3a7832a5b17e92a">0x75987715...</a></td></tr>
 <tr><td>2026-10-02 18:48:50 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>failed (none of 10 result URLs is on x402.org or github.com/coinbase/x402)</td><td><a href="https://basescan.org/tx/0x622f91f0a4ad7722091751681ad92a02190bce15e168f9da714f7e4d94914b53">0x622f91f0...</a></td></tr>
@@ -53,6 +54,7 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-16 17:48:52 UTC</td><td>paid</td><td>yes</td><td>402</td><td>252 ms</td><td>$0.01</td><td>yes</td><td><a href="../results/raw/20261016T174843Z/x402atlas-web-search.json">raw log</a></td></tr>
 <tr><td>2026-10-16 14:42:22 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>234 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261016T144222Z/x402atlas-web-search.json">raw log</a></td></tr>
 <tr><td>2026-10-15 14:42:18 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>234 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261015T144217Z/x402atlas-web-search.json">raw log</a></td></tr>
 <tr><td>2026-10-14 14:39:58 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>235 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261014T143958Z/x402atlas-web-search.json">raw log</a></td></tr>
@@ -62,7 +64,6 @@
 <tr><td>2026-10-11 14:26:28 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>86 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261011T142628Z/x402atlas-web-search.json">raw log</a></td></tr>
 <tr><td>2026-10-10 14:25:17 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>235 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261010T142516Z/x402atlas-web-search.json">raw log</a></td></tr>
 <tr><td>2026-10-09 14:32:38 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>221 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261009T143237Z/x402atlas-web-search.json">raw log</a></td></tr>
-<tr><td>2026-10-08 14:31:55 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>103 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261008T143155Z/x402atlas-web-search.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>
