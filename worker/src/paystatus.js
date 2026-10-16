@@ -21,6 +21,12 @@ export const PS_EXPIRY_MARGIN_S = 120; // validBefore must be this far behind th
 export const PS_LOG_WINDOW_BLOCKS = 9000; // ~5h of Base blocks per AuthorizationUsed/Canceled lookup (keyless free tiers cap eth_getLogs at 10k blocks)
 export const PS_DEFAULT_RPC2 = "https://base-rpc.publicnode.com"; // Allnodes publicnode, keyless; a different operator from Alchemy and Coinbase. Tested 2026-10-16: eth_call/receipts fine, eth_getLogs up to 10k recent blocks (older needs a token)
 export const PS_BASE_BLOCK_S = 2;
+// 0.40.1: Alchemy's free tier caps eth_getLogs at a 10-block range (checked 2026-10-16), so on Alchemy the nonce-only
+// lookup uses alchemy_getAssetTransfers (full history, one call, newest first) for the payer's USDC transfers, then
+// reads at most PS_ALCH_MAX_RECEIPTS of those tx receipts to find the AuthorizationUsed log for this exact nonce.
+export const PS_ALCH_MAX_TRANSFERS = 100;
+export const PS_ALCH_MAX_RECEIPTS = 20;
+export const PS_ALCH_BATCH = 5;
 export const PS_RPC_TIMEOUT_MS = 2500;
 export const PS_CANNOT_KNOW = [
   "whether the seller delivered the content (the chain shows money moved, not that data was served)",
@@ -43,9 +49,12 @@ export function rpcSources(env = {}) {
   const pub2 = env.PAYSTATUS_PUBLIC_RPC === "off" || env.PAYSTATUS_PUBLIC_RPC2 === "off" ? "" : env.PAYSTATUS_PUBLIC_RPC2 || "https://base.drpc.org"; // dRPC free: point reads fine, eth_getLogs only a few hundred blocks
   const rpc2 = env.RPC2_BASE_URL === "off" ? "" : env.RPC2_BASE_URL || PS_DEFAULT_RPC2;
   const out = [];
-  // order: Alchemy (secret), rpc2 (default Allnodes publicnode), Coinbase public node, dRPC; four operators
-  for (const [name, url] of [["alchemy", env.ALCHEMY_BASE_RPC_URL], ["rpc2", rpc2], ["base-public", pub], ["drpc", pub2]]) {
-    if (typeof url === "string" && /^https:\/\//.test(url) && !out.some((s) => s.url === url)) out.push({ name, url });
+  const maxR = Math.max(1, Math.min(50, parseInt(env.PAYSTATUS_ALCHEMY_MAX_RECEIPTS ?? "", 10) || PS_ALCH_MAX_RECEIPTS));
+  const w3 = Math.max(10, Math.min(100000, parseInt(env.PAYSTATUS_RPC3_LOG_WINDOW ?? "", 10) || PS_LOG_WINDOW_BLOCKS));
+  // order: Alchemy (secret), rpc3 (secret: an upcoming keyed provider), rpc2 (default Allnodes publicnode), Coinbase
+  // public node, dRPC. Keyed sources come before keyless ones.
+  for (const [name, url, extra] of [["alchemy", env.ALCHEMY_BASE_RPC_URL, { kind: "alchemy", maxReceipts: maxR }], ["rpc3", env.RPC3_BASE_URL, { kind: "keyed", logWindow: w3 }], ["rpc2", rpc2, { kind: "keyless" }], ["base-public", pub, { kind: "keyless" }], ["drpc", pub2, { kind: "keyless" }]]) {
+    if (typeof url === "string" && /^https:\/\//.test(url) && !out.some((s) => s.url === url)) out.push({ name, url, logWindow: PS_LOG_WINDOW_BLOCKS, ...extra });
   }
   return out;
 }
@@ -93,11 +102,17 @@ export async function readSource(src, q, fetchImpl = (...a) => fetch(...a)) {
     v.state = BigInt(res === "0x" ? "0x0" : res) !== 0n;
   }
   let txHash = q.tx_hash || null;
-  if (q.from && q.nonce && v.state === true) {
+  if (q.from && q.nonce && v.state === true && src.kind === "alchemy") {
+    try {
+      await alchemyFindAuth(src, q, v, fetchImpl);
+    } catch (e) {
+      v.log_error = String((e && e.message) || "error");
+    }
+  } else if (q.from && q.nonce && v.state === true) {
     // window: the last ~5h, or (when validBefore is known and older) the ~5h ending just after validBefore's block
     let to = v.head;
     if (q.valid_before != null && Number(q.valid_before) < v.head_time) to = Math.min(v.head, v.head - Math.floor((v.head_time - Number(q.valid_before)) / PS_BASE_BLOCK_S) + 150);
-    const from = Math.max(0, to - PS_LOG_WINDOW_BLOCKS);
+    const from = Math.max(0, to - (src.logWindow || PS_LOG_WINDOW_BLOCKS));
     v.log_window = [from, to];
     let logs = null;
     try {
@@ -119,6 +134,31 @@ export async function readSource(src, q, fetchImpl = (...a) => fetch(...a)) {
     else if (v.receipt.auth_canceled.some((a) => a.authorizer === lc(q.from) && a.nonce === lc(q.nonce))) v.event = "canceled";
   }
   return v;
+}
+
+/** Alchemy only: find the tx that used (from, nonce) via the payer's USDC transfers. Bounded: 1 + maxReceipts calls. */
+export async function alchemyFindAuth(src, q, v, fetchImpl) {
+  const params = { fromAddress: lc(q.from), contractAddresses: [USDC_BASE_LC], category: ["erc20"], order: "desc", maxCount: "0x" + PS_ALCH_MAX_TRANSFERS.toString(16), withMetadata: false, excludeZeroValue: false, fromBlock: "0x0", toBlock: "latest" };
+  if (q.valid_before != null && Number(q.valid_before) < v.head_time) {
+    const est = v.head - Math.floor((v.head_time - Number(q.valid_before)) / PS_BASE_BLOCK_S);
+    params.toBlock = "0x" + Math.min(v.head, est + 150).toString(16);
+  }
+  const res = await rpc(src, "alchemy_getAssetTransfers", [params], fetchImpl);
+  const hashes = [...new Set(((res && res.transfers) || []).map((t) => t && t.hash).filter((h) => HEX64.test(h || "")))].slice(0, src.maxReceipts || PS_ALCH_MAX_RECEIPTS);
+  v.lookup = { method: "alchemy_getAssetTransfers", candidates: hashes.length, receipts_read: 0 };
+  for (let i = 0; i < hashes.length; i += PS_ALCH_BATCH) {
+    const batch = hashes.slice(i, i + PS_ALCH_BATCH);
+    const rcpts = await Promise.all(batch.map((h) => rpc(src, "eth_getTransactionReceipt", [h], fetchImpl).then(parseReceipt, () => null)));
+    v.lookup.receipts_read += batch.length;
+    const hit = rcpts.find((r) => r && r.auth_used.some((a) => a.authorizer === lc(q.from) && a.nonce === lc(q.nonce)));
+    if (hit) {
+      v.event = "used";
+      v.event_tx = hit.hash;
+      v.event_block = hit.block;
+      if (!q.tx_hash) v.receipt = hit;
+      return;
+    }
+  }
 }
 
 /** Query the first two sources in parallel; if fewer than two answer, try the rest one by one. */
