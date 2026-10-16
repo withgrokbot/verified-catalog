@@ -3068,6 +3068,7 @@ const psFetch = (orig) => async (url, init = {}) => {
   const R = (result) => Response.json({ jsonrpc: "2.0", id: 1, result });
   if (method === "eth_getBlockByNumber") return R({ number: psHex(n.head), timestamp: psHex(n.time) });
   if (method === "eth_call") {
+    if (n.callFail) return Response.json({ jsonrpc: "2.0", id: 1, error: { code: -32000, message: "call failed" } });
     assert.equal(params[0].to, USDC.toLowerCase()); assert.ok(params[0].data.startsWith("0xe94a0102"));
     assert.equal(params[0].data, "0xe94a0102" + psPad(PS_FROM).slice(2) + PS_NONCE.slice(2), "authorizationState(from, nonce) calldata");
     return R(psPad(n.used ? "1" : "0"));
@@ -3180,6 +3181,16 @@ test("0.40.0 payment-status strict re-sign rule: not_landed only with two source
   assert.equal(r.body.authorization.used_onchain, false); assert.equal(r.body.authorization.expired, true);
   assert.equal(r.body.stored, true, "final -> stored");
   assert.ok(!psCalls.some(([u]) => u === PSP), "public node not needed with two sources");
+  // Max's condition: not_landed + safe_to_resign rests on authorizationState(from, nonce) eth_call == false from BOTH
+  // sources (+ expiry), never on log-search absence: no eth_getLogs is even made for an unused nonce
+  { const calls = psCalls.filter(([, m]) => m === "eth_call").map(([u]) => u);
+    assert.deepEqual(calls.sort(), [PSA, PSB].sort(), "one authorizationState eth_call per agreeing source");
+    assert.equal(psCalls.filter(([, m]) => m === "eth_getLogs").length, 0, "no log search behind not_landed"); }
+  // a source whose authorizationState call fails does not count, even if everything else answers (logs empty, head fine)
+  r = await ask(psNode(), psNode({ callFail: true }), psNode({ fail: true }));
+  assert.deepEqual([r.body.status, r.body.safe_to_resign, r.body.rpc.sources_agreed], ["unknown", false, 1]);
+  r = await ask(psNode({ callFail: true }), psNode({ callFail: true }), psNode({ callFail: true }));
+  assert.equal(r.status, 503, "no contract read anywhere -> no answer");
   // expiry edge: exactly validBefore + 120 on one source is NOT past the margin
   r = await ask(psNode({ time: PS_VB + 120 }), psNode({ time: PS_VB + 500 }));
   assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign], ["pending", "authorization_still_valid", false]);
@@ -3304,6 +3315,10 @@ test("0.40.0 payment-status: chain outage -> 503 (nothing charged, no free check
   assert.match(llms, /payment-status/); assert.match(llms, /safe_to_resign/);
   const docs = await (await worker.fetch(new Request("https://402xagent.com/docs", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} })).text();
   assert.match(docs, /id="payment-status"/);
+  assert.match(docs, /\$0\.02/); assert.match(docs, /same 5 free per day/);
+  const pr = await (await worker.fetch(new Request("https://402xagent.com/pricing", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} })).text();
+  assert.match(pr, /Payment status \(after you pay\)<\/th><td>\$0\.02 per lookup, flat, after the same \d+ free checks per day \(shared with the check/);
+  assert.match(pr, /href="\/docs#payment-status"/);
 });
 
 test("0.40.0 paystatus unit: payload decode (v1 + v2), selectors/topics, rpcSources order + 'off', decide() never sets safe_to_resign without two sources", async () => {
