@@ -54,7 +54,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.39.0";
+export const VERSION = "0.39.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1750,6 +1750,15 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-bad-params", failReason: fix.mistake, shape }));
     // 0.26.1: a GET/HEAD with no url and no misnamed param is a usage/health request (directory health probes): same help body,
     // HTTP 200. A malformed url, or a POST with bad params, stays 400.
+    // 0.39.1: no url, no misnamed param, no payment header -> an x402 v2 discovery 402 (same accepts/Bazaar metadata as the real
+    // paid challenge, flat 20000) so directories (x402scan) can register the route. No probe, no free check used, no D1/KV write.
+    const paying = req.headers.get("payment-signature") || req.headers.get("x-payment");
+    if (q.errors[0].missing && !(q.ctx.unknown || []).length && !paying) {
+      const help = spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem, fix);
+      const body = { ...spotPaymentRequired(spotDynCfg(c, null), resourceUrl, "Missing url: add ?url=<x402 endpoint> (or POST JSON {\"url\": ...}) to run a check", 0, ""), hint: help.error, field: help.field, example: help.example, discovery: true };
+      body.pricing = "flat $0.02 USDC per check (any target price)";
+      return json(body, 402, { "payment-required": b64encode(body) });
+    }
     const usage = q.errors[0].missing && !(q.ctx.unknown || []).length && (req.method === "GET" || req.method === "HEAD"); // a misnamed param (?link=) stays 400
     return json(spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem, fix), usage ? 200 : 400);
   }
