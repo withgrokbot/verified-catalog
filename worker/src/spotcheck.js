@@ -13,7 +13,7 @@ export const LEGACY_ORIGIN = "https://verified-catalog-lookup.withgrokbot.worker
 // Older hosts (internal list, never printed): browser page views 301 to 402xagent.com, API/x402/MCP keep answering.
 export const OLD_HOSTNAMES = ["payscout.dev", "api.payscout.dev", "verified-catalog-lookup.withgrokbot.workers.dev"];
 export const SPOT_TAGS = ["x402", "402xagent", "pre-payment-check", "probe", "catalog", "agents"];
-export const SPOT_DEFAULT_PRICE_ATOMIC = "250000"; // $0.25 USDC
+export const SPOT_DEFAULT_PRICE_ATOMIC = "20000"; // $0.02 USDC (0.38.0: flat; the per-request price is SPOT_PAID_ATOMIC)
 export const SPOT_DEFAULT_FREE_PER_DAY = 5;
 export const SPOT_PAID_PER_HOUR = 30;
 export const SPOT_FETCH_TIMEOUT_MS = 8000;

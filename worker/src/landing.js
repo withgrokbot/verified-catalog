@@ -298,7 +298,7 @@ async function run(e){if(e)e.preventDefault();const url=u.value.trim();if(!/^htt
 go.disabled=true;msg("Checking…");try{let r=await call(url,false);let j=await r.json().catch(()=>({}));
 if(r.status===200){setResp(j,false);show(j,j.access&&j.access.tier==="free"?"Free check: "+E(j.access.free_remaining_today)+" left today. Full detail and the payment object are in the paid check.":"");}
 else if(r.status===402){const r2=await call(url,true),j2=await r2.json().catch(()=>({}));
-if(r2.status===200){setResp(j2,true);show(j2,"Today's free checks are used, so this is a free dry run: nothing signed or paid, and not an approval to pay. A full check costs "+E(j.price_usd?"$"+j.price_usd:"$0.01+")+" in USDC on Base via x402.");}
+if(r2.status===200){setResp(j2,true);show(j2,"Today's free checks are used, so this is a free dry run: nothing signed or paid, and not an approval to pay. A full check costs "+E(j.price_usd?"$"+j.price_usd:"$0.02")+" in USDC on Base via x402.");}
 else if(r2.status===429)msg("Today's free checks and dry runs are used up from this network. They reset at 00:00 UTC.");else msg(E(j2.error||("Dry run failed: HTTP "+r2.status)));}
 else if(r.status===400)msg(E(j.error||("Bad request: "+(j.reason||r.status))));
 else msg("Unexpected answer: HTTP "+r.status);}catch(err){msg("Could not reach 402xAgent. Try again.");}finally{go.disabled=false;}}

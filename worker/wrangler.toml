@@ -56,9 +56,9 @@ INDEX402_VERIFY = '{"api.402xagent.com":"41c5d46f1d1727aa4e6100eeb61a390ac044ad7
 # Product (0.5.0): Overnight Chief of Staff Setup Pack — always paid, $9 USDC (9000000 atomic).
 # SELF_CLIENTS do NOT get this free. PACK_PREVIEW=1 returns a stub without payment (local tests only).
 PACK_PRICE_ATOMIC = "9000000"
-# Product (0.6.0): x402 Endpoint Spot-Check — 5 free/client/UTC day, then $0.25 USDC (250000 atomic).
+# Product (0.6.0): x402 Endpoint Spot-Check — 5 free/client/UTC day, then $0.02 USDC flat (20000 atomic, 0.38.0).
 # SELF_CLIENTS exempt from free quota only (still SSRF-gated). Never pays the URL under test.
-SPOT_PRICE_ATOMIC = "250000"  # legacy, unused: 0.38.0+ the paid check is a flat $0.02 (SPOT_PAID_ATOMIC in lib.js)
+SPOT_PRICE_ATOMIC = "20000"  # legacy, unused: 0.38.0+ the paid check is a flat $0.02 (SPOT_PAID_ATOMIC in lib.js)
 SPOT_FREE_PER_DAY = "5"
 SPOT_FREE_PER_IP_DAY = "25"
 # 0.35.0: /saves page (names sellers); approved and on
