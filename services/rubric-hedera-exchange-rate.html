@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-30 (listing last updated 2026-09-28 14:16:00 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-16 14:42:23 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-16 17:49:26 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>183 ms</td></tr>
+<tr><th scope="row">Latency</th><td>246 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.001 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.001</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.001</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>no pass/fail (no known-answer test for this service)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.001, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 1000 units of EPjFWdd5Aufq, exact on algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=: 1000 units of 31566704.</p>
-<p>Evidence: <a href="../results/raw/20261016T144222Z/rubric-hedera-exchange-rate.json">raw log for this check</a>. Machine-readable: <a href="rubric-hedera-exchange-rate.json">rubric-hedera-exchange-rate.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261016T174843Z/rubric-hedera-exchange-rate.json">raw log for this check</a>. Machine-readable: <a href="rubric-hedera-exchange-rate.json">rubric-hedera-exchange-rate.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>No known-answer test for this service.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-10-16 17:49:26 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0xf0f2ad679d7c4dcd8ba7a02213d540b40a2bd0afbf457cab478ce318874522c8">0xf0f2ad67...</a></td></tr>
 <tr><td>2026-10-13 17:57:35 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x0a21a7395f6044d3dcec4ca636b4c867a0a2f139232e8fb2f74d995aad94cccd">0x0a21a739...</a></td></tr>
 <tr><td>2026-10-06 17:58:54 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x729d8e4409e1b628338667a4000cefc9a07e531abed527372e6736e2fd64511c">0x729d8e44...</a></td></tr>
 </tbody></table></div>
@@ -50,6 +51,7 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-16 17:49:26 UTC</td><td>paid</td><td>yes</td><td>402</td><td>246 ms</td><td>$0.001</td><td>yes</td><td><a href="../results/raw/20261016T174843Z/rubric-hedera-exchange-rate.json">raw log</a></td></tr>
 <tr><td>2026-10-16 14:42:23 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>183 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261016T144222Z/rubric-hedera-exchange-rate.json">raw log</a></td></tr>
 <tr><td>2026-10-15 14:42:18 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>183 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261015T144217Z/rubric-hedera-exchange-rate.json">raw log</a></td></tr>
 <tr><td>2026-10-14 14:39:59 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>201 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261014T143958Z/rubric-hedera-exchange-rate.json">raw log</a></td></tr>
@@ -59,7 +61,6 @@
 <tr><td>2026-10-11 14:26:29 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>151 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261011T142628Z/rubric-hedera-exchange-rate.json">raw log</a></td></tr>
 <tr><td>2026-10-10 14:25:18 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>148 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261010T142516Z/rubric-hedera-exchange-rate.json">raw log</a></td></tr>
 <tr><td>2026-10-09 14:32:39 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>334 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261009T143237Z/rubric-hedera-exchange-rate.json">raw log</a></td></tr>
-<tr><td>2026-10-08 14:31:56 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>129 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261008T143155Z/rubric-hedera-exchange-rate.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

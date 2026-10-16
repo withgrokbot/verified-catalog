@@ -33,33 +33,38 @@
     "facts_only": false,
     "facts_only_reason": null
   },
-  "paid_receipts": 5,
+  "paid_receipts": 6,
   "latest": {
-    "checked_at": "2026-10-16T14:42:22Z",
-    "mode": "dry-run",
+    "checked_at": "2026-10-16T17:48:56Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 259,
+    "latency_ms": 274,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.01",
     "quoted_price_usd": "0.01",
     "price_matches_listing": true,
-    "paid": false,
-    "charged_price_usd": null,
-    "delivered_valid": null,
+    "paid": true,
+    "charged_price_usd": "0.01",
+    "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
-    "quality": null,
-    "raw_log": "results/raw/20261016T144222Z/oblique-paid-time.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261016T144222Z/oblique-paid-time.json"
+    "quality": {
+      "result": "pass",
+      "reason": "epoch within 5 s of our clock; ISO and epoch agree",
+      "facts_only": false,
+      "graded_at": "2026-10-16T17:48:57Z"
+    },
+    "raw_log": "results/raw/20261016T174843Z/oblique-paid-time.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261016T174843Z/oblique-paid-time.json"
   },
   "history_summary": {
-    "checks": 24,
-    "reachable": 24,
-    "x402_challenge_ok": 24,
-    "paid_checks": 5,
+    "checks": 25,
+    "reachable": 25,
+    "x402_challenge_ok": 25,
+    "paid_checks": 6,
     "first_checked": "2026-09-30T01:01:50Z",
-    "last_checked": "2026-10-16T14:42:22Z"
+    "last_checked": "2026-10-16T17:48:56Z"
   }
 }

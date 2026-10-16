@@ -1,0 +1,122 @@
+{
+  "service_id": "tavily-search",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "POST",
+    "url": "https://x402.tavily.com/search",
+    "json_body": {
+      "max_results": 5,
+      "query": "x402 payment protocol",
+      "search_depth": "advanced"
+    },
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 1360,
+    "headers": {
+      "date": "Fri, 16 Oct 2026 17:49:05 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "54",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment header is required",
+          "resource": {
+            "url": "https://x402.tavily.com/search",
+            "description": "Tavily Search - advanced mode",
+            "mimeType": "application/json"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "10000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x1099f7191823cb6a966b2a156ecca056658aa50c",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "terms": "By using the Tavily solution, you agree to be bound by the Terms of Use (https://tavily.com/terms) and Privacy Policy (https://tavily.com/privacy) and accept that Tavily disclaims any liability with regard to the AI agent and cryptocurrency payments.",
+                "tier": "advanced"
+              }
+            },
+            {
+              "scheme": "agent-pay",
+              "network": "aws:base",
+              "amount": "0.016",
+              "asset": "iso4217:USD",
+              "payTo": "urn:x402:agent-pay:see-quote",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "reference": "tavily-search-advanced",
+                "settlement": {
+                  "product_id": "prod-maeet6sajeg42"
+                },
+                "tier": "advanced",
+                "quoteToken": "eyJhbGciOiJFUzM4NCIsInR5cCI6IkpXVCIsImtpZCI6InRhdmlseS1hZ2VudHBheS14NDAyLXNpZ25pbmcta2V5In0.eyJpc3MiOiJodHRwczovL3g0MDIudGF2aWx5LmNvbSIsImF1ZCI6ImF3czptYXJrZXRwbGFjZSIsImlhdCI6MTc5MjE3Mjk0NSwiZXhwIjoxNzkyMTczMjQ1LCJqdGkiOiIyZWQwOWVmZS0wMDZiLTQxZTMtOWYwYi1iOGEyZTdiZjY1ZDkiLCJwcmljZSI6eyJhbW91bnQiOiIwLjAxNiIsImN1cnJlbmN5IjoiVVNEIn0sInBheVRvIjoic2VsbGVyIiwicmVmZXJlbmNlIjoidGF2aWx5LXNlYXJjaC1hZHZhbmNlZCIsInNldHRsZW1lbnQiOnsicHJvZHVjdF9pZCI6InByb2QtbWFlZXQ2c2FqZWc0MiJ9fQ.G1t11SPQ2x1Lnvc6zHRCqnrCtb5UvmzfXbkRlcl5xieEOq7odw28qngjuX3s5z-LR23iNzzeBtOaIi4rgQzXF6I7DetJUtH_siul4dJaW9XKA5135c4zyi7Mb7Se2E_D"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 54,
+    "body_sha256": "837a903dfad0fd1efdac09a6813a212aef4c05efe4e3a305e5ef1ebddd3d1328",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"Payment header is required\"}"
+  },
+  "paid_response": {
+    "status": 402,
+    "latency_ms": 870,
+    "headers": {
+      "date": "Fri, 16 Oct 2026 17:49:05 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "45",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "settlement_failed",
+          "resource": {
+            "url": "https://x402.tavily.com/search",
+            "description": "Tavily Search - advanced mode",
+            "mimeType": "application/json"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "10000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x1099f7191823cb6a966b2a156ecca056658aa50c",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "terms": "By using the Tavily solution, you agree to be bound by the Terms of Use (https://tavily.com/terms) and Privacy Policy (https://tavily.com/privacy) and accept that Tavily disclaims any liability with regard to the AI agent and cryptocurrency payments."
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 45,
+    "body_sha256": "9e19d4ea9ee68be45f10191e64fb64820aa6a4c2701b000fa5e395d610f9869b",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"settlement_failed\"}"
+  },
+  "quality": {
+    "result": "not_graded",
+    "reason": "facts only: On 2026-09-30 the payment settled but the sample request was rejected (HTTP 422). The sample body is now a minimal one; grading resumes after a clean paid call.",
+    "observed": {},
+    "expected": {},
+    "test": {
+      "input": "x402 payment protocol",
+      "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402"
+    },
+    "facts_only": true,
+    "graded_at": "2026-10-16T17:49:05Z"
+  },
+  "run_id": "20261016T174843Z",
+  "checked_at": "2026-10-16T17:49:05Z"
+}
