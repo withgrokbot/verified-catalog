@@ -2645,7 +2645,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.39.1");
+  assert.equal(VERSION, "0.39.2");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2994,6 +2994,9 @@ test("0.39.0 home: 'Try a check' runs the free Try-it flow; REAL stored example 
   assert.match(html, /can&#39;t verify|can't verify/);
   assert.match(html, /href="\/docs#quick-start"/);
   assert.ok(!/coming soon|Hosted mode/i.test(html), "no hosted coming-soon offer");
+  { const nav = html.match(/<nav aria-label="Primary">([\s\S]*?)<\/nav>/)[1]; assert.match(nav, /<a href="\/blog">Blog<\/a>/, "0.39.2: Blog in top nav, no hide-sm"); }
+  assert.match(html.match(/<nav aria-label="Footer">([\s\S]*?)<\/nav>/)[1], /href="\/blog"/, "Blog in footer");
+  for (const p of ["/pricing", "/docs", "/blog", "/v1/skips"]) assert.match(await (await worker.fetch(new Request("https://402xagent.com" + p, { headers: { accept: "text/html" } }), {}, {})).text(), /href="\/blog"/, p + " links /blog");
   for (const s of [html, ...await Promise.all(["/llms.txt", "/docs", "/pricing", "/openapi.json", "/.well-known/x402"].map(async (p) => (await worker.fetch(new Request("https://402xagent.com" + p), {}, {})).text()))]) assert.ok(!/router integration gets|1,000 free checks|offer-h/i.test(s), "0.39.1: router-integration offer card removed");
   assert.match(html, /Checks read these networks: /); assert.match(html, /You pay us in USDC on Base\./);
   assert.ok(html.includes(Number(RECEIPTS_META.endpoints_covered).toLocaleString("en-US") + " checks · last crawl"), "hero label formatted from data");

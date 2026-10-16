@@ -204,7 +204,7 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="top"><div class="wrap nav">
   <a class="brand" href="/" aria-label="402xAgent home"><img src="/brand/mark-402.png?v=${V}" width="50" height="26" alt=""><span>402xAgent</span></a>
-  <nav aria-label="Primary"><a href="#try">Try it</a><a class="hide-sm" href="#code">Code</a><a class="hide-sm" href="#pricing">Pricing</a><a class="gh" href="https://github.com/withgrokbot/x402-spotcheck">GitHub</a></nav>
+  <nav aria-label="Primary"><a href="#try">Try it</a><a href="/blog">Blog</a><a class="hide-sm" href="#code">Code</a><a class="hide-sm" href="#pricing">Pricing</a><a class="gh" href="https://github.com/withgrokbot/x402-spotcheck">GitHub</a></nav>
 </div></header>
 <main id="main">
 <div class="hero"><div class="wrap">
@@ -301,7 +301,7 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
 </main>
 <footer><div class="wrap">
   <div class="foot-brand"><img src="/brand/mark-402.png?v=${V}" width="38" height="20" alt=""><span>Made by <a href="https://github.com/withgrokbot">withgrokbot</a> · API: <span class="mono">api.402xagent.com</span></span></div>
-  <nav aria-label="Footer"><a href="https://github.com/withgrokbot/x402-spotcheck">GitHub</a><a href="/mcp" title="Remote MCP endpoint (POST JSON-RPC)">MCP (/mcp)</a><a href="/llms.txt">llms.txt</a><a href="/openapi.json">OpenAPI</a><a href="/v1/skips">Skips</a></nav>
+  <nav aria-label="Footer"><a href="https://github.com/withgrokbot/x402-spotcheck">GitHub</a><a href="/mcp" title="Remote MCP endpoint (POST JSON-RPC)">MCP (/mcp)</a><a href="/llms.txt">llms.txt</a><a href="/openapi.json">OpenAPI</a><a href="/v1/skips">Skips</a><a href="/blog">Blog</a></nav>
 </div></footer>
 <script>
 (()=>{const $=(s)=>document.querySelector(s),out=$("#out"),u=$("#u"),go=$("#go");
