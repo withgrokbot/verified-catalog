@@ -53,6 +53,13 @@ export function docsHtml(origin, apiOrigin) {
 <li>Client guard for @x402/fetch and @x402/axios: <a href="https://github.com/withgrokbot/x402-spotcheck">github.com/withgrokbot/x402-spotcheck</a></li></ul>
 <h2 id="quick-start">Quick start</h2>
 <p>Free check, no signup: <code>GET ${esc(apiOrigin)}/v1/products/endpoint-spot-check?url=&lt;endpoint&gt;&amp;mode=dry-run</code></p>
+<h2 id="payment-status">After you pay: payment status</h2>
+<p>Your paid call timed out, or came back 5xx or an empty 402. Did the money move? <code>POST https://api.402xagent.com/v1/products/payment-status</code> with JSON <code>{"payment_payload":"&lt;base64 PAYMENT-SIGNATURE you sent&gt;","seller_url":"&lt;url you paid&gt;"}</code> (or <code>tx_hash</code>, or <code>from</code> + <code>nonce</code> + <code>valid_before</code>). Base USDC (EIP-3009 exact) only for now.</p>
+<ul><li><b>status</b>: landed (on-chain, 10+ confirmations), not_landed, pending (could still land, or too few confirmations), canceled, unknown.</li>
+<li><b>safe_to_retry_same_payload</b>: always true. An EIP-3009 nonce is single-use, so resending the same signed payment can never charge twice.</li>
+<li><b>safe_to_resign</b>: true only when two independent RPC sources agree the nonce is unused <i>and</i> the chain is past validBefore + 120 s. Any doubt, disagreement, single source or error means false: don't sign a new payment yet (see <code>wait_until</code>).</li>
+<li>Also: the tx (amount, payTo, block, confirmations), a match against the seller's 402 terms, who to claim from and with what evidence, and what we can't know (delivery, seller state, facilitator internals, reorgs).</li>
+<li>Every answer carries a signed copy in <code>receipt</code> (same keys as below). Same price as the check, $0.02, and the same 5 free per day. A bare request returns the x402 402. In x402-spotcheck 1.2.0: <code>afterPay()</code> or <code>wrapFetch(..., { afterPay: true })</code>.</li></ul>
 <h2 id="receipt-signatures">Receipt signatures</h2>
 <p>New receipts (<code>/v1/receipts/&lt;id&gt;</code>) carry <code>kid</code> and <code>signature</code>: ed25519 (base64url, 64 bytes) over the RFC 8785 (JCS) canonical JSON of the receipt with only <code>signature</code> removed. Public keys: <a href="/.well-known/402xagent-keys.json">/.well-known/402xagent-keys.json</a> (match <code>kid</code>). Older receipts are unsigned. A signature proves 402xAgent issued the receipt; it does not change the verdict.</p>
 <p>Offline, with <code>x402-spotcheck</code> 1.1.0+: <code>await verifyReceipt(receipt, { publicKey })</code>. Or with Node 20+ and no dependencies:</p>

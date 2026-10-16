@@ -39,6 +39,7 @@ import {
 } from "./spotcheck.js";
 
 import { signObject, receiptKeysDoc } from "./sign.js";
+import { PS_ID, PS_NETWORK, USDC_BASE_LC, parseRequest, readChain, decide, termsMatch, claimPointer, buildBody, newPsId, cacheKey, cacheGet, cachePut, receiptById } from "./paystatus.js";
 import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skips.js";
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
@@ -54,7 +55,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.39.2";
+export const VERSION = "0.40.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -2330,6 +2331,28 @@ export function openapi(origin, env = {}) {
           },
         },
       },
+      "/v1/products/payment-status": {
+        post: {
+          operationId: "paymentStatus",
+          summary: "After-payment check (Base USDC, EIP-3009): did the payment land, and is it safe to sign a new one? Same price ($0.02) and the same 5 free/day as the check. A bare request answers the x402 402.",
+          requestBody: { required: false, content: { "application/json": { schema: { type: "object", properties: {
+            payment_payload: { type: "string", description: "base64 PAYMENT-SIGNATURE (v2) / X-PAYMENT (v1) value of the payment you sent (exact EIP-3009 USDC on Base)" },
+            tx_hash: { type: "string", description: "settle tx hash, if you have one" },
+            from: { type: "string" }, nonce: { type: "string", description: "EIP-3009 nonce (0x + 32 bytes), with from" },
+            valid_before: { type: "string", description: "unix seconds; needed for safe_to_resign when sending from + nonce without the payload" },
+            seller_url: { type: "string", description: "the URL you paid (terms match + claim contacts)" },
+            terms: { type: "object", description: "optional: the 402 terms you paid against {amount, payTo, asset, network}" },
+            network: { type: "string", enum: ["eip155:8453"] }, asset: { type: "string" }, client: { type: "string" }, ref: { type: "string" },
+          } }, example: PS_EXAMPLE_REQUEST } } },
+          responses: {
+            200: { description: "status landed|not_landed|pending|canceled|unknown, reason, safe_to_retry_same_payload (always true), safe_to_resign (strict two-source + expiry rule), wait_until, authorization, tx, terms_match, claim, cannot_know, finality, rpc, receipt (signed copy), access", content: { "application/json": { example: PS_EXAMPLE_RESPONSE } } },
+            400: { description: "missing_reference | bad_payload | bad_from | bad_nonce | bad_tx_hash | inconsistent | unsupported_network | unsupported_asset | bad_seller_url | bad_body" },
+            402: { description: "x402 v2 payment required (bare request, or free checks used up); amount 20000 USDC atomic on Base" },
+            503: { description: "chain_unavailable: no RPC source answered; nothing charged, no free check used" },
+          },
+        },
+        get: { operationId: "paymentStatusGet", summary: "Same as POST with query params (payment_payload, tx_hash, from, nonce, valid_before, seller_url)", responses: { 200: { description: "see POST" }, 402: { description: "see POST" } } },
+      },
       "/v1/products/endpoint-spot-check": {
         get: {
           operationId: "endpointSpotCheck",
@@ -2842,6 +2865,24 @@ export const MCP_TOOLS = [
       required: ["url"],
     },
   },
+  {
+    name: "payment_status",
+    description:
+      "After you pay an x402 endpoint (Base USDC, EIP-3009 exact): did the payment land, and is it safe to sign a new one? " +
+      "Give payment_payload (the base64 PAYMENT-SIGNATURE you sent), or tx_hash, or from + nonce (+ valid_before). Returns status landed|not_landed|pending|canceled|unknown, " +
+      "safe_to_retry_same_payload (always true: a nonce is single-use), safe_to_resign (true only when two independent RPC sources agree the nonce is unused AND validBefore has passed), tx details, terms match, a claim pointer and a signed receipt. " +
+      "Same 5 free per UTC day as endpoint_spot_check (client=vc-mcp), then $0.02 USDC on Base via x402 (forward PAYMENT-SIGNATURE).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        payment_payload: { type: "string", description: "base64 PAYMENT-SIGNATURE / X-PAYMENT value of the payment you sent" },
+        tx_hash: { type: "string" }, from: { type: "string" }, nonce: { type: "string" },
+        valid_before: { type: "string", description: "unix seconds (with from + nonce)" },
+        seller_url: { type: "string", description: "the URL you paid" },
+      },
+    },
+    annotations: { title: "Did my x402 payment land?", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
 ];
 
 class ToolInputError extends Error {}
@@ -2946,7 +2987,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
     const name = params.name;
     const args = params.arguments || {};
     const err = (text) => ({ content: [{ type: "text", text }], isError: true });
-    if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check", "get_receipt"].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
+    if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check", "get_receipt", "payment_status"].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
     let data;
     try {
       if (name === "get_receipt") {
@@ -2958,6 +2999,22 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         const body = await r.json();
         if (r.status !== 200) return err((body && body.error) || "HTTP " + r.status);
         data = body;
+      } else if (name === "payment_status") {
+        const pb = { client: MCP_CLIENT };
+        for (const k of ["payment_payload", "tx_hash", "from", "nonce", "valid_before", "seller_url"]) if (args[k] != null && args[k] !== "") pb[k] = pyStr(args[k]);
+        if (!["payment_payload", "tx_hash", "from", "nonce"].some((k) => pb[k])) return err("give payment_payload, or tx_hash, or from + nonce");
+        const u = new URL(origin + PS_ROUTE_PATH);
+        const headers = { accept: "application/json", "content-type": "application/json", "user-agent": "verified-catalog-mcp/0.6" };
+        const pay = paymentHeader(req);
+        if (pay) headers["payment-signature"] = pay;
+        const ip = req.headers.get("cf-connecting-ip");
+        if (ip) headers["cf-connecting-ip"] = ip;
+        const r = await handlePaymentStatus(new Request(u, { method: "POST", headers, body: JSON.stringify(pb) }), env, ctx, u);
+        let body = null;
+        try { body = await r.json(); } catch (_) { body = null; }
+        if (r.status === 200) data = body;
+        else if (r.status === 402) return err("Payment required: $0.02 USDC on Base via x402 for payment_status after the free quota. Retry this MCP call with a PAYMENT-SIGNATURE header. Requirements: " + JSON.stringify(body));
+        else return err((body && body.error) || "HTTP " + r.status);
       } else if (name === "endpoint_spot_check") {
         if (!args.url) return err("url is required");
         const qp = new URLSearchParams({ client: MCP_CLIENT, url: pyStr(args.url) });
@@ -3178,12 +3235,13 @@ export function wellKnownX402(env, host = "") {
     // 0.20.0: descriptive only (no URL list, no payment block): the free check comes first, the paid 402 after.
     free_check: { url: FREE_CHECK_URL, example: FREE_CHECK_EXAMPLE_URL, example_response: FREE_CHECK_EXAMPLE, prior_checks: PRIOR_CHECKS, then: "the paid check (HTTP 402) for the full payment terms" },
     free_pages: { skips: CANON_ORIGIN + "/v1/skips.json", saves: CANON_ORIGIN + "/saves.json", bazaar: CANON_ORIGIN + "/bazaar.json", receipts: CANON_ORIGIN + "/v1/receipts", openapi: API_ORIGIN + "/openapi.json", llms: CANON_ORIGIN + "/llms.txt", rules: CANON_ORIGIN + "/rules.json" },
-    resources: [R("/v1/lookup/paid"), R("/v1/products/overnight-cos-pack"), R("/v1/products/endpoint-spot-check")],
+    resources: [R("/v1/lookup/paid"), R("/v1/products/overnight-cos-pack"), R("/v1/products/endpoint-spot-check"), R("/v1/products/payment-status")],
     payment: { x402: { version: 2, scheme: "exact", networks: [c.network], primaryNetwork: c.network, currency: "USDC", asset: USDC_BASE, payTo: c.payTo } },
     resourceCatalog: [
       { url: R("/v1/lookup/paid"), method: "GET", description: "Reliability lookup: x402 services for a task at a price, ranked by known-answer pass rate", accepts: [acc(c.priceAtomic)] },
       { url: R("/v1/products/overnight-cos-pack"), methods: ["GET", "POST"], description: "Overnight Chief of Staff Setup Pack (prompts, template, PDF guide)", accepts: [acc(pk.priceAtomic)] },
       { url: R("/v1/products/endpoint-spot-check"), methods: ["GET", "POST"], description: "402xAgent check: pay, skip or recheck for an x402 endpoint before your agent pays. 5 free per day (25 per network), then $0.02 a check", price: { mode: "fixed", currency: "USD", amount: "0.02" }, accepts: [acc(SPOT_PAID_ATOMIC)] },
+      { url: R("/v1/products/payment-status"), methods: ["POST", "GET"], description: "402xAgent payment status: after you pay, did the Base USDC payment land and is it safe to sign a new one? Same 5 free per day as the check, then $0.02", price: { mode: "fixed", currency: "USD", amount: "0.02" }, accepts: [acc(SPOT_PAID_ATOMIC)] },
     ],
     openapi: API_ORIGIN + "/openapi.json",
     mcp: API_ORIGIN + "/mcp",
@@ -3211,6 +3269,7 @@ const routeInnerHolder = {
     if (path === "/v1/lookup/paid" && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaidLookup(req, env, ctx, url);
     if (path === "/v1/products/overnight-cos-pack" && ["GET", "HEAD", "POST"].includes(req.method)) return handleOvernightCosPack(req, env, ctx, url);
     if (path === "/v1/products/endpoint-spot-check" && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointSpotCheck(req, env, ctx, url);
+    if (path === PS_ROUTE_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaymentStatus(req, env, ctx, url);
     // 0.12.1: guessed short paths for Spot-Check get a 308 to the canonical route (query kept; method + body kept by 308).
     if (SPOT_ALIASES.has(path)) {
       const to = url.origin + "/v1/products/endpoint-spot-check" + url.search;
@@ -3223,6 +3282,10 @@ const routeInnerHolder = {
     if ((path === "/bazaar" || path === "/bazaar.json") && env.BAZAAR_PAGE !== "off") return handleBazaar(req, url, env, path, CANON_ORIGIN);
     if (path === "/v1/receipts/by-url" || /^\/v1\/receipts\/sc-/.test(path)) return handleLiveReceipts(req, env, url, path);
     if (path === "/v1/receipts" && url.searchParams.has("type")) return handleReceiptList(env, url);
+    if (/^\/v1\/receipts\/ps-[0-9a-f]{16}$/.test(path)) {
+      const r = await receiptById(env, path.slice("/v1/receipts/".length));
+      return r ? json(r, 200, { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" }) : json({ error: "no payment-status receipt with this id (only final answers are stored)" }, 404);
+    }
     if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return handleReceipts(url, env);
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
     if (path === "/.well-known/x402") return json(wellKnownX402(env, url.hostname), 200, { "cache-control": "public, max-age=300" });
@@ -3270,7 +3333,7 @@ const routeInnerHolder = {
     }
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${CANON_ORIGIN}/sitemap.xml\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
     if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/v1/skips", "/v1/skips.json", "/v1/receipts", "/", "/openapi.json", "/llms.txt", "/pricing", "/docs", "/blog", ...BLOG_POSTS.map((p) => "/blog/" + p.slug), "/rules", "/rules.json", "/bazaar", "/bazaar.json", ...(env.SAVES_PAGE === "on" ? ["/saves", "/saves.json"] : [])].map((u) => `<url><loc>${CANON_ORIGIN}${u}</loc><changefreq>daily</changefreq></url>`).join("")}</urlset>\n`, { headers: { "content-type": "application/xml; charset=utf-8", "access-control-allow-origin": "*" } });
-    if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\nStart with the free check: GET ${FREE_CHECK_URL}\nReal example: GET ${FREE_CHECK_EXAMPLE_URL}\n  -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}\n5 free checks per client per UTC day (at most 25 per network), free dry runs with &mode=dry-run, prior checks at ${PRIOR_CHECKS}. After that, the paid check (HTTP 402, $0.02 USDC on Base via x402) adds the full payment terms.\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). ${COVERED()} self-checked x402 endpoints (weekly crawl); the skip list shows which ones disagree with their listing.\n- Bazaar check (free): ${CANON_ORIGIN}/bazaar (JSON: ${CANON_ORIGIN}/bazaar.json). Our daily check of the top CDP Bazaar search results.\n- Status badge (free): ${CANON_ORIGIN}/badge/api.402rates.com.svg (any host in place of api.402rates.com; optional ?path=/exact/path). Green "pay · stable N days" only when the latest check is pay and under 72 h old; otherwise grey "stale" or "not verified". Embed: [![402xAgent status](${CANON_ORIGIN}/badge/api.402rates.com.svg)](${CANON_ORIGIN}/badge/api.402rates.com). Every receipt carries its own badge snippet (Markdown + HTML).\n- Saves (free): ${CANON_ORIGIN}/saves (JSON: ${CANON_ORIGIN}/saves.json). Endpoints from the last 30 days whose live 402 differed from the listing (asked more, paid a different wallet, or another network), with redacted receipts.\n- Rules (free): ${CANON_ORIGIN}/rules (JSON: ${CANON_ORIGIN}/rules.json). Every verdict carries a stable reason_code and a confidence (high|medium|low); the codes and confidence rules are listed there.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (live receipts: ${CANON_ORIGIN}/v1/receipts/sc-<id>; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 5 free/day (25 per network), then $0.02 USDC a check on Base via x402.\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n- Pricing: ${CANON_ORIGIN}/pricing  Docs: ${CANON_ORIGIN}/docs (quick start: ${CANON_ORIGIN}/docs#quick-start)\n- Blog: ${CANON_ORIGIN}/blog${BLOG_POSTS.map((p) => `\n  - ${p.title}: ${CANON_ORIGIN}/blog/${p.slug}`).join("")}\n- Signed receipts: new receipts carry kid + signature (ed25519 over RFC 8785 JCS of the receipt minus signature). Public keys: ${API_ORIGIN}/.well-known/402xagent-keys.json. Verify offline: ${CANON_ORIGIN}/docs#receipt-signatures or x402-spotcheck 1.1.0 verifyReceipt().\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
+    if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\nStart with the free check: GET ${FREE_CHECK_URL}\nReal example: GET ${FREE_CHECK_EXAMPLE_URL}\n  -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}\n5 free checks per client per UTC day (at most 25 per network), free dry runs with &mode=dry-run, prior checks at ${PRIOR_CHECKS}. After that, the paid check (HTTP 402, $0.02 USDC on Base via x402) adds the full payment terms.\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). ${COVERED()} self-checked x402 endpoints (weekly crawl); the skip list shows which ones disagree with their listing.\n- Bazaar check (free): ${CANON_ORIGIN}/bazaar (JSON: ${CANON_ORIGIN}/bazaar.json). Our daily check of the top CDP Bazaar search results.\n- Status badge (free): ${CANON_ORIGIN}/badge/api.402rates.com.svg (any host in place of api.402rates.com; optional ?path=/exact/path). Green "pay · stable N days" only when the latest check is pay and under 72 h old; otherwise grey "stale" or "not verified". Embed: [![402xAgent status](${CANON_ORIGIN}/badge/api.402rates.com.svg)](${CANON_ORIGIN}/badge/api.402rates.com). Every receipt carries its own badge snippet (Markdown + HTML).\n- Saves (free): ${CANON_ORIGIN}/saves (JSON: ${CANON_ORIGIN}/saves.json). Endpoints from the last 30 days whose live 402 differed from the listing (asked more, paid a different wallet, or another network), with redacted receipts.\n- Rules (free): ${CANON_ORIGIN}/rules (JSON: ${CANON_ORIGIN}/rules.json). Every verdict carries a stable reason_code and a confidence (high|medium|low); the codes and confidence rules are listed there.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (live receipts: ${CANON_ORIGIN}/v1/receipts/sc-<id>; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 5 free/day (25 per network), then $0.02 USDC a check on Base via x402.\n- After you pay (did it land? safe to sign again?): POST ${API_ORIGIN}/v1/products/payment-status with JSON {"payment_payload":"<base64 PAYMENT-SIGNATURE you sent>","seller_url":"<url>"} (or tx_hash, or from + nonce). Base USDC (EIP-3009) only. Returns status landed|not_landed|pending|canceled|unknown, safe_to_retry_same_payload (always true), safe_to_resign (true only when two independent RPC sources agree the nonce is unused and validBefore has passed), tx details, terms match, a claim pointer, and a signed receipt. Same price and the same 5 free/day as the check. Docs: ${CANON_ORIGIN}/docs#payment-status\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n- Pricing: ${CANON_ORIGIN}/pricing  Docs: ${CANON_ORIGIN}/docs (quick start: ${CANON_ORIGIN}/docs#quick-start)\n- Blog: ${CANON_ORIGIN}/blog${BLOG_POSTS.map((p) => `\n  - ${p.title}: ${CANON_ORIGIN}/blog/${p.slug}`).join("")}\n- Signed receipts: new receipts carry kid + signature (ed25519 over RFC 8785 JCS of the receipt minus signature). Public keys: ${API_ORIGIN}/.well-known/402xagent-keys.json. Verify offline: ${CANON_ORIGIN}/docs#receipt-signatures or x402-spotcheck 1.1.0 verifyReceipt().\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
     if (path === "/" && url.hostname === "402xagent.com" && /text\/html/.test(req.headers.get("accept") || ""))
       return new Response(landingHtml(CANON_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", vary: "accept", "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "access-control-allow-origin": "*" } });
     if (path === "/")
@@ -3310,3 +3373,212 @@ const routeInnerHolder = {
   },
 };
 const routeInner = (req, env, ctx, url, path) => routeInnerHolder.routeInner(req, env, ctx, url, path);
+
+// ---------------------------------------------------------------------------------------------------------------
+// 0.40.0: after-payment check. POST /v1/products/payment-status (GET with query params also works).
+// Same price as the check ($0.02 flat) and the SAME free counter (5/day). Chain reads: Alchemy (ALCHEMY_BASE_RPC_URL),
+// a second provider (RPC2_BASE_URL), public Base node last. No KV. D1 stores final answers only (migration 0008).
+const PS_ROUTE_PATH = "/v1/products/payment-status";
+const PS_REF_FIELDS = ["payment_payload", "tx_hash", "from", "nonce"];
+export const PS_EXAMPLE_REQUEST = { payment_payload: "<base64 PAYMENT-SIGNATURE value you sent>", seller_url: "https://seller.example/api/x" };
+export const PS_EXAMPLE_RESPONSE = {
+  id: "ps-0123456789abcdef", type: "payment-status", status: "not_landed", reason: "expired_unused",
+  safe_to_retry_same_payload: true, safe_to_resign: true,
+  why: "two independent sources (alchemy, rpc2) agree the nonce is unused and the chain is past validBefore + 120s: this authorization can never settle, so a new payment cannot double-charge",
+  wait_until: null,
+  authorization: { from: "0x...", nonce: "0x...", used_onchain: false, event: null, valid_before: "2026-10-16T17:05:00Z", expired: true },
+  tx: null,
+  terms_match: { amount: "match", pay_to: "match", asset: "match", network: "match", source: "payment_payload", compared: "authorization" },
+  finality: { confirmations: null, min_confirmations: 10, reorg_safe: false },
+  rpc: { sources: [{ name: "alchemy", ok: true, head: 36000000 }, { name: "rpc2", ok: true, head: 36000000 }], sources_agreed: 2 },
+  receipt: "{ same fields + kid + signature (ed25519 over JCS) }",
+  access: { tier: "free", free_per_day: 5, free_used_today: 1 },
+};
+export function psBazaarExtension() {
+  return {
+    info: {
+      input: { type: "http", method: "POST", bodyType: "json", body: { payment_payload: "<base64 PAYMENT-SIGNATURE>", seller_url: "https://seller.example/api/x" } },
+      output: { type: "json", example: PS_EXAMPLE_RESPONSE },
+    },
+    schema: {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties: {
+        input: {
+          type: "object",
+          properties: {
+            type: { type: "string", const: "http" },
+            method: { type: "string", enum: ["POST", "GET"] },
+            bodyType: { type: "string", const: "json" },
+            body: {
+              type: "object",
+              properties: {
+                payment_payload: { type: "string", description: "base64 PAYMENT-SIGNATURE (v2) / X-PAYMENT (v1) value of the exact EIP-3009 USDC payment you sent" },
+                tx_hash: { type: "string", description: "settle transaction hash, if you got one" },
+                from: { type: "string", description: "payer address (with nonce)" },
+                nonce: { type: "string", description: "EIP-3009 authorization nonce, 0x + 32 bytes (with from)" },
+                valid_before: { type: "string", description: "unix seconds, if you send from + nonce without the payload" },
+                seller_url: { type: "string", description: "the URL you paid; enables terms match + claim contacts" },
+              },
+            },
+          },
+          required: ["type", "method"],
+        },
+        output: { type: "object", properties: { type: { type: "string" }, example: { type: "object" } } },
+      },
+      required: ["input"],
+    },
+  };
+}
+export function psPaymentRequired(c, resourceUrl, error, used, extra = {}) {
+  return {
+    x402Version: 2,
+    error,
+    resource: {
+      url: resourceUrl,
+      description: `402xAgent payment status: did an x402 USDC payment on Base land, and is it safe to sign a new one? $${c.priceUsd} USDC after ${c.freePerDay} free checks per UTC day (shared with the check).`,
+      mimeType: "application/json",
+      serviceName: "402xAgent payment status",
+      tags: ["x402", "payments", "reconcile", "base", "usdc"],
+    },
+    accepts: [paymentRequirements(c, resourceUrl, 2, { paidPath: false, description: `402xAgent payment status: one on-chain lookup after the ${c.freePerDay} free checks per UTC day. $${c.priceUsd} USDC on Base.` })],
+    extensions: { bazaar: psBazaarExtension() },
+    price_usd: c.priceUsd,
+    asset: "USDC on Base (eip155:8453)",
+    product: PS_ID,
+    free_per_day: c.freePerDay,
+    free_used_today: used,
+    free_resets: "00:00 UTC",
+    example_request: PS_EXAMPLE_REQUEST,
+    how_to_pay: "Retry the same request with a PAYMENT-SIGNATURE header (x402 v2; X-PAYMENT also accepted) for the amount and payTo above. The payment you are asking about goes in the JSON body (payment_payload), not in that header.",
+    docs: CANON_ORIGIN + "/docs#payment-status",
+    ...extra,
+  };
+}
+async function psReadBody(req, url) {
+  const b = {};
+  for (const [k, v] of url.searchParams) b[k] = v;
+  if (req.method === "POST") {
+    const ct = req.headers.get("content-type") || "";
+    const txt = await req.text().catch(() => "");
+    if (txt.trim()) {
+      if (!/json/i.test(ct) && !/^\s*\{/.test(txt)) return { error: "bad_body" };
+      try {
+        const j = JSON.parse(txt);
+        if (!j || typeof j !== "object" || Array.isArray(j)) return { error: "bad_body" };
+        Object.assign(b, j);
+      } catch (_) {
+        return { error: "bad_body" };
+      }
+    }
+  }
+  return { b };
+}
+function psBad(code, field, problem, status = 400) {
+  return json({ error: `${problem}. Example: POST ${API_ORIGIN}${PS_ROUTE_PATH} with JSON ${JSON.stringify(PS_EXAMPLE_REQUEST)}`, code, field, example: { method: "POST", url: API_ORIGIN + PS_ROUTE_PATH, body: PS_EXAMPLE_REQUEST }, docs: CANON_ORIGIN + "/docs#payment-status" }, status);
+}
+async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
+  const c = spotCfg(env);
+  const cd = spotDynCfg(c, null); // flat 20000
+  const resourceUrl = url.origin + url.pathname.replace(/\/+$/, "");
+  const hdr = paymentHeader(req);
+  const rb = await psReadBody(req, url);
+  if (rb.error) return psBad("bad_body", "body", "the body must be a JSON object");
+  const b = rb.b;
+  const qLike = { client: b.client || null, payer: null, errors: [], task: null, endpoint: null, max_price: null, n: 1, limit: 1, ref: b.ref || null };
+  const cid = await clientId(req, qLike, env);
+  const ua = req.headers.get("user-agent") || "";
+  const referer = refererHost(req);
+  const excluded = exclusion(req, qLike, env, url);
+  const point = (status, access, extra = {}) => writePoint(env, dataPoint({ product: "paystatus", cid, q: qLike, excluded, candidates: 0, ua, returnedPayTo: [], status, referer, access, ...extra }));
+
+  // bare request, no payment header: discovery 402 (like the 0.39.1 spot-check), nothing read, nothing used, no writes
+  const hasRef = PS_REF_FIELDS.some((k) => b[k] != null && b[k] !== "");
+  if (!hasRef && !hdr) {
+    const body = psPaymentRequired(cd, resourceUrl, "Missing payment reference. Send payment_payload (or tx_hash, or from + nonce) in a JSON body to check a payment.", 0, { discovery: true, hint: "POST JSON " + JSON.stringify(PS_EXAMPLE_REQUEST) });
+    return json(body, 402, { "payment-required": b64encode(body) });
+  }
+  const parsed = parseRequest(b);
+  if (parsed.error) { point(400, "ps-bad-params", { failReason: parsed.error }); return psBad(parsed.error, parsed.field, parsed.problem); }
+  const q = parsed.q;
+
+  // access (peek only: a chain outage must not use a free check)
+  const exempt = isExempt(qLike, env);
+  const key = exempt ? null : await quotaKey(req, qLike, env);
+  const peek = exempt ? { free: true, used: null } : await takeFree(env, key, c.freePerDay, new Date(), "peek", SPOT_QUOTA_COUNTER);
+  let payload = null;
+  if (!exempt && !peek.free) {
+    const deny = (error, kind) => {
+      const body = psPaymentRequired(cd, resourceUrl, error, peek.used);
+      point(402, kind);
+      return json(body, 402, { "payment-required": b64encode(body) });
+    };
+    if (!hdr) return deny(`Free checks used up for today (${c.freePerDay} per UTC day, shared with the 402xAgent check). Pay $${cd.priceUsd} USDC on Base via x402 to continue.`, "payment-required");
+    payload = decodePaymentHeader(hdr);
+    if (!payload) return deny("payment header is not valid base64 JSON x402 payload", "payment-failed");
+    const bad = checkPayload(payload, cd);
+    if (bad) return deny("payment rejected: " + bad, "payment-failed");
+  }
+
+  // chain (or a stored final answer)
+  const ck = await cacheKey(q);
+  let receipt = await cacheGet(env, ck);
+  let body;
+  const cached = !!receipt;
+  if (receipt) {
+    const { kid, signature, ...rest } = receipt;
+    body = rest;
+  } else {
+    const views = await readChain(env, q, opts.fetchImpl);
+    const d = decide(views, q);
+    if (d.error) {
+      point(503, "ps-chain-unavailable");
+      return json({ error: "chain_unavailable: no Base RPC source answered; nothing was charged and no free check was used. Ask again shortly.", code: "chain_unavailable", retry_after_s: 30, safe_to_resign: false, safe_to_retry_same_payload: true, rpc: { sources: views.map((v) => ({ name: v.name, ok: false, error: v.error })) } }, 503, { "retry-after": "30" });
+    }
+    let sellerContact = null;
+    if (q.seller_url) {
+      try {
+        const safe = await assertSafeUrl(q.seller_url, opts.probeOpts || {});
+        if (safe.ok) {
+          const pr = await spotProbe(q.seller_url, { ...(opts.probeOpts || {}) });
+          const acc = (pr.accepts || []).find((a) => a && (a.network === PS_NETWORK || a.network === "base") && lc(a.asset) === USDC_BASE_LC);
+          if (acc && !q.terms) q.terms = { amount: acc.amount, payTo: lc(acc.payTo), asset: lc(acc.asset), network: PS_NETWORK, source: "live_402" };
+          if (pr.contact || pr.seller_contact) sellerContact = { how: String(pr.contact || pr.seller_contact).slice(0, 200) };
+        }
+      } catch (_) {}
+    }
+    const lv = d.landed_view && d.landed_view.receipt ? d.landed_view.receipt : null;
+    const tr = lv ? lv.transfers.find((t) => !q.from || t.from === lc(q.from)) || lv.transfers[0] || null : null;
+    const tm = termsMatch(q.terms, tr, q);
+    const claim = claimPointer(d.status, d, tm, q, sellerContact, env);
+    const store = !!(d.final && env.RECEIPTS_DB);
+    const id = newPsId();
+    body = buildBody({ id, now: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"), q, d, views, tm, claim, origin: CANON_ORIGIN });
+    if (!store) body.permalink = null;
+    body.stored = store;
+    receipt = await signObject(env, body);
+    if (store) await cachePut(env, ck, receipt || body);
+  }
+
+  // charge / count only now
+  let access;
+  const extraHeaders = { "cache-control": "no-store" };
+  if (exempt) access = { tier: "exempt", note: "our own self-test client: not metered" };
+  else if (peek.free) {
+    const t = await takeFree(env, key, c.freePerDay, new Date(), "take", SPOT_QUOTA_COUNTER);
+    access = { tier: "free", free_per_day: c.freePerDay, free_used_today: t.used, free_remaining_today: t.used == null ? null : Math.max(0, c.freePerDay - t.used), shared_with: "402xAgent check", then: `$${cd.priceUsd} USDC on Base via x402 (HTTP 402)` };
+  } else {
+    const r = await verifyAndSettle(cd, payload, resourceUrl, { paidPath: false, description: `402xAgent payment status: one lookup. $${cd.priceUsd} USDC on Base.` });
+    if (!r.ok) {
+      const pb = psPaymentRequired(cd, resourceUrl, "payment rejected: " + r.reason, peek.used);
+      point(402, "payment-failed");
+      return json(pb, 402, { "payment-required": b64encode(pb) });
+    }
+    const enc = b64encode(r.settle);
+    extraHeaders["payment-response"] = enc;
+    extraHeaders["x-payment-response"] = enc;
+    access = { tier: "paid", charged_usd: cd.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null };
+  }
+  point(200, access.tier === "paid" ? "paid" : "ps-" + access.tier, access.tier === "paid" ? { amountUsd: Number(cd.priceUsd), tx: access.tx } : {});
+  return json({ ...body, cached, receipt: receipt || null, signature_note: receipt ? "receipt is the signed copy (ed25519 over JCS of receipt minus signature); verify with x402-spotcheck verifyReceipt(receipt)" : "unsigned (signing key not configured)", access }, 200, extraHeaders);
+}
