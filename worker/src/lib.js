@@ -43,6 +43,7 @@ import { PS_ID, PS_NETWORK, USDC_BASE_LC, parseRequest, readChain, decide, terms
 import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skips.js";
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
+import { resolveHosted, hostedAccess, recordHosted, integratorMe } from "./hosted.js";
 import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
 import { staleStep, STALE_REF } from "./stale.js";
 import { dailySeed, dailyStep, DAILY_CRON, DAILY_REF } from "./daily.js";
@@ -55,7 +56,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.40.1";
+export const VERSION = "0.41.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1476,7 +1477,7 @@ export function normReceipt(r) {
 // 0.24.0: receipts from OUTSIDE free checks and dry runs show verdict + reason only; the 402 terms (network, asset,
 // amount, pay_to), the approved payment and the cached probe are what the paid check sells. Paid (paid, router-prepaid)
 // and our own exempt/self-checked receipts stay full. Rows stored before 0.24.0 carry no tier: full only when self.
-const FULL_TIERS = new Set(["paid", "router-prepaid", "exempt"]);
+const FULL_TIERS = new Set(["paid", "router-prepaid", "exempt", "hosted"]);
 // 0.27.0: did the wallet move since the previous receipt for this URL? One indexed read (url, created_at DESC).
 // true = the last receipt's 402 offered other wallet(s) on this network; false = same wallet; null = nothing to compare.
 // A flag only: the verdict is unchanged. Never breaks an answer.
@@ -1795,6 +1796,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && (q.ref === STALE_REF || q.ref === DAILY_REF) ? "auto" : (access && access.tier) || null });
       Object.assign(rec, ptc, { history }, rf);
       if (access && (access.tier === "paid" || access.tier === "router-pack")) rec.payment_received = paymentReceived(access, cd.priceAtomic); // 0.40.1
+      if (access && access.tier === "hosted") { const { tier: _t, ...hv } = access; rec.hosted = hv; } // 0.41.0: signed with the receipt
       await saveLiveReceipt(env, rec); // awaited: the next call's cache lookup must see it
     }
     // Free tier: verdict + plain reason + a hash of the approved terms (enough for x402-spotcheck to refuse a
@@ -1861,6 +1863,10 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   }
 
   if (q.mode === "dry-run") return spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { cid, ua, referer, c });
+  // 0.41.0 hosted mode: only when the request carries an integrator key (otherwise null and nothing below changes)
+  const hosted = await resolveHosted(env, req, { takeFree, salt: env.CLIENT_SALT });
+  if (hosted && hosted.response) return json(hosted.response.body, hosted.response.status, { ...(hosted.response.headers || {}), "cache-control": "no-store" });
+  const hostedOk = hosted && hosted.ok ? hosted : null;
 
   const pr = await getProbe(env, q, probeOpts);
   const probe = pr.probe;
@@ -1877,7 +1883,10 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     partner = await takeFree(env, "partner:" + q.client, partnerLimit, new Date(), "take", SPOT_PARTNER_COUNTER, "all");
     if (!partner.free) partner = null;
   }
-  if (isExempt(qLike, env)) {
+  if (hosted && hosted.fallback) extraHeaders["x-402xagent-hosted"] = "fallback: " + hosted.reason;
+  if (hostedOk) {
+    access = hostedAccess(hostedOk);
+  } else if (isExempt(qLike, env)) {
     access = { tier: "exempt", note: "our own self-test client: not metered for free quota (SSRF rules still apply)" };
   } else if (partner) {
     access = {
@@ -1995,6 +2004,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   }
 
   const out = await buildResult(probe, access);
+  if (hostedOk) await recordHosted(env, hostedOk, out.receipt_id || "spot-unstored-" + Date.now(), "spot");
   writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: isExempt(qLike, env) ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: access.tier === "partner" ? "partner" : access.tier, freeUsed: partner ? partner.used : freeUsed , verdict: out.verdict, shape, failReason: q.ctx.mistake || "" }));
   return json(out, 200, extraHeaders);
 }
@@ -3271,6 +3281,7 @@ const routeInnerHolder = {
     if (path === "/v1/products/overnight-cos-pack" && ["GET", "HEAD", "POST"].includes(req.method)) return handleOvernightCosPack(req, env, ctx, url);
     if (path === "/v1/products/endpoint-spot-check" && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointSpotCheck(req, env, ctx, url);
     if (path === PS_ROUTE_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaymentStatus(req, env, ctx, url);
+    if (path === "/v1/integrators/me" && req.method === "GET") { const r = await integratorMe(env, req); return json(r.body, r.status, { "cache-control": "no-store", ...(r.headers || {}) }); }
     // 0.12.1: guessed short paths for Spot-Check get a 308 to the canonical route (query kept; method + body kept by 308).
     if (SPOT_ALIASES.has(path)) {
       const to = url.origin + "/v1/products/endpoint-spot-check" + url.search;
@@ -3334,7 +3345,7 @@ const routeInnerHolder = {
     }
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${CANON_ORIGIN}/sitemap.xml\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
     if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/v1/skips", "/v1/skips.json", "/v1/receipts", "/", "/openapi.json", "/llms.txt", "/pricing", "/docs", "/blog", ...BLOG_POSTS.map((p) => "/blog/" + p.slug), "/rules", "/rules.json", "/bazaar", "/bazaar.json", ...(env.SAVES_PAGE === "on" ? ["/saves", "/saves.json"] : [])].map((u) => `<url><loc>${CANON_ORIGIN}${u}</loc><changefreq>daily</changefreq></url>`).join("")}</urlset>\n`, { headers: { "content-type": "application/xml; charset=utf-8", "access-control-allow-origin": "*" } });
-    if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\nStart with the free check: GET ${FREE_CHECK_URL}\nReal example: GET ${FREE_CHECK_EXAMPLE_URL}\n  -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}\n5 free checks per client per UTC day (at most 25 per network), free dry runs with &mode=dry-run, prior checks at ${PRIOR_CHECKS}. After that, the paid check (HTTP 402, $0.02 USDC on Base via x402) adds the full payment terms.\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). ${COVERED()} self-checked x402 endpoints (weekly crawl); the skip list shows which ones disagree with their listing.\n- Bazaar check (free): ${CANON_ORIGIN}/bazaar (JSON: ${CANON_ORIGIN}/bazaar.json). Our daily check of the top CDP Bazaar search results.\n- Status badge (free): ${CANON_ORIGIN}/badge/api.402rates.com.svg (any host in place of api.402rates.com; optional ?path=/exact/path). Green "pay · stable N days" only when the latest check is pay and under 72 h old; otherwise grey "stale" or "not verified". Embed: [![402xAgent status](${CANON_ORIGIN}/badge/api.402rates.com.svg)](${CANON_ORIGIN}/badge/api.402rates.com). Every receipt carries its own badge snippet (Markdown + HTML).\n- Saves (free): ${CANON_ORIGIN}/saves (JSON: ${CANON_ORIGIN}/saves.json). Endpoints from the last 30 days whose live 402 differed from the listing (asked more, paid a different wallet, or another network), with redacted receipts.\n- Rules (free): ${CANON_ORIGIN}/rules (JSON: ${CANON_ORIGIN}/rules.json). Every verdict carries a stable reason_code and a confidence (high|medium|low); the codes and confidence rules are listed there.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (live receipts: ${CANON_ORIGIN}/v1/receipts/sc-<id>; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 5 free/day (25 per network), then $0.02 USDC a check on Base via x402.\n- After you pay (did it land? safe to sign again?): POST ${API_ORIGIN}/v1/products/payment-status with JSON {"payment_payload":"<base64 PAYMENT-SIGNATURE you sent>","seller_url":"<url>"} (or tx_hash, or from + nonce). Base USDC (EIP-3009) only. Returns status landed|not_landed|pending|canceled|unknown, safe_to_retry_same_payload (always true), safe_to_resign (true only when two independent RPC sources agree the nonce is unused and validBefore has passed), tx details, terms match, a claim pointer, and a signed receipt. Same price and the same 5 free/day as the check. Docs: ${CANON_ORIGIN}/docs#payment-status\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n- Pricing: ${CANON_ORIGIN}/pricing  Docs: ${CANON_ORIGIN}/docs (quick start: ${CANON_ORIGIN}/docs#quick-start)\n- Blog: ${CANON_ORIGIN}/blog${BLOG_POSTS.map((p) => `\n  - ${p.title}: ${CANON_ORIGIN}/blog/${p.slug}`).join("")}\n- Signed receipts: new receipts carry kid + signature (ed25519 over RFC 8785 JCS of the receipt minus signature). Public keys: ${API_ORIGIN}/.well-known/402xagent-keys.json. Verify offline: ${CANON_ORIGIN}/docs#receipt-signatures or x402-spotcheck 1.1.0 verifyReceipt().\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
+    if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\nStart with the free check: GET ${FREE_CHECK_URL}\nReal example: GET ${FREE_CHECK_EXAMPLE_URL}\n  -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}\n5 free checks per client per UTC day (at most 25 per network), free dry runs with &mode=dry-run, prior checks at ${PRIOR_CHECKS}. After that, the paid check (HTTP 402, $0.02 USDC on Base via x402) adds the full payment terms.\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). ${COVERED()} self-checked x402 endpoints (weekly crawl); the skip list shows which ones disagree with their listing.\n- Bazaar check (free): ${CANON_ORIGIN}/bazaar (JSON: ${CANON_ORIGIN}/bazaar.json). Our daily check of the top CDP Bazaar search results.\n- Status badge (free): ${CANON_ORIGIN}/badge/api.402rates.com.svg (any host in place of api.402rates.com; optional ?path=/exact/path). Green "pay · stable N days" only when the latest check is pay and under 72 h old; otherwise grey "stale" or "not verified". Embed: [![402xAgent status](${CANON_ORIGIN}/badge/api.402rates.com.svg)](${CANON_ORIGIN}/badge/api.402rates.com). Every receipt carries its own badge snippet (Markdown + HTML).\n- Saves (free): ${CANON_ORIGIN}/saves (JSON: ${CANON_ORIGIN}/saves.json). Endpoints from the last 30 days whose live 402 differed from the listing (asked more, paid a different wallet, or another network), with redacted receipts.\n- Rules (free): ${CANON_ORIGIN}/rules (JSON: ${CANON_ORIGIN}/rules.json). Every verdict carries a stable reason_code and a confidence (high|medium|low); the codes and confidence rules are listed there.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (live receipts: ${CANON_ORIGIN}/v1/receipts/sc-<id>; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 5 free/day (25 per network), then $0.02 USDC a check on Base via x402.\n- After you pay (did it land? safe to sign again?): POST ${API_ORIGIN}/v1/products/payment-status with JSON {"payment_payload":"<base64 PAYMENT-SIGNATURE you sent>","seller_url":"<url>"} (or tx_hash, or from + nonce). Base USDC (EIP-3009) only. Returns status landed|not_landed|pending|canceled|unknown, safe_to_retry_same_payload (always true), safe_to_resign (true only when two independent RPC sources agree the nonce is unused and validBefore has passed), tx details, terms match, a claim pointer, and a signed receipt. Same price and the same 5 free/day as the check. Docs: ${CANON_ORIGIN}/docs#payment-status\n- Hosted mode for routers/wallets (integrator key, Authorization: Bearer 402x_live_...): 1,000 free hosted checks, then $0.02, $0.01 after 1,000 a month, monthly USDC invoice: ${CANON_ORIGIN}/docs#hosted\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n- Pricing: ${CANON_ORIGIN}/pricing  Docs: ${CANON_ORIGIN}/docs (quick start: ${CANON_ORIGIN}/docs#quick-start)\n- Blog: ${CANON_ORIGIN}/blog${BLOG_POSTS.map((p) => `\n  - ${p.title}: ${CANON_ORIGIN}/blog/${p.slug}`).join("")}\n- Signed receipts: new receipts carry kid + signature (ed25519 over RFC 8785 JCS of the receipt minus signature). Public keys: ${API_ORIGIN}/.well-known/402xagent-keys.json. Verify offline: ${CANON_ORIGIN}/docs#receipt-signatures or x402-spotcheck 1.1.0 verifyReceipt().\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
     if (path === "/" && url.hostname === "402xagent.com" && /text\/html/.test(req.headers.get("accept") || ""))
       return new Response(landingHtml(CANON_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", vary: "accept", "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "access-control-allow-origin": "*" } });
     if (path === "/")
@@ -3503,8 +3514,12 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
   if (parsed.error) { point(400, "ps-bad-params", { failReason: parsed.error }); return psBad(parsed.error, parsed.field, parsed.problem); }
   const q = parsed.q;
 
+  // 0.41.0 hosted mode (only with an integrator key; otherwise null and nothing below changes)
+  const hosted = await resolveHosted(env, req, { takeFree, salt: env.CLIENT_SALT });
+  if (hosted && hosted.response) return json(hosted.response.body, hosted.response.status, { ...(hosted.response.headers || {}), "cache-control": "no-store" });
+  const hostedOk = hosted && hosted.ok ? hosted : null;
   // access (peek only: a chain outage must not use a free check)
-  const exempt = isExempt(qLike, env);
+  const exempt = isExempt(qLike, env) || !!hostedOk;
   const key = exempt ? null : await quotaKey(req, qLike, env);
   // Max 2026-10-16: counts toward BOTH the per-client daily free checks and the per-network free cap (same counters as the check)
   const ipK = exempt ? null : await freeIpKey(req, env);
@@ -3569,7 +3584,9 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
   // charge / count only now
   let access;
   const extraHeaders = { "cache-control": "no-store" };
-  if (exempt) access = { tier: "exempt", note: "our own self-test client: not metered" };
+  if (hosted && hosted.fallback) extraHeaders["x-402xagent-hosted"] = "fallback: " + hosted.reason;
+  if (hostedOk) access = hostedAccess(hostedOk);
+  else if (exempt) access = { tier: "exempt", note: "our own self-test client: not metered" };
   else if (peek.free) {
     const t = await takeFree(env, key, c.freePerDay, new Date(), "take", SPOT_QUOTA_COUNTER);
     if (ipK) await takeFree(env, ipK, c.freePerIpDay, new Date(), "take", SPOT_FREE_IP_COUNTER);
@@ -3586,7 +3603,7 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
     extraHeaders["x-payment-response"] = enc;
     access = { tier: "paid", charged_usd: cd.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null };
   }
-  if (access.tier === "paid") {
+  if (access.tier === "paid" || access.tier === "hosted") {
     // 0.40.1: every PAID call gets its own signed receipt (new ps- id, own D1 row) carrying who paid, how much and the
     // settle tx, and embedding the chain answer it paid for (plus a link when that answer is a stored final receipt).
     const { kid: _k, signature: _s, ...chain } = body;
@@ -3595,16 +3612,17 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
       ...chain,
       id: pid,
       checked_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-      tier: "paid",
-      payment_received: paymentReceived(access, cd.priceAtomic),
+      tier: access.tier,
+      ...(access.tier === "paid" ? { payment_received: paymentReceived(access, cd.priceAtomic) } : { hosted: (({ tier: _t, ...hv }) => hv)(access) }),
       chain_answer: { receipt_id: chain.stored && chain.id ? chain.id : null, receipt_url: chain.stored && chain.permalink ? chain.permalink : null, checked_at: chain.checked_at, cached },
       permalink: env.RECEIPTS_DB ? CANON_ORIGIN + "/v1/receipts/" + pid : null, // same origin as the chain answer
       stored: !!env.RECEIPTS_DB,
     };
     const signedPaid = await signObject(env, paidBody);
-    if (env.RECEIPTS_DB) await cachePut(env, "paid:" + pid, signedPaid || paidBody); // own row; never used as a chain cache hit
+    if (env.RECEIPTS_DB) await cachePut(env, access.tier + ":" + pid, signedPaid || paidBody); // own row; never used as a chain cache hit
     body = paidBody;
     receipt = signedPaid || paidBody;
+    if (hostedOk) await recordHosted(env, hostedOk, pid, "payment-status");
   }
   point(200, access.tier === "paid" ? "paid" : "ps-" + access.tier, access.tier === "paid" ? { amountUsd: Number(cd.priceUsd), tx: access.tx } : {});
   return json({ ...body, cached, receipt: receipt && receipt.signature ? receipt : null, signature_note: receipt && receipt.signature ? "receipt is the signed copy (ed25519 over JCS of receipt minus signature); verify with x402-spotcheck verifyReceipt(receipt)" : "unsigned (signing key not configured)", access }, 200, extraHeaders);
