@@ -3586,5 +3586,5 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
     access = { tier: "paid", charged_usd: cd.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null };
   }
   point(200, access.tier === "paid" ? "paid" : "ps-" + access.tier, access.tier === "paid" ? { amountUsd: Number(cd.priceUsd), tx: access.tx } : {});
-  return json({ ...body, cached, receipt: receipt || null, signature_note: receipt ? "receipt is the signed copy (ed25519 over JCS of receipt minus signature); verify with x402-spotcheck verifyReceipt(receipt)" : "unsigned (signing key not configured)", access }, 200, extraHeaders);
+  return json({ ...body, cached, receipt: receipt && receipt.signature ? receipt : null, signature_note: receipt && receipt.signature ? "receipt is the signed copy (ed25519 over JCS of receipt minus signature); verify with x402-spotcheck verifyReceipt(receipt)" : "unsigned (signing key not configured)", access }, 200, extraHeaders);
 }

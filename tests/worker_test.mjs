@@ -3073,6 +3073,7 @@ const psFetch = (orig) => async (url, init = {}) => {
     return R(psPad(n.used ? "1" : "0"));
   }
   if (method === "eth_getLogs") {
+    if (n.logsFail) return new Response("limit", { status: 429 });
     assert.deepEqual(params[0].topics.slice(1), [psPad(PS_FROM), PS_NONCE]);
     if (!n.event) return R([]);
     return R([{ address: USDC, topics: [n.event === "canceled" ? "0x1cdd46ff242716cdaa72d159d339a485b3438398348d68f09d7c8c0a59353d81" : "0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5", psPad(PS_FROM), PS_NONCE], data: "0x", blockNumber: psHex(n.eventBlock ?? n.head - 50), transactionHash: n.event === "canceled" ? "0x" + "77".repeat(32) : PS_TX }]);
@@ -3098,7 +3099,7 @@ function psD1() {
   }; } }; } };
 }
 const PS = "/v1/products/payment-status";
-function psEnv(extra = {}) { return spotEnv({ ALCHEMY_BASE_RPC_URL: PSA, RPC2_BASE_URL: PSB, PAYSTATUS_PUBLIC_RPC: PSP, RECEIPTS_DB: psD1(), SPOT_FREE_PER_DAY: "5", ...extra }); }
+function psEnv(extra = {}) { return spotEnv({ ALCHEMY_BASE_RPC_URL: PSA, RPC2_BASE_URL: PSB, PAYSTATUS_PUBLIC_RPC: PSP, PAYSTATUS_PUBLIC_RPC2: "off", RECEIPTS_DB: psD1(), SPOT_FREE_PER_DAY: "5", ...extra }); }
 async function psSend(body, { envo, headers = {}, client = "ps-agent" } = {}) {
   const orig = globalThis.fetch;
   globalThis.fetch = psFetch(orig);
@@ -3148,6 +3149,7 @@ test("0.40.0 payment-status: landed (10+ confirmations) -> landed, safe_to_resig
   assert.equal(b.finality.reorg_safe, true); assert.equal(b.rpc.sources_agreed, 2);
   assert.ok(Array.isArray(b.cannot_know) && b.cannot_know.some((x) => /delivered/.test(x)));
   assert.equal(b.access.tier, "free"); assert.equal(b.access.shared_with, "402xAgent check");
+  { const u = await psSend({ tx_hash: PS_TX }, { envo: psEnv() }); assert.equal(u.body.receipt, null); assert.match(u.body.signature_note, /unsigned/); }
   // RPC URLs (with keys) never leak
   assert.doesNotMatch(JSON.stringify(b), /SECRETKEY123|SECRET2|alch\.test|rpc2\.test/);
   assert.deepEqual(b.rpc.sources.map((s) => s.name), ["alchemy", "rpc2"]);
@@ -3212,6 +3214,10 @@ test("0.40.0 payment-status strict re-sign rule: not_landed only with two source
   assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign], ["canceled", "canceled_sources_disagree", false]);
   r = await ask(psNode({ used: true, event: "canceled", eventBlock: 4000 }), psNode({ used: true, event: "canceled", eventBlock: 4000 }));
   assert.equal(r.body.authorization.event, "canceled");
+  // a source whose eth_getLogs is rate-limited still counts (nonce state) and reads the tx the other source located
+  r = await ask(psNode({ used: true, event: "used", receipt: deep }), psNode({ used: true, logsFail: true, receipt: deep }), undefined, { from: PS_FROM, nonce: PS_NONCE });
+  assert.deepEqual([r.body.status, r.body.rpc.sources_agreed, r.body.safe_to_resign], ["landed", 2, false]);
+  assert.ok(psCalls.some(([u, m]) => u === PSB && m === "eth_getTransactionReceipt"), "second source read the receipt itself");
   // reorg window: landed with 3 confirmations -> pending, not stored
   const shallow = psReceipt({ block: 4998 });
   r = await ask(psNode({ used: true, event: "used", receipt: shallow }), psNode({ used: true, event: "used", receipt: shallow }));
@@ -3307,9 +3313,18 @@ test("0.40.0 paystatus unit: payload decode (v1 + v2), selectors/topics, rpcSour
   const d1 = P.decodeSubjectPayload(b64({ x402Version: 1, scheme: "exact", network: "base", payload: { authorization: { from: PS_FROM, to: PS_SELLER, value: "1", validAfter: "0", validBefore: "5", nonce: PS_NONCE } } }));
   assert.equal(d1.network, "eip155:8453"); assert.equal(d1.terms, null);
   assert.equal(P.SEL_AUTHORIZATION_STATE, "0xe94a0102");
-  assert.deepEqual(P.rpcSources({ ALCHEMY_BASE_RPC_URL: PSA, RPC2_BASE_URL: PSB }).map((s) => s.name), ["alchemy", "rpc2", "base-public"]);
-  assert.deepEqual(P.rpcSources({ PAYSTATUS_PUBLIC_RPC: "off" }), []);
-  assert.deepEqual(P.rpcSources({}).map((s) => s.name), ["base-public"], "no secrets: public node only (=> never two sources => never safe_to_resign)");
+  assert.deepEqual(P.rpcSources({ ALCHEMY_BASE_RPC_URL: PSA, RPC2_BASE_URL: PSB }).map((s) => s.name), ["alchemy", "rpc2", "base-public", "drpc"]);
+  assert.deepEqual(P.rpcSources({ RPC2_BASE_URL: "off", PAYSTATUS_PUBLIC_RPC: "off" }), []);
+  assert.deepEqual(P.rpcSources({}).map((s) => [s.name, s.url]), [["rpc2", "https://base-rpc.publicnode.com"], ["base-public", "https://mainnet.base.org"], ["drpc", "https://base.drpc.org"]], "keyless defaults: three different operators");
+  // log window: <= 9000 blocks; anchored near validBefore when it is older than ~5h
+  const seen = [];
+  const f = async (u, i) => { const { method, params } = JSON.parse(i.body); seen.push([method, params]);
+    if (method === "eth_getBlockByNumber") return Response.json({ result: { number: "0x" + (1000000).toString(16), timestamp: "0x" + (PS_VB + 86400).toString(16) } });
+    if (method === "eth_call") return Response.json({ result: "0x" + "0".repeat(63) + "1" });
+    return Response.json({ result: [] }); };
+  await P.readSource({ name: "t", url: "https://t.test" }, { from: PS_FROM, nonce: PS_NONCE, valid_before: PS_VB }, f);
+  const lg = seen.find((x) => x[0] === "eth_getLogs")[1][0];
+  assert.equal(parseInt(lg.toBlock, 16), 1000000 - 43200 + 150); assert.equal(parseInt(lg.toBlock, 16) - parseInt(lg.fromBlock, 16), 9000);
   const v = (o) => ({ name: "x", ok: true, head: 10, head_time: PS_VB + 999, state: false, receipt: null, event: null, ...o });
   const q = { from: PS_FROM, nonce: PS_NONCE, valid_before: PS_VB };
   assert.equal(P.decide([v({})], q).safe_to_resign, false);
