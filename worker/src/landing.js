@@ -32,6 +32,20 @@ export const LANDING_SAMPLE = {
 
 const V = "18"; // asset cache-buster
 
+// 0.39.0: a REAL stored crawl receipt (3a76c5c79b, crawl of 2026-10-13), shown as listing -> live 402 -> verdict.
+// Copied verbatim from https://402xagent.com/v1/receipts/3a76c5c79b; the wallet is shortened for display only.
+export const HOME_EXAMPLE = Object.freeze({
+  receipt_id: "3a76c5c79b",
+  checked_at: "2026-10-13T14:58:51Z",
+  url: "https://nightfall-payment-api.planet-teacher.workers.dev/payments/v1/payment/evidence",
+  method: "POST",
+  listing: { source: "agent-tools-cloud", price_usd: 0.05 },
+  live_402: { http_status: 402, price_usd: 0.25, network: "eip155:8453", asset: "USDC", pay_to: "0xf77f3C9e6BC9Cd0eE1A2943813b6eC57f1305Ab3" },
+  verdict: "skip",
+  reason: "asks a different price than listed (listed $0.05, asks $0.25)",
+});
+const short = (a) => String(a).slice(0, 6) + "…" + String(a).slice(-4);
+
 export function landingHtml(origin, meta = RECEIPTS_META) {
   const m = meta || {};
   const covered = m.endpoints_covered ?? m.total ?? 0;
@@ -112,6 +126,9 @@ h1{font-size:clamp(38px,6.2vw,66px);line-height:1.03;letter-spacing:-.04em;margi
 .sub{font-size:clamp(17px,2vw,19.5px);color:var(--muted);max-width:660px;margin:0 auto 14px;text-wrap:pretty}
 .saves{font-size:15.5px;color:var(--fg);margin:0 auto 30px;max-width:760px;font-weight:600;text-wrap:balance}
 .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.nosignup{text-align:center;font-size:14px;color:var(--muted,#555);margin:10px 0 18px}
+.realex{max-width:760px;margin:0 auto 14px;text-align:left;padding:14px 18px}.rx-h{margin:0 0 6px;font-weight:650;font-size:15px}.rx{margin:0;padding-left:20px;line-height:1.6;font-size:14px;overflow-wrap:anywhere}.rx-skip{font-weight:700;color:#b42318}
+.support{max-width:760px;margin:6px auto;text-align:left;font-size:14px;color:var(--muted,#555)}
 .freecheck{max-width:760px;margin:0 auto 28px;text-align:left;background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;position:relative;overflow:hidden}
 .freecheck:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--grad)}
 .fc-h{margin:0 0 8px;font-weight:650;font-size:15px}.fc-tag{display:inline-block;font:700 11px/1 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--pay);padding:4px 7px;border-radius:6px;margin-right:6px;vertical-align:1px}
@@ -208,7 +225,18 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
     <code class="fc-res">${esc(JSON.stringify(FREE_CHECK_EXAMPLE))}</code>
     <p class="fc-then">Then, only if you want the full payment terms: the paid check (HTTP 402, $0.02).</p>
   </div>
-  <div class="cta"><a class="btn primary" href="#try">Try it</a><a class="btn" href="https://github.com/withgrokbot/x402-spotcheck"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a></div>
+  <div class="cta"><a class="btn primary" href="#try" id="trynow">Try a check</a><a class="btn" href="https://github.com/withgrokbot/x402-spotcheck"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a></div>
+  <p class="nosignup">Free, no signup, no key: runs a real check on a sample endpoint (5 a day).</p>
+  <div class="card realex" aria-label="Real example">
+    <p class="rx-h">A real check from our crawl (${esc(HOME_EXAMPLE.checked_at.slice(0, 10))}, <a href="/v1/receipts/${esc(HOME_EXAMPLE.receipt_id)}">receipt ${esc(HOME_EXAMPLE.receipt_id)}</a>)</p>
+    <ol class="rx">
+      <li><b>Listing</b> (${esc(HOME_EXAMPLE.listing.source)}): $${esc(HOME_EXAMPLE.listing.price_usd)} per call</li>
+      <li><b>Live 402</b> (${esc(HOME_EXAMPLE.method)}, HTTP ${esc(HOME_EXAMPLE.live_402.http_status)}): $${esc(HOME_EXAMPLE.live_402.price_usd)} ${esc(HOME_EXAMPLE.live_402.asset)} on Base to ${esc(short(HOME_EXAMPLE.live_402.pay_to))}</li>
+      <li><b>402xAgent:</b> <span class="rx-skip">${esc(HOME_EXAMPLE.verdict)}</span>, ${esc(HOME_EXAMPLE.reason)}</li>
+    </ol>
+  </div>
+  <p class="support">Checks understand canonical USDC on Base, Ethereum, OP Mainnet, Polygon, Arbitrum, Avalanche and Solana; testnets and other tokens come back as skip. You pay for paid checks in USDC on Base. We probe unpaid, so we can't verify what the endpoint returns after payment, its uptime between checks, or who runs it.</p>
+  <p class="support"><a href="/docs#quick-start">Quick start in the docs →</a> · Hosted mode (coming soon): 1,000 free hosted checks for early integrators. <a href="https://github.com/withgrokbot/x402-spotcheck/issues/new?title=Hosted%20mode%3A%20request%20a%20key">Ask for a key</a>.</p>
 </div></div>
 
 <section id="try" class="alt" aria-labelledby="try-h"><div class="wrap">
@@ -303,6 +331,7 @@ else if(r2.status===429)msg("Today's free checks and dry runs are used up from t
 else if(r.status===400)msg(E(j.error||("Bad request: "+(j.reason||r.status))));
 else msg("Unexpected answer: HTTP "+r.status);}catch(err){msg("Could not reach 402xAgent. Try again.");}finally{go.disabled=false;}}
 $("#f").addEventListener("submit",run);
+const tn=$("#trynow");if(tn)tn.addEventListener("click",(e)=>{e.preventDefault();$("#try").scrollIntoView({behavior:"smooth"});run();});
 document.querySelectorAll(".chip").forEach((b)=>b.addEventListener("click",()=>{u.value=b.dataset.u;run();}));
 const tabs=[...document.querySelectorAll(".tab")];const sel=(t)=>{tabs.forEach((x)=>{const on=x===t;x.setAttribute("aria-selected",on);x.tabIndex=on?0:-1;document.getElementById(x.getAttribute("aria-controls")).hidden=!on;});t.focus();};
 tabs.forEach((t,i)=>{t.addEventListener("click",()=>sel(t));t.addEventListener("keydown",(e)=>{if(e.key==="ArrowRight")sel(tabs[(i+1)%tabs.length]);if(e.key==="ArrowLeft")sel(tabs[(i-1+tabs.length)%tabs.length]);});});
