@@ -2941,6 +2941,26 @@ test("0.38.0 crawl schedule copy: 'Updated weekly (last crawl Oct 13, next crawl
   assert.ok(!/crawled 20\d\d-/.test(skt));
 });
 
+test("0.38.0: no served page, JSON, 402 or MCP text carries the old price copy (one tenth / 1/10 / $0.01-$0.25)", async () => {
+  const OLD = /one tenth|tenth of|1\/10 of|\$0\.01 ?(to|-) ?\$0\.25|0\.01-0\.25|from \$0\.01|\$0\.01\+|\$0\.001\/check|\$0\.001 per check/i;
+  const e = spotEnv({ SPOT_FREE_PER_DAY: "0", SAVES_PAGE: "on" });
+  const paths = ["/", "/llms.txt", "/openapi.json", "/.well-known/x402", "/.well-known/402xagent-keys.json", "/pricing", "/docs", "/rules", "/rules.json", "/v1/skips", "/v1/skips.json", "/bazaar", "/bazaar.json", "/saves", "/saves.json", "/health", "/v1/tasks", "/v1/products/endpoint-spot-check", "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=old-copy", "/v1/lookup/paid", "/badge/api.402rates.com"];
+  spotTargetMode = "402";
+  for (const p of paths) for (const accept of ["application/json", "text/html"]) {
+    const r = await worker.fetch(new Request("https://402xagent.com" + p, { headers: { accept, "user-agent": "agent-x/1.0", "cf-connecting-ip": "203.0.113.9" } }), e.env, { waitUntil() {} });
+    let t = await r.text();
+    const ph = r.headers.get("payment-required"); if (ph) t += atob(ph);
+    const m = t.match(OLD);
+    assert.ok(!m, `${p} (${accept}) still says "${m && t.slice(Math.max(0, m.index - 60), m.index + 60)}"`);
+  }
+  const rpc = async (body) => (await worker.fetch(new Request("https://402xagent.com/mcp", { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify(body) }), e.env, { waitUntil() {} })).text();
+  const tools = await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+  assert.match(tools, /endpoint_spot_check/);
+  assert.ok(!OLD.test(tools), "MCP tools/list");
+  const call = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: "https://spot.target.test/api" } } });
+  assert.ok(!OLD.test(call), "MCP tool 402 text");
+});
+
 let passed = 0;
 for (const [name, fn] of T) {
   try {
