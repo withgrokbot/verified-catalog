@@ -44,6 +44,7 @@ import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skip
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
 import { resolveHosted, hostedAccess, recordHosted, integratorMe } from "./hosted.js";
+import { expiryOpts, applyExpiry } from "./expiry.js";
 import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
 import { staleStep, STALE_REF } from "./stale.js";
 import { dailySeed, dailyStep, DAILY_CRON, DAILY_REF } from "./daily.js";
@@ -56,7 +57,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.41.0";
+export const VERSION = "0.42.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1715,7 +1716,10 @@ async function parseSpotQuery(req, url) {
   const dry_caller = /^dry-run-./.test(ref) ? ref.slice("dry-run-".length) : null;
   // 0.22.0: an unencoded url with its own query string loses everything after its first "&" (logged, not changed).
   if (target && target.includes("?") && ctx.unknown.length && !errors.length) ctx.mistake = "url_query_unencoded";
-  return { url: target, task: taskSlug, claimed_price, client, ref, method, pay_to, network, mode, dry_caller, errors, ctx };
+  // 0.42.0 opt-in: &check_expiry=1 (&skew_s=0..300, default 30). Absent = field not set at all (nothing changes).
+  const ceRaw = String(p.get("check_expiry") || body.check_expiry || "").trim().toLowerCase();
+  const expiry = ["1", "true", "yes"].includes(ceRaw) ? { skewS: p.get("skew_s") ?? body.skew_s ?? 30 } : null;
+  return { url: target, task: taskSlug, claimed_price, client, ref, method, pay_to, network, mode, dry_caller, errors, ctx, ...(expiry ? { expiry } : {}) };
 }
 
 // 0.38.0: the paid check is a flat $0.02 (20000 atomic USDC), whatever the target quotes. (0.37.x: one tenth of the quote,
@@ -1776,7 +1780,9 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const checkType = selfChecked ? "self-checked" : "dry-run";
   const buildResult = async (probe, access) => {
     const pm0 = pickPayment(probe, exp);
-    const d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pm0, exp), probe, q, listing);
+    let d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pm0, exp), probe, q, listing);
+    let expiryCheck = null;
+    if (q.expiry) ({ d, check: expiryCheck } = applyExpiry(d, probe, expiryOpts(q.expiry))); // 0.42.0 opt-in only
     const pm = d.verdict === "pay" ? pm0 : null; // only a "pay" verdict approves terms
     const termsHash = await termsSha256(pm);
     const payment = paymentObject(pm, pr.probedAt);
@@ -1785,6 +1791,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const hk = await historyKey(q.url);
     const history = await recordHistory(env, hk, observation(probe, pm0, d.verdict, pr.probedAt), !pr.cached);
     const rf = reasonFields(d, exp.claimed, history);
+    if (expiryCheck) rf.expiry_check = expiryCheck;
     // 0.37.0 (additive): quality of the unpaid 402 response + seller reputation; neither changes verdict/reason_code
     const quality = qualityFor(probe);
     await recordQuality(env, hk, hostOf(q.url), quality, pr.probedAt, !pr.cached);

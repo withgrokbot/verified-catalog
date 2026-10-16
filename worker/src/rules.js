@@ -17,6 +17,7 @@ export const REASON_CODES = [
   { code: "ssrf_blocked", verdict: "skip", confidence: "high", rule: "Private, local or otherwise unsafe address; never fetched." },
   { code: "no_paywall", verdict: "skip", confidence: "medium", rule: "The endpoint answered without an x402 payment request (one probe; a route may need another method or path)." },
   { code: "bad_challenge", verdict: "skip", confidence: "medium", rule: "A 402 came back but its payment request has no readable USDC price." },
+  { code: "challenge_expired", verdict: "skip", confidence: "high", rule: "Opt-in only (&check_expiry=1): every Base USDC option has an absolute expiry (extra.validBefore/expiresAt/expiry/deadline) at or within skew_s (default 30, max 300) of now, or maxTimeoutSeconds <= 5." },
   { code: "ambiguous", verdict: "skip", confidence: "medium", rule: "The payment request is unclear (several incompatible offers)." },
   { code: "free_trial_active", verdict: "recheck", confidence: "low", rule: "The seller says a free trial is active, so there is no price to check yet." },
   { code: "timeout", verdict: "recheck", confidence: "low", rule: "The endpoint did not answer in time." },
