@@ -2930,7 +2930,7 @@ test("0.38.0 crawl schedule copy: 'Updated weekly (last crawl Oct 13, next crawl
   assert.equal(crawlScheduleText("nope"), "Updated weekly.");
   const html = landingHtml("https://402xagent.com", { crawled_at: "2026-11-02T14:00:00Z", endpoints_covered: 9 });
   assert.match(html, /Updated weekly \(last crawl Nov 2, next crawl Nov 9\)\. Each row has a public receipt\./);
-  assert.match(html, /self-checked · last crawl Nov 2</);
+  assert.match(html, />9 checks · last crawl Nov 2</);
   assert.ok(!/crawl of 20/.test(html));
   const live = landingHtml("https://402xagent.com");
   const exp = crawlScheduleText(RECEIPTS_META.crawled_at);
@@ -2978,10 +2978,13 @@ test("0.39.0 home: 'Try a check' runs the free Try-it flow; REAL stored example 
   }
   assert.match(html, /href="\/v1\/receipts\/3a76c5c79b"/);
   assert.match(html, /<b>Listing<\/b> \(agent-tools-cloud\): \$0\.05/); assert.match(html, /<b>Live 402<\/b> \(POST, HTTP 402\): \$0\.25 USDC on Base/); assert.match(html, /rx-skip">skip</);
-  assert.match(html, /canonical USDC on Base, Ethereum, OP Mainnet, Polygon, Arbitrum, Avalanche and Solana/);
+  assert.match(html, /canonical USDC on Base, Ethereum, OP Mainnet, Polygon, Arbitrum, Avalanche and Solana;/);
   assert.match(html, /can&#39;t verify|can't verify/);
   assert.match(html, /href="\/docs#quick-start"/);
-  assert.match(html, /Hosted mode \(coming soon\): 1,000 free hosted checks/);
+  assert.ok(!/coming soon|Hosted mode/i.test(html), "no hosted coming-soon offer");
+  assert.match(html, /Checks read these networks: /); assert.match(html, /You pay us in USDC on Base\./);
+  assert.ok(html.includes(Number(RECEIPTS_META.endpoints_covered).toLocaleString("en-US") + " checks · last crawl"), "hero label formatted from data");
+  assert.match(landingHtml("https://402xagent.com", { crawled_at: "2026-10-13T00:00:00Z", endpoints_covered: 121785 }), />121,785 checks · last crawl Oct 13</);
   const L = await import("../worker/src/lib.js");
   for (const net of ["eip155:8453", "eip155:1", "eip155:10", "eip155:137", "eip155:42161", "eip155:43114", "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp"]) assert.ok(L.USDC_BY_NETWORK[net], net + " supported as claimed");
   assert.equal(Object.keys(L.USDC_BY_NETWORK).length, 7, "the networks line lists every supported network");
@@ -3005,6 +3008,8 @@ test("0.39.0 blog: bundled posts, /blog list + /blog/<slug>, sitemap + llms.txt,
     assert.ok(!/Alternative headlines|<!--|Pricing written for/.test(r.t), p.slug + ": editorial notes stripped");
     assert.ok(!/<script/i.test(p.html), "no script in posts");
     assert.ok(!/jacob|wilcox|jwilcox|droid|@gmail/i.test(r.t), p.slug + ": no personal identifiers");
+    if (r.t.includes("5,768")) assert.match(r.t, /5,768(<\/strong>)? cases asked more than listed \(per <a href="https:\/\/402xagent\.com\/saves">\/saves<\/a>, last 30 days\)|per \/saves, last 30 days\)<\/td><td class="r">5,768/, p.slug + ": 5,768 cites /saves");
+    if (r.t.includes("5,788")) assert.match(r.t, /<td class="r">5,788<\/td>|5,788 skips \(per <a href="https:\/\/402xagent\.com\/v1\/skips\.json">/, p.slug + ": 5,788 cites skips.json");
     assert.ok(!/one tenth|1\/10 of|\$0\.01 ?(to|-) ?\$0\.25|1 free check/i.test(r.t), p.slug + ": no old price");
     for (const m of r.t.matchAll(/\$(\d+\.\d+) (USDC )?per (paid )?check/g)) assert.equal(m[1], "0.02", p.slug);
     for (const m of r.t.matchAll(/(\d+) (free|live) checks (per|a) day/g)) assert.equal(m[1], "5", p.slug);
