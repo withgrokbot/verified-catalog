@@ -181,9 +181,17 @@ New receipts carry `kid` + `signature`: ed25519 (base64url) over the RFC 8785 (J
 
 `POST /v1/products/payment-status` with JSON `{"payment_payload":"<base64 PAYMENT-SIGNATURE you sent>","seller_url":"<url>"}` (or `tx_hash`, or `from` + `nonce` + `valid_before`). Base USDC (EIP-3009 exact) only. It answers `status` (landed | not_landed | pending | canceled | unknown), `safe_to_retry_same_payload` (always true), and `safe_to_resign`. `safe_to_resign` is true only when two independent RPC sources agree the nonce is unused and the chain head is past validBefore + 120 s. The answer also carries tx details, `terms_match`, `claim`, `cannot_know`, `finality`, `rpc` (source names only) and a signed `receipt`. Price and free quota are the same as the check: $0.02, and the same 5 free per day counter. A bare request answers the x402 402 (amount 20000).
 
-Chain reads use these Worker secrets. They are never logged or returned, because the URLs carry API keys:
-- `ALCHEMY_BASE_RPC_URL`: `https://base-mainnet.g.alchemy.com/v2/<key>`
-- `RPC2_BASE_URL`: any second, independent Base JSON-RPC (Ankr, QuickNode, ...)
-- public `https://mainnet.base.org` as the last fallback (`PAYSTATUS_PUBLIC_RPC` overrides it, `off` disables it)
+Chain reads use these sources, in this order:
+- `ALCHEMY_BASE_RPC_URL` (secret): `https://base-mainnet.g.alchemy.com/v2/<key>`. Never logged or returned.
+- `RPC2_BASE_URL`: default `https://base-rpc.publicnode.com` (Allnodes, keyless). Configurable; `off` disables it.
+- `https://mainnet.base.org` (Coinbase): `PAYSTATUS_PUBLIC_RPC` overrides it, `off` disables both public nodes.
+- `https://base.drpc.org` (dRPC, keyless): `PAYSTATUS_PUBLIC_RPC2` overrides it.
 
+Answers name sources only, never URLs. Free-tier limits found on 2026-10-16:
+- publicnode: no receipts or logs older than its recent window without a token (HTTP 403).
+- mainnet.base.org: rate-limits `eth_getLogs` (429).
+- dRPC: caps `eth_getLogs` at a few hundred blocks.
+- llamarpc: down (525).
+
+So looking up a payment by from + nonce alone finds its event only within the last ~5 h (send `tx_hash` or `valid_before` for older ones). Alchemy lifts these limits.
 With no secrets set there is only one source, so `safe_to_resign` is never true. Each answer costs 2–4 point RPC reads (`eth_getBlockByNumber`, `eth_call authorizationState`, a bounded topic-filtered `eth_getLogs`, `eth_getTransactionReceipt`). There are no KV writes. D1 table `payment_status` (migration 0008) stores final answers only. Optional `PAYSTATUS_FACILITATORS` takes JSON of the form `{"0xsubmitter":{"name":"…","contact":"…"}}` to name the relayers behind a facilitator.

@@ -18,7 +18,9 @@ export const TOPIC_AUTH_USED = "0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b
 export const TOPIC_AUTH_CANCELED = "0x1cdd46ff242716cdaa72d159d339a485b3438398348d68f09d7c8c0a59353d81";
 export const PS_MIN_CONFIRMATIONS = 10; // Base ~2s blocks: ~20s; below this a landed tx is reported pending (reorg window)
 export const PS_EXPIRY_MARGIN_S = 120; // validBefore must be this far behind the chain head time
-export const PS_LOG_WINDOW_BLOCKS = 43200; // ~24h of Base blocks for the AuthorizationUsed/Canceled lookup
+export const PS_LOG_WINDOW_BLOCKS = 9000; // ~5h of Base blocks per AuthorizationUsed/Canceled lookup (keyless free tiers cap eth_getLogs at 10k blocks)
+export const PS_DEFAULT_RPC2 = "https://base-rpc.publicnode.com"; // Allnodes publicnode, keyless; a different operator from Alchemy and Coinbase. Tested 2026-10-16: eth_call/receipts fine, eth_getLogs up to 10k recent blocks (older needs a token)
+export const PS_BASE_BLOCK_S = 2;
 export const PS_RPC_TIMEOUT_MS = 2500;
 export const PS_CANNOT_KNOW = [
   "whether the seller delivered the content (the chain shows money moved, not that data was served)",
@@ -38,8 +40,11 @@ const isoS = (sec) => new Date(sec * 1000).toISOString().replace(/\.\d{3}Z$/, "Z
 /** RPC sources in priority order, from Worker secrets/vars. Never expose .url. */
 export function rpcSources(env = {}) {
   const pub = env.PAYSTATUS_PUBLIC_RPC === "off" ? "" : env.PAYSTATUS_PUBLIC_RPC || "https://mainnet.base.org";
+  const pub2 = env.PAYSTATUS_PUBLIC_RPC === "off" || env.PAYSTATUS_PUBLIC_RPC2 === "off" ? "" : env.PAYSTATUS_PUBLIC_RPC2 || "https://base.drpc.org"; // dRPC free: point reads fine, eth_getLogs only a few hundred blocks
+  const rpc2 = env.RPC2_BASE_URL === "off" ? "" : env.RPC2_BASE_URL || PS_DEFAULT_RPC2;
   const out = [];
-  for (const [name, url] of [["alchemy", env.ALCHEMY_BASE_RPC_URL], ["rpc2", env.RPC2_BASE_URL], ["base-public", pub]]) {
+  // order: Alchemy (secret), rpc2 (default Allnodes publicnode), Coinbase public node, dRPC; four operators
+  for (const [name, url] of [["alchemy", env.ALCHEMY_BASE_RPC_URL], ["rpc2", rpc2], ["base-public", pub], ["drpc", pub2]]) {
     if (typeof url === "string" && /^https:\/\//.test(url) && !out.some((s) => s.url === url)) out.push({ name, url });
   }
   return out;
@@ -89,7 +94,17 @@ export async function readSource(src, q, fetchImpl = (...a) => fetch(...a)) {
   }
   let txHash = q.tx_hash || null;
   if (q.from && q.nonce && v.state === true) {
-    const logs = await rpc(src, "eth_getLogs", [{ address: USDC_BASE_LC, topics: [[TOPIC_AUTH_USED, TOPIC_AUTH_CANCELED], pad32(q.from), lc(q.nonce)], fromBlock: "0x" + Math.max(0, v.head - PS_LOG_WINDOW_BLOCKS).toString(16), toBlock: "latest" }], fetchImpl);
+    // window: the last ~5h, or (when validBefore is known and older) the ~5h ending just after validBefore's block
+    let to = v.head;
+    if (q.valid_before != null && Number(q.valid_before) < v.head_time) to = Math.min(v.head, v.head - Math.floor((v.head_time - Number(q.valid_before)) / PS_BASE_BLOCK_S) + 150);
+    const from = Math.max(0, to - PS_LOG_WINDOW_BLOCKS);
+    v.log_window = [from, to];
+    let logs = null;
+    try {
+      logs = await rpc(src, "eth_getLogs", [{ address: USDC_BASE_LC, topics: [[TOPIC_AUTH_USED, TOPIC_AUTH_CANCELED], pad32(q.from), lc(q.nonce)], fromBlock: "0x" + from.toString(16), toBlock: "0x" + to.toString(16) }], fetchImpl);
+    } catch (e) {
+      v.log_error = String((e && e.message) || "error"); // some free tiers rate-limit or cap eth_getLogs; the nonce state still counts
+    }
     const ev = Array.isArray(logs) && logs.length ? logs[logs.length - 1] : null;
     if (ev) {
       v.event = lc(ev.topics[0]) === TOPIC_AUTH_CANCELED ? "canceled" : "used";
@@ -107,13 +122,27 @@ export async function readSource(src, q, fetchImpl = (...a) => fetch(...a)) {
 }
 
 /** Query the first two sources in parallel; if fewer than two answer, try the rest one by one. */
-export async function readChain(env, q, fetchImpl) {
+export async function readChain(env, q, fetchImpl = (...a) => fetch(...a)) {
   const srcs = rpcSources(env);
   const one = (s) => readSource(s, q, fetchImpl).catch((e) => ({ name: s.name, ok: false, error: String((e && e.message) || "error") }));
   const views = await Promise.all(srcs.slice(0, 2).map(one));
   for (const s of srcs.slice(2)) {
     if (views.filter((v) => v.ok).length >= 2) break;
     views.push(await one(s));
+  }
+  // cross-check: when one source located the settling/cancel tx via its event, every other source that sees the
+  // nonce used reads that same tx receipt itself (so "landed" is confirmed independently, not copied)
+  const hit = views.find((v) => v.ok && v.event_tx);
+  if (hit && q.from && q.nonce) {
+    for (const v of views) {
+      if (!v.ok || v.receipt || v.state !== true) continue;
+      const src = srcs.find((s) => s.name === v.name);
+      try {
+        v.receipt = parseReceipt(await rpc(src, "eth_getTransactionReceipt", [hit.event_tx], fetchImpl));
+        if (v.receipt && v.receipt.auth_used.some((a) => a.authorizer === lc(q.from) && a.nonce === lc(q.nonce))) v.event = "used";
+        else if (v.receipt && v.receipt.auth_canceled.some((a) => a.authorizer === lc(q.from) && a.nonce === lc(q.nonce))) { v.event = "canceled"; v.event_block = v.receipt.block; }
+      } catch (_) {}
+    }
   }
   return views;
 }
@@ -161,7 +190,7 @@ export function decide(views, q) {
   }
   if (anyUsed) {
     const ev = ok.find((v) => v.event === "used" || v.state === true);
-    return no("unknown", ok.some((v) => v.event === "used") ? "event_without_receipt" : "nonce_used_tx_not_found", "the nonce is already used on-chain but we could not read the settling transaction (outside our lookup window or a source error); treat it as paid and do not re-sign", { landed_view: ev && ev.receipt ? ev : null });
+    return no("unknown", ok.some((v) => v.event === "used") ? "event_without_receipt" : "nonce_used_tx_not_found", "the nonce is already used on-chain, but its AuthorizationUsed/Canceled event is outside our ~5h lookup window (send tx_hash or valid_before to locate it); treat it as paid and do not re-sign", { landed_view: ev && ev.receipt ? ev : null });
   }
   // nobody sees it landed or used
   if (q.tx_hash && !(q.from && q.nonce)) {
