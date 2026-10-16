@@ -57,7 +57,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.42.0";
+export const VERSION = "0.42.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1415,7 +1415,30 @@ export function probeSnapshot(p) {
   for (const k of keep) if (p[k] !== undefined) o[k] = p[k];
   return o;
 }
+// 0.42.1: a Worker's fetch() to its own zone's routes doesn't reach the Worker (Cloudflare same-zone
+// subrequest), so self-checks came back recheck/server_error. For our own hosts only, serve the probe's
+// requests from this handler in-process. Every other host keeps the normal fetch + SSRF checks
+// (assertSafeUrl still runs first for every URL). The spot-check route itself is never routed in-process (no recursion).
+export const OWN_HOSTS = new Set(["402xagent.com", "www.402xagent.com", "api.402xagent.com", "payscout.dev", "api.payscout.dev"]);
+export function isOwnHost(h) {
+  h = String(h || "").toLowerCase();
+  return OWN_HOSTS.has(h) || /^verified-catalog-lookup\.[a-z0-9-]+\.workers\.dev$/.test(h);
+}
+export function selfFetch(env, base) {
+  const inner = base || fetch;
+  return async (input, init = {}) => {
+    let u;
+    try { u = new URL(typeof input === "string" ? input : input.url); } catch (_) { return inner(input, init); }
+    if (u.protocol !== "https:" || !isOwnHost(u.hostname) || u.pathname.startsWith("/v1/products/endpoint-spot-check")) return inner(input, init);
+    const { cf, ...rest } = init || {};
+    const headers = new Headers(rest.headers || {});
+    headers.set("x-402xagent-self-probe", "1");
+    const req = new Request(u.toString(), { ...rest, headers, redirect: "manual" });
+    return handler.fetch(req, env, { waitUntil(p) { Promise.resolve(p).catch(() => {}); }, passThroughOnException() {} });
+  };
+}
 async function getProbe(env, q, probeOpts, now = new Date()) {
+  probeOpts = { ...probeOpts, fetchImpl: selfFetch(env, probeOpts.fetchImpl) };
   const key = await probeKeyHash(q.url, q.method);
   const ttl = env.SPOT_PROBE_CACHE_S != null && /^\d+$/.test(String(env.SPOT_PROBE_CACHE_S)) ? Number(env.SPOT_PROBE_CACHE_S) : SPOT_PROBE_CACHE_S;
   if (env.RECEIPTS_DB && ttl > 0) {

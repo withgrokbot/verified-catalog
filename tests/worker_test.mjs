@@ -2657,7 +2657,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.42.0");
+  assert.equal(VERSION, "0.42.1");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -3630,6 +3630,25 @@ test("0.42.0 opt-in check_expiry: expired 402 -> skip/challenge_expired; skew ca
   assert.ok(html.includes('id="payment-status-example"') && html.includes("https://402xagent.com/v1/receipts/ps-65a4fdffae01d2b6") && html.includes('id="expiry-check"'));
   const rj = (await send("/rules.json", { envo: spotEnv() })).body;
   assert.ok(rj.reason_codes.some((r) => r.code === "challenge_expired"));
+});
+
+test("0.42.1 self-check: own hosts are served in-process (same-zone fetch fails), others still use fetch; spot-check route never recursed", async () => {
+  const L = await import("../worker/src/lib.js");
+  assert.ok(L.isOwnHost("api.402xagent.com") && L.isOwnHost("402xagent.com") && L.isOwnHost("payscout.dev") && L.isOwnHost("verified-catalog-lookup.abc.workers.dev"));
+  assert.ok(!L.isOwnHost("evil402xagent.com") && !L.isOwnHost("402xagent.com.evil.test") && !L.isOwnHost("other.abc.workers.dev"));
+  let outer = [];
+  const base = async (u) => { outer.push(String(u)); return new Response("same-zone", { status: 522 }); };
+  const e = spotEnv();
+  const f = L.selfFetch(e.env, base);
+  const r = await f("https://api.402xagent.com/v1/lookup/paid?task=web-search", { headers: { accept: "application/json" } });
+  assert.equal(r.status, 402, "own host answered in-process");
+  assert.equal(outer.length, 0);
+  await f("https://spot.target.test/api"); await f("https://api.402xagent.com/v1/products/endpoint-spot-check?url=x"); await f("http://api.402xagent.com/v1/lookup/paid");
+  assert.equal(outer.length, 3, "external host, the spot-check route and non-https all go through normal fetch");
+  const s = await send("/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://api.402xagent.com/v1/lookup/paid?task=web-search") + "&client=self-1", { envo: e });
+  assert.equal(s.status, 200);
+  assert.notEqual(s.body.reason_code, "server_error");
+  assert.equal(s.body.verdict, "pay", JSON.stringify(s.body).slice(0, 300));
 });
 
 let passed = 0;
