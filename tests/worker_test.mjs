@@ -2633,7 +2633,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.38.0");
+  assert.equal(VERSION, "0.39.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2942,9 +2942,9 @@ test("0.38.0 crawl schedule copy: 'Updated weekly (last crawl Oct 13, next crawl
 });
 
 test("0.38.0: no served page, JSON, 402 or MCP text carries the old price copy (one tenth / 1/10 / $0.01-$0.25) or a free_per_day other than 5", async () => {
-  const OLD = /one tenth|tenth of|1\/10 of|\$0\.01 ?(to|-) ?\$0\.25|0\.01-0\.25|from \$0\.01|\$0\.01\+|\$0\.001\/check|\$0\.001 per check/i;
+  const OLD = /one tenth|tenth of the (target|endpoint)|1\/10 of|\$0\.01 ?(to|-) ?\$0\.25|0\.01-0\.25|from \$0\.01|\$0\.01\+|\$0\.001\/check|\$0\.001 per check/i;
   const e = spotEnv({ SPOT_FREE_PER_DAY: "5", SAVES_PAGE: "on" });
-  const paths = ["/", "/llms.txt", "/openapi.json", "/.well-known/x402", "/.well-known/402xagent-keys.json", "/pricing", "/docs", "/rules", "/rules.json", "/v1/skips", "/v1/skips.json", "/bazaar", "/bazaar.json", "/saves", "/saves.json", "/health", "/v1/tasks", "/v1/products/endpoint-spot-check", "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=old-copy", "/v1/lookup/paid", "/badge/api.402rates.com"];
+  const paths = ["/", "/llms.txt", "/openapi.json", "/.well-known/x402", "/.well-known/402xagent-keys.json", "/pricing", "/docs", "/blog", "/blog/meet-402xagent-check-before-your-agent-pays", "/blog/preflight-budget-then-check", "/blog/x402-skips-report-what-agents-almost-paid-for", "/rules", "/rules.json", "/v1/skips", "/v1/skips.json", "/bazaar", "/bazaar.json", "/saves", "/saves.json", "/health", "/v1/tasks", "/v1/products/endpoint-spot-check", "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=old-copy", "/v1/lookup/paid", "/badge/api.402rates.com"];
   spotTargetMode = "402";
   for (const p of paths) for (const accept of ["application/json", "text/html"]) {
     const r = await worker.fetch(new Request("https://402xagent.com" + p, { headers: { accept, "user-agent": "agent-x/1.0", "cf-connecting-ip": "203.0.113.9" } }), e.env, { waitUntil() {} });
@@ -2961,6 +2961,65 @@ test("0.38.0: no served page, JSON, 402 or MCP text carries the old price copy (
   assert.ok(!OLD.test(tools), "MCP tools/list");
   const call = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: "https://spot.target.test/api" } } });
   assert.ok(!OLD.test(call), "MCP tool 402 text");
+});
+
+test("0.39.0 home: 'Try a check' runs the free Try-it flow; REAL stored example (listing -> live 402 -> verdict); networks + limits; /docs#quick-start; hosted offer marked coming soon", async () => {
+  const { landingHtml, HOME_EXAMPLE } = await import("../worker/src/landing.js");
+  const html = landingHtml("https://402xagent.com");
+  assert.equal((html.match(/class="btn primary"[^>]*>Try a check</g) || []).length, 1, "one primary Try a check button");
+  assert.match(html, /id="trynow"/); assert.match(html, /\$\("#trynow"\)[\s\S]*run\(\)/, "button reuses run()");
+  assert.match(html, /no signup/i);
+  // the example is the real crawl receipt 3a76c5c79b, byte for byte against the stored record
+  const rec = JSON.parse((await import("node:fs")).readFileSync("/workspace/factory/jobs/BM-001-verified-catalog/receipts/receipts-20261013T143614Z.jsonl", "utf8").split("\n").find((l) => l.includes('"id":"3a76c5c79b"') || l.includes('"id": "3a76c5c79b"')) || "null");
+  if (rec) {
+    assert.equal(HOME_EXAMPLE.url, rec.url); assert.equal(HOME_EXAMPLE.listing.price_usd, rec.claimed_price_usd); assert.equal(HOME_EXAMPLE.live_402.price_usd, rec.quoted_price_usd);
+    assert.equal(HOME_EXAMPLE.live_402.pay_to, rec.pay_to); assert.equal(HOME_EXAMPLE.verdict, rec.verdict); assert.equal(HOME_EXAMPLE.reason, rec.reason); assert.equal(HOME_EXAMPLE.checked_at, rec.timestamp);
+    assert.equal(HOME_EXAMPLE.listing.source, rec.source_list); assert.equal(HOME_EXAMPLE.live_402.network, rec.network); assert.equal(HOME_EXAMPLE.method, rec.method);
+  }
+  assert.match(html, /href="\/v1\/receipts\/3a76c5c79b"/);
+  assert.match(html, /<b>Listing<\/b> \(agent-tools-cloud\): \$0\.05/); assert.match(html, /<b>Live 402<\/b> \(POST, HTTP 402\): \$0\.25 USDC on Base/); assert.match(html, /rx-skip">skip</);
+  assert.match(html, /canonical USDC on Base, Ethereum, OP Mainnet, Polygon, Arbitrum, Avalanche and Solana/);
+  assert.match(html, /can&#39;t verify|can't verify/);
+  assert.match(html, /href="\/docs#quick-start"/);
+  assert.match(html, /Hosted mode \(coming soon\): 1,000 free hosted checks/);
+  const L = await import("../worker/src/lib.js");
+  for (const net of ["eip155:8453", "eip155:1", "eip155:10", "eip155:137", "eip155:42161", "eip155:43114", "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp"]) assert.ok(L.USDC_BY_NETWORK[net], net + " supported as claimed");
+  assert.equal(Object.keys(L.USDC_BY_NETWORK).length, 7, "the networks line lists every supported network");
+  const docs = await (await worker.fetch(new Request("https://402xagent.com/docs"), mkEnv().env, { waitUntil() {} })).text();
+  assert.match(docs, /id="quick-start"/);
+});
+
+test("0.39.0 blog: bundled posts, /blog list + /blog/<slug>, sitemap + llms.txt, editorial notes not published, prices match 0.38.0, no personal identifiers", async () => {
+  const { BLOG_POSTS } = await import("../worker/src/blog-data.js");
+  const { renderMarkdown } = await import("../worker/scripts/build_blog.mjs");
+  assert.ok(BLOG_POSTS.length >= 2);
+  const env = mkEnv().env;
+  const get = async (p) => { const r = await worker.fetch(new Request("https://402xagent.com" + p, { headers: { accept: "text/html" } }), env, { waitUntil() {} }); return { status: r.status, ct: r.headers.get("content-type"), t: await r.text() }; };
+  const list = await get("/blog");
+  assert.equal(list.status, 200); assert.match(list.ct, /text\/html/);
+  for (const p of BLOG_POSTS) {
+    assert.ok(list.t.includes(`href="/blog/${p.slug}"`), p.slug);
+    const r = await get("/blog/" + p.slug);
+    assert.equal(r.status, 200, p.slug);
+    assert.ok(r.t.includes(`<link rel="canonical" href="https://402xagent.com/blog/${p.slug}">`));
+    assert.ok(!/Alternative headlines|<!--|Pricing written for/.test(r.t), p.slug + ": editorial notes stripped");
+    assert.ok(!/<script/i.test(p.html), "no script in posts");
+    assert.ok(!/REDACTED|REDACTED|REDACTED|REDACTED|REDACTED/i.test(r.t), p.slug + ": no personal identifiers");
+    assert.ok(!/one tenth|1\/10 of|\$0\.01 ?(to|-) ?\$0\.25|1 free check/i.test(r.t), p.slug + ": no old price");
+    for (const m of r.t.matchAll(/\$(\d+\.\d+) (USDC )?per (paid )?check/g)) assert.equal(m[1], "0.02", p.slug);
+    for (const m of r.t.matchAll(/(\d+) (free|live) checks (per|a) day/g)) assert.equal(m[1], "5", p.slug);
+  }
+  assert.equal((await get("/blog/nope")).status, 404);
+  const sm = (await get("/sitemap.xml")).t;
+  assert.ok(sm.includes("https://402xagent.com/blog</loc>")); for (const p of BLOG_POSTS) assert.ok(sm.includes(`/blog/${p.slug}</loc>`));
+  const llms = (await get("/llms.txt")).t;
+  assert.match(llms, /Blog: https:\/\/402xagent\.com\/blog/); for (const p of BLOG_POSTS) assert.ok(llms.includes(`https://402xagent.com/blog/${p.slug}`));
+  // renderer: tables, code, lists, links, escaping, editorial tail
+  const h = renderMarkdown("# T\n\nA **b** `c<d>` [l](https://x.y) <i>x</i>\n\n| a | b |\n|---|---:|\n| 1 | 2 |\n\n- x\n- y\n\n```js\nq<1\n```\n<!-- note -->\n\n---\n\n**Alternative headlines**\n\n1. Z");
+  assert.ok(h.includes('<h1 id="t">T</h1>') && h.includes("<strong>b</strong>") && h.includes("<code>c&lt;d&gt;</code>") && h.includes('<a href="https://x.y">l</a>') && h.includes("&lt;i&gt;x&lt;/i&gt;"));
+  assert.ok(h.includes('<th class="r">b</th>') && h.includes("<ul><li>x</li><li>y</li></ul>") && h.includes('<pre><code class="lang-js">q&lt;1</code></pre>'));
+  assert.ok(!h.includes("note") && !h.includes("Alternative") && !h.includes("Z"));
+  assert.equal(renderMarkdown("[x](javascript:alert)"), "<p>x</p>", "no javascript: links");
 });
 
 let passed = 0;

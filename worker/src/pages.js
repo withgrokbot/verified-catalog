@@ -51,9 +51,26 @@ export function docsHtml(origin, apiOrigin) {
 <ul>${links.map(([h, t, d]) => `<li><a href="${h}">${t}</a>: ${esc(d)}</li>`).join("")}
 <li>MCP: <code>POST ${esc(apiOrigin)}/mcp</code> (JSON-RPC, tools listed by <code>tools/list</code>)</li>
 <li>Client guard for @x402/fetch and @x402/axios: <a href="https://github.com/withgrokbot/x402-spotcheck">github.com/withgrokbot/x402-spotcheck</a></li></ul>
-<p>Quick start: <code>GET ${esc(apiOrigin)}/v1/products/endpoint-spot-check?url=&lt;endpoint&gt;&amp;mode=dry-run</code></p>
+<h2 id="quick-start">Quick start</h2>
+<p>Free check, no signup: <code>GET ${esc(apiOrigin)}/v1/products/endpoint-spot-check?url=&lt;endpoint&gt;&amp;mode=dry-run</code></p>
 <h2 id="receipt-signatures">Receipt signatures</h2>
 <p>New receipts (<code>/v1/receipts/&lt;id&gt;</code>) carry <code>kid</code> and <code>signature</code>: ed25519 (base64url, 64 bytes) over the RFC 8785 (JCS) canonical JSON of the receipt with only <code>signature</code> removed. Public keys: <a href="/.well-known/402xagent-keys.json">/.well-known/402xagent-keys.json</a> (match <code>kid</code>). Older receipts are unsigned. A signature proves 402xAgent issued the receipt; it does not change the verdict.</p>
 <p>Offline, with <code>x402-spotcheck</code> 1.1.0+: <code>await verifyReceipt(receipt, { publicKey })</code>. Or with Node 20+ and no dependencies:</p>
 <pre><code>${esc(VERIFY_SNIPPET)}</code></pre>`);
+}
+
+// 0.39.0: /blog (list) and /blog/<slug>, rendered at build time from content/blog (scripts/build_blog.mjs).
+const BLOG_CSS = `<style>article{margin-top:1rem}article h1{font-size:1.7rem;line-height:1.25}pre{background:#f3f3f3;padding:.6rem;overflow:auto}pre code{background:none;padding:0}td.r,th.r{text-align:right}blockquote{border-left:3px solid #ddd;margin:0;padding-left:1rem;color:#444}.meta{color:#555;font-size:.9rem}</style>`;
+const fmtDate = (d) => (d ? new Date(d + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "");
+export function blogListHtml(origin, posts) {
+  return page("Blog · 402xAgent", "Notes from 402xAgent: what x402 agents almost paid for, and how the pre-payment check works.", origin, "/blog", `${BLOG_CSS}<h1>Blog</h1>
+<ul>${posts.map((p) => `<li><a href="/blog/${esc(p.slug)}">${esc(p.title)}</a> <span class="meta">· ${esc(fmtDate(p.date))}</span><br><span class="meta">${esc(p.description)}</span></li>`).join("")}</ul>
+<p><a href="/docs#quick-start">Quick start</a> · <a href="/pricing">Pricing</a></p>`);
+}
+export function blogPostHtml(origin, p) {
+  return page(p.title + " · 402xAgent", p.description, origin, "/blog/" + p.slug, `${BLOG_CSS}<p class="meta"><a href="/blog">Blog</a> · ${esc(fmtDate(p.date))}</p>
+<article>
+${p.html}
+</article>
+<p><a href="/blog">← All posts</a> · <a href="/docs#quick-start">Run a free check</a></p>`);
 }
