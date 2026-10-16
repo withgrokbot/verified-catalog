@@ -55,7 +55,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.40.0";
+export const VERSION = "0.40.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1794,6 +1794,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     if (rid) {
       const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && (q.ref === STALE_REF || q.ref === DAILY_REF) ? "auto" : (access && access.tier) || null });
       Object.assign(rec, ptc, { history }, rf);
+      if (access && (access.tier === "paid" || access.tier === "router-pack")) rec.payment_received = paymentReceived(access, cd.priceAtomic); // 0.40.1
       await saveLiveReceipt(env, rec); // awaited: the next call's cache lookup must see it
     }
     // Free tier: verdict + plain reason + a hash of the approved terms (enough for x402-spotcheck to refuse a
@@ -3585,6 +3586,40 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
     extraHeaders["x-payment-response"] = enc;
     access = { tier: "paid", charged_usd: cd.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null };
   }
+  if (access.tier === "paid") {
+    // 0.40.1: every PAID call gets its own signed receipt (new ps- id, own D1 row) carrying who paid, how much and the
+    // settle tx, and embedding the chain answer it paid for (plus a link when that answer is a stored final receipt).
+    const { kid: _k, signature: _s, ...chain } = body;
+    const pid = newPsId();
+    const paidBody = {
+      ...chain,
+      id: pid,
+      checked_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+      tier: "paid",
+      payment_received: paymentReceived(access, cd.priceAtomic),
+      chain_answer: { receipt_id: chain.stored && chain.id ? chain.id : null, receipt_url: chain.stored && chain.permalink ? chain.permalink : null, checked_at: chain.checked_at, cached },
+      permalink: env.RECEIPTS_DB ? CANON_ORIGIN + "/v1/receipts/" + pid : null, // same origin as the chain answer
+      stored: !!env.RECEIPTS_DB,
+    };
+    const signedPaid = await signObject(env, paidBody);
+    if (env.RECEIPTS_DB) await cachePut(env, "paid:" + pid, signedPaid || paidBody); // own row; never used as a chain cache hit
+    body = paidBody;
+    receipt = signedPaid || paidBody;
+  }
   point(200, access.tier === "paid" ? "paid" : "ps-" + access.tier, access.tier === "paid" ? { amountUsd: Number(cd.priceUsd), tx: access.tx } : {});
   return json({ ...body, cached, receipt: receipt && receipt.signature ? receipt : null, signature_note: receipt && receipt.signature ? "receipt is the signed copy (ed25519 over JCS of receipt minus signature); verify with x402-spotcheck verifyReceipt(receipt)" : "unsigned (signing key not configured)", access }, 200, extraHeaders);
+}
+
+// 0.40.1: what a paid receipt records about the payment we received (all public on-chain data; no headers, no signature)
+export function paymentReceived(access, amountAtomic) {
+  return {
+    tier: access.tier,
+    payer: access.payer ? String(access.payer).toLowerCase() : null,
+    amount_atomic: String(amountAtomic),
+    amount_usd: access.charged_usd != null ? String(access.charged_usd) : (Number(amountAtomic) / 1e6).toString(),
+    asset: USDC_BASE,
+    network: "eip155:8453",
+    settle_tx: access.tx || null,
+    basescan_url: access.tx ? "https://basescan.org/tx/" + access.tx : null,
+  };
 }

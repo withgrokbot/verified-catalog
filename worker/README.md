@@ -184,6 +184,9 @@ New receipts carry `kid` + `signature`: ed25519 (base64url) over the RFC 8785 (J
 Chain reads use these sources, in this order:
 - `ALCHEMY_BASE_RPC_URL` (secret): `https://base-mainnet.g.alchemy.com/v2/<key>`. Never logged or returned.
 - `RPC2_BASE_URL`: default `https://base-rpc.publicnode.com` (Allnodes, keyless). Configurable; `off` disables it.
+- `RPC3_BASE_URL` (0.40.1, secret): a keyed second provider (e.g. Infura), tried after Alchemy and ahead of keyless sources; `PAYSTATUS_RPC3_LOG_WINDOW` (default 9000 blocks).
+- Alchemy free tier caps `eth_getLogs` at 10 blocks, so on Alchemy the nonce-only lookup uses `alchemy_getAssetTransfers` (newest 100 USDC transfers from the payer, full history) and reads at most `PAYSTATUS_ALCHEMY_MAX_RECEIPTS` (default 20) receipts. Cancellations are confirmed on Alchemy only by reading the cancel tx another source located.
+- 0.40.1: every paid call (payment-status and spot-check) stores its own signed receipt with `payment_received` (payer, amount, settle tx); payment-status paid receipts embed and link the chain answer (`chain_answer`).
 - `https://mainnet.base.org` (Coinbase): `PAYSTATUS_PUBLIC_RPC` overrides it, `off` disables both public nodes.
 - `https://base.drpc.org` (dRPC, keyless): `PAYSTATUS_PUBLIC_RPC2` overrides it.
 
