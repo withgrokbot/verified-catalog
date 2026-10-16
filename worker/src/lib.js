@@ -54,7 +54,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.39.1";
+export const VERSION = "0.39.2";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1755,7 +1755,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const paying = req.headers.get("payment-signature") || req.headers.get("x-payment");
     if (q.errors[0].missing && !(q.ctx.unknown || []).length && !paying) {
       const help = spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem, fix);
-      const body = { ...spotPaymentRequired(spotDynCfg(c, null), resourceUrl, "Missing url: add ?url=<x402 endpoint> (or POST JSON {\"url\": ...}) to run a check", 0, ""), hint: help.error, field: help.field, example: help.example, discovery: true };
+      const body = { ...spotPaymentRequired(spotDynCfg(c, null), resourceUrl, "Missing url. Add ?url=<x402 endpoint> (or POST JSON {\"url\": ...}) to run a check.", 0, ""), hint: help.error, field: help.field, example: help.example, discovery: true };
       body.pricing = "flat $0.02 USDC per check (any target price)";
       return json(body, 402, { "payment-required": b64encode(body) });
     }
