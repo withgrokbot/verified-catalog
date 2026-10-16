@@ -11,6 +11,7 @@ export const REASON_TEXT = {
   unreachable: "could not reach the endpoint, try again shortly",
   ambiguous: "payment request is unclear",
   bad_challenge: "payment request has no readable USDC price",
+  challenge_expired: "payment terms are expired or expire within seconds (opt-in check)",
   price_ok: "payment request matches the listed price",
   price_below_listing: "live price lower than listed",
   network_mismatch: "asks for payment on a different network than listed",

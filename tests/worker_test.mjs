@@ -129,6 +129,9 @@ globalThis.fetch = async (url, init = {}) => {
       accepts: [{ scheme: "exact", network: "eip155:8453", amount: "1000", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", maxTimeoutSeconds: 300 }],
     };
     if (spotTargetMode === "upto") challenge.accepts[0].scheme = "upto"; // 0.23.1 Base regression fixture
+    if (spotTargetMode === "expired") challenge.accepts[0].extra = { validBefore: Math.floor(Date.now() / 1000) - 600 }; // 0.42.0
+    if (spotTargetMode === "expiring") challenge.accepts[0].extra = { validBefore: Math.floor(Date.now() / 1000) + 120 }; // 0.42.0
+    if (spotTargetMode === "future") challenge.accepts[0].extra = { validBefore: Math.floor(Date.now() / 1000) + 3600 }; // 0.42.0
     const b64c = Buffer.from(JSON.stringify(challenge)).toString("base64");
     return new Response(JSON.stringify({ error: "payment_required", accepts: challenge.accepts, price: "$0.001" }), {
       status: 402,
@@ -2654,7 +2657,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.41.0");
+  assert.equal(VERSION, "0.42.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2761,7 +2764,7 @@ test("0.37.0 reputation: documented weighted formula; new hosts are insufficient
   const rj = rulesJson("https://402xagent.com");
   assert.deepEqual(rj.reputation.weights, REPUTATION_WEIGHTS);
   assert.match(rj.reputation.formula, /sum\(w_i \* c_i\)/);
-  assert.equal(rj.reason_codes.length, 15);
+  assert.equal(rj.reason_codes.length, 16);
   assert.ok(rj.quality_codes.some((q) => q.code === "quality_schema_mismatch"));
   assert.ok(rj.fields.reputation && rj.fields.quality);
   const html = await (await worker.fetch(new Request("https://lookup.test/rules", { headers: { "user-agent": "agent-x/1.0" } }), spotEnv().env, { waitUntil() {} })).text();
@@ -3591,6 +3594,42 @@ test("0.40.0 paystatus unit: payload decode (v1 + v2), selectors/topics, rpcSour
   assert.equal(P.decide([v({}), v({ name: "y" })], q).safe_to_resign, true);
   assert.equal(P.decide([v({}), v({ name: "y", head_time: PS_VB })], q).safe_to_resign, false);
   assert.deepEqual(P.decide([{ name: "x", ok: false }], q), { error: "chain_unavailable" });
+});
+
+test("0.42.0 opt-in check_expiry: expired 402 -> skip/challenge_expired; skew cap 300; absent param unchanged; docs worked example", async () => {
+  facMode = "ok";
+  const strip = (b) => JSON.parse(JSON.stringify(b, (k, v) => (["checked_at", "id", "receipt_id", "receipt", "receipt_url", "signature", "ts", "generated_at", "last_checked", "check_id"].includes(k) ? undefined : v)));
+  const run = async (mode, extra, client) => {
+    spotTargetMode = mode;
+    const e = spotEnv();
+    return send("/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=" + client + extra, { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
+  };
+  const exp = await run("expired", "&check_expiry=1", "exp-1");
+  assert.equal(exp.status, 200);
+  assert.equal(exp.body.verdict, "skip");
+  assert.equal(exp.body.reason_code, "challenge_expired");
+  assert.equal(exp.body.expiry_check.expired, true);
+  const soon = await run("expiring", "&check_expiry=1&skew_s=9999", "exp-2"); // skew capped at 300 > 120 s left
+  assert.equal(soon.body.reason_code, "challenge_expired");
+  assert.equal(soon.body.expiry_check.skew_s, 300);
+  const soonDef = await run("expiring", "&check_expiry=1", "exp-3"); // default 30 s < 120 s left
+  assert.equal(soonDef.body.verdict, "pay");
+  assert.equal(soonDef.body.expiry_check.expired, false);
+  const fut = await run("future", "&check_expiry=1", "exp-4");
+  assert.equal(fut.body.verdict, "pay");
+  for (const m of ["expired", "402", "future"]) {
+    const off = await run(m, "", "exp-off");
+    assert.equal(off.body.verdict, "pay", m + " without the param must keep its old verdict");
+    assert.ok(!("expiry_check" in off.body));
+    const off2 = await run(m, "&check_expiry=0", "exp-off");
+    assert.deepEqual(Object.keys(off2.body).sort(), Object.keys(off.body).sort());
+  }
+  spotTargetMode = "402";
+  const e2 = spotEnv();
+  const html = await (await worker.fetch(new Request("https://lookup.test/docs", { headers: { "user-agent": "agent-x/1.0" } }), e2.env, { waitUntil() {} })).text();
+  assert.ok(html.includes('id="payment-status-example"') && html.includes("https://402xagent.com/v1/receipts/ps-65a4fdffae01d2b6") && html.includes('id="expiry-check"'));
+  const rj = (await send("/rules.json", { envo: spotEnv() })).body;
+  assert.ok(rj.reason_codes.some((r) => r.code === "challenge_expired"));
 });
 
 let passed = 0;
