@@ -548,7 +548,7 @@ test("paid path: every unpaid call (no params, GET or POST, first call of the da
   assert.ok(e.points.every((p) => p.blobs[12] === "payment-required" && p.doubles[2] === 402 && p.doubles[0] === 0));
   // discovery documents
   const wk = (await send("/.well-known/x402", { envo: e })).body;
-  assert.deepEqual(wk.resources, ["https://api.402xagent.com/v1/lookup/paid", "https://api.402xagent.com/v1/products/overnight-cos-pack", "https://api.402xagent.com/v1/products/endpoint-spot-check"]);
+  assert.deepEqual(wk.resources, ["https://api.402xagent.com/v1/lookup/paid", "https://api.402xagent.com/v1/products/overnight-cos-pack", "https://api.402xagent.com/v1/products/endpoint-spot-check", "https://api.402xagent.com/v1/products/payment-status"]);
   assert.equal(wk.version, 1);
   // 0.18.0: service-wide payment block + per-resource accepts so indexes learn the network without a settled payment
   assert.deepEqual(wk.payment.x402.networks, ["eip155:8453"]);
@@ -627,7 +627,7 @@ test("MCP /mcp: initialize, tools/list (catalog tools + products), ping, notific
   const pyTools = JSON.parse(py.stdout).result.tools;
   const workerTools = r.body.result.tools;
   assert.deepEqual(workerTools.slice(0, 3), pyTools, "first 3 tools match mcp/server.py");
-  assert.deepEqual(workerTools.map((t) => t.name), ["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "get_receipt", "endpoint_spot_check"]);
+  assert.deepEqual(workerTools.map((t) => t.name), ["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "get_receipt", "endpoint_spot_check", "payment_status"]);
   assert.deepEqual((await rpc({ jsonrpc: "2.0", id: 3, method: "ping" }, { envo: e })).body, { jsonrpc: "2.0", id: 3, result: {} });
   assert.equal((await rpc({ jsonrpc: "2.0", id: 4, method: "nope" }, { envo: e })).body.error.code, -32601);
   assert.equal((await rpc({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "nope" } }, { envo: e })).body.error.message, "unknown tool 'nope'");
@@ -2645,7 +2645,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.39.2");
+  assert.equal(VERSION, "0.40.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -3041,6 +3041,266 @@ test("0.39.0 blog: bundled posts, /blog list + /blog/<slug>, sitemap + llms.txt,
   assert.ok(h.includes('<th class="r">b</th>') && h.includes("<ul><li>x</li><li>y</li></ul>") && h.includes('<pre><code class="lang-js">q&lt;1</code></pre>'));
   assert.ok(!h.includes("note") && !h.includes("Alternative") && !h.includes("Z"));
   assert.equal(renderMarkdown("[x](javascript:alert)"), "<p>x</p>", "no javascript: links");
+});
+
+
+// ---------------- 0.40.0 payment-status (after-payment check): mocked Base RPC, three sources ----------------
+const PSA = "https://alch.test/v2/SECRETKEY123", PSB = "https://rpc2.test/k/SECRET2", PSP = "https://pub.test/";
+const PS_FROM = "0x" + "a1".repeat(20), PS_NONCE = "0x" + "b2".repeat(32), PS_TX = "0x" + "c3".repeat(32), PS_SELLER = "0x" + "d4".repeat(20), PS_SUBMITTER = "0x" + "e5".repeat(20);
+const PS_VB = 1900000000;
+const psPad = (a) => "0x" + a.toLowerCase().replace(/^0x/, "").padStart(64, "0");
+const psHex = (n) => "0x" + n.toString(16);
+const psNode = (o = {}) => ({ head: 5000, time: PS_VB + 1000, used: false, event: null, receipt: null, fail: false, ...o });
+let psChain = {};
+const psCalls = [];
+function psReceipt({ block, status = 1, to = PS_SELLER, value = 10000, from = PS_FROM, event = "used" }) {
+  const T = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", U = "0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5";
+  const logs = [{ address: USDC, topics: [T, psPad(from), psPad(to)], data: psPad(value.toString(16)) }];
+  if (event === "used") logs.unshift({ address: USDC, topics: [U, psPad(from), PS_NONCE], data: "0x" });
+  return { transactionHash: PS_TX, blockNumber: psHex(block), status: psHex(status), from: PS_SUBMITTER, logs };
+}
+const psFetch = (orig) => async (url, init = {}) => {
+  const n = psChain[String(url)];
+  if (!n) return orig(url, init);
+  const { method, params } = JSON.parse(init.body);
+  psCalls.push([String(url), method]);
+  if (n.fail) return new Response("rate limited", { status: 429 });
+  const R = (result) => Response.json({ jsonrpc: "2.0", id: 1, result });
+  if (method === "eth_getBlockByNumber") return R({ number: psHex(n.head), timestamp: psHex(n.time) });
+  if (method === "eth_call") {
+    assert.equal(params[0].to, USDC.toLowerCase()); assert.ok(params[0].data.startsWith("0xe94a0102"));
+    assert.equal(params[0].data, "0xe94a0102" + psPad(PS_FROM).slice(2) + PS_NONCE.slice(2), "authorizationState(from, nonce) calldata");
+    return R(psPad(n.used ? "1" : "0"));
+  }
+  if (method === "eth_getLogs") {
+    assert.deepEqual(params[0].topics.slice(1), [psPad(PS_FROM), PS_NONCE]);
+    if (!n.event) return R([]);
+    return R([{ address: USDC, topics: [n.event === "canceled" ? "0x1cdd46ff242716cdaa72d159d339a485b3438398348d68f09d7c8c0a59353d81" : "0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5", psPad(PS_FROM), PS_NONCE], data: "0x", transactionHash: n.event === "canceled" ? null : PS_TX }]);
+  }
+  if (method === "eth_getTransactionReceipt") return R(n.receipt);
+  return Response.json({ jsonrpc: "2.0", id: 1, error: { code: -32601, message: "nope" } });
+};
+const PS_PAYLOAD = (o = {}) => b64({
+  x402Version: 2,
+  accepted: { scheme: "exact", network: "eip155:8453", amount: "10000", asset: USDC, payTo: PS_SELLER, ...(o.accepted || {}) },
+  payload: { signature: "0x" + "ee".repeat(65), authorization: { from: PS_FROM, to: PS_SELLER, value: "10000", validAfter: "0", validBefore: String(o.vb ?? PS_VB), nonce: PS_NONCE } },
+});
+function psD1() {
+  const rows = [];
+  return { rows, prepare(sql) { return { bind(...a) { return {
+    async run() { if (/^INSERT INTO payment_status/.test(sql)) rows.push({ id: a[0], lookup_key: a[1], status: a[2], created_at: a[3], body: a[4] }); return { success: true }; },
+    async first() {
+      if (/WHERE lookup_key = \?/.test(sql)) { const r = rows.filter((x) => x.lookup_key === a[0]).at(-1); return r ? { body: r.body } : null; }
+      if (/WHERE id = \?/.test(sql)) { const r = rows.find((x) => x.id === a[0]); return r ? { body: r.body } : null; }
+      return null;
+    },
+    async all() { return { results: [] }; },
+  }; } }; } };
+}
+const PS = "/v1/products/payment-status";
+function psEnv(extra = {}) { return spotEnv({ ALCHEMY_BASE_RPC_URL: PSA, RPC2_BASE_URL: PSB, PAYSTATUS_PUBLIC_RPC: PSP, RECEIPTS_DB: psD1(), SPOT_FREE_PER_DAY: "5", ...extra }); }
+async function psSend(body, { envo, headers = {}, client = "ps-agent" } = {}) {
+  const orig = globalThis.fetch;
+  globalThis.fetch = psFetch(orig);
+  try {
+    return await send(PS, { envo, method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify({ client, ...body }) });
+  } finally { globalThis.fetch = orig; }
+}
+const psSet = (a, b, p = psNode({ fail: true })) => { psChain = { [PSA]: a, [PSB]: b, [PSP]: p }; psCalls.length = 0; };
+
+test("0.40.0 payment-status: bare GET/POST/HEAD -> x402 v2 discovery 402 at 20000 with Bazaar metadata, no RPC, nothing used or written", async () => {
+  const e = psEnv();
+  psSet(psNode(), psNode());
+  for (const method of ["GET", "POST"]) {
+    const orig = globalThis.fetch; globalThis.fetch = psFetch(orig);
+    let r; try { r = await send(PS, { envo: e, method }); } finally { globalThis.fetch = orig; }
+    assert.equal(r.status, 402, method);
+    assert.equal(r.body.x402Version, 2); assert.equal(r.body.accepts[0].amount, "20000"); assert.equal(r.body.accepts[0].payTo, PAY_TO);
+    assert.equal(r.body.discovery, true); assert.match(r.body.error, /Missing payment reference/);
+    assert.equal(r.body.extensions.bazaar.info.input.method, "POST");
+    assert.deepEqual(unb64(r.headers.get("payment-required")), r.body);
+  }
+  const h = await worker.fetch(new Request("https://lookup.test" + PS, { method: "HEAD" }), e.env, { waitUntil() {} });
+  assert.equal(h.status, 402);
+  assert.equal(psCalls.length, 0, "no RPC"); assert.equal(e.env.RECEIPTS_DB.rows.length, 0, "no D1 write");
+  const f = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e });
+  assert.equal(f.body.access.free_used_today, 1, "discovery did not use a free check");
+});
+
+test("0.40.0 payment-status: landed (10+ confirmations) -> landed, safe_to_resign false, tx + terms match + claim; final answer stored in D1, served at /v1/receipts/ps-..., cached on repeat; signed receipt verifies", async () => {
+  const S = await import("../worker/src/sign.js");
+  const { privateKey, publicKey } = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const jwk = { ...(await crypto.subtle.exportKey("jwk", privateKey)), kid: "ps-test-key" };
+  S._addTestKey({ kid: jwk.kid, x: jwk.x }); S._resetSigner();
+  const e = psEnv({ RECEIPT_SIGNING_KEY: JSON.stringify(jwk) });
+  const rc = psReceipt({ block: 4980 });
+  psSet(psNode({ used: true, event: "used", receipt: rc }), psNode({ used: true, event: "used", receipt: rc }));
+  const r = await psSend({ payment_payload: PS_PAYLOAD(), seller_url: "https://spot.target.test/ps" }, { envo: e });
+  assert.equal(r.status, 200);
+  const b = r.body;
+  assert.equal(b.status, "landed"); assert.equal(b.reason, "settled_onchain");
+  assert.equal(b.safe_to_resign, false); assert.equal(b.safe_to_retry_same_payload, true); assert.match(b.same_payload_note, /replay/);
+  assert.equal(b.tx.hash, PS_TX); assert.equal(b.tx.confirmations, 21); assert.equal(b.tx.submitter, PS_SUBMITTER); assert.equal(b.tx.basescan_url, "https://basescan.org/tx/" + PS_TX);
+  assert.deepEqual(b.tx.transfer, { from: PS_FROM, to: PS_SELLER, value: "10000" });
+  assert.deepEqual(b.terms_match, { amount: "match", pay_to: "match", asset: "match", network: "match", source: "payment_payload", compared: "onchain_transfer" });
+  assert.equal(b.claim.relevant, true); assert.ok(b.claim.contacts.some((c) => c.role === "facilitator" && c.submitter === PS_SUBMITTER && c.inferred));
+  assert.ok(b.claim.contacts.some((c) => c.role === "seller" && c.host === "spot.target.test"));
+  assert.equal(b.finality.reorg_safe, true); assert.equal(b.rpc.sources_agreed, 2);
+  assert.ok(Array.isArray(b.cannot_know) && b.cannot_know.some((x) => /delivered/.test(x)));
+  assert.equal(b.access.tier, "free"); assert.equal(b.access.shared_with, "402xAgent check");
+  // RPC URLs (with keys) never leak
+  assert.doesNotMatch(JSON.stringify(b), /SECRETKEY123|SECRET2|alch\.test|rpc2\.test/);
+  assert.deepEqual(b.rpc.sources.map((s) => s.name), ["alchemy", "rpc2"]);
+  // signed copy verifies (ed25519 over JCS minus signature)
+  assert.equal(b.receipt.kid, "ps-test-key");
+  const sig = Uint8Array.from(Buffer.from(b.receipt.signature, "base64url"));
+  assert.ok(await crypto.subtle.verify({ name: "Ed25519" }, publicKey, sig, S.signingInput(b.receipt)), "receipt signature verifies");
+  const { receipt, cached, signature_note, access, ...top } = b;
+  const { kid, signature, ...signedRest } = receipt;
+  assert.deepEqual(top, signedRest, "top-level answer == signed copy");
+  // stored (final) and readable
+  assert.equal(e.env.RECEIPTS_DB.rows.length, 1); assert.equal(b.stored, true);
+  const got = await send("/v1/receipts/" + b.id, { envo: e });
+  assert.equal(got.status, 200); assert.deepEqual(got.body, b.receipt);
+  // repeat: cached, no RPC
+  psCalls.length = 0;
+  const r2 = await psSend({ payment_payload: PS_PAYLOAD(), seller_url: "https://spot.target.test/ps" }, { envo: e });
+  assert.equal(r2.body.cached, true); assert.equal(psCalls.length, 0); assert.equal(r2.body.access.free_used_today, 2);
+  assert.equal((await send("/v1/receipts/ps-0000000000000000", { envo: e })).status, 404);
+  S._resetSigner();
+});
+
+test("0.40.0 payment-status strict re-sign rule: not_landed only with two sources + unused + past validBefore+120s; expiry edge; pending; single source; fallback to public; disagreement; canceled; low confirmations; tx-only; terms mismatch", async () => {
+  const ask = async (a, b, p, body = { payment_payload: PS_PAYLOAD() }) => { psSet(a, b, p); return psSend(body, { envo: psEnv(), client: "ps-" + Math.random() }); }; // fresh D1 each time (final answers are cached)
+  // not_landed: both unused, expired by > margin
+  let r = await ask(psNode({ time: PS_VB + 121 }), psNode({ time: PS_VB + 500 }));
+  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign, r.body.rpc.sources_agreed], ["not_landed", "expired_unused", true, 2]);
+  assert.equal(r.body.authorization.used_onchain, false); assert.equal(r.body.authorization.expired, true);
+  assert.equal(r.body.stored, true, "final -> stored");
+  assert.ok(!psCalls.some(([u]) => u === PSP), "public node not needed with two sources");
+  // expiry edge: exactly validBefore + 120 on one source is NOT past the margin
+  r = await ask(psNode({ time: PS_VB + 120 }), psNode({ time: PS_VB + 500 }));
+  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign], ["pending", "authorization_still_valid", false]);
+  assert.equal(r.body.wait_until, new Date((PS_VB + 121) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z"));
+  assert.equal(r.body.stored, false); assert.equal(r.body.permalink, null);
+  // pending: still valid
+  r = await ask(psNode({ time: PS_VB - 60 }), psNode({ time: PS_VB - 60 }));
+  assert.deepEqual([r.body.status, r.body.safe_to_resign], ["pending", false]);
+  // single source: rpc2 + public fail
+  r = await ask(psNode(), psNode({ fail: true }), psNode({ fail: true }));
+  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign, r.body.rpc.sources_agreed], ["unknown", "single_source", false, 1]);
+  assert.deepEqual(r.body.rpc.sources.map((s) => [s.name, s.ok, s.error || null]), [["alchemy", true, null], ["rpc2", false, "http_429"], ["base-public", false, "http_429"]]);
+  // fallback: rpc2 fails, public answers -> two sources agree
+  r = await ask(psNode(), psNode({ fail: true }), psNode());
+  assert.deepEqual([r.body.status, r.body.safe_to_resign, r.body.rpc.sources_agreed], ["not_landed", true, 2]);
+  // disagreement: one sees it landed, the other not
+  const deep = psReceipt({ block: 4000 });
+  r = await ask(psNode({ used: true, event: "used", receipt: deep }), psNode());
+  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign], ["pending", "sources_disagree", false]);
+  // disagreement on the nonce only (one says used, no event found)
+  r = await ask(psNode(), psNode({ used: true }));
+  assert.deepEqual([r.body.status, r.body.safe_to_resign], ["unknown", false]);
+  // canceled
+  r = await ask(psNode({ used: true, event: "canceled" }), psNode({ used: true, event: "canceled" }));
+  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign], ["canceled", "authorization_canceled", false]);
+  assert.equal(r.body.authorization.event, "canceled");
+  // reorg window: landed with 3 confirmations -> pending, not stored
+  const shallow = psReceipt({ block: 4998 });
+  r = await ask(psNode({ used: true, event: "used", receipt: shallow }), psNode({ used: true, event: "used", receipt: shallow }));
+  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign, r.body.tx.confirmations, r.body.stored], ["pending", "low_confirmations", false, 3, false]);
+  assert.equal(r.body.finality.reorg_safe, false);
+  // terms mismatch: money went to another wallet / amount
+  const other = psReceipt({ block: 4000, to: "0x" + "99".repeat(20), value: 25000 });
+  r = await ask(psNode({ used: true, event: "used", receipt: other }), psNode({ used: true, event: "used", receipt: other }));
+  assert.equal(r.body.status, "landed");
+  assert.deepEqual([r.body.terms_match.pay_to, r.body.terms_match.amount], ["mismatch", "mismatch"]);
+  assert.equal(r.body.claim.relevant, true);
+  // explicit terms override + live 402 terms when only seller_url is given
+  r = await ask(psNode({ used: true, event: "used", receipt: deep }), psNode({ used: true, event: "used", receipt: deep }), undefined, { from: PS_FROM, nonce: PS_NONCE, terms: { amount: "10000", payTo: PS_SELLER } });
+  assert.deepEqual([r.body.terms_match.amount, r.body.terms_match.pay_to, r.body.terms_match.source], ["match", "match", "provided"]);
+  // from + nonce without validBefore: unused -> pending, never safe
+  r = await ask(psNode(), psNode(), undefined, { from: PS_FROM, nonce: PS_NONCE });
+  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign], ["pending", "valid_before_unknown", false]);
+  r = await ask(psNode(), psNode(), undefined, { from: PS_FROM, nonce: PS_NONCE, valid_before: String(PS_VB) });
+  assert.deepEqual([r.body.status, r.body.safe_to_resign], ["not_landed", true]);
+  // tx hash only: not found -> pending; reverted -> not_landed but never safe (no nonce check)
+  r = await ask(psNode(), psNode(), undefined, { tx_hash: PS_TX });
+  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign], ["pending", "tx_not_found", false]);
+  const rev = psReceipt({ block: 4000, status: 0 });
+  r = await ask(psNode({ receipt: rev }), psNode({ receipt: rev }), undefined, { tx_hash: PS_TX });
+  assert.deepEqual([r.body.status, r.body.reason, r.body.safe_to_resign], ["not_landed", "tx_reverted", false]);
+  r = await ask(psNode({ receipt: deep }), psNode({ receipt: deep }), undefined, { tx_hash: PS_TX });
+  assert.deepEqual([r.body.status, r.body.safe_to_resign], ["landed", false]);
+  // same-payload retry is always reported safe
+  assert.equal(r.body.safe_to_retry_same_payload, true);
+});
+
+test("0.40.0 payment-status: chain outage -> 503 (nothing charged, no free check); 400s; shared free counter with the check, then 402, then paid via x402; MCP tool", async () => {
+  const e = psEnv({ SPOT_FREE_PER_DAY: "2" });
+  psSet(psNode({ fail: true }), psNode({ fail: true }), psNode({ fail: true }));
+  let r = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e, client: "ps-shared" });
+  assert.equal(r.status, 503); assert.equal(r.body.code, "chain_unavailable"); assert.equal(r.body.safe_to_resign, false); assert.equal(r.headers.get("retry-after"), "30");
+  assert.doesNotMatch(JSON.stringify(r.body), /SECRET|alch\.test/);
+  for (const [b, code] of [[{ nonce: "0x12" , from: PS_FROM }, "bad_nonce"], [{ tx_hash: PS_TX, network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" }, "unsupported_network"], [{ tx_hash: PS_TX, asset: "0x" + "00".repeat(20) }, "unsupported_asset"], [{ payment_payload: PS_PAYLOAD(), nonce: "0x" + "ff".repeat(32) }, "inconsistent"], [{ payment_payload: "not base64!" }, "bad_payload"], [{ from: PS_FROM }, "missing_reference"], [{ payment_payload: PS_PAYLOAD({ accepted: { network: "eip155:1" } }) }, "unsupported_network"]]) {
+    r = await psSend(b, { envo: e, client: "ps-shared" });
+    assert.equal(r.status, 400, code); assert.equal(r.body.code, code);
+  }
+  // shared counter: one free spot-check + one free payment-status = 2 free/day, then 402
+  spotTargetMode = "402";
+  const sc = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/ps-shared") + "&client=ps-shared", { envo: e });
+  assert.equal(sc.body.access.tier, "free"); assert.equal(sc.body.access.free_used_today, 1, "503 and 400s used nothing");
+  psSet(psNode(), psNode());
+  r = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e, client: "ps-shared" });
+  assert.equal(r.body.access.free_used_today, 2);
+  r = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e, client: "ps-shared" });
+  assert.equal(r.status, 402); assert.equal(r.body.accepts[0].amount, "20000"); assert.match(r.body.error, /shared with the 402xAgent check/);
+  const sc2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/ps-shared2") + "&client=ps-shared", { envo: e });
+  assert.equal(sc2.status, 402, "the check sees the same counter");
+  // paid via x402 (our own PAYMENT-SIGNATURE header; the subject payment is in the body)
+  facMode = "ok";
+  r = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e, client: "ps-shared", headers: { "payment-signature": v2Payment() } });
+  assert.equal(r.status, 200); assert.equal(r.body.access.tier, "paid"); assert.equal(r.body.access.charged_usd, "0.02"); assert.ok(r.headers.get("payment-response"));
+  // a wrong-amount payment header is refused before any settle
+  r = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e, client: "ps-shared", headers: { "payment-signature": v2Payment({ amount: "10000" }) } });
+  assert.equal(r.status, 402); assert.match(r.body.error, /amount does not match/);
+  // MCP tool
+  const orig = globalThis.fetch; globalThis.fetch = psFetch(orig);
+  try {
+    const e2 = psEnv();
+    const t = await send("/mcp", { envo: e2, method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "payment_status", arguments: { payment_payload: PS_PAYLOAD() } } }) });
+    const data = JSON.parse(t.body.result.content[0].text);
+    assert.equal(data.status, "not_landed"); assert.equal(data.safe_to_resign, true);
+    const t2 = await send("/mcp", { envo: e2, method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "payment_status", arguments: {} } }) });
+    assert.equal(t2.body.result.isError, true);
+  } finally { globalThis.fetch = orig; }
+  // docs surfaces
+  const wk = await send("/.well-known/x402", { envo: e });
+  assert.ok(wk.body.resourceCatalog.some((x) => x.url.endsWith("/v1/products/payment-status") && x.accepts[0].amount === "20000"));
+  const oa = await send("/openapi.json", { envo: e });
+  assert.ok(oa.body.paths["/v1/products/payment-status"].post);
+  const llms = await (await worker.fetch(new Request("https://lookup.test/llms.txt"), e.env, { waitUntil() {} })).text();
+  assert.match(llms, /payment-status/); assert.match(llms, /safe_to_resign/);
+  const docs = await (await worker.fetch(new Request("https://402xagent.com/docs", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} })).text();
+  assert.match(docs, /id="payment-status"/);
+});
+
+test("0.40.0 paystatus unit: payload decode (v1 + v2), selectors/topics, rpcSources order + 'off', decide() never sets safe_to_resign without two sources", async () => {
+  const P = await import("../worker/src/paystatus.js");
+  const d2 = P.decodeSubjectPayload(PS_PAYLOAD());
+  assert.deepEqual([d2.from, d2.nonce, d2.valid_before, d2.network, d2.terms.payTo], [PS_FROM, PS_NONCE, PS_VB, "eip155:8453", PS_SELLER]);
+  const d1 = P.decodeSubjectPayload(b64({ x402Version: 1, scheme: "exact", network: "base", payload: { authorization: { from: PS_FROM, to: PS_SELLER, value: "1", validAfter: "0", validBefore: "5", nonce: PS_NONCE } } }));
+  assert.equal(d1.network, "eip155:8453"); assert.equal(d1.terms, null);
+  assert.equal(P.SEL_AUTHORIZATION_STATE, "0xe94a0102");
+  assert.deepEqual(P.rpcSources({ ALCHEMY_BASE_RPC_URL: PSA, RPC2_BASE_URL: PSB }).map((s) => s.name), ["alchemy", "rpc2", "base-public"]);
+  assert.deepEqual(P.rpcSources({ PAYSTATUS_PUBLIC_RPC: "off" }), []);
+  assert.deepEqual(P.rpcSources({}).map((s) => s.name), ["base-public"], "no secrets: public node only (=> never two sources => never safe_to_resign)");
+  const v = (o) => ({ name: "x", ok: true, head: 10, head_time: PS_VB + 999, state: false, receipt: null, event: null, ...o });
+  const q = { from: PS_FROM, nonce: PS_NONCE, valid_before: PS_VB };
+  assert.equal(P.decide([v({})], q).safe_to_resign, false);
+  assert.equal(P.decide([v({}), { name: "y", ok: false, error: "unreachable" }], q).safe_to_resign, false);
+  assert.equal(P.decide([v({}), v({ name: "y" })], q).safe_to_resign, true);
+  assert.equal(P.decide([v({}), v({ name: "y", head_time: PS_VB })], q).safe_to_resign, false);
+  assert.deepEqual(P.decide([{ name: "x", ok: false }], q), { error: "chain_unavailable" });
 });
 
 let passed = 0;
