@@ -214,7 +214,7 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
 <main id="main">
 <div class="hero"><div class="wrap">
   <img class="hero-logo" src="/brand/logo-light.png?v=${V}" width="560" height="459" alt="402xAgent logo">
-  <span class="eyebrow"><span class="dot" aria-hidden="true"></span>${esc(covered)} x402 endpoints self-checked · last crawl ${esc((crawlSchedule(m.crawled_at) || { last: crawled }).last)}</span>
+  <span class="eyebrow"><span class="dot" aria-hidden="true"></span>${esc(Number(covered).toLocaleString("en-US"))} checks · last crawl ${esc((crawlSchedule(m.crawled_at) || { last: crawled }).last)}</span>
   <h1>Check before your <span class="grad">agent pays</span></h1>
   <p class="sub">402xAgent probes an x402 endpoint once, unpaid, compares the live 402 with its listing, and tells your agent to pay, skip or recheck, with the exact payment to sign.</p>
   <p class="saves">Stops your agent paying dead, mispriced or wrong-network endpoints, or the wrong token or payee.</p>
@@ -235,8 +235,8 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
       <li><b>402xAgent:</b> <span class="rx-skip">${esc(HOME_EXAMPLE.verdict)}</span>, ${esc(HOME_EXAMPLE.reason)}</li>
     </ol>
   </div>
-  <p class="support">Checks understand canonical USDC on Base, Ethereum, OP Mainnet, Polygon, Arbitrum, Avalanche and Solana; testnets and other tokens come back as skip. You pay for paid checks in USDC on Base. We probe unpaid, so we can't verify what the endpoint returns after payment, its uptime between checks, or who runs it.</p>
-  <p class="support"><a href="/docs#quick-start">Quick start in the docs →</a> · Hosted mode (coming soon): 1,000 free hosted checks for early integrators. <a href="https://github.com/withgrokbot/x402-spotcheck/issues/new?title=Hosted%20mode%3A%20request%20a%20key">Ask for a key</a>.</p>
+  <p class="support">Checks read these networks: canonical USDC on Base, Ethereum, OP Mainnet, Polygon, Arbitrum, Avalanche and Solana; testnets and other tokens come back as skip. You pay us in USDC on Base. We probe unpaid, so we can't verify what the endpoint returns after payment, its uptime between checks, or who runs it.</p>
+  <p class="support"><a href="/docs#quick-start">Quick start in the docs →</a></p>
 </div></div>
 
 <section id="try" class="alt" aria-labelledby="try-h"><div class="wrap">
