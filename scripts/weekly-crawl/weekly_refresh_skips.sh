@@ -7,6 +7,7 @@
 # Usage: bash <job>/receipts/scripts/weekly_refresh_skips.sh   (job root is derived from this file; override with BM_JOB)
 #   DRY_RUN=1   -> stop after tests (no KV upload, no deploy, no push)
 #   SKIP_FETCH=1 -> reuse the lists already in receipts/crawl (debugging only)
+#   CRAWL_STORE=d1|kv -> where pages/shards go (0.44.0; default d1, kv = legacy Workers KV)
 # Never pays anything: no payment headers are ever sent, no wallet is loaded.
 set -euo pipefail
 JOB="${BM_JOB:-$(cd "$(dirname "$0")/../.." && pwd)}"
@@ -54,7 +55,14 @@ cd "$APP" && node tests/worker_test.mjs
 if [ "${DRY_RUN:-0}" = "1" ]; then echo "DRY_RUN: stopping before KV upload/deploy"; echo "$COV"; exit 0; fi
 
 # 5) KV first (changed keys only, under a daily write budget), so the new bundle never points at missing pages
-set +e; python3 "$S/kv_upload.py"; KRC=$?; set -e
+# 0.44.0: CRAWL_STORE=d1 (default since the 2026-10-20 cutover) | kv (legacy) (production D1 crawl_store via d1_upload.py; no KV writes)
+CRAWL_STORE="${CRAWL_STORE:-d1}"
+case "$CRAWL_STORE" in
+  kv) set +e; python3 "$S/kv_upload.py"; KRC=$?; set -e ;;
+  d1) set +e; python3 "$S/d1_upload.py" --remote; KRC=$?; set -e ;;
+  *) echo "CRAWL_STORE must be kv or d1"; exit 1 ;;
+esac
+echo "crawl store: $CRAWL_STORE"
 [ "$KRC" = 3 ] && { echo "KV budget reached: rest deferred; rerun tomorrow (UTC) to finish, then deploy"; exit 3; }
 [ "$KRC" = 0 ] || { echo "KV upload failed"; exit 1; }
 
@@ -62,7 +70,7 @@ set +e; python3 "$S/kv_upload.py"; KRC=$?; set -e
 REPO_HEAD_BEFORE=$(git -C "$REPO" rev-parse HEAD)
 clean_or_die "pre-deploy"
 cp "$APP/worker/src/receipts-data.js" "$REPO/worker/src/receipts-data.js"
-mkdir -p "$REPO/scripts/weekly-crawl" && cp "$S"/{fetch_lists.py,crawl_probe.py,build_worker_data.py,payai_credits.py,weekly_refresh_skips.sh,kv_upload.py} "$REPO/scripts/weekly-crawl/" && cp "$APP/scripts/almost_paid.py" "$APP/scripts/funnel_weekly.py" "$REPO/scripts/"
+mkdir -p "$REPO/scripts/weekly-crawl" && cp "$S"/{fetch_lists.py,crawl_probe.py,build_worker_data.py,payai_credits.py,weekly_refresh_skips.sh,kv_upload.py,d1_upload.py} "$REPO/scripts/weekly-crawl/" && cp "$APP/scripts/almost_paid.py" "$APP/scripts/funnel_weekly.py" "$REPO/scripts/"
 git -C "$REPO" add worker/src/receipts-data.js scripts/weekly-crawl scripts/almost_paid.py scripts/funnel_weekly.py
 if git -C "$REPO" diff --cached --quiet; then CHANGED=0; else CHANGED=1; git -C "$REPO" -c user.name=withgrokbot -c user.email=336192572+withgrokbot@users.noreply.github.com commit -qm "Weekly /v1/skips refresh: $COV"; fi
 [ "$(git -C "$REPO" log -1 --format=%an)" = "withgrokbot" ] || { echo "REFUSING: commit author is not withgrokbot"; exit 1; }

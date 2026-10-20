@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -2658,7 +2659,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.42.5");
+  assert.equal(VERSION, "0.44.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -3105,6 +3106,92 @@ test("0.42.3 receipt labels: check_type matches the real mode (live / dry-run / 
   for (const r of rows) assert.ok(r.ct !== "dry-run" || r.b.dry_run === true, "check_type dry-run only for real dry runs");
   for (const r of rows) { const g = (await send("/v1/receipts/" + r.b.id, { envo: e })).body; assert.equal(g.check_type, r.ct); assert.ok(!("client" in g), "receipts never expose the client id publicly"); }
 });
+
+// ---------------- 0.44.0 crawl storage in D1 (crawl_store), KV fallback for keys not migrated ----------------
+function crawlD1(rows = []) {
+  const calls = { select: 0 };
+  return {
+    calls, rows,
+    prepare(sql) {
+      return { bind(...a) { return { async all() {
+        if (!/FROM crawl_store WHERE key = \?/.test(sql)) throw new Error("unexpected sql " + sql);
+        calls.select++;
+        return { results: rows.filter((r) => r.key === a[0]).sort((x, y) => x.part - y.part).map(({ part, parts, sha256, value }) => ({ part, parts, sha256, value })) };
+      }, async first() { return null; }, async run() { return {}; } }; } };
+    },
+  };
+}
+const sha256hex = (t) => createHash("sha256").update(t).digest("hex");
+function d1Put(rows, key, obj, partSize = 50) {
+  const text = JSON.stringify(obj), h = sha256hex(text), parts = [];
+  for (let i = 0; i < text.length; i += partSize) parts.push(text.slice(i, i + partSize));
+  parts.forEach((v, i) => rows.push({ key, part: i, parts: parts.length, sha256: h, value: v }));
+}
+test("0.44.0 crawl store: receipts and skip pages come from D1 (multi-part, sha-checked); KV only for keys not in D1", async () => {
+  const { _clearCrawlStoreCache, crawlStoreGet } = await import("../worker/src/skips.js");
+  const ext = "https://spot.target.test/d1-thing", id = await receiptIdFor(ext);
+  const rec = { id, url: ext, verdict: "skip", reason: "price_mismatch", listed_pay_to: "0x" + "33".repeat(20), listed_network: "eip155:8453" };
+  const rows = []; d1Put(rows, "c:" + id.slice(0, 2), { [id]: rec }); d1Put(rows, "s:2", [rec]);
+  assert.ok(rows.filter((r) => r.key === "s:2").length > 1, "value is split into several parts");
+  const kvCalls = []; const kvRec = { ...rec, id: "ffffffffff", url: "https://kv.only.test/x" };
+  const kv = { async get(k, o) { kvCalls.push(k); return k === "c:ff" ? { ffffffffff: kvRec } : null; } };
+  const db = crawlD1(rows);
+  _clearCrawlStoreCache();
+  const e = spotEnv({ RECEIPTS_DB: db, CRAWL_KV: kv });
+  const r = await send("/v1/receipts/" + id, { envo: e });
+  assert.equal(r.status, 200); assert.equal(r.body.url, ext);
+  assert.deepEqual(kvCalls, [], "a migrated key never touches KV");
+  if ((RECEIPTS_META.skip_pages || 1) >= 2) {
+    const p2 = await send("/v1/skips.json?page=2", { envo: e });
+    assert.equal(p2.body.skips[0].id, id, "skip page 2 from D1");
+  }
+  const k = await send("/v1/receipts/ffffffffff", { envo: e });
+  assert.equal(k.status, 200, "not-yet-migrated key falls back to KV"); assert.deepEqual(kvCalls, ["c:ff"]);
+  // torn write (a part missing) or a sha mismatch is never served: KV fallback instead
+  _clearCrawlStoreCache();
+  const torn = rows.filter((x) => !(x.key === "s:2" && x.part === 1));
+  assert.equal(await crawlStoreGet({ RECEIPTS_DB: crawlD1(torn) }, "s:2"), undefined);
+  const bad = rows.map((x) => (x.key === "s:2" && x.part === 0 ? { ...x, value: " " + x.value.slice(1) } : x));
+  assert.equal(await crawlStoreGet({ RECEIPTS_DB: crawlD1(bad) }, "s:2"), undefined);
+  // table missing (migration not applied) or D1 down: KV, no crash
+  _clearCrawlStoreCache();
+  const down = { prepare() { return { bind() { return { async all() { throw new Error("no such table: crawl_store"); } }; } }; } };
+  const kv2 = { async get(key) { return key === "c:" + id.slice(0, 2) ? { [id]: rec } : null; } };
+  const f = await send("/v1/receipts/" + id, { envo: spotEnv({ RECEIPTS_DB: down, CRAWL_KV: kv2 }) });
+  assert.equal(f.status, 200, "pre-migration deploy keeps serving from KV");
+  _clearCrawlStoreCache();
+});
+test("0.44.0 d1_upload.py: parts <= 90 KB (UTF-8), delete+insert per key (files are D1 transactions), quotes escaped, only changed keys, meta last", () => {
+  const code = String.raw`
+import sys, json, hashlib
+sys.path.insert(0, sys.argv[1])
+import d1_upload as d
+v = json.dumps({"x": "é" * 60000 + "it's"})
+parts = d.split_parts(v)
+sql, n = d.statements("c:ab", v, "2026-10-20T00:00:00Z")
+ok = {
+  "rejoin": "".join(parts) == v,
+  "max_part": max(len(p.encode()) for p in parts) <= d.PART_BYTES,
+  "nparts": n == len(parts) and n >= 2,
+  "tx": sql[0].startswith("DELETE FROM crawl_store WHERE key = 'c:ab'") and all(x.startswith("INSERT INTO crawl_store") for x in sql[1:]),
+  "quote": "it''s" in "".join(sql),
+  "stmt_size": max(len(s.encode()) for s in sql) < 100000,
+}
+print(json.dumps(ok))`;
+  const py = spawnSync("python3", ["-c", code, new URL("../scripts/weekly-crawl", import.meta.url).pathname], { encoding: "utf8" });
+  assert.equal(py.status, 0, py.stderr);
+  const ok = JSON.parse(py.stdout);
+  for (const [k, v] of Object.entries(ok)) assert.equal(v, true, k);
+  const sh = readFileSync(new URL("../scripts/weekly-crawl/weekly_refresh_skips.sh", import.meta.url), "utf8");
+  assert.match(sh, /CRAWL_STORE="\$\{CRAWL_STORE:-d1\}"/, "default is d1 since the cutover");
+  assert.match(sh, /d1\) set \+e; python3 "\$S\/d1_upload.py" --remote/);
+  const up = readFileSync(new URL("../scripts/weekly-crawl/d1_upload.py", import.meta.url), "utf8");
+  assert.match(up, /todo = \[c for c in changed if have.get\(c\["key"\]\) != sha\(c\["value"\]\)\]/, "only changed keys");
+  assert.match(up, /todo.sort\(key=lambda c: c\["key"\] == "meta"\)/, "meta last");
+  const mig = readFileSync(new URL("../worker/migrations/0011_crawl_store.sql", import.meta.url), "utf8");
+  assert.match(mig, /PRIMARY KEY \(key, part\)/);
+});
+
 
 // ---------------- 0.40.0 payment-status (after-payment check): mocked Base RPC, three sources ----------------
 const PSA = "https://alch.test/v2/SECRETKEY123", PSB = "https://rpc2.test/k/SECRET2", PSP = "https://pub.test/";

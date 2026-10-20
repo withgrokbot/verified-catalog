@@ -1,6 +1,6 @@
 // Public self-checked receipts: /v1/skips (HTML; ?format=json or /v1/skips.json for JSON; ?page=N), /v1/receipts, /v1/receipts/<id>.
 // 0.11.0: the weekly crawl covers every listed endpoint. Page 1 of skips is bundled (receipts-data.js); every receipt
-// and every other skip page lives in the CRAWL_KV namespace (c:<id[0:2]> shards, s:<n> pages), written by receipts/scripts.
+// and every other skip page lives in D1 crawl_store (0.44.0; KV CRAWL_KV fallback) as c:<id[0:2]> shards, s:<n> pages.
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { recentChecks, RECENT_MAX } from "./recent.js";
 import { CANON_ORIGIN, API_ORIGIN, SPOT_SERVICE_NAME, FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE } from "./spotcheck.js";
@@ -31,7 +31,32 @@ export async function receiptIdFor(u) {
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 10);
 }
 
+// 0.44.0: crawl data is read from D1 (crawl_store, migration 0011) first; KV only for keys not (fully) migrated yet.
+const d1Hit = new Map(); // per-isolate cache: key -> { at, v } (same 300 s as the KV cacheTtl)
+export async function crawlStoreGet(env, key) {
+  const db = env && env.RECEIPTS_DB;
+  if (!db) return undefined;
+  const c = d1Hit.get(key);
+  if (c && Date.now() - c.at < 300000) return c.v;
+  try {
+    const r = await db.prepare("SELECT part, parts, sha256, value FROM crawl_store WHERE key = ? ORDER BY part").bind(key).all();
+    const rows = (r && r.results) || [];
+    if (!rows.length || rows.length !== rows[0].parts || rows.some((x, i) => x.part !== i || x.parts !== rows[0].parts || x.sha256 !== rows[0].sha256)) return undefined;
+    const text = rows.map((x) => x.value).join("");
+    const h = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    if (h !== rows[0].sha256) return undefined; // torn or partial write: never serve it
+    const v = JSON.parse(text);
+    if (d1Hit.size > 64) d1Hit.clear();
+    d1Hit.set(key, { at: Date.now(), v });
+    return v;
+  } catch (_) {
+    return undefined; // table missing (migration not applied) or store error -> KV fallback
+  }
+}
+export function _clearCrawlStoreCache() { d1Hit.clear(); }
 async function kvJson(env, key) {
+  const d = await crawlStoreGet(env, key);
+  if (d !== undefined) return d;
   if (!env || !env.CRAWL_KV) return null;
   try {
     return await env.CRAWL_KV.get(key, { type: "json", cacheTtl: 300 });
