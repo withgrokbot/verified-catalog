@@ -32,11 +32,11 @@
   "quality_test": null,
   "paid_receipts": 3,
   "latest": {
-    "checked_at": "2026-10-19T14:44:13Z",
+    "checked_at": "2026-10-20T14:41:57Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 469,
+    "latency_ms": 389,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.002",
@@ -48,15 +48,15 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261019T144411Z/hyperextend-btc-candles.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261019T144411Z/hyperextend-btc-candles.json"
+    "raw_log": "results/raw/20261020T144156Z/hyperextend-btc-candles.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261020T144156Z/hyperextend-btc-candles.json"
   },
   "history_summary": {
-    "checks": 16,
-    "reachable": 16,
-    "x402_challenge_ok": 16,
+    "checks": 17,
+    "reachable": 17,
+    "x402_challenge_ok": 17,
     "paid_checks": 3,
     "first_checked": "2026-10-06T17:58:49Z",
-    "last_checked": "2026-10-19T14:44:13Z"
+    "last_checked": "2026-10-20T14:41:57Z"
   }
 }
