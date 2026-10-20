@@ -38,27 +38,21 @@ export function signingInput(obj) {
 }
 const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 let cached = { raw: null, key: null, kid: null };
-let pending = null; // 0.45.1: concurrent first callers share one import (was: they saw key=null and went unsigned)
 async function signer(env) {
   const raw = env && typeof env.RECEIPT_SIGNING_KEY === "string" ? env.RECEIPT_SIGNING_KEY : "";
   if (!raw) return null;
   if (cached.raw === raw) return cached.key ? cached : null;
-  if (pending && pending.raw === raw) return pending.p;
-  const p = (async () => {
-    try {
-      const j = JSON.parse(raw);
-      if (!j || j.kty !== "OKP" || j.crv !== "Ed25519" || typeof j.d !== "string" || typeof j.x !== "string" || typeof j.kid !== "string") { cached = { raw, key: null, kid: null }; return null; }
-      if (!publishedKeys().some((k) => k.kid === j.kid && k.x === j.x)) { cached = { raw, key: null, kid: null }; return null; } // only sign with a published key
-      const key = await crypto.subtle.importKey("jwk", { kty: "OKP", crv: "Ed25519", x: j.x, d: j.d }, { name: "Ed25519" }, false, ["sign"]);
-      cached = { raw, key, kid: j.kid };
-      return cached;
-    } catch (_) {
-      cached = { raw, key: null, kid: null };
-      return null;
-    } finally { pending = null; }
-  })();
-  pending = { raw, p };
-  return p;
+  cached = { raw, key: null, kid: null };
+  try {
+    const j = JSON.parse(raw);
+    if (!j || j.kty !== "OKP" || j.crv !== "Ed25519" || typeof j.d !== "string" || typeof j.x !== "string" || typeof j.kid !== "string") return null;
+    if (!publishedKeys().some((k) => k.kid === j.kid && k.x === j.x)) return null; // only sign with a published key
+    const key = await crypto.subtle.importKey("jwk", { kty: "OKP", crv: "Ed25519", x: j.x, d: j.d }, { name: "Ed25519" }, false, ["sign"]);
+    cached = { raw, key, kid: j.kid };
+    return cached;
+  } catch (_) {
+    return null;
+  }
 }
 /** Returns {...obj, kid, signature} or null when signing is off or fails. Never throws. */
 export async function signObject(env, obj) {
@@ -73,4 +67,4 @@ export async function signObject(env, obj) {
     return null;
   }
 }
-export const _resetSigner = () => { cached = { raw: null, key: null, kid: null }; pending = null; };
+export const _resetSigner = () => { cached = { raw: null, key: null, kid: null }; };

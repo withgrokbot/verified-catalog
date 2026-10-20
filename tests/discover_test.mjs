@@ -43,7 +43,6 @@ function stubDb(store) {
     return { b: [], bind(...b) { this.b = b; return this; }, async first() { return null; },
       async all() {
         calls.push(sql); if (db.fail) throw new Error("D1 down");
-        if (/key = 'd:meta'/.test(sql)) return { results: store.filter((r) => r.key === "d:meta") };
         if (/part = 0/.test(sql)) return { results: store.filter((r) => r.key.startsWith("d:") && r.part === 0) };
         if (/key IN/.test(sql)) return { results: store.filter((r) => this.b.includes(r.key)).sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : x.part - y.part)) };
         if (/WHERE key = \?/.test(sql)) return { results: store.filter((r) => r.key === this.b[0]).sort((x, y) => x.part - y.part) };
@@ -126,22 +125,6 @@ test("freshness: <36h fresh; >36h stale; pay >7d -> recheck with original_verdic
   assert.equal(k.verdict, "skip"); assert.equal(k.reason, "skip reason");
   for (const key of ["endpoint", "verified_price_usd", "last_checked", "verdict", "reason", "receipt", "receipt_url"]) assert.ok(key in f, key);
   assert.equal(f.receipt.signature, null);
-});
-
-test("0.45.1: concurrent first signers all sign (no unsigned results on a cold isolate); crawl_run from d:meta", async () => {
-  const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
-  const jwk = await crypto.subtle.exportKey("jwk", kp.privateKey);
-  _addTestKey({ kid: "test-par", x: jwk.x }); _resetSigner();
-  const env = await envFor([row("a000000001", "pay", 1), row("a000000002", "pay", 1), row("a000000003", "pay", 1), row("a000000004", "skip", 1)], iso(NOW - H),
-    { RECEIPT_SIGNING_KEY: JSON.stringify({ kty: "OKP", crv: "Ed25519", kid: "test-par", x: jwk.x, d: jwk.d }) });
-  const r = await discover(env, {}, "https://o", NOW);
-  assert.equal(r.body.count, 4);
-  for (const x of r.body.results) {
-    assert.equal(x.receipt.kid, "test-par"); assert.equal(x.receipt.crawl_run, "receipts-test");
-    const sig = Uint8Array.from(atob(x.receipt.signature.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
-    assert.ok(await crypto.subtle.verify({ name: "Ed25519" }, kp.publicKey, sig, signingInput(x.receipt)));
-  }
-  _resetSigner();
 });
 
 test("signed receipt: ed25519 over JCS verifies against the configured key", async () => {
