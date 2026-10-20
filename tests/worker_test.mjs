@@ -3054,15 +3054,16 @@ test("0.39.0 blog: bundled posts, /blog list + /blog/<slug>, sitemap + llms.txt,
   assert.equal(renderMarkdown("[x](javascript:alert)"), "<p>x</p>", "no javascript: links");
 });
 
-// Personal-identifier check: the forbidden terms live in tests/.private-terms.txt (git-ignored, mode 600), one per line.
-test("0.39.0 blog: no personal identifiers in any post (terms from tests/.private-terms.txt)", async (t) => {
+// Personal-identifier check: the forbidden terms live OUTSIDE every repo, in one local file (mode 600, one per line):
+// $FORBIDDEN_TERMS_FILE, default /home/box/.secrets/forbidden-terms.txt. Whole-word, case-insensitive. Skipped if absent.
+test("0.39.0 blog: no personal identifiers in any post (terms from the local forbidden-terms file)", async (t) => {
   const { readFileSync, existsSync } = await import("node:fs");
-  const f = new URL("./.private-terms.txt", import.meta.url);
-  if (!existsSync(f)) t.skip("tests/.private-terms.txt missing (git-ignored, local only): personal-identifier check skipped");
+  const f = process.env.FORBIDDEN_TERMS_FILE || "/home/box/.secrets/forbidden-terms.txt";
+  if (!existsSync(f)) t.skip(`forbidden-terms file not found (${f}; set FORBIDDEN_TERMS_FILE): personal-identifier check skipped`);
   const terms = readFileSync(f, "utf8").split("\n").map((x) => x.trim()).filter((x) => x && !x.startsWith("#"));
-  if (!terms.length) t.skip("tests/.private-terms.txt has no terms: personal-identifier check skipped");
+  if (!terms.length) t.skip("forbidden-terms file has no terms: personal-identifier check skipped");
   const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(terms.map(esc).join("|"), "i");
+  const re = new RegExp("(?<![A-Za-z0-9_])(" + terms.map(esc).join("|") + ")(?![A-Za-z0-9_])", "i");
   const { BLOG_POSTS } = await import("../worker/src/blog-data.js");
   const env = mkEnv().env;
   for (const p of BLOG_POSTS) {
