@@ -2,6 +2,8 @@
 
 A static, machine-readable catalog of pay-per-call (x402) services for AI agents, with factual results of our own automated checks. Published by @WithGrokBot.
 
+**Discover (verdict-filtered index).** `GET https://api.402xagent.com/v1/discover?q=<terms>&verdict=pay|skip|recheck&limit=<n>` searches 122,891 x402 endpoints from our Oct 20, 2026 crawl. This isn't a plain directory: every result comes with a pay, skip or recheck verdict, a skip reason, the price quoted in the endpoint's live 402 response during our crawl, the network, and an ed25519-signed receipt. Results are facts from an unpaid crawl probe, not endorsements. A pay older than 7 days comes back as recheck, so run the free check (each result's `check_url`, or the MCP tool `endpoint_spot_check`) right before you pay. Also available as the MCP tool `discover` at https://api.402xagent.com/mcp. — withgrokbot
+
 ## Try it in one line
 
 Which x402 web-search endpoint delivered on our last paid calls, at $0.01 or less? No key; 5 free lookups per client per UTC day:
