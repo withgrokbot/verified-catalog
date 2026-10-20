@@ -3035,7 +3035,6 @@ test("0.39.0 blog: bundled posts, /blog list + /blog/<slug>, sitemap + llms.txt,
     assert.ok(r.t.includes(`<link rel="canonical" href="https://402xagent.com/blog/${p.slug}">`));
     assert.ok(!/Alternative headlines|<!--|Pricing written for/.test(r.t), p.slug + ": editorial notes stripped");
     assert.ok(!/<script/i.test(p.html), "no script in posts");
-    assert.ok(!/(?!)/i.test(r.t), p.slug + ": no personal identifiers");
     if (r.t.includes("5,768")) assert.match(r.t, /5,768(<\/strong>)? cases asked more than listed \(per <a href="https:\/\/402xagent\.com\/saves">\/saves<\/a>, last 30 days\)|per \/saves, last 30 days\)<\/td><td class="r">5,768/, p.slug + ": 5,768 cites /saves");
     if (r.t.includes("5,788")) assert.match(r.t, /<td class="r">5,788<\/td>|5,788 skips \(per <a href="https:\/\/402xagent\.com\/v1\/skips\.json">/, p.slug + ": 5,788 cites skips.json");
     assert.ok(!/one tenth|1\/10 of|\$0\.01 ?(to|-) ?\$0\.25|1 free check/i.test(r.t), p.slug + ": no old price");
@@ -3053,6 +3052,23 @@ test("0.39.0 blog: bundled posts, /blog list + /blog/<slug>, sitemap + llms.txt,
   assert.ok(h.includes('<th class="r">b</th>') && h.includes("<ul><li>x</li><li>y</li></ul>") && h.includes('<pre><code class="lang-js">q&lt;1</code></pre>'));
   assert.ok(!h.includes("note") && !h.includes("Alternative") && !h.includes("Z"));
   assert.equal(renderMarkdown("[x](javascript:alert)"), "<p>x</p>", "no javascript: links");
+});
+
+// Personal-identifier check: the forbidden terms live in tests/.private-terms.txt (git-ignored, mode 600), one per line.
+test("0.39.0 blog: no personal identifiers in any post (terms from tests/.private-terms.txt)", async (t) => {
+  const { readFileSync, existsSync } = await import("node:fs");
+  const f = new URL("./.private-terms.txt", import.meta.url);
+  if (!existsSync(f)) t.skip("tests/.private-terms.txt missing (git-ignored, local only): personal-identifier check skipped");
+  const terms = readFileSync(f, "utf8").split("\n").map((x) => x.trim()).filter((x) => x && !x.startsWith("#"));
+  if (!terms.length) t.skip("tests/.private-terms.txt has no terms: personal-identifier check skipped");
+  const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(terms.map(esc).join("|"), "i");
+  const { BLOG_POSTS } = await import("../worker/src/blog-data.js");
+  const env = mkEnv().env;
+  for (const p of BLOG_POSTS) {
+    const r = await worker.fetch(new Request("https://402xagent.com/blog/" + p.slug, { headers: { accept: "text/html" } }), env, { waitUntil() {} });
+    assert.ok(!re.test(await r.text()), p.slug + ": no personal identifiers");
+  }
 });
 
 
@@ -3651,15 +3667,17 @@ test("0.42.1 self-check: own hosts are served in-process (same-zone fetch fails)
   assert.equal(s.body.verdict, "pay", JSON.stringify(s.body).slice(0, 300));
 });
 
-let passed = 0;
+let passed = 0, skipped = 0;
+const SKIP = Symbol("skip");
 for (const [name, fn] of T) {
   try {
-    await fn();
+    await fn({ skip(msg) { throw { [SKIP]: msg }; } });
     passed++;
     console.log("PASS " + name);
   } catch (e) {
+    if (e && e[SKIP] !== undefined) { skipped++; console.log("SKIP " + name + ": " + e[SKIP]); continue; }
     console.log("FAIL " + name + "\n  " + (e && e.stack ? e.stack.split("\n").slice(0, 12).join("\n  ") : e));
   }
 }
-console.log(`${passed}/${T.length} worker tests passed`);
+console.log(`${passed}/${T.length - skipped} worker tests passed` + (skipped ? ` (${skipped} skipped)` : ""));
 process.exit(passed === T.length ? 0 : 1);

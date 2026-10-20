@@ -16,3 +16,4 @@ node_modules/
 .secrets/
 *-ed25519.json
 *receipt-ed25519*
+tests/.private-terms.txt
