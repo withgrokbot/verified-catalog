@@ -30,33 +30,38 @@
   "added": "2026-10-06",
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/quartermaster-base-gas.html",
   "quality_test": null,
-  "paid_receipts": 3,
+  "paid_receipts": 4,
   "latest": {
-    "checked_at": "2026-10-20T14:41:57Z",
-    "mode": "dry-run",
+    "checked_at": "2026-10-20T17:46:43Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 578,
+    "latency_ms": 570,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001",
     "quoted_price_usd": "0.001",
     "price_matches_listing": true,
-    "paid": false,
-    "charged_price_usd": null,
-    "delivered_valid": null,
+    "paid": true,
+    "charged_price_usd": "0.001",
+    "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
-    "quality": null,
-    "raw_log": "results/raw/20261020T144156Z/quartermaster-base-gas.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261020T144156Z/quartermaster-base-gas.json"
+    "quality": {
+      "result": "not_graded",
+      "reason": "no known-answer test for this service",
+      "facts_only": false,
+      "graded_at": "2026-10-20T17:46:45Z"
+    },
+    "raw_log": "results/raw/20261020T174555Z/quartermaster-base-gas.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261020T174555Z/quartermaster-base-gas.json"
   },
   "history_summary": {
-    "checks": 17,
-    "reachable": 17,
-    "x402_challenge_ok": 17,
-    "paid_checks": 3,
+    "checks": 18,
+    "reachable": 18,
+    "x402_challenge_ok": 18,
+    "paid_checks": 4,
     "first_checked": "2026-10-06T17:58:57Z",
-    "last_checked": "2026-10-20T14:41:57Z"
+    "last_checked": "2026-10-20T17:46:43Z"
   }
 }

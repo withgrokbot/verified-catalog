@@ -1,0 +1,120 @@
+{
+  "service_id": "otto-crypto-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://x402.ottoai.services/crypto-news",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 345,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 20 Oct 2026 17:46:01 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://x402.ottoai.services/crypto-news",
+            "description": "Importance-ranked crypto headlines with per-article source links and publish times, plus a sentiment-scored market brief. Regenerated hourly; meta carries the snapshot's age and a fresh/stale verdict.",
+            "mimeType": "application/json",
+            "serviceName": "Otto AI",
+            "tags": [
+              "crypto news",
+              "market news",
+              "sentiment analysis",
+              "breaking headlines"
+            ],
+            "iconUrl": "https://x402.ottoai.services/assets/otto-icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "assetTransferMethod": "permit2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "1000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "Hc3sdEAsCGQcpgfivywog9uwtk8gUBUZgsxdME1EJy88"
+              }
+            }
+          ]
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "1517"
+    },
+    "body_bytes": 1517,
+    "body_sha256": "9d80a7bcfd72f0e1fb781508357c0fb242a316a4e6d9882429050b6384626456",
+    "body_excerpt": "{\"error\":\"payment_required\",\"hint\":\"This is a pay-per-call x402 endpoint. The payment terms are the accepts[] array in this body -- mirrored verbatim from the base64 PAYMENT-REQUIRED response header, which remains the x402 v2 protocol contract. Pay one of them with an x402 client, then retry to receive the data.\",\"price\":\"$0.001\",\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"assetTransferMethod\":\"permit2\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"amount\":\"1000\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"payTo\":\"6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5\",\"maxTimeoutSeconds\":300,\"extra\":{\"feePayer\":\"Hc3sdEAsCGQcpgfivywog9uwtk8gUBUZgsxdME1EJy88\"}}],\"docs\":\"https://docs.useotto.xyz/getting-started/agent-quickstart\",\"contact\":{\"email\":\"[email redacted]\",\"telegram\":\"https://t.me/DeFAI_Capital\",\"twitter\":\"https://twitter.com/useOttoAI\",\"feedback\":\"POST https://x402.ottoai.services/feedback ($0.001) -- money-back guarantee on Otto-recommended services and Full Auto; feature requests welcome (email/Telegram are free).\"},\"x402Version\":2}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1657,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 20 Oct 2026 17:46:02 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x447854ca27749730fe8ecdd47b676e1e61e325a76cdef33cb33e931078504dd8",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "7201"
+    },
+    "body_bytes": 7201,
+    "body_sha256": "8ef882bb49cbb6f27f2ac50fecba26907f013ce602ba5574b60ace5e30136113",
+    "body_excerpt": "{\"status\":\"success\",\"data\":{\"report\":\"_Report generated 2026-10-20 17:00 UTC_\\n\\n## MARKET BRIEF\\n\\nOverview: JPMorgan has issued its first formal long-term bitcoin return forecast, projecting 10% annual returns that would outpace stocks, bonds, and gold over the next decade, signaling a major institutional sentiment shift.\\n\\nMarket Sentiment:\\nOverall Bull/Bear Score: 65\\n\\n---\\n\\n## KEY STORIES\\n\\n1. **JPMorgan sees 10% annual bitcoin returns, topping stocks, bonds and gold over next decade** - A major Wall Street bank publishing a formal BTC return forecast for the first time is a significant institutional sentiment shift with direct market impact.\\n\\n2. **Switzerland's FINMA Lets Retail Investors Into a Bitcoin-Only Fund for the First Time** - First FINMA-approved retail spot bitcoin vehicle in a major financial jurisdiction expands access to BTC exposure and signals regulatory acceptance.\\n\\n3. **French Lawmakers Back Tax on Crypto-to-Stablecoin Swaps by a Single Vote** - A 31.4% tax on crypto-to-stablecoin swaps starting 2027 would remove a key tax deferral, materially affecting European trading and stablecoin usage, though it is not yet law.\\n\\n4. **Mastercard opens early access to AI agent payments following pilots with Coinbase, Base and Cloudflare** - A mainstream payments network integrating crypto rails for machine-to-machine payments is a major adoption and infrastructure development.\\n\\n5. **Microsoft, Alphabet Bar Their Tokenized Shares From OKX-ICE Venue as Objections Hit 16** - Sixteen issuers objecting to tokenized shares threatens the OKX-ICE 24/7 tokenized equities venue, a closely watched TradFi-crypto fusion.\\n\\n---\\n\\n## QUICK HITS\\n\\n- Ethereum staking hits record as yields fall and Solana activity grows: Bitwise\\n- BlackRock seeks to shield bitcoin investors from losses after rival fund weathers 50% crash\\n- Kazakhstan court orders curbs on Coinbase, BingX and four others\\n- Blockchain.com rolls out crypto options as it pursues US derivatives licenses\\n- Bitget Reveals It Is Behind the Buyer of GMO Internet's Licensed Thai Crypto Exchange\\n\\nInformational only -- not investment advice.\\n\\n[Powered by $OTTO AI | @useOttoAI]\",\"headlines\":[{\"rank\":1,\"title\":\"JPMorgan sees 10% annual bitcoin returns, topping stocks, bonds and gold over next decade\",\"whyItMatters\":\"A major Wall Street bank publishing a formal BTC return forecast for the first time is a significant institutional sentiment shift with direct market impact.\",\"url\":\"https://www.coindesk.com/markets/2026/10/20/jpmorgan-sees-10-annual-bitcoin-returns-topping-stocks-bonds-and-gold-over-next-decade\",\"publishedAt\":\"2026-10-20T11:10:40.000Z\",\"source\":\"Coindesk\",\"match\":\"exact\"},{\"rank\":2,\"title\":\"Switzerland's FINMA Lets Retail Investors Into a Bitcoin-Only Fund for the First Time\",\"whyItMatters\":\"First FINMA-approved retail spot bitcoin vehicle in a major financial jurisdiction expands access to BTC exposure and signals regulatory acceptance.\",\"url\":\"https://unchainedcrypto.com/switzerlands-finma-lets-retail-investors-into-a-bitcoin-only-fund-for-the-first-time/\",\"publishedAt\":\"2026-10-20T13:21:57.000Z\",\"source\":\"Unchainedcrypto\",\"match\":\"exact\"},{\"rank\":3,\"title\":\"French Lawmakers Back Tax on Crypto-to-Stablecoin Swaps by a Single Vote\",\"whyItMatters\":\"A 31.4% tax on crypto-to-stablecoin swaps starting 2027 would remove a key tax deferral, materially affecting European trading and stablecoin usage, though it is not yet law.\",\"url\":\"https://unchainedcrypto.com/french-lawmakers-back-tax-on-crypto-to-stablecoin-swaps-by-a-single-vote/\",\"publishedAt\":\"2026-10-20T13:51:00.000Z\",\"source\":\"Unchainedcrypto\",\"match\":\"exact\"},{\"rank\":4,\"title\":\"Mastercard opens early access to AI agent payments following pilots with Coinbase, Base and Cloudflare\",\"whyItMatters\":\"A mainstream payments network integrating crypto rails for machine-to-machine payments is a major adoption and infrastructure development.\",\"url\":\"https://www.theblock.co/news/business/2026-10-20-mastercard-opens-early-access-to-ai-agent-payments-following-pilots-with-coinbase-base-and-cloudfla"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "10 items with source URLs; newest 1.2 h old",
+    "observed": {
+      "items": 10,
+      "items_with_url": 10,
+      "newest": "2026-10-20T16:31:24Z",
+      "newest_age_hours": 1.24
+    },
+    "expected": {},
+    "test": {
+      "input": "none",
+      "pass_if": "at least 5 items, each with a source URL; newest item under 3 h old (the listing says hourly)"
+    },
+    "graded_at": "2026-10-20T17:46:02Z"
+  },
+  "run_id": "20261020T174555Z",
+  "checked_at": "2026-10-20T17:46:01Z"
+}

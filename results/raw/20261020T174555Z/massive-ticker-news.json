@@ -1,0 +1,93 @@
+{
+  "service_id": "massive-ticker-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://agent.massive.com/v2/reference/news?limit=10&order=desc&sort=published_utc&ticker=AAPL",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 226,
+    "headers": {
+      "content-type": "application/json",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://agent.massive.com/v2/reference/news?limit=10&order=desc&sort=published_utc&ticker=AAPL",
+            "description": "Get the most recent news articles relating to a stock ticker symbol, including a summary of the article and a link to the original source. Can't find what you're looking for? POST feedback to /feedback, no charge.",
+            "mimeType": "application/json",
+            "serviceName": "Massive",
+            "tags": [
+              "news",
+              "articles",
+              "stocks"
+            ],
+            "iconUrl": "https://agent.massive.com/icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "10000",
+              "payTo": "0x525f6dDcE9aF7a7179D7696aaBfCd5FCd15a21e6",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "date": "Tue, 20 Oct 2026 17:46:22 GMT",
+      "content-length": "96"
+    },
+    "body_bytes": 96,
+    "body_sha256": "0a32141aa8c76c645d9ddb3d0fd78adc0e2076ce57832aef40013d4d41c33d5c",
+    "body_excerpt": "{\"message\":\"See the PAYMENT-REQUIRED header for the payment terms.\",\"status\":\"PAYMENT_REQUIRED\"}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1684,
+    "headers": {
+      "content-length": "38683",
+      "content-type": "application/json",
+      "date": "Tue, 20 Oct 2026 17:46:23 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x959aec1fbe817f0aa0163a06a237548f47bb7ca1a39d39611290dbb8d9269750",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 38683,
+    "body_sha256": "995dd52b84e8b67bcdfeefc2d2d465f2d244394ca1e04a1854175187ba3da032",
+    "body_excerpt": "{\"results\":[{\"id\":\"fb9e3fb2c9c06caf74824c41236af89646e60fa546877f3e67b83db0ae8cc866\",\"publisher\":{\"name\":\"The Motley Fool\",\"homepage_url\":\"https://www.fool.com/\",\"logo_url\":\"https://s3.massive.com/public/assets/news/logos/themotleyfool.svg\",\"favicon_url\":\"https://s3.massive.com/public/assets/news/favicons/themotleyfool.ico\"},\"title\":\"AGI Is Almost Ready. Is Your Portfolio?\",\"author\":\"Meilin Quinn\",\"published_utc\":\"2026-10-20T15:56:00Z\",\"article_url\":\"https://www.fool.com/investing/2026/10/20/agi-is-almost-ready-is-your-portfolio/?source=iedfolrf0000001\",\"tickers\":[\"NVDA\",\"AVGO\",\"GOOG\",\"GOOGL\",\"GOOGM\",\"GOOGN\",\"MSFT\",\"META\",\"AMZN\",\"AAPL\",\"SFTBY\",\"ARM\"],\"image_url\":\"https://g.foolcdn.com/image/?url=https%3A%2F%2Fg.foolcdn.com%2Feditorial%2Fimages%2F891748%2Fgettyimages-2170890006.jpeg&w=1200&op=resize\",\"description\":\"As tech leaders debate whether artificial general intelligence (AGI) has arrived, major companies are spending record amounts on AI infrastructure. The article examines different CEOs' timelines for AGI and identifies three stocks best positioned to profit from the massive AI spending regardless of when AGI actually arrives: Nvidia, Broadcom, and Alphabet.\",\"keywords\":[\"artificial general intelligence\",\"AGI\",\"AI infrastructure spending\",\"data centers\",\"AI chips\",\"tech investment\",\"cloud computing\"],\"insights\":[{\"ticker\":\"NVDA\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Dominates AI chip market with sales more than doubling to $96.2B last quarter and expected 90% growth this quarter. Cannot meet demand as every step toward AGI requires more computing power.\"},{\"ticker\":\"AVGO\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"AI chip sales more than tripled to $16.7B last quarter with management expecting AI revenue to roughly double to $115B next fiscal year. Positioned as cheaper alternative to Nvidia for major tech companies.\"},{\"ticker\":\"GOOG\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Google Cloud revenue grew 82% to $24.8B last quarter with $514B cloud backlog. Develops frontier AI models while profiting from renting computing power to competitors.\"},{\"ticker\":\"GOOGL\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Google Cloud revenue grew 82% to $24.8B last quarter with $514B cloud backlog. Develops frontier AI models while profiting from renting computing power to competitors.\"},{\"ticker\":\"GOOGM\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Google Cloud revenue grew 82% to $24.8B last quarter with $514B cloud backlog. Develops frontier AI models while profiting from renting computing power to competitors.\"},{\"ticker\":\"GOOGN\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Google Cloud revenue grew 82% to $24.8B last quarter with $514B cloud backlog. Develops frontier AI models while profiting from renting computing power to competitors.\"},{\"ticker\":\"MSFT\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Spending hundreds of billions on AI but CEO Nadella avoids AGI claims, instead focusing on economic growth metrics. Business model profits from AI regardless of AGI arrival through Azure and Copilot.\"},{\"ticker\":\"META\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Spending hundreds of billions on AI and shifted focus to superintelligence, but CEO rarely discusses AGI timelines. Profits from AI through ad targeting rather than AGI-dependent products.\"},{\"ticker\":\"AMZN\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Planning $200B+ spending on data centers but CEO hasn't set AGI timeline. AWS has $496B in committed customer contracts, reducing risk of overbuilding capacity.\"},{\"ticker\":\"AAPL\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Moved slowly on AI but positioned to benefit from AI needing hardware platforms. Owns over a billion devices where AI will need to run regardless of AGI timeline.\"},{\"ticker\":\"SFTBY\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Reorganized around artificial superintelligence with CEO predicting AGI within 10 years. Owns most of Arm Holdings and significant OpenAI stake, profiting from predicted AI future.\"},{\"ticker\":\"ARM\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Majority owne"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "all 10 items tag AAPL; newest 0.1 days old",
+    "observed": {
+      "items": 10,
+      "items_without_ticker": 0,
+      "newest": "2026-10-20T15:56:00Z",
+      "newest_age_days": 0.08
+    },
+    "expected": {},
+    "test": {
+      "input": "ticker=AAPL, newest first",
+      "pass_if": "every item tags AAPL; newest item at most 7 days old"
+    },
+    "graded_at": "2026-10-20T17:46:24Z"
+  },
+  "run_id": "20261020T174555Z",
+  "checked_at": "2026-10-20T17:46:22Z"
+}

@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-30 00:18:25.245 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-20 14:41:56 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-20 17:45:58 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>112 ms</td></tr>
+<tr><th scope="row">Latency</th><td>69 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.007 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.007</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.007</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>passed (4 result URL(s) on x402.org or github.com/coinbase/x402)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.007, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 7000 units of EPjFWdd5Aufq, exact on eip155:8453: $0.007, exact on eip155:480: 7000 units of 0x79A02482A8, exact on eip155:5042: 7000 units of 0x3600000000, exact on eip155:5042: 7000 units of 0x3600000000, exact on eip155:8453: $0.007.</p>
-<p>Evidence: <a href="../results/raw/20261020T144156Z/exa-search.json">raw log for this check</a>. Machine-readable: <a href="exa-search.json">exa-search.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261020T174555Z/exa-search.json">raw log for this check</a>. Machine-readable: <a href="exa-search.json">exa-search.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: x402 payment protocol. Passes if: at least 1 result URL on x402.org or github.com/coinbase/x402.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-10-20 17:45:58 UTC</td><td>$0.007</td><td>yes</td><td>200</td><td>passed (4 result URL(s) on x402.org or github.com/coinbase/x402)</td><td><a href="https://basescan.org/tx/0xbc07abaab6dd18ddbe46e1a1c929458c3a456df1bfaf20f4b6163befc1693f9a">0xbc07abaa...</a></td></tr>
 <tr><td>2026-10-16 17:48:46 UTC</td><td>$0.007</td><td>yes</td><td>200</td><td>passed (4 result URL(s) on x402.org or github.com/coinbase/x402)</td><td><a href="https://basescan.org/tx/0xeaed9104f10146fb6010b78105829c80a9dd2eb451e4d739630093d0e4c9c43f">0xeaed9104...</a></td></tr>
 <tr><td>2026-10-13 17:56:42 UTC</td><td>$0.007</td><td>yes</td><td>200</td><td>passed (4 result URL(s) on x402.org or github.com/coinbase/x402)</td><td><a href="https://basescan.org/tx/0xd0b30c4dc2941e7c1e01c998f7a4be4978e9c61e47d90a788ec32e34e3af7a14">0xd0b30c4d...</a></td></tr>
 <tr><td>2026-10-06 17:58:16 UTC</td><td>$0.007</td><td>yes</td><td>200</td><td>passed (5 result URL(s) on x402.org or github.com/coinbase/x402)</td><td><a href="https://basescan.org/tx/0x85c0c8cf4f788901019f2734c341e034babab032dabd4f1c13bd4f77f2ae51a3">0x85c0c8cf...</a></td></tr>
@@ -54,6 +55,7 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-20 17:45:58 UTC</td><td>paid</td><td>yes</td><td>402</td><td>69 ms</td><td>$0.007</td><td>yes</td><td><a href="../results/raw/20261020T174555Z/exa-search.json">raw log</a></td></tr>
 <tr><td>2026-10-20 14:41:56 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>112 ms</td><td>$0.007</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261020T144156Z/exa-search.json">raw log</a></td></tr>
 <tr><td>2026-10-19 14:44:11 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>96 ms</td><td>$0.007</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261019T144411Z/exa-search.json">raw log</a></td></tr>
 <tr><td>2026-10-18 14:34:55 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>174 ms</td><td>$0.007</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261018T143455Z/exa-search.json">raw log</a></td></tr>
@@ -63,7 +65,6 @@
 <tr><td>2026-10-15 14:42:17 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>112 ms</td><td>$0.007</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261015T144217Z/exa-search.json">raw log</a></td></tr>
 <tr><td>2026-10-14 14:39:58 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>95 ms</td><td>$0.007</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261014T143958Z/exa-search.json">raw log</a></td></tr>
 <tr><td>2026-10-13 17:56:42 UTC</td><td>paid</td><td>yes</td><td>402</td><td>232 ms</td><td>$0.007</td><td>yes</td><td><a href="../results/raw/20261013T175638Z/exa-search.json">raw log</a></td></tr>
-<tr><td>2026-10-13 14:33:16 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>359 ms</td><td>$0.007</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261013T143316Z/exa-search.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

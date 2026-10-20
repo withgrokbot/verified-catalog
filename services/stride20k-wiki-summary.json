@@ -39,11 +39,11 @@
   },
   "paid_receipts": 3,
   "latest": {
-    "checked_at": "2026-10-20T14:41:57Z",
-    "mode": "dry-run",
+    "checked_at": "2026-10-20T17:46:25Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 503,
-    "latency_ms": 151,
+    "latency_ms": 89,
     "x402_challenge": false,
     "x402_version": null,
     "advertised_price_usd": "0.003",
@@ -52,18 +52,18 @@
     "paid": false,
     "charged_price_usd": null,
     "delivered_valid": null,
-    "payment_refused_reason": null,
+    "payment_refused_reason": "no valid x402 challenge",
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261020T144156Z/stride20k-wiki-summary.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261020T144156Z/stride20k-wiki-summary.json"
+    "raw_log": "results/raw/20261020T174555Z/stride20k-wiki-summary.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261020T174555Z/stride20k-wiki-summary.json"
   },
   "history_summary": {
-    "checks": 28,
-    "reachable": 28,
+    "checks": 29,
+    "reachable": 29,
     "x402_challenge_ok": 8,
     "paid_checks": 3,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-10-20T14:41:57Z"
+    "last_checked": "2026-10-20T17:46:25Z"
   }
 }

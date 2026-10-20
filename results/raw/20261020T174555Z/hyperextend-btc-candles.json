@@ -1,0 +1,117 @@
+{
+  "service_id": "hyperextend-btc-candles",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.hyperextend.xyz/v1/candles/BTC/1m/latest",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 464,
+    "headers": {
+      "content-length": "3580",
+      "content-type": "application/json",
+      "date": "Tue, 20 Oct 2026 17:46:33 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "payment required",
+          "resource": {
+            "url": "https://api.hyperextend.xyz/v1/candles/BTC/1m/latest",
+            "description": "The most-recent N OHLCV candles (\u22645000). Same per-row pricing as the windowed read ($0.00001 base for main/spot, $0.000025 premium for HIP-3/HIP-4); candles lag ~2 days.",
+            "mimeType": "application/json",
+            "serviceName": "hyperextend",
+            "tags": [
+              "hyperliquid",
+              "market-data",
+              "candles",
+              "open-interest",
+              "hip-3",
+              "hip-4",
+              "trades",
+              "liquidations"
+            ],
+            "iconUrl": "https://hyperextend.xyz/favicon.svg"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "2000",
+              "payTo": "0x548fC289526ab2F0391D562a723cdA64Bbf1abc4",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "hyperliquid:mainnet",
+              "asset": "USDC:0x6d1e7cde53ba9467b783cb7c530ce054",
+              "amount": "0.002",
+              "payTo": "0x548fC289526ab2F0391D562a723cdA64Bbf1abc4",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "destinationDex": "spot"
+              }
+            },
+            {
+              "scheme": "batch-settlement",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "2000",
+              "payTo": "0x548fC289526ab2F0391D562a723cdA64Bbf1abc4",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "receiverAuthorizer": "0x3721824a31197dcDD2984cF43b92B6cc8A87c0Fb",
+                "withdrawDelay": 86400,
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "uvicorn"
+    },
+    "body_bytes": 3580,
+    "body_sha256": "ce27d9a6ab3a9655e92d240b35d67a0d50c493b7fdf8bcf09b6a3ec63201a7ab",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"payment required\",\"resource\":{\"url\":\"https://api.hyperextend.xyz/v1/candles/BTC/1m/latest\",\"description\":\"The most-recent N OHLCV candles (\u22645000). Same per-row pricing as the windowed read ($0.00001 base for main/spot, $0.000025 premium for HIP-3/HIP-4); candles lag ~2 days.\",\"mimeType\":\"application/json\",\"serviceName\":\"hyperextend\",\"tags\":[\"hyperliquid\",\"market-data\",\"candles\",\"open-interest\",\"hip-3\",\"hip-4\",\"trades\",\"liquidations\"],\"iconUrl\":\"https://hyperextend.xyz/favicon.svg\"},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"amount\":\"2000\",\"payTo\":\"0x548fC289526ab2F0391D562a723cdA64Bbf1abc4\",\"maxTimeoutSeconds\":60,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"hyperliquid:mainnet\",\"asset\":\"USDC:0x6d1e7cde53ba9467b783cb7c530ce054\",\"amount\":\"0.002\",\"payTo\":\"0x548fC289526ab2F0391D562a723cdA64Bbf1abc4\",\"maxTimeoutSeconds\":60,\"extra\":{\"destinationDex\":\"spot\"}},{\"scheme\":\"batch-settlement\",\"network\":\"eip155:8453\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"amount\":\"2000\",\"payTo\":\"0x548fC289526ab2F0391D562a723cdA64Bbf1abc4\",\"maxTimeoutSeconds\":300,\"extra\":{\"receiverAuthorizer\":\"0x3721824a31197dcDD2984cF43b92B6cc8A87c0Fb\",\"withdrawDelay\":86400,\"name\":\"USD Coin\",\"version\":\"2\"}}],\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"type\":\"http\",\"queryParams\":{\"n\":100,\"dex\":\"main\"},\"method\":\"GET\"},\"output\":{\"type\":\"json\",\"example\":{\"interval\":\"1m\",\"open_time\":1700000000000,\"close_time\":1700000059999,\"o\":\"42000.0\",\"h\":\"42100.0\",\"l\":\"41950.0\",\"c\":\"42080.0\",\"v\":\"12.5\",\"n\":340}}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"GET\",\"HEAD\",\"DELETE\"]},\"queryParams\":{\"type\":\"object\",\"properties\":{\"n\":{\"type\":\"integer\"},\"dex\":{\"type\":\"string\"}},\"required\":[]},\"pathParams\":{\"type\":\"object\",\"properties\":{\"coin\":{\"type\":\"string\",\"description\":\"Asset symbol, e.g. BTC\"},\"interval\":{\"type\":\"string\",\"description\":\"Candle interval, e.g. 1m\"}},\"required\":[\"coin\",\"interval\"]}},\"required\":[\"type\",\"method\"],\"additionalProperties\":false},\"output\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\"},\"example\":{\"type\":\"object\"}},\"required\":[\"type\"]}},\"required\":[\"input\"]}}},\"instructions\":{\"summary\":\"Payment is required via the x402 protocol (v2). The 402 `accepts` lists the available payment rails - pay with any ONE of them: read the PAYMENT-REQUIRED header, sign, and retry with a PAYMENT-SIGNATURE header. (1) Base (EVM): use Coinbase's official x402 client (`pip install \\\"x402[evm]\\\"`) from a Base-mainnet USDC wallet - a plain EOA, not a smart wallet. It signs an EIP-3009 USDC authorisation; you need USDC, not ETH (the facilitator broadcasts and pays the gas). (2) Hyperliquid (HyperCore): pay directly with the SAME USDC you trade and open positions with on Hyperliquid - no bridging, no separate wallet. Sign a HyperliquidTransaction:SendAsset action (gasless, no facilitator) and the server settles it on-chain.\",\"client\":\"https://github.com/coinbase/x402\",\"docs\":\"https://hyperextend.xyz/docs\",\"batchSettlement\":\"The batch-settlement scheme needs a channel with a non-zero payerAuthorizer, the address of the key that signs your vouchers. A private-key wallet complies automatically; a smart-contract wallet must pass a voucher_signer (voucherSigner in TypeScript). Otherwise pay with the exact scheme on Base or HyperCore. Details: https://hyperextend.xyz/docs#payer-authorizer\"}}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1796,
+    "headers": {
+      "content-length": "16191",
+      "content-type": "application/json",
+      "date": "Tue, 20 Oct 2026 17:46:34 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0xfee1ae89434f8c99c27b1e15628baf5eab7a1c98c1bd54f33246a22752e3f888",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "uvicorn"
+    },
+    "body_bytes": 16191,
+    "body_sha256": "61cab60adf1b1d17ac7ebf175d0ec0f5453ab014142733e345a6884b3344f553",
+    "body_excerpt": "[{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792339620000,\"close_time\":1792339679999,\"o\":\"81074.0\",\"h\":\"81091.0\",\"l\":\"81068.0\",\"c\":\"81086.0\",\"v\":\"2.65061\",\"n\":87},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792339680000,\"close_time\":1792339739999,\"o\":\"81085.0\",\"h\":\"81092.0\",\"l\":\"81077.0\",\"c\":\"81092.0\",\"v\":\"3.69226\",\"n\":83},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792339740000,\"close_time\":1792339799999,\"o\":\"81091.0\",\"h\":\"81105.0\",\"l\":\"81083.0\",\"c\":\"81084.0\",\"v\":\"0.49962\",\"n\":79},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792339800000,\"close_time\":1792339859999,\"o\":\"81083.0\",\"h\":\"81115.0\",\"l\":\"81083.0\",\"c\":\"81115.0\",\"v\":\"7.73067\",\"n\":118},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792339860000,\"close_time\":1792339919999,\"o\":\"81114.0\",\"h\":\"81115.0\",\"l\":\"81105.0\",\"c\":\"81115.0\",\"v\":\"4.4484\",\"n\":98},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792339920000,\"close_time\":1792339979999,\"o\":\"81114.0\",\"h\":\"81124.0\",\"l\":\"81082.0\",\"c\":\"81124.0\",\"v\":\"16.00877\",\"n\":174},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792339980000,\"close_time\":1792340039999,\"o\":\"81123.0\",\"h\":\"81132.0\",\"l\":\"81120.0\",\"c\":\"81129.0\",\"v\":\"1.36988\",\"n\":79},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340040000,\"close_time\":1792340099999,\"o\":\"81128.0\",\"h\":\"81140.0\",\"l\":\"81124.0\",\"c\":\"81140.0\",\"v\":\"1.0396\",\"n\":62},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340100000,\"close_time\":1792340159999,\"o\":\"81140.0\",\"h\":\"81141.0\",\"l\":\"81067.0\",\"c\":\"81067.0\",\"v\":\"7.4721\",\"n\":135},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340160000,\"close_time\":1792340219999,\"o\":\"81066.0\",\"h\":\"81073.0\",\"l\":\"81050.0\",\"c\":\"81052.0\",\"v\":\"3.60496\",\"n\":128},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340220000,\"close_time\":1792340279999,\"o\":\"81051.0\",\"h\":\"81069.0\",\"l\":\"81030.0\",\"c\":\"81050.0\",\"v\":\"93.71004\",\"n\":348},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340280000,\"close_time\":1792340339999,\"o\":\"81049.0\",\"h\":\"81099.0\",\"l\":\"81049.0\",\"c\":\"81066.0\",\"v\":\"37.03533\",\"n\":241},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340340000,\"close_time\":1792340399999,\"o\":\"81066.0\",\"h\":\"81091.0\",\"l\":\"81058.0\",\"c\":\"81091.0\",\"v\":\"26.71991\",\"n\":183},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340400000,\"close_time\":1792340459999,\"o\":\"81090.0\",\"h\":\"81091.0\",\"l\":\"81088.0\",\"c\":\"81091.0\",\"v\":\"22.55176\",\"n\":160},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340460000,\"close_time\":1792340519999,\"o\":\"81090.0\",\"h\":\"81116.0\",\"l\":\"81071.0\",\"c\":\"81108.0\",\"v\":\"47.44794\",\"n\":300},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340520000,\"close_time\":1792340579999,\"o\":\"81108.0\",\"h\":\"81129.0\",\"l\":\"81108.0\",\"c\":\"81126.0\",\"v\":\"21.00769\",\"n\":160},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340580000,\"close_time\":1792340639999,\"o\":\"81125.0\",\"h\":\"81173.0\",\"l\":\"81125.0\",\"c\":\"81173.0\",\"v\":\"42.43408\",\"n\":332},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340640000,\"close_time\":1792340699999,\"o\":\"81172.0\",\"h\":\"81211.0\",\"l\":\"81169.0\",\"c\":\"81170.0\",\"v\":\"58.09827\",\"n\":401},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340700000,\"close_time\":1792340759999,\"o\":\"81169.0\",\"h\":\"81187.0\",\"l\":\"81135.0\",\"c\":\"81186.0\",\"v\":\"46.78027\",\"n\":377},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340760000,\"close_time\":1792340819999,\"o\":\"81186.0\",\"h\":\"81219.0\",\"l\":\"81186.0\",\"c\":\"81203.0\",\"v\":\"48.74181\",\"n\":316},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340820000,\"close_time\":1792340879999,\"o\":\"81202.0\",\"h\":\"81211.0\",\"l\":\"81187.0\",\"c\":\"81188.0\",\"v\":\"29.24484\",\"n\":241},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340880000,\"close_time\":1792340939999,\"o\":\"81187.0\",\"h\":\"81188.0\",\"l\":\"81127.0\",\"c\":\"81127.0\",\"v\":\"28.58625\",\"n\":241},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792340940000,\"close_time\":1792340999999,\"o\":\"81127.0\",\"h\":\"81128.0\",\"l\":\"81086.0\",\"c\":\"81086.0\",\"v\":\"34.76398\",\"n\":242},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792341000000,\"close_time\":1792341059999,\"o\":\"81086.0\",\"h\":\"81095.0\",\"l\":\"81080.0\",\"c\":\"81081.0\",\"v\":\"19.07168\",\"n\":160},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_time\":1792341060000,\"close_time\":1792341119999,\"o\":\"81080.0\",\"h\":\"81102.0\",\"l\":\"81080.0\",\"c\":\"81092.0\",\"v\":\"24.76489\",\"n\":180},{\"coin\":\"BTC\",\"interval\":\"1m\",\"open_ti"
+  },
+  "quality": {
+    "result": "not_graded",
+    "reason": "no known-answer test for this service",
+    "observed": {},
+    "expected": {},
+    "test": null,
+    "graded_at": "2026-10-20T17:46:36Z"
+  },
+  "run_id": "20261020T174555Z",
+  "checked_at": "2026-10-20T17:46:34Z"
+}
