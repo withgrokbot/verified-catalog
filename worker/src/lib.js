@@ -57,7 +57,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.42.3";
+export const VERSION = "0.42.4";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1316,7 +1316,7 @@ export function applyPayment(d, pm, exp) {
 
 // ---------------------------------------------------------------- public live receipts (0.9.0, D1)
 // Every delivered Spot-Check decision is stored as a public receipt: listing URL, live 402 terms, verdict, reason,
-// timestamp, id. Reading is free (GET /v1/receipts/<id>, GET /v1/receipts/by-url?url=). No IPs or IP-derived ids stored; 0.42.3: an explicit `client` param is recorded as `client`.
+// timestamp, id. Reading is free (GET /v1/receipts/<id>, GET /v1/receipts/by-url?url=). No IPs or IP-derived ids stored; an explicit `client` param is stored (0.42.3) but never served publicly (0.42.4).
 export const LIVE_RECEIPT_RE = /^sc-[0-9a-f]{16}$/;
 // 0.29.0: endpoint history key = sha256 of the normalized URL (method-independent; the URL itself never lands in the table).
 export async function historyKey(u) {
@@ -1481,6 +1481,7 @@ export async function saveLiveReceipt(env, r) {
 // Receipts stored before 0.13.0 carry the long check_type text; read them as check_type "live" (text kept in check_note).
 export function normReceipt(r) {
   if (!r) return r;
+  if (!r.signed_view && "client" in r) { r = { ...r }; delete r.client; } // 0.42.4: client is stored, never served
   if (r.signed_view && typeof r.signed_view.signature === "string") return r.signed_view; // 0.38.0: signed = served as signed
   // 0.18.0: copy stored under earlier names reads with the current brand (URLs and route paths untouched).
   try {
@@ -1558,15 +1559,25 @@ export function redactReceipt(r) {
   o.redacted = "free check: the 402 terms and the approved payment are in the paid check";
   return o;
 }
+// 0.42.4: every public receipt view goes through here. Rows signed under 0.42.3 carried `client` inside signed_view;
+// it is stripped and the view re-signed (same key) so the signature keeps verifying. The stored row keeps `client`.
+export async function publicReceipt(env, body) {
+  let v = normReceipt(body);
+  if (v && typeof v === "object" && "client" in v) {
+    const { client, signature, kid, ...rest } = v;
+    v = signature ? (await signObject(env, rest)) || rest : rest;
+  }
+  return v;
+}
 export async function getLiveReceipt(env, id) {
   if (!env.RECEIPTS_DB || !LIVE_RECEIPT_RE.test(id)) return null;
   const row = await env.RECEIPTS_DB.prepare("SELECT body FROM spot_receipts WHERE id = ?").bind(id).first();
-  return row ? normReceipt(JSON.parse(row.body)) : null;
+  return row ? publicReceipt(env, JSON.parse(row.body)) : null;
 }
 export async function latestLiveReceipt(env, url) {
   if (!env.RECEIPTS_DB) return null;
   const row = await env.RECEIPTS_DB.prepare("SELECT body FROM spot_receipts WHERE url = ? ORDER BY created_at DESC LIMIT 1").bind(url).first();
-  return row ? normReceipt(JSON.parse(row.body)) : null;
+  return row ? publicReceipt(env, JSON.parse(row.body)) : null;
 }
 // GET /v1/receipts?type=dry-run|live[&ref=][&limit=1..100][&cursor=] : newest first, free to read.
 export async function handleReceiptList(env, url) {
@@ -1598,7 +1609,7 @@ export async function handleReceiptList(env, url) {
   const last = page[page.length - 1];
   const next = more && last ? btoa(JSON.stringify([last.created_at, last.id])).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : null;
   const qs = (c) => { const n = new URLSearchParams({ type }); if (ref) n.set("ref", ref); n.set("limit", String(limit)); n.set("cursor", c); return CANON_ORIGIN + "/v1/receipts?" + n.toString(); };
-  return rj({ type, ref: ref || null, limit, count: page.length, receipts: page.map((r) => normReceipt(JSON.parse(r.body))), next_cursor: next, next: next ? qs(next) : null });
+  return rj({ type, ref: ref || null, limit, count: page.length, receipts: await Promise.all(page.map((r) => publicReceipt(env, JSON.parse(r.body)))), next_cursor: next, next: next ? qs(next) : null });
 }
 const rj = (o, status = 200) => new Response(JSON.stringify(o, null, 2), { status, headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": status === 200 ? "public, max-age=60" : "no-store" } });
 async function handleLiveReceipts(req, env, url, path) {

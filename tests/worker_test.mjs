@@ -1332,12 +1332,13 @@ test("public receipts: every delivered decision is stored; GET by id and by-url 
   assert.match(free.body.receipt_id, /^sc-[0-9a-f]{16}$/);
   assert.equal(free.body.receipt_url, "https://402xagent.com/v1/receipts/" + free.body.receipt_id);
   assert.equal(db.rows.length, 1);
-  assert.equal(JSON.parse(db.rows[0].body).client, "rcpt-client-1", "0.42.3: the explicit client param is recorded on the receipt"); // an IP-derived id never is
+  assert.equal(JSON.parse(db.rows[0].body).client, "rcpt-client-1", "the explicit client param is stored (0.42.3); an IP-derived id never is");
   const unpaid = await send(t, { envo: e });
   assert.equal(unpaid.status, 402);
   assert.equal(db.rows.length, 1, "a 402 (no decision delivered) stores nothing");
   const got = await send("/v1/receipts/" + free.body.receipt_id, { envo: e });
   assert.equal(got.status, 200);
+  assert.ok(!("client" in got.body) && !JSON.stringify(got.body).includes("rcpt-client-1"), "receipts never expose the client id publicly");
   assert.equal(got.body.url, "https://spot.target.test/api");
   assert.equal(got.body.verdict, "pay");
   assert.equal(got.body.reason, "price_ok");
@@ -2657,7 +2658,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.42.3");
+  assert.equal(VERSION, "0.42.4");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2903,6 +2904,20 @@ test("0.37.3 signed receipts: ed25519 over JCS minus signature, key at /.well-kn
   const { signature, ...rest } = g;
   const key = createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: jwk.x }, format: "jwk" });
   assert.ok(verify(null, Buffer.from(S.canonicalize(rest)), key, Buffer.from(signature, "base64url")));
+  // 0.42.4: the client param is stored but never in a public view, signed or not
+  assert.ok(!("client" in g), "receipts never expose the client id publicly");
+  assert.equal(JSON.parse(db.rows[db.rows.length - 1].body).client, "sig-ok", "stored row keeps client");
+  { // a row signed under 0.42.3 (client inside signed_view) is stripped and re-signed on read
+    const row = db.rows[db.rows.length - 1], saved = row.body, b = JSON.parse(row.body);
+    b.signed_view = { ...b.signed_view, client: "sig-ok" }; row.body = JSON.stringify(b);
+    const h = (await send("/v1/receipts/" + r.body.receipt_id, { envo: e })).body;
+    assert.ok(!("client" in h), "legacy signed view: client stripped");
+    const { signature: sg, ...rs } = h;
+    assert.ok(verify(null, Buffer.from(S.canonicalize(rs)), key, Buffer.from(sg, "base64url")), "re-signed view verifies");
+    const list = (await send("/v1/receipts?type=live", { envo: e })).body;
+    assert.ok(list.receipts.length >= 1 && list.receipts.every((x) => !("client" in x)), "list never exposes client");
+    row.body = saved;
+  }
   assert.ok(!verify(null, Buffer.from(S.canonicalize({ ...rest, verdict: "skip" })), key, Buffer.from(signature, "base64url")));
   const { signature: _s, kid: _k, ...g0rest } = g;
   assert.deepEqual(Object.keys(g0rest).sort(), Object.keys(g0).sort(), "signed view = the served receipt + kid + signature");
@@ -3073,7 +3088,7 @@ test("0.39.0 blog: no personal identifiers in any post (terms from the local for
 });
 
 
-test("0.42.3 receipt labels: check_type matches the real mode (live / dry-run / self-checked); client recorded only when given; same single write", async () => {
+test("0.42.3 receipt labels: check_type matches the real mode (live / dry-run / self-checked); client stored only when given (never served publicly); same single write", async () => {
   const db = fakeD1(); const e = spotEnv({ RECEIPTS_DB: db });
   spotTargetMode = "402";
   const base = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/lbl") + "&claimed_price=0.001";
@@ -3088,6 +3103,7 @@ test("0.42.3 receipt labels: check_type matches the real mode (live / dry-run / 
     ["live", "live", "live", false, null],
   ]);
   for (const r of rows) assert.ok(r.ct !== "dry-run" || r.b.dry_run === true, "check_type dry-run only for real dry runs");
+  for (const r of rows) { const g = (await send("/v1/receipts/" + r.b.id, { envo: e })).body; assert.equal(g.check_type, r.ct); assert.ok(!("client" in g), "receipts never expose the client id publicly"); }
 });
 
 // ---------------- 0.40.0 payment-status (after-payment check): mocked Base RPC, three sources ----------------
