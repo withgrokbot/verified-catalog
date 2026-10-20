@@ -3183,7 +3183,7 @@ print(json.dumps(ok))`;
   const ok = JSON.parse(py.stdout);
   for (const [k, v] of Object.entries(ok)) assert.equal(v, true, k);
   const sh = readFileSync(new URL("../scripts/weekly-crawl/weekly_refresh_skips.sh", import.meta.url), "utf8");
-  assert.match(sh, /CRAWL_STORE="\$\{CRAWL_STORE:-kv\}"/, "default stays kv until cutover");
+  assert.match(sh, /CRAWL_STORE="\$\{CRAWL_STORE:-d1\}"/, "default is d1 since the cutover");
   assert.match(sh, /d1\) set \+e; python3 "\$S\/d1_upload.py" --remote/);
   const up = readFileSync(new URL("../scripts/weekly-crawl/d1_upload.py", import.meta.url), "utf8");
   assert.match(up, /todo = \[c for c in changed if have.get\(c\["key"\]\) != sha\(c\["value"\]\)\]/, "only changed keys");

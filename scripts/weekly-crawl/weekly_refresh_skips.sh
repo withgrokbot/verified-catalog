@@ -7,7 +7,7 @@
 # Usage: bash <job>/receipts/scripts/weekly_refresh_skips.sh   (job root is derived from this file; override with BM_JOB)
 #   DRY_RUN=1   -> stop after tests (no KV upload, no deploy, no push)
 #   SKIP_FETCH=1 -> reuse the lists already in receipts/crawl (debugging only)
-#   CRAWL_STORE=kv|d1 -> where pages/shards go (0.44.0; default kv until the D1 cutover is approved)
+#   CRAWL_STORE=d1|kv -> where pages/shards go (0.44.0; default d1, kv = legacy Workers KV)
 # Never pays anything: no payment headers are ever sent, no wallet is loaded.
 set -euo pipefail
 JOB="${BM_JOB:-$(cd "$(dirname "$0")/../.." && pwd)}"
@@ -55,8 +55,8 @@ cd "$APP" && node tests/worker_test.mjs
 if [ "${DRY_RUN:-0}" = "1" ]; then echo "DRY_RUN: stopping before KV upload/deploy"; echo "$COV"; exit 0; fi
 
 # 5) KV first (changed keys only, under a daily write budget), so the new bundle never points at missing pages
-# 0.44.0: CRAWL_STORE=kv (default until cutover) | d1 (production D1 crawl_store via d1_upload.py; no KV writes)
-CRAWL_STORE="${CRAWL_STORE:-kv}"
+# 0.44.0: CRAWL_STORE=d1 (default since the 2026-10-20 cutover) | kv (legacy) (production D1 crawl_store via d1_upload.py; no KV writes)
+CRAWL_STORE="${CRAWL_STORE:-d1}"
 case "$CRAWL_STORE" in
   kv) set +e; python3 "$S/kv_upload.py"; KRC=$?; set -e ;;
   d1) set +e; python3 "$S/d1_upload.py" --remote; KRC=$?; set -e ;;
