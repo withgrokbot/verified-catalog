@@ -37,13 +37,11 @@ Status: built and tested locally only. Nothing deployed, no production D1 writes
 6. Later (separate OK): stop reading KV (drop the fallback and the `CRAWL_KV` binding) after one full week served from D1.
    Rollback before that point is a redeploy of the previous version; KV still holds the Oct 13 data.
 
-## Discovery reuse (0.43.0)
-- discover-0.43.0 already keeps its query index in D1 (`discover_index`, one row per endpoint, with filters in SQL). That
-  stays separate, because it needs row-level queries, which `crawl_store` blobs can't answer.
-- Shared parts: the weekly crawl output feeds both. In the same run, after the `d1_upload.py` step,
-  `build_discover_index` upserts only the changed `discover_index` rows (keyed by normalized URL; the same changed-only
-  rule, compared by row hash).
-- Any blob that discovery needs to serve (e.g. a per-task snapshot or a "newest crawl" summary) goes in `crawl_store`
-  with `source='discover'` and a `d:` key prefix. It's read with the same `crawlStoreGet`, with the same sha check, and
-  needs no new table or KV.
+## Discovery reuse (0.45.0)
+- The per-row `discover_index` table (0010) was dropped from the design: one row per endpoint is 3 D1 writes per row (the
+  row plus 2 indexes), about 369k writes to seed, which is over the free plan's 100k/day. The table exists but stays empty.
+- Discovery is 48 compressed shards (`d:<verdict>:<hex>`) plus `d:meta` in `crawl_store` (`source='discover'`), with the same
+  per-key sha256 check. The Worker searches them in memory with an isolate cache. That's about 76 rows, about 230 writes per rebuild.
+- In the weekly d1 run, after the crawl `d1_upload.py` step, `build_discover_blobs.py` rebuilds the shards deterministically
+  (gzip mtime=0), and `d1_upload.py --source discover` writes only the keys whose sha changed. Freshness uses the shared `meta` crawl date.
 - One freshness source: `crawl_store` key `meta` (`crawled_at`). Both /v1/skips and /v1/discover read it, so they can't disagree.

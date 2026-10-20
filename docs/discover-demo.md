@@ -1,6 +1,10 @@
-# /v1/discover demo (0.45.0, LOCAL ONLY, not deployed)
+# /v1/discover demo (0.45.0, LOCAL ONLY at time of writing)
 
-**Status: final run on the fresh crawl.** Local D1 seeded from `receipts-20261020T192957Z.jsonl` (122,891 receipts: 51,123 pay, 37,686 skip, 34,082 recheck; last checked 2026-10-20T19:52:33Z = 12:52 PM PDT). Results are `stale: false`, and `verdict=pay` now returns real pay results. Rebased onto main after the 0.44.0 D1 crawl cutover; the version is 0.45.0 because 0.44.0 is live.
+**Storage (0.45.0, option D):** no per-row table. The index is 48 compressed shards (`d:<verdict>:<hex>`, base64 of gzip JSON) plus `d:meta` in D1 `crawl_store`, with the same per-key sha256 check as the crawl pages. The Worker searches in memory and caches parsed shards per isolate. The shard list is re-checked every 5 min, and only changed shards are refetched. Freshness comes from the shared crawl `meta.crawled_at`. The 0010 `discover_index` table is unused and empty.
+
+**Size:** 122,891 receipts from `receipts-20261020T192957Z.jsonl` (51,123 pay, 37,686 skip, 34,082 recheck). That's 14.6 MB raw, 4.64 MB stored, and 76 D1 rows (about 230 rows written per full rebuild, at 3 per row including indexes). The weekly crawl rewrites only the shards whose sha changed.
+
+**Local latency (wrangler dev, 2026-10-20):** cold (a fresh isolate, 20 restarts): p50 0.39 s, p95 0.44 s, max 0.51 s (no-filter query). Warm (320 realistic queries): p50 26 ms, p95 70 ms.
 
 Receipts are unsigned here because local dev has no `RECEIPT_SIGNING_KEY`. Signing is covered by `tests/discover_test.mjs`, which signs with a test key and verifies ed25519 over JCS.
 
@@ -8,13 +12,14 @@ Receipts are unsigned here because local dev has no `RECEIPT_SIGNING_KEY`. Signi
 ```bash
 cd worker   # Node 22+
 npx wrangler d1 migrations apply RECEIPTS_DB --local --persist-to ../.wrangler-state
-node scripts/seed-discover.mjs <path>/receipts-20261020T192957Z.jsonl /tmp/discover-seed.sql
-npx wrangler d1 execute RECEIPTS_DB --local --persist-to ../.wrangler-state --file /tmp/discover-seed.sql
+python3 ../scripts/weekly-crawl/build_discover_blobs.py <path>/receipts-20261020T192957Z.jsonl /tmp/d-blobs.json
+CRAWL_WORKER_DIR=$PWD python3 ../scripts/weekly-crawl/d1_upload.py --local --persist-to ../.wrangler-state --source discover --changed /tmp/d-blobs.json
+# plus the crawl `meta` key (written by the weekly d1_upload.py run)
 npx wrangler dev --local --port 8793 --persist-to ../.wrangler-state
 scripts/demo-discover.sh http://127.0.0.1:8793
 ```
 
-## Sample output (2026-10-20, local D1 seeded with the Oct 20 crawl; results trimmed by jq to the key fields)
+## Sample output (2026-10-20, local D1 with the d: blobs from the Oct 20 crawl; results trimmed by jq to the key fields)
 ```text
 
 $ curl -s 'http://127.0.0.1:8793/v1/discover?q=weather&limit=3'
@@ -25,7 +30,7 @@ $ curl -s 'http://127.0.0.1:8793/v1/discover?q=weather&limit=3'
     "limit": 3
   },
   "count": 3,
-  "index_last_crawled": "2026-10-20T19:52:33Z",
+  "index_last_crawled": "2026-10-20T19:29:58Z",
   "index_stale": false,
   "results": [
     {
@@ -63,7 +68,7 @@ $ curl -s 'http://127.0.0.1:8793/v1/discover?q=weather&limit=3'
     }
   ]
 }
-[HTTP 200, 0.187561s]
+[HTTP 200, 0.035849s]
 
 $ curl -s 'http://127.0.0.1:8793/v1/discover?q=crypto+price&verdict=pay&limit=3'
 {
@@ -73,7 +78,7 @@ $ curl -s 'http://127.0.0.1:8793/v1/discover?q=crypto+price&verdict=pay&limit=3'
     "limit": 3
   },
   "count": 3,
-  "index_last_crawled": "2026-10-20T19:52:33Z",
+  "index_last_crawled": "2026-10-20T19:29:58Z",
   "index_stale": false,
   "results": [
     {
@@ -111,7 +116,7 @@ $ curl -s 'http://127.0.0.1:8793/v1/discover?q=crypto+price&verdict=pay&limit=3'
     }
   ]
 }
-[HTTP 200, 0.016745s]
+[HTTP 200, 0.013786s]
 
 $ curl -s 'http://127.0.0.1:8793/v1/discover?q=crypto+price&verdict=recheck&limit=3'
 {
@@ -121,7 +126,7 @@ $ curl -s 'http://127.0.0.1:8793/v1/discover?q=crypto+price&verdict=recheck&limi
     "limit": 3
   },
   "count": 3,
-  "index_last_crawled": "2026-10-20T19:52:33Z",
+  "index_last_crawled": "2026-10-20T19:29:58Z",
   "index_stale": false,
   "results": [
     {
@@ -159,7 +164,7 @@ $ curl -s 'http://127.0.0.1:8793/v1/discover?q=crypto+price&verdict=recheck&limi
     }
   ]
 }
-[HTTP 200, 0.028065s]
+[HTTP 200, 0.010545s]
 
 $ curl -s 'http://127.0.0.1:8793/v1/discover?verdict=skip&limit=2'
 {
@@ -169,7 +174,7 @@ $ curl -s 'http://127.0.0.1:8793/v1/discover?verdict=skip&limit=2'
     "limit": 2
   },
   "count": 2,
-  "index_last_crawled": "2026-10-20T19:52:33Z",
+  "index_last_crawled": "2026-10-20T19:29:58Z",
   "index_stale": false,
   "results": [
     {
@@ -196,7 +201,7 @@ $ curl -s 'http://127.0.0.1:8793/v1/discover?verdict=skip&limit=2'
     }
   ]
 }
-[HTTP 200, 0.013283s]
+[HTTP 200, 0.026092s]
 
 # input validation
 $ curl 'http://127.0.0.1:8793/v1/discover?q=x' -> "q must be 2-100 characters: letters, digits, space and . _ : / -" [HTTP 400]

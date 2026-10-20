@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# 0.43.0 discovery demo against a LOCAL wrangler dev (never production). Usage: scripts/demo-discover.sh [base]
+# 0.43.0/0.45.0 discovery demo against a LOCAL wrangler dev (never production). Usage: scripts/demo-discover.sh [base]
 # Setup (from worker/, Node 22+):
 #   npx wrangler d1 migrations apply RECEIPTS_DB --local --persist-to ../.wrangler-state
-#   node scripts/seed-discover.mjs <receipts-*.jsonl> /tmp/discover-seed.sql
-#   npx wrangler d1 execute RECEIPTS_DB --local --persist-to ../.wrangler-state --file /tmp/discover-seed.sql
+#   python3 ../scripts/weekly-crawl/build_discover_blobs.py <receipts-*.jsonl> /tmp/d-blobs.json   (0.45.0: d: blobs)
+#   CRAWL_WORKER_DIR=$PWD python3 ../scripts/weekly-crawl/d1_upload.py --local --persist-to ../.wrangler-state --source discover --changed /tmp/d-blobs.json
+#   (plus the crawl `meta` key, which the weekly d1_upload.py run writes; freshness comes from its crawled_at)
 #   npx wrangler dev --local --port 8793 --persist-to ../.wrangler-state
 set -u
 B=${1:-http://127.0.0.1:8793}
