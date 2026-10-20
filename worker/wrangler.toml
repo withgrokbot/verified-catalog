@@ -15,6 +15,11 @@ routes = [
 # Ported from the dashboard upload of 2026-10-08 (version b8ef527d): preview URLs + Workers Logs/Traces on.
 preview_urls = true
 
+# 0.45.2 (Workers Paid): cap CPU per request so a runaway can't bill much. Discovery's cold index load is ~0.3-0.6 s CPU;
+# everything else is well under 50 ms. 5,000 ms leaves room for the cold load and stops a runaway.
+[limits]
+cpu_ms = 5000
+
 [observability]
 enabled = true
 head_sampling_rate = 1

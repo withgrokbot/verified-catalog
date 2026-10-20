@@ -41,19 +41,24 @@ const isoS = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 export const SHARD_HEX = "0123456789abcdef";
 export const shardKeys = (verdict) => (verdict ? [verdict] : VERDICTS).flatMap((v) => [...SHARD_HEX].map((h) => `d:${v}:${h}`));
 const cache = new Map(); // key -> {sha, rows (objects)}
+const merged = new Map(); // 0.45.2: verdict filter -> {sig, rows presorted newest first}
+const byNewest = (a, b) => (a.checked_at < b.checked_at ? 1 : a.checked_at > b.checked_at ? -1 : a.id < b.id ? -1 : 1);
+// 0.45.2: one lowercased search string per row, built once when a shard is parsed (not per query)
+const searchText = (r) => r.s || (r.s = (r.url + " " + (r.source_list || "") + " " + (r.also || []).join(" ")).toLowerCase());
 let listAt = 0, listing = null; // key -> sha (part 0), refreshed every 5 min
 const LIST_TTL = 300000;
 const hex = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((b) => b.toString(16).padStart(2, "0")).join("");
 export async function decodeBlob(b64) {
-  const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const str = atob(b64), bin = new Uint8Array(str.length); // 0.45.2: plain loop (Uint8Array.from with a mapper was ~25x slower)
+  for (let i = 0; i < str.length; i++) bin[i] = str.charCodeAt(i);
   const text = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
   return JSON.parse(text);
 }
 export function expandShard(verdict, j, run = null) {
   const d = j.dict || {};
-  return (j.rows || []).map((r) => ({ id: r[0], url: r[1], also: r[2] || [], verdict, reason: d.r[r[3]] ?? "", price_usd: r[4] ?? null, network: d.n[r[5]] ?? null, asset: d.a[r[6]] ?? null, method: r[7] || null, source_list: d.s[r[8]] ?? null, checked_at: r[9], crawl_run: run }));
+  return (j.rows || []).map((r) => ({ id: r[0], url: r[1], also: r[2] || [], verdict, reason: d.r[r[3]] ?? "", price_usd: r[4] ?? null, network: d.n[r[5]] ?? null, asset: d.a[r[6]] ?? null, method: r[7] || null, source_list: d.s[r[8]] ?? null, checked_at: r[9], crawl_run: run })).map((r) => (searchText(r), r));
 }
-export function _clearDiscoverCache() { cache.clear(); listing = null; listAt = 0; }
+export function _clearDiscoverCache() { cache.clear(); merged.clear(); listing = null; listAt = 0; }
 async function listShas(db, now) {
   if (listing && now - listAt < LIST_TTL) return listing;
   const r = await db.prepare("SELECT key, parts, sha256 FROM crawl_store WHERE key >= 'd:' AND key < 'd;' AND part = 0").all();
@@ -85,18 +90,27 @@ export async function loadShards(db, verdict, now = Date.now()) {
   }
   const out = [], missing = [];
   for (const k of shardKeys(verdict)) { const c = cache.get(k); if (c && c.sha === shas.get(k)) out.push(c.rows); else missing.push(k); }
-  return { rows: out.flat(), missing, loaded: out.length };
+  // 0.45.2: the merged, presorted (newest first) list per verdict filter is cached at module scope, keyed by the shard
+  // shas, so a warm query never re-flattens or re-sorts 122k rows; searchRows then stops at `limit` matches.
+  const sig = (verdict || "*") + ":" + shardKeys(verdict).map((k) => (cache.get(k) || {}).sha || "-").join(",");
+  let m = merged.get(verdict || "*");
+  if (!m || m.sig !== sig) {
+    const rows = out.flat().sort(byNewest);
+    rows.sorted = true;
+    m = { sig, rows }; merged.set(verdict || "*", m);
+  }
+  return { rows: m.rows, missing, loaded: out.length };
 }
 /** In-memory filter on the EFFECTIVE verdict (a pay older than 7 days, by the crawl date, counts as recheck). */
 export function searchRows(rows, p, crawledMs, now = Date.now()) {
   const expired = !(now - crawledMs <= PAY_EXPIRES_DAYS * 86400000);
-  const hit = (r) => p.words.every((w) => r.url.toLowerCase().includes(w) || (r.source_list || "").toLowerCase().includes(w) || (r.also || []).some((x) => x.toLowerCase().includes(w)));
-  let out = rows.filter(hit);
-  if (p.verdict === "pay") out = expired ? [] : out.filter((r) => r.verdict === "pay");
-  else if (p.verdict === "skip") out = out.filter((r) => r.verdict === "skip");
-  else if (p.verdict === "recheck") out = out.filter((r) => r.verdict === "recheck" || (r.verdict === "pay" && expired));
-  out.sort((a, b) => (a.checked_at < b.checked_at ? 1 : a.checked_at > b.checked_at ? -1 : a.id < b.id ? -1 : 1));
-  return out.slice(0, p.limit);
+  if (p.verdict === "pay" && expired) return [];
+  const want = (r) => (p.verdict === "pay" ? r.verdict === "pay" : p.verdict === "skip" ? r.verdict === "skip" : p.verdict === "recheck" ? r.verdict === "recheck" || (r.verdict === "pay" && expired) : true);
+  const hit = (r) => want(r) && p.words.every((w) => searchText(r).includes(w));
+  const list = rows.sorted ? rows : [...rows].sort(byNewest);
+  const out = [];
+  for (const r of list) { if (hit(r)) { out.push(r); if (out.length >= p.limit) break; } } // early exit on the presorted list
+  return out;
 }
 
 /** One D1 row -> one public result (freshness applied), plus a signed receipt when signing is configured. */

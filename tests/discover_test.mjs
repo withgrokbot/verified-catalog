@@ -144,6 +144,16 @@ test("0.45.1: concurrent first signers all sign (no unsigned results on a cold i
   _resetSigner();
 });
 
+test("0.45.2: merged index is presorted once and reused across queries; search stops at limit; no internal fields leak", async () => {
+  const env = await envFor([row("a000000001", "pay", 3), row("b000000002", "pay", 1), row("c000000003", "skip", 2)]);
+  const a = await loadShards(env.RECEIPTS_DB, null, NOW), b = await loadShards(env.RECEIPTS_DB, null, NOW + 1);
+  assert.equal(a.rows, b.rows); assert.equal(a.rows.sorted, true);
+  assert.deepEqual(a.rows.map((r) => r.id), ["b000000002", "c000000003", "a000000001"]);
+  const r = await discover(env, { limit: "2" }, "https://o", NOW);
+  assert.deepEqual(r.body.results.map((x) => x.endpoint), ["https://b000000002.test/api", "https://c000000003.test/api"]);
+  assert.ok(!("s" in r.body.results[0]) && !("also" in r.body.results[0]));
+});
+
 test("signed receipt: ed25519 over JCS verifies against the configured key", async () => {
   const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
   const jwk = await crypto.subtle.exportKey("jwk", kp.privateKey);
