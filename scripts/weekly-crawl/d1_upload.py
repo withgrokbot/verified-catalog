@@ -53,17 +53,16 @@ def main():
     ap = argparse.ArgumentParser()
     g = ap.add_mutually_exclusive_group(); g.add_argument("--local", action="store_true"); g.add_argument("--remote", action="store_true")
     ap.add_argument("--persist-to"); ap.add_argument("--dry-run", action="store_true"); ap.add_argument("--changed", default=os.path.join(KV, "changed.json"))
-    ap.add_argument("--source", default="crawl", choices=["crawl", "discover"])  # 0.45.0: discovery blobs (d: keys) share crawl_store
     a = ap.parse_args()
     where = ["--remote"] if a.remote else ["--local"] + (["--persist-to", a.persist_to] if a.persist_to else [])
     changed = json.load(open(a.changed))
     have = current_hashes(where)
     todo = [c for c in changed if have.get(c["key"]) != sha(c["value"])]
-    todo.sort(key=lambda c: c["key"] in ("meta", "d:meta"))  # meta last, as with KV
+    todo.sort(key=lambda c: c["key"] == "meta")  # meta last, as with KV
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     files, cur, cur_b, rows = [], [], 0, 0
     for c in todo:
-        st, n = statements(c["key"], c["value"], now, a.source); rows += n
+        st, n = statements(c["key"], c["value"], now); rows += n
         b = sum(len(x.encode()) for x in st)
         if cur and cur_b + b > FILE_BYTES: files.append(cur); cur, cur_b = [], 0
         cur += st; cur_b += b

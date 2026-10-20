@@ -16,5 +16,3 @@ node_modules/
 .secrets/
 *-ed25519.json
 *receipt-ed25519*
-# 0.43.0: local wrangler dev state for the discovery demo
-.wrangler-state/

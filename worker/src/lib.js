@@ -40,7 +40,6 @@ import {
 
 import { signObject, receiptKeysDoc } from "./sign.js";
 import { PS_ID, PS_NETWORK, USDC_BASE_LC, parseRequest, readChain, decide, termsMatch, claimPointer, buildBody, newPsId, cacheKey, cacheGet, cachePut, receiptById } from "./paystatus.js";
-import { discover, DISCOVER_PER_MIN, DISCOVER_MAX } from "./discover.js";
 import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skips.js";
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
@@ -58,7 +57,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.45.0";
+export const VERSION = "0.44.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -2559,7 +2558,6 @@ export function openapi(origin, env = {}) {
       },
       "/v1/tasks": { get: { operationId: "tasks", security: [], summary: "Task names", responses: { 200: { description: "task -> service ids" } } } },
       // 0.37.2: free routes that were live but not listed here (additive; no behaviour change)
-      "/v1/discover": { get: { operationId: "discover", security: [], summary: "Free discovery: up to 20 crawled x402 endpoints with verified price, last_checked, stale flag, verdict pay|skip|recheck + reason and a receipt. Skips included by default. 60/min per client.", parameters: [{ name: "q", in: "query", schema: { type: "string", minLength: 2, maxLength: 100 } }, { name: "verdict", in: "query", schema: { type: "string", enum: ["pay", "skip", "recheck"] } }, { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 20, default: 10 } }], responses: { 200: { description: "results" }, 400: { description: "invalid input" }, 429: { description: "rate limited" }, 503: { description: "index unavailable" } } } },
       "/v1/skips.json": { get: { operationId: "skipsJson", security: [], summary: "Skips page as JSON (free)", responses: { 200: { description: "self-checked x402 endpoints and the ones to skip" } } } },
       "/badge/{host}": { get: { operationId: "badgePage", security: [], summary: "Badge page for a host (HTML, free): the SVG, its embed code and the receipt", parameters: [{ name: "host", in: "path", required: true, schema: { type: "string" } }], responses: { 200: { description: "HTML" }, 400: { description: "invalid host" } } } },
       "/pricing": { get: { operationId: "pricing", security: [], summary: "Pricing page (HTML, free), built from the live price constants", responses: { 200: { description: "HTML" } } } },
@@ -2938,25 +2936,6 @@ export const MCP_TOOLS = [
     },
     annotations: { title: "Did my x402 payment land?", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   },
-  {
-    name: "discover",
-    description:
-      "Free discovery of x402 pay-per-call endpoints from 402xAgent's weekly crawl. Returns up to 20 endpoints matching " +
-      "the words in q (URL or source list), each with the verified (quoted) price, network, last_checked, stale flag, " +
-      "verdict pay|skip|recheck with its reason, and a receipt. Skips are included by default; pass verdict to filter. " +
-      "A result older than 36 h is stale; a pay older than 7 days is returned as recheck. Run endpoint_spot_check " +
-      "right before paying. Read-only, no auth, 60 calls per minute.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        q: { type: "string", description: "Optional. 2-100 chars; space-separated words that must all appear, e.g. \"weather\" or \"crypto price\"." },
-        verdict: { type: "string", enum: ["pay", "skip", "recheck"], description: "Optional filter on the (freshness-adjusted) verdict." },
-        limit: { type: "integer", minimum: 1, maximum: 20, default: 10 },
-      },
-      additionalProperties: false,
-    },
-    annotations: { readOnlyHint: true, openWorldHint: false },
-  }
 ];
 
 class ToolInputError extends Error {}
@@ -3061,15 +3040,10 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
     const name = params.name;
     const args = params.arguments || {};
     const err = (text) => ({ content: [{ type: "text", text }], isError: true });
-    if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check", "get_receipt", "payment_status", "discover"].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
+    if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check", "get_receipt", "payment_status"].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
     let data;
     try {
-      if (name === "discover") {
-        if (!(await discoverRateOk(req, env))) return err(`rate limited: ${DISCOVER_PER_MIN} calls per minute`);
-        const r = await discover(env, args, CANON_ORIGIN);
-        if (r.status !== 200) return err(r.body.error);
-        data = r.body;
-      } else if (name === "get_receipt") {
+      if (name === "get_receipt") {
         let path, u;
         if (args.id) { path = "/v1/receipts/" + encodeURIComponent(pyStr(args.id)); u = new URL(origin + path); }
         else if (args.url) { path = "/v1/receipts/by-url"; u = new URL(origin + path + "?url=" + encodeURIComponent(pyStr(args.url))); }
@@ -3175,25 +3149,6 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
     return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }], structuredContent: data };
   }
   throw new RpcError(-32601, `method not found: ${method}`);
-}
-
-// 0.43.0: free discovery over the crawl index in D1. Rate limit: DISCOVER_PER_MIN per client per UTC minute
-// (QuotaCounter DO, counter "dsc"; fails open like every other counter). No KV.
-export function utcMinute(now = new Date()) { return now.toISOString().slice(0, 16); }
-export async function discoverRateOk(req, env, now = new Date()) {
-  const cid = await clientId(req, {}, env, now);
-  const t = await takeFree(env, "disc:" + cid.id, DISCOVER_PER_MIN, now, "take", "dsc", utcMinute(now));
-  return t.free;
-}
-async function handleDiscover(req, env, url) {
-  const noStore = { "cache-control": "no-store" };
-  if (!(await discoverRateOk(req, env)))
-    return json({ error: "rate limited", limit: `${DISCOVER_PER_MIN} requests per minute`, retry_after_seconds: 60 - new Date().getUTCSeconds() }, 429, { ...noStore, "retry-after": String(60 - new Date().getUTCSeconds()) });
-  const input = {};
-  for (const k of ["q", "verdict", "limit"]) if (url.searchParams.has(k)) input[k] = url.searchParams.get(k);
-  for (const k of url.searchParams.keys()) if (!["q", "verdict", "limit", "client", "ref"].includes(k)) return json({ error: `unknown parameter ${k.slice(0, 40)}`, allowed: ["q", "verdict", "limit"] }, 400, noStore);
-  const r = await discover(env, input, CANON_ORIGIN);
-  return json(r.body, r.status, r.status === 200 ? { "cache-control": "public, max-age=300" } : noStore);
 }
 
 async function handleMcp(req, env, ctx, url) {
@@ -3378,7 +3333,6 @@ const routeInnerHolder = {
       return json(spotBadRequest(API_ORIGIN, "method", `Unsupported method ${String(req.method).slice(0, 10)}; use GET or POST`, { mistake: "http_method", hint: "Use GET with ?url=<endpoint>, or POST a JSON body {\"url\":\"<endpoint>\"}.", fixed_example: { method: "GET", url: FREE_CHECK_EXAMPLE_URL } }), 400);
     if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405, { allow: "GET, OPTIONS" });
     if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env);
-    if (path === "/v1/discover") return handleDiscover(req, env, url);
     if ((path === "/bazaar" || path === "/bazaar.json") && env.BAZAAR_PAGE !== "off") return handleBazaar(req, url, env, path, CANON_ORIGIN);
     if (path === "/v1/receipts/by-url" || /^\/v1\/receipts\/sc-/.test(path)) return handleLiveReceipts(req, env, url, path);
     if (path === "/v1/receipts" && url.searchParams.has("type")) return handleReceiptList(env, url);
