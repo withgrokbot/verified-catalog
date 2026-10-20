@@ -1,6 +1,6 @@
 // 402xAgent landing page (0.18.0 light redesign around the logo): browser view of https://402xagent.com only. Inline CSS/JS,
 // no external fonts or scripts; images are the Worker's own /brand assets. Every example below is a real live answer (re-checked before each release).
-import { RECEIPTS_META } from "./receipts-data.js";
+import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { crawlSchedule, crawlScheduleText } from "./skips.js";
 import { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE } from "./spotcheck.js";
 
@@ -32,18 +32,29 @@ export const LANDING_SAMPLE = {
 
 const V = "18"; // asset cache-buster
 
-// 0.39.0: a REAL stored crawl receipt (3a76c5c79b, crawl of 2026-10-13), shown as listing -> live 402 -> verdict.
-// Copied verbatim from https://402xagent.com/v1/receipts/3a76c5c79b; the wallet is shortened for display only.
-export const HOME_EXAMPLE = Object.freeze({
-  receipt_id: "3a76c5c79b",
-  checked_at: "2026-10-13T14:58:51Z",
-  url: "https://nightfall-payment-api.planet-teacher.workers.dev/payments/v1/payment/evidence",
-  method: "POST",
-  listing: { source: "agent-tools-cloud", price_usd: 0.05 },
-  live_402: { http_status: 402, price_usd: 0.25, network: "eip155:8453", asset: "USDC", pay_to: "0xf77f3C9e6BC9Cd0eE1A2943813b6eC57f1305Ab3" },
-  verdict: "skip",
-  reason: "asks a different price than listed (listed $0.05, asks $0.25)",
-});
+// 0.45.4: the home card is a REAL receipt from the CURRENT crawl, chosen deterministically from the bundled page-1
+// receipts (receipts-data.js, rebuilt by the weekly script): a skip whose live 402 asked MORE than the listing, on Base
+// USDC, with a pay_to; lowest id wins. The card's date is the crawl `meta` date (RECEIPTS_META.crawled_at), never hand-edited.
+// Falls back to any "different price" skip, then any skip.
+export function homeExample(receipts = RECEIPTS, meta = RECEIPTS_META) {
+  const rs = (receipts || []).filter((r) => r && r.verdict === "skip" && /^[0-9a-f]{10}$/.test(r.id || "")).sort((x, y) => (x.id < y.id ? -1 : 1));
+  const differs = (r) => /different price than listed/.test(r.reason || "") && typeof r.claimed_price_usd === "number" && typeof r.quoted_price_usd === "number";
+  const r = rs.find((r) => differs(r) && r.quoted_price_usd > r.claimed_price_usd && r.network === "eip155:8453" && r.pay_to && r.http_status === 402)
+    || rs.find(differs) || rs[0];
+  if (!r) return null;
+  return Object.freeze({
+    receipt_id: r.id,
+    crawl_date: String((meta && meta.crawled_at) || r.timestamp || "").slice(0, 10),
+    checked_at: r.timestamp,
+    url: r.url,
+    method: r.method || "GET",
+    listing: { source: r.source_list, price_usd: r.claimed_price_usd },
+    live_402: { http_status: r.http_status, price_usd: r.quoted_price_usd, network: r.network, asset: "USDC", pay_to: r.pay_to || "" },
+    verdict: r.verdict,
+    reason: r.reason,
+  });
+}
+export const HOME_EXAMPLE = homeExample();
 const short = (a) => String(a).slice(0, 6) + "…" + String(a).slice(-4);
 
 export function landingHtml(origin, meta = RECEIPTS_META) {
@@ -223,10 +234,10 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
   <div class="cta"><a class="btn primary" href="#try" id="trynow">Try a check</a><a class="btn" href="https://github.com/withgrokbot/x402-spotcheck"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a></div>
   <p class="nosignup">Free, no signup, no key: runs a real check on a sample endpoint (5 a day).</p>
   <div class="card realex" aria-label="Real example">
-    <p class="rx-h">A real check from our crawl (${esc(HOME_EXAMPLE.checked_at.slice(0, 10))}, <a href="/v1/receipts/${esc(HOME_EXAMPLE.receipt_id)}">receipt ${esc(HOME_EXAMPLE.receipt_id)}</a>)</p>
+    <p class="rx-h">A real check from our crawl (${esc(HOME_EXAMPLE.crawl_date)}, <a href="/v1/receipts/${esc(HOME_EXAMPLE.receipt_id)}">receipt ${esc(HOME_EXAMPLE.receipt_id)}</a>)</p>
     <ol class="rx">
       <li><b>Listing</b> (${esc(HOME_EXAMPLE.listing.source)}): $${esc(HOME_EXAMPLE.listing.price_usd)} per call</li>
-      <li><b>Live 402</b> (${esc(HOME_EXAMPLE.method)}, HTTP ${esc(HOME_EXAMPLE.live_402.http_status)}): $${esc(HOME_EXAMPLE.live_402.price_usd)} ${esc(HOME_EXAMPLE.live_402.asset)} on Base to ${esc(short(HOME_EXAMPLE.live_402.pay_to))}</li>
+      <li><b>Live 402</b> (${esc(HOME_EXAMPLE.method)}, HTTP ${esc(HOME_EXAMPLE.live_402.http_status)}): $${esc(HOME_EXAMPLE.live_402.price_usd)} ${esc(HOME_EXAMPLE.live_402.asset)} on ${HOME_EXAMPLE.live_402.network === "eip155:8453" ? "Base" : esc(HOME_EXAMPLE.live_402.network)} to ${esc(short(HOME_EXAMPLE.live_402.pay_to))}</li>
       <li><b>402xAgent:</b> <span class="rx-skip">${esc(HOME_EXAMPLE.verdict)}</span>, ${esc(HOME_EXAMPLE.reason)}</li>
     </ol>
   </div>

@@ -2659,7 +2659,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.45.3");
+  assert.equal(VERSION, "0.45.4");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -3009,15 +3009,26 @@ test("0.39.0 home: 'Try a check' runs the free Try-it flow; REAL stored example 
   assert.equal((html.match(/class="btn primary"[^>]*>Try a check</g) || []).length, 1, "one primary Try a check button");
   assert.match(html, /id="trynow"/); assert.match(html, /\$\("#trynow"\)[\s\S]*run\(\)/, "button reuses run()");
   assert.match(html, /no signup/i);
-  // the example is the real crawl receipt 3a76c5c79b, byte for byte against the stored record
-  const rec = JSON.parse((await import("node:fs")).readFileSync("/workspace/factory/jobs/BM-001-verified-catalog/receipts/receipts-20261013T143614Z.jsonl", "utf8").split("\n").find((l) => l.includes('"id":"3a76c5c79b"') || l.includes('"id": "3a76c5c79b"')) || "null");
-  if (rec) {
-    assert.equal(HOME_EXAMPLE.url, rec.url); assert.equal(HOME_EXAMPLE.listing.price_usd, rec.claimed_price_usd); assert.equal(HOME_EXAMPLE.live_402.price_usd, rec.quoted_price_usd);
-    assert.equal(HOME_EXAMPLE.live_402.pay_to, rec.pay_to); assert.equal(HOME_EXAMPLE.verdict, rec.verdict); assert.equal(HOME_EXAMPLE.reason, rec.reason); assert.equal(HOME_EXAMPLE.checked_at, rec.timestamp);
-    assert.equal(HOME_EXAMPLE.listing.source, rec.source_list); assert.equal(HOME_EXAMPLE.live_402.network, rec.network); assert.equal(HOME_EXAMPLE.method, rec.method);
+  // 0.45.4: the example is a real receipt from the CURRENT bundled crawl (page 1), its date is the crawl meta date
+  const { RECEIPTS, RECEIPTS_META } = await import("../worker/src/receipts-data.js");
+  const rec = RECEIPTS.find((r) => r.id === HOME_EXAMPLE.receipt_id);
+  assert.ok(rec, "card receipt is in the bundled crawl");
+  assert.equal(HOME_EXAMPLE.crawl_date, String(RECEIPTS_META.crawled_at).slice(0, 10), "card date == crawl date");
+  assert.equal(HOME_EXAMPLE.url, rec.url); assert.equal(HOME_EXAMPLE.listing.price_usd, rec.claimed_price_usd); assert.equal(HOME_EXAMPLE.live_402.price_usd, rec.quoted_price_usd);
+  assert.equal(HOME_EXAMPLE.live_402.pay_to, rec.pay_to); assert.equal(HOME_EXAMPLE.verdict, "skip"); assert.equal(HOME_EXAMPLE.reason, rec.reason); assert.equal(HOME_EXAMPLE.checked_at, rec.timestamp);
+  assert.equal(HOME_EXAMPLE.listing.source, rec.source_list); assert.equal(HOME_EXAMPLE.live_402.network, rec.network); assert.equal(HOME_EXAMPLE.method, rec.method);
+  assert.match(HOME_EXAMPLE.reason, /different price than listed/); assert.ok(HOME_EXAMPLE.live_402.price_usd > HOME_EXAMPLE.listing.price_usd);
+  assert.ok(html.includes(`A real check from our crawl (${String(RECEIPTS_META.crawled_at).slice(0, 10)}, <a href="/v1/receipts/${HOME_EXAMPLE.receipt_id}">`));
+  assert.ok(html.includes(`<b>Listing</b> (${HOME_EXAMPLE.listing.source}): $${HOME_EXAMPLE.listing.price_usd}`)); assert.ok(html.includes(`): $${HOME_EXAMPLE.live_402.price_usd} USDC on Base`)); assert.match(html, /rx-skip">skip</);
+  { // deterministic: same input -> same card; a newer crawl with a different date moves the card date
+    const { homeExample } = await import("../worker/src/landing.js");
+    assert.deepEqual(homeExample(RECEIPTS, RECEIPTS_META), HOME_EXAMPLE);
+    assert.deepEqual(homeExample([...RECEIPTS].reverse(), RECEIPTS_META), HOME_EXAMPLE);
+    assert.equal(homeExample(RECEIPTS, { crawled_at: "2026-10-27T12:00:00Z" }).crawl_date, "2026-10-27");
+    assert.equal(homeExample([], RECEIPTS_META), null);
   }
-  assert.match(html, /href="\/v1\/receipts\/3a76c5c79b"/);
-  assert.match(html, /<b>Listing<\/b> \(agent-tools-cloud\): \$0\.05/); assert.match(html, /<b>Live 402<\/b> \(POST, HTTP 402\): \$0\.25 USDC on Base/); assert.match(html, /rx-skip">skip</);
+  { const sd = (await import("node:fs")).readFileSync(new URL("../worker/src/saves-data.js", import.meta.url), "utf8");
+    assert.match(sd, new RegExp(`"crawl_file":"receipts-${String(RECEIPTS_META.crawled_at).slice(0, 10).replace(/-/g, "")}T`), "0.45.4: /saves built from the same crawl"); }
   assert.match(html, /canonical USDC on Base, Ethereum, OP Mainnet, Polygon, Arbitrum, Avalanche and Solana;/);
   assert.match(html, /can&#39;t verify|can't verify/);
   assert.match(html, /href="\/docs#quick-start"/);

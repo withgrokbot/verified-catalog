@@ -26,7 +26,7 @@ REPO="$TMP/vc"
 clean_or_die() {
   rm -rf "$REPO" && gh repo clone withgrokbot/verified-catalog "$REPO" -- -q
   local d
-  d=$(diff -rq --exclude=node_modules --exclude=.wrangler --exclude=receipts-data.js "$APP/worker" "$REPO/worker"; diff -rq --exclude=run_tests.py --exclude=__pycache__ "$APP/tests" "$REPO/tests") || true
+  d=$(diff -rq --exclude=node_modules --exclude=.wrangler --exclude=receipts-data.js --exclude=saves-data.js "$APP/worker" "$REPO/worker"; diff -rq --exclude=run_tests.py --exclude=__pycache__ "$APP/tests" "$REPO/tests") || true
   if [ -n "$d" ]; then echo "REFUSING ($1): factory tree differs from withgrokbot/verified-catalog HEAD $(git -C "$REPO" rev-parse --short HEAD):"; echo "$d"; exit 1; fi
   echo "factory tree == repo HEAD $(git -C "$REPO" rev-parse --short HEAD) ($1)"
 }
@@ -48,6 +48,8 @@ PY
 
 # 3) Worker data + KV payload; the COVERAGE line comes from here
 python3 "$S/build_worker_data.py" | tee "$TMP/build.out"
+# 0.45.4: /saves data from the same crawl (was never re-run after Oct 13, so /saves went stale)
+python3 "$S/build_saves.py"
 COV=$(grep '^COVERAGE' "$TMP/build.out")
 
 # 4) tests
@@ -73,9 +75,9 @@ echo "crawl store: $CRAWL_STORE"
 # 6) commit the data locally, re-check the tree is clean, deploy that commit, verify live (cache-busted)
 REPO_HEAD_BEFORE=$(git -C "$REPO" rev-parse HEAD)
 clean_or_die "pre-deploy"
-cp "$APP/worker/src/receipts-data.js" "$REPO/worker/src/receipts-data.js"
-mkdir -p "$REPO/scripts/weekly-crawl" && cp "$S"/{fetch_lists.py,crawl_probe.py,build_worker_data.py,payai_credits.py,weekly_refresh_skips.sh,kv_upload.py,d1_upload.py,build_discover_blobs.py} "$REPO/scripts/weekly-crawl/" && cp "$APP/scripts/almost_paid.py" "$APP/scripts/funnel_weekly.py" "$REPO/scripts/"
-git -C "$REPO" add worker/src/receipts-data.js scripts/weekly-crawl scripts/almost_paid.py scripts/funnel_weekly.py
+cp "$APP/worker/src/receipts-data.js" "$APP/worker/src/saves-data.js" "$REPO/worker/src/"
+mkdir -p "$REPO/scripts/weekly-crawl" && cp "$S"/{fetch_lists.py,crawl_probe.py,build_worker_data.py,payai_credits.py,weekly_refresh_skips.sh,kv_upload.py,d1_upload.py,build_discover_blobs.py,build_saves.py} "$REPO/scripts/weekly-crawl/" && cp "$APP/scripts/almost_paid.py" "$APP/scripts/funnel_weekly.py" "$REPO/scripts/"
+git -C "$REPO" add worker/src/receipts-data.js worker/src/saves-data.js scripts/weekly-crawl scripts/almost_paid.py scripts/funnel_weekly.py
 if git -C "$REPO" diff --cached --quiet; then CHANGED=0; else CHANGED=1; git -C "$REPO" -c user.name=withgrokbot -c user.email=336192572+withgrokbot@users.noreply.github.com commit -qm "Weekly /v1/skips refresh: $COV"; fi
 [ "$(git -C "$REPO" log -1 --format=%an)" = "withgrokbot" ] || { echo "REFUSING: commit author is not withgrokbot"; exit 1; }
 WR deploy
