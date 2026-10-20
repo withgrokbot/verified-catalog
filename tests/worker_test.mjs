@@ -631,7 +631,7 @@ test("MCP /mcp: initialize, tools/list (catalog tools + products), ping, notific
   const pyTools = JSON.parse(py.stdout).result.tools;
   const workerTools = r.body.result.tools;
   assert.deepEqual(workerTools.slice(0, 3), pyTools, "first 3 tools match mcp/server.py");
-  assert.deepEqual(workerTools.map((t) => t.name), ["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "get_receipt", "endpoint_spot_check", "payment_status"]);
+  assert.deepEqual(workerTools.map((t) => t.name), ["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "get_receipt", "endpoint_spot_check", "payment_status", "discover"]);
   assert.deepEqual((await rpc({ jsonrpc: "2.0", id: 3, method: "ping" }, { envo: e })).body, { jsonrpc: "2.0", id: 3, result: {} });
   assert.equal((await rpc({ jsonrpc: "2.0", id: 4, method: "nope" }, { envo: e })).body.error.code, -32601);
   assert.equal((await rpc({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "nope" } }, { envo: e })).body.error.message, "unknown tool 'nope'");
@@ -2659,7 +2659,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.44.0");
+  assert.equal(VERSION, "0.45.2");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2860,7 +2860,7 @@ test("0.37.2: stale free-tier text says 5/day; sitemap lists rules/bazaar/saves;
   for (const p of ["/sitemap.xml", "/llms.txt", "/robots.txt"]) assert.equal((await raw(p)).headers.get("access-control-allow-origin"), "*", p);
   const oa = await (await raw("/openapi.json")).json();
   for (const p of ["/v1/skips.json", "/badge/{host}", "/pricing", "/docs", "/.well-known/x402", "/health"]) assert.ok(oa.paths[p], p);
-  for (const p of Object.keys(oa.paths)) { if (p.includes("{")) continue; const s = (await raw(p === "/mcp" ? "/health" : p.replace("/v1/lookup/paid", "/health").replace(/^\/v1\/lookup$/, "/health").replace("/v1/receipts/by-url", "/health").replace(/^\/v1\/products\/.*/, "/health"))).status; assert.equal(s, 200, p); }
+  for (const p of Object.keys(oa.paths)) { if (p.includes("{")) continue; const s = (await raw(p === "/mcp" ? "/health" : p.replace("/v1/lookup/paid", "/health").replace(/^\/v1\/lookup$/, "/health").replace("/v1/receipts/by-url", "/health").replace(/^\/v1\/discover$/, "/health").replace(/^\/v1\/products\/.*/, "/health"))).status; assert.equal(s, 200, p); }
   assert.equal((await (await raw("/health")).json()).version, VERSION);
   const rep = await raw("/reputation/api.402rates.com.json"); assert.equal(rep.headers.get("content-type"), "application/json; charset=utf-8");
   const src = (await import("node:fs")).readFileSync(new URL("../worker/src/lib.js", import.meta.url), "utf8");
@@ -3187,7 +3187,9 @@ print(json.dumps(ok))`;
   assert.match(sh, /d1\) set \+e; python3 "\$S\/d1_upload.py" --remote/);
   const up = readFileSync(new URL("../scripts/weekly-crawl/d1_upload.py", import.meta.url), "utf8");
   assert.match(up, /todo = \[c for c in changed if have.get\(c\["key"\]\) != sha\(c\["value"\]\)\]/, "only changed keys");
-  assert.match(up, /todo.sort\(key=lambda c: c\["key"\] == "meta"\)/, "meta last");
+  assert.match(up, /todo.sort\(key=lambda c: c\["key"\] in \("meta", "d:meta"\)\)/, "meta (and d:meta) last");
+  assert.match(up, /--source", default="crawl", choices=\["crawl", "discover"\]/, "0.45.0: discovery blobs tagged source=discover");
+  assert.match(sh, /build_discover_blobs\.py" "\$R\/\$\(cat "\$R\/latest\.txt"\)" "\$TMP\/d-blobs\.json" && python3 "\$S\/d1_upload\.py" --remote --source discover/, "0.45.0: weekly d1 run refreshes the d: blobs");
   const mig = readFileSync(new URL("../worker/migrations/0011_crawl_store.sql", import.meta.url), "utf8");
   assert.match(mig, /PRIMARY KEY \(key, part\)/);
 });
