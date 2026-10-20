@@ -57,7 +57,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.42.2";
+export const VERSION = "0.42.3";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -962,7 +962,7 @@ export const SPOT_PAID_EXAMPLE = {
   },
   payment_terms_sha256: "<sha256 of network|asset|amount_atomic|pay_to (EVM lower-case; Solana mint/pay_to as-is)>",
   probe: { probed_at: "2026-10-10T17:00:00Z", cached: false, cache_ttl_s: 300 },
-  check_type: "dry-run",
+  check_type: "live",
   receipt_id: "sc-0123456789abcdef",
   receipt_url: "https://402xagent.com/v1/receipts/sc-0123456789abcdef",
   pay_to_changed: false,
@@ -1018,7 +1018,7 @@ export const SPOT_PAID_SCHEMA = {
       required: ["network", "asset", "amount", "pay_to", "deadline"],
     },
     probe: { type: "object", description: "the live probe this decision used: probed_at, cached (true = reused within cache_ttl_s for the same normalized URL + method, so consecutive calls agree)", properties: { probed_at: { type: "string" }, cached: { type: "boolean" }, cache_ttl_s: { type: "integer" }, method_used: { type: "string", description: "present only when the listed GET answered 405 and the 402 came from POST" } } },
-    check_type: { type: "string", enum: ["dry-run", "self-checked"], description: "receipt label: self-checked for our own self-test client, dry-run for everyone else" },
+    check_type: { type: "string", enum: ["live", "dry-run", "self-checked"], description: "receipt label: self-checked for our own self-test client; otherwise live, or dry-run when mode=dry-run" },
     payment_terms_sha256: { type: ["string", "null"], description: "sha256 hex of lower-case network|asset|amount_atomic|pay_to (null unless pay)" },
     receipt_id: { type: ["string", "null"], description: "public receipt id for this decision (sc-...)" },
     receipt_url: { type: ["string", "null"], description: "free, public: GET it to show as the reason for paying or aborting" },
@@ -1316,7 +1316,7 @@ export function applyPayment(d, pm, exp) {
 
 // ---------------------------------------------------------------- public live receipts (0.9.0, D1)
 // Every delivered Spot-Check decision is stored as a public receipt: listing URL, live 402 terms, verdict, reason,
-// timestamp, id. Reading is free (GET /v1/receipts/<id>, GET /v1/receipts/by-url?url=). No client ids/IPs/payers stored.
+// timestamp, id. Reading is free (GET /v1/receipts/<id>, GET /v1/receipts/by-url?url=). No IPs or IP-derived ids stored; 0.42.3: an explicit `client` param is recorded as `client`.
 export const LIVE_RECEIPT_RE = /^sc-[0-9a-f]{16}$/;
 // 0.29.0: endpoint history key = sha256 of the normalized URL (method-independent; the URL itself never lands in the table).
 export async function historyKey(u) {
@@ -1359,7 +1359,7 @@ export function storedUrl(u) {
     return String(u || "").split(/[?#]/)[0];
   }
 }
-export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText, pm, termsHash, exp, now = new Date(), checkType = "dry-run", mode = "live", ref = "", caller = null, probedAt = null, cached = false, normKey = null, accessTier = null }) {
+export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText, pm, termsHash, exp, now = new Date(), checkType = "dry-run", mode = "live", ref = "", caller = null, client = null, probedAt = null, cached = false, normKey = null, accessTier = null }) {
   return {
     id,
     url: storedUrl(url),
@@ -1374,6 +1374,7 @@ export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText
       : "402xAgent check: unpaid probe of the target (never pays it)",
     ref: ref || null,
     caller: caller || ref || null,
+    client: client ? String(client).slice(0, 64) : null, // 0.42.3: the client param, on the same receipt write
     listing: exp.source ? { claimed_price_usd: exp.claimed, pay_to: exp.pay_to, network: exp.network, source: exp.source } : null,
     live_demand: liveDemand(probe),
     verdict: d.verdict,
@@ -1800,7 +1801,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     source: q.pay_to || q.network || q.claimed_price !== null ? "request" : listing ? "listing" : null,
   };
   const selfChecked = isExempt(qLike, env);
-  const checkType = selfChecked ? "self-checked" : "dry-run";
+  const checkType = selfChecked ? "self-checked" : "live"; // 0.42.3: a live check is "live", never "dry-run"
   const buildResult = async (probe, access) => {
     const pm0 = pickPayment(probe, exp);
     let d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pm0, exp), probe, q, listing);
@@ -1823,7 +1824,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const reputation = internal ? null : await hostReputation(env, hostOf(q.url), historyKey);
     const receiptFields = { receipt_id: rid, receipt_url: rid ? CANON_ORIGIN + "/v1/receipts/" + rid : null, pay_to_changed: ptc.pay_to_changed, history };
     if (rid) {
-      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && (q.ref === STALE_REF || q.ref === DAILY_REF) ? "auto" : (access && access.tier) || null });
+      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, client: q.client || null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && (q.ref === STALE_REF || q.ref === DAILY_REF) ? "auto" : (access && access.tier) || null });
       Object.assign(rec, ptc, { history }, rf);
       if (access && (access.tier === "paid" || access.tier === "router-pack")) rec.payment_received = paymentReceived(access, cd.priceAtomic); // 0.40.1
       if (access && access.tier === "hosted") { const { tier: _t, ...hv } = access; rec.hosted = hv; } // 0.41.0: signed with the receipt
@@ -2082,7 +2083,7 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
   const reputation = await hostReputation(env, hostOf(q.url), historyKey);
   const rid = newReceiptId();
   const reason = spotLossReason(d, exp.claimed).replace(/, details locked$/, "");
-  const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: reason, pm: null, termsHash: null, exp, checkType: exempt ? "self-checked" : "dry-run", mode: "dry-run", ref: q.ref, caller: q.dry_caller || (exempt ? "self-test" : null), probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: exempt ? "exempt" : "dry-run" });
+  const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: reason, pm: null, termsHash: null, exp, checkType: exempt ? "self-checked" : "dry-run", mode: "dry-run", ref: q.ref, client: q.client || null, caller: q.dry_caller || (exempt ? "self-test" : null), probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: exempt ? "exempt" : "dry-run" });
   rec.history = history;
   Object.assign(rec, reasonFields(d, exp.claimed, history));
   if (!(await saveLiveReceipt(env, rec))) { point(503, "dry-run-store-failed"); return json({ error: "dry runs are always stored as receipts; storing failed, try again shortly", mode: "dry-run" }, 503); }

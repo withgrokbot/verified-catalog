@@ -1332,7 +1332,7 @@ test("public receipts: every delivered decision is stored; GET by id and by-url 
   assert.match(free.body.receipt_id, /^sc-[0-9a-f]{16}$/);
   assert.equal(free.body.receipt_url, "https://402xagent.com/v1/receipts/" + free.body.receipt_id);
   assert.equal(db.rows.length, 1);
-  assert.ok(!db.rows[0].body.includes("rcpt-client-1"), "receipts never carry the client id");
+  assert.equal(JSON.parse(db.rows[0].body).client, "rcpt-client-1", "0.42.3: the explicit client param is recorded on the receipt"); // an IP-derived id never is
   const unpaid = await send(t, { envo: e });
   assert.equal(unpaid.status, 402);
   assert.equal(db.rows.length, 1, "a 402 (no decision delivered) stores nothing");
@@ -1546,7 +1546,7 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   assert.deepEqual(rec.live_demand, { http_status: 402, x402_challenge: true, schemes: ["exact"] });
   assert.deepEqual([rec.verdict, rec.reason, rec.ref, rec.caller, rec.approved_payment, rec.payment_terms_sha256], ["pay", "price_ok", "via-agentkit", "via-agentkit", null, null]);
   assert.match(rec.checked_at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
-  assert.ok(!db.rows[0].body.includes("dry-client-1") && !db.rows[0].body.includes("203.0.113"), "no client id or IP in the receipt");
+  assert.ok(!db.rows[0].body.includes("203.0.113"), "no IP in the receipt"); assert.equal(JSON.parse(db.rows[0].body).client, "dry-client-1", "0.42.3: explicit client recorded");
   // ref=dry-run-<caller> alias; a 200-with-trial target records what it returned
   await new Promise((res) => setTimeout(res, 1100)); // receipts sort by second-resolution checked_at
   spotTargetMode = "trial";
@@ -1626,7 +1626,7 @@ test("determinism (0.14.0): one probe per normalized URL + method for 5 min; con
   assert.equal(post.body.verdict, "recheck");
   assert.equal(post.body.access.tier, "free");
   const labels = db.rows.map((r) => [r.check_type, JSON.parse(r.body).mode]);
-  assert.deepEqual(labels, [["self-checked", "live"], ["self-checked", "live"], ["dry-run", "live"]]);
+  assert.deepEqual(labels, [["self-checked", "live"], ["self-checked", "live"], ["live", "live"]]); // 0.42.3: a live outside check is labelled live
   // cache window over -> a fresh probe
   const e2 = spotEnv({ RECEIPTS_DB: db, SPOT_PROBE_CACHE_S: "0" });
   const fresh = await send(SPOT + "?url=" + encodeURIComponent(t) + "&client=withgrokbot-selftest", { envo: e2 });
@@ -2657,7 +2657,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.42.2");
+  assert.equal(VERSION, "0.42.3");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -3072,6 +3072,23 @@ test("0.39.0 blog: no personal identifiers in any post (terms from the local for
   }
 });
 
+
+test("0.42.3 receipt labels: check_type matches the real mode (live / dry-run / self-checked); client recorded only when given; same single write", async () => {
+  const db = fakeD1(); const e = spotEnv({ RECEIPTS_DB: db });
+  spotTargetMode = "402";
+  const base = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/lbl") + "&claimed_price=0.001";
+  await send(base + "&client=receipt-label-check", { envo: e });
+  await send(base + "&client=receipt-label-dry&mode=dry-run", { envo: e });
+  await send(base, { envo: e });
+  const rows = db.rows.map((r) => ({ ct: r.check_type, b: JSON.parse(r.body) }));
+  assert.equal(rows.length, 3, "one receipt row per call (no extra writes)");
+  assert.deepEqual(rows.map((r) => [r.ct, r.b.check_type, r.b.mode, r.b.dry_run, r.b.client]), [
+    ["live", "live", "live", false, "receipt-label-check"],
+    ["dry-run", "dry-run", "dry-run", true, "receipt-label-dry"],
+    ["live", "live", "live", false, null],
+  ]);
+  for (const r of rows) assert.ok(r.ct !== "dry-run" || r.b.dry_run === true, "check_type dry-run only for real dry runs");
+});
 
 // ---------------- 0.40.0 payment-status (after-payment check): mocked Base RPC, three sources ----------------
 const PSA = "https://alch.test/v2/SECRETKEY123", PSB = "https://rpc2.test/k/SECRET2", PSP = "https://pub.test/";
