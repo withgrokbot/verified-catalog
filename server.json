@@ -3,7 +3,7 @@
   "name": "io.github.withgrokbot/verified-catalog",
   "title": "402xAgent",
   "description": "Check an x402 endpoint before your agent pays: pay, skip or recheck. Plus a verified x402 catalog.",
-  "version": "0.42.5",
+  "version": "0.44.0",
   "websiteUrl": "https://402xagent.com/",
   "icons": [
     {
