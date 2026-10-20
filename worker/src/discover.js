@@ -49,15 +49,20 @@ export async function decodeBlob(b64) {
   const text = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
   return JSON.parse(text);
 }
-export function expandShard(verdict, j) {
+export function expandShard(verdict, j, run = null) {
   const d = j.dict || {};
-  return (j.rows || []).map((r) => ({ id: r[0], url: r[1], also: r[2] || [], verdict, reason: d.r[r[3]] ?? "", price_usd: r[4] ?? null, network: d.n[r[5]] ?? null, asset: d.a[r[6]] ?? null, method: r[7] || null, source_list: d.s[r[8]] ?? null, checked_at: r[9] }));
+  return (j.rows || []).map((r) => ({ id: r[0], url: r[1], also: r[2] || [], verdict, reason: d.r[r[3]] ?? "", price_usd: r[4] ?? null, network: d.n[r[5]] ?? null, asset: d.a[r[6]] ?? null, method: r[7] || null, source_list: d.s[r[8]] ?? null, checked_at: r[9], crawl_run: run }));
 }
 export function _clearDiscoverCache() { cache.clear(); listing = null; listAt = 0; }
 async function listShas(db, now) {
   if (listing && now - listAt < LIST_TTL) return listing;
   const r = await db.prepare("SELECT key, parts, sha256 FROM crawl_store WHERE key >= 'd:' AND key < 'd;' AND part = 0").all();
   listing = new Map(((r && r.results) || []).map((x) => [x.key, x.sha256])); listAt = now;
+  listing.run = null;
+  if (listing.has("d:meta")) {
+    const m = await db.prepare("SELECT value FROM crawl_store WHERE key = 'd:meta' AND part = 0").all().catch(() => null);
+    try { listing.run = JSON.parse(m.results[0].value).crawl_run || null; } catch (_) {}
+  }
   return listing;
 }
 /** Loads (and caches) the shards for a verdict filter. Returns {rows, missing}. Throws if D1 is unavailable. */
@@ -75,7 +80,7 @@ export async function loadShards(db, verdict, now = Date.now()) {
       if (!rows.length || rows.length !== rows[0].parts || rows.some((x, i) => x.part !== i || x.sha256 !== rows[0].sha256)) return;
       const text = rows.map((x) => x.value).join("");
       if ((await hex(text)) !== rows[0].sha256) return; // torn or partial write: never serve it
-      cache.set(k, { sha: rows[0].sha256, rows: expandShard(k.split(":")[1], await decodeBlob(text)) });
+      cache.set(k, { sha: rows[0].sha256, rows: expandShard(k.split(":")[1], await decodeBlob(text), shas.run) });
     }));
   }
   const out = [], missing = [];
