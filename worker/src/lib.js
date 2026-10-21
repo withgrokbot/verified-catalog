@@ -60,8 +60,9 @@ import { handleBadge, badgeSnippets } from "./badge.js";
 import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
+import { paywallRoute, segmentOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.47.1";
+export const VERSION = "0.48.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -3299,9 +3300,9 @@ async function handleDiscover(req, env, url) {
 
 async function handleMcp(req, env, ctx, url) {
   if (req.method === "GET" || req.method === "HEAD")
-    return json({ error: "this MCP endpoint is stateless: POST JSON-RPC 2.0 messages (Streamable HTTP, no SSE stream)" }, 405, { allow: "POST, OPTIONS" });
-  if (req.method === "DELETE") return json({ error: "stateless server: no session to delete" }, 405, { allow: "POST, OPTIONS" });
-  if (req.method !== "POST") return json({ error: "method not allowed" }, 405, { allow: "POST, OPTIONS" });
+    return methodNotAllowed(req.method, "POST, OPTIONS", "/mcp", { note: "this MCP endpoint is stateless: POST JSON-RPC 2.0 messages (Streamable HTTP, no SSE stream)" });
+  if (req.method === "DELETE") return methodNotAllowed(req.method, "POST, OPTIONS", "/mcp", { note: "stateless server: no session to delete" });
+  if (req.method !== "POST") return methodNotAllowed(req.method, "POST, OPTIONS", "/mcp");
   let msg;
   try {
     msg = JSON.parse(await req.text());
@@ -3334,8 +3335,66 @@ export function unfilledTemplate() {
     headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "public, max-age=86400" },
   });
 }
+// 0.48.0: every response passes through here once: 400s get field/expected/received/openapi, and the paywall funnel
+// and 404 path log are counted in D1 (aggregate daily counts only; see ops.js and migration 0014). Counting never
+// changes or delays an answer (ctx.waitUntil) and never throws.
+async function opsWrap(req, env, ctx, inner) {
+  const url = new URL(req.url);
+  const path = url.pathname.replace(/\/+$/, "") || "/";
+  const hasPayment = !!paymentHeader(req);
+  const bodyCopy = (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") && Number(req.headers.get("content-length") || 0) <= 65536 ? req.clone() : null;
+  let res = await inner();
+  try {
+    if (res.status === 400 && /json/i.test(res.headers.get("content-type") || "")) res = await explicit400(res, req, url, path, bodyCopy);
+  } catch (_) {}
+  const later = (p) => { const q = p.catch(() => {}); if (ctx && ctx.waitUntil) ctx.waitUntil(q); return q; };
+  try {
+    const route = paywallRoute(path) || (res.status === 402 ? normalizePath(path) : "");
+    const counted = (route && (res.status === 402 || hasPayment)) || res.status === 404; // nothing else touches env here
+    const db = counted ? env.RECEIPTS_DB : null;
+    if (db && env.OPS_COUNTERS !== "off") {
+      if (route && (res.status === 402 || hasPayment)) {
+        const payload = hasPayment ? decodePaymentHeader(paymentHeader(req)) : null;
+        const segment = segmentOf(payload, env, cfg(env).payTo);
+        const settled = !!(res.headers.get("payment-response") || res.headers.get("x-payment-response")) && res.status < 400;
+        const status = res.status;
+        const errClone = hasPayment && !settled && status === 402 ? res.clone() : null;
+        later((async () => {
+          let errText = "";
+          if (errClone) { try { const j = await errClone.json(); errText = String(j.error || j.reason || ""); } catch (_) {} }
+          await writeFunnel(db, funnelRows({ route, hasPayment, status, settled, errText, segment }));
+        })());
+      } else if (res.status === 404 && path !== "/v1/ops/stats" && path !== "/v1/watch/stats") {
+        later(writeNotFound(db, req.method, path));
+      }
+    }
+  } catch (_) {}
+  return res;
+}
+async function explicit400(res, req, url, path, bodyCopy) {
+  const text = await res.clone().text();
+  let body; try { body = JSON.parse(text); } catch (_) { return res; }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return res;
+  let jsonBody;
+  if (bodyCopy) { try { const t = await bodyCopy.text(); if (t) { const b = JSON.parse(t); jsonBody = b && typeof b === "object" && !Array.isArray(b) ? b : null; } } catch (_) { jsonBody = null; } }
+  const ctx = { url, path, method: req.method, jsonBody };
+  let out;
+  if (body.jsonrpc) {
+    const e = body.error || {};
+    const x = explain400({ error: e.message, field: "body" }, ctx);
+    out = { ...body, error: { ...e, data: { ...(e.data || {}), field: x.field, expected: "a JSON-RPC 2.0 message (JSON object or batch array)", received: x.received, openapi: x.openapi } } };
+  } else out = explain400(body, ctx);
+  const h = new Headers(res.headers); h.delete("content-length");
+  return new Response(JSON.stringify(out), { status: 400, headers: h });
+}
+
 export const handler = {
   async fetch(req, env, ctx) {
+    return opsWrap(req, env, ctx, () => fetchInner(req, env, ctx));
+  },
+  async scheduled(event, env, ctx) { return scheduledInner(event, env, ctx); },
+};
+const fetchInner = async (req, env, ctx) => {
     const url = new URL(req.url);
     if (req.method === "OPTIONS")
       return new Response(null, {
@@ -3358,9 +3417,9 @@ export const handler = {
       return res;
     }
     return routeInner(req, env, ctx, url, path);
-  },
-  // 0.26.0: lean /bazaar refresh (see bazaar.js); idle steps cost one KV read.
-  async scheduled(event, env, ctx) {
+};
+// 0.26.0: lean /bazaar refresh (see bazaar.js); idle steps cost one KV read.
+async function scheduledInner(event, env, ctx) {
     // 0.47.0 Watchtower rides the */20 trigger (each watch is due once an hour); off unless WATCHTOWER is on.
     if (watchOn(env) && !(event && event.cron === DAILY_CRON)) { try { await watchTick(env, new Date(event && event.scheduledTime ? event.scheduledTime : Date.now())); } catch (e) { console.log(JSON.stringify({ watchtower: "tick_error", error: String((e && e.message) || e).slice(0, 200) })); } }
     if (env.BAZAAR_PAGE === "off") return;
@@ -3380,8 +3439,7 @@ export const handler = {
       const dq = env.DAILY_RECHECK === "off" ? { did: "none" } : await dailyStep(env, { now, runCheck, origin: API_ORIGIN });
       if (dq.did !== "checked" && env.STALE_RECHECK !== "off") await staleStep(env, { now, runCheck, origin: API_ORIGIN });
     }
-  },
-};
+}
 
 // 0.11.0: one cheap Analytics Engine point per hit on the routes that had none (pack, skips, receipts, docs).
 // access = "view-<name>", blob4 = path (+ ?page / id), double3 = status. Same client id + bot tags as metered routes.
@@ -3492,7 +3550,21 @@ const routeInnerHolder = {
     }
     if (path === "/v1/products/endpoint-spot-check")
       return json(spotBadRequest(API_ORIGIN, "method", `Unsupported method ${String(req.method).slice(0, 10)}; use GET or POST`, { mistake: "http_method", hint: "Use GET with ?url=<endpoint>, or POST a JSON body {\"url\":\"<endpoint>\"}.", fixed_example: { method: "GET", url: FREE_CHECK_EXAMPLE_URL } }), 400);
-    if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405, { allow: "GET, OPTIONS" });
+    // 0.48.0: internal ops counters (paywall funnel + 404 top 20), same Bearer WATCH_STATS_TOKEN as /v1/watch/stats.
+    if (path === "/v1/ops/stats") {
+      const tok = env.WATCH_STATS_TOKEN;
+      if (!tok || (req.headers.get("authorization") || "") !== "Bearer " + tok) return json({ error: "not found" }, 404, { "cache-control": "no-store" });
+      if (req.method !== "GET" && req.method !== "HEAD") return methodNotAllowed(req.method, "GET, HEAD, OPTIONS", path);
+      if (!env.RECEIPTS_DB) return json({ error: "ops store unavailable", code: "store_unavailable" }, 503, { "cache-control": "no-store" });
+      try { return json(await opsStats(env.RECEIPTS_DB, { days: url.searchParams.get("days") || 7 }), 200, { "cache-control": "no-store" }); }
+      catch (_) { return json({ error: "ops counters not available (migration 0014 applied?)", code: "store_unavailable" }, 503, { "cache-control": "no-store" }); }
+    }
+    // 0.48.0: a wrong method on a known GET route is a 405 with Allow + the right method; on an unknown path it is a 404.
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      if (isGetRoute(path)) return methodNotAllowed(req.method, "GET, HEAD, OPTIONS", path);
+      return json({ error: "not found", method: req.method.slice(0, 10), openapi: OPENAPI_URL, skill: SKILL_URL }, 404);
+    }
+    if (path === "/skill.md") return new Response(skillMd(), { headers: { "content-type": "text/markdown; charset=utf-8", "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" } });
     if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env);
     if (path === "/v1/discover") return handleDiscover(req, env, url);
     if ((path === "/bazaar" || path === "/bazaar.json") && env.BAZAAR_PAGE !== "off") return handleBazaar(req, url, env, path, CANON_ORIGIN);
@@ -3589,6 +3661,32 @@ const routeInnerHolder = {
     return json({ error: "not found", usage: CANON_ORIGIN + "/v1/lookup?task=web-search&max_price=0.01&n=5", spot_check: CANON_ORIGIN + "/v1/products/endpoint-spot-check?url=<endpoint>", docs: CANON_ORIGIN + "/openapi.json" }, 404);
   },
 };
+const GET_ROUTES = new Set(["/", "/v1/skips", "/v1/skips.json", "/v1/discover", "/bazaar", "/bazaar.json", "/v1/receipts", "/v1/receipts/by-url", "/v1/lookup", "/.well-known/x402",
+  "/.well-known/402xagent-keys.json", "/.well-known/402xagent-receipt-key.json", "/saves", "/saves.json", "/receipts", "/skips.json", "/pricing", "/blog", "/docs", "/rules.json", "/rules",
+  "/.well-known/402index-verify.txt", "/.well-known/agent-tools-verify.txt", "/v1/tasks", "/openapi.json", "/health", "/robots.txt", "/sitemap.xml", "/llms.txt", "/skill.md", "/v1/integrators/me"]);
+export function isGetRoute(path) {
+  return GET_ROUTES.has(path) || Object.prototype.hasOwnProperty.call(BRAND_ASSETS, path) || /^\/(v1\/receipts|badge|reputation|blog)\/./.test(path);
+}
+// 0.48.0: agent skill file (linked from 405 bodies). Facts only; everything else lives in openapi.json and llms.txt.
+export function skillMd() {
+  return `---
+name: 402xagent
+description: Check an x402 endpoint before your agent pays (pay, skip or recheck), confirm a payment landed, and discover verified x402 endpoints.
+---
+
+# 402xAgent
+
+- Free check (5/day per client, then $0.02 USDC on Base): GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=<endpoint>  (or POST JSON {"url":"<endpoint>"})
+- Payment status ($0.02, same free quota): POST ${API_ORIGIN}${PS_ROUTE_PATH}  JSON {"payment_payload":"<base64 PAYMENT-SIGNATURE>","seller_url":"<url>"}
+- Discovery (free): GET ${API_ORIGIN}/v1/discover?q=weather&verdict=pay&limit=10
+- Reliability lookup: GET ${API_ORIGIN}/v1/lookup?task=web-search&max_price=0.01&n=5
+- MCP (stateless Streamable HTTP): POST ${API_ORIGIN}/mcp
+- Paid routes answer HTTP 402 with x402 v2 terms; retry with a PAYMENT-SIGNATURE (or X-PAYMENT) header.
+- Errors: 400 bodies name field, expected and received; 405 bodies and the Allow header name the right method.
+
+Full contract: ${OPENAPI_URL} . Overview: ${CANON_ORIGIN}/llms.txt
+`;
+}
 const routeInner = (req, env, ctx, url, path) => routeInnerHolder.routeInner(req, env, ctx, url, path);
 
 // ---------------------------------------------------------------------------------------------------------------

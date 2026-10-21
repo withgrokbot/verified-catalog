@@ -1263,6 +1263,7 @@ function fakeD1() {
   const comm = []; // 0.46.0 commitments
   const er = []; // 0.46.0 endpoint_reports
   const ops = []; // 0.46.0: every prepared SQL (budget tests)
+  const counters = [];
   return {
     rows,
     hist,
@@ -1270,7 +1271,9 @@ function fakeD1() {
     comm,
     er,
     ops,
+    counters, // 0.48.0 ops counters (paywall_daily / notfound_daily), kept out of the per-route budget `ops`
     prepare(sql) {
+      if (/paywall_daily|notfound_daily/.test(sql)) return { bind: (...a) => ({ async run() { counters.push({ sql, a }); return { success: true }; } }) };
       ops.push(sql);
       return {
         bind(...a) {
@@ -2672,7 +2675,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.47.1");
+  assert.equal(VERSION, "0.48.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -3831,7 +3834,9 @@ test("0.45.5: paths with literal or encoded {placeholder} get a cheap 400 unfill
       const res = await worker.fetch(new Request("https://api.402xagent.com" + p), env, { waitUntil() {} });
       assert.equal(res.status, 400, p);
       assert.match(res.headers.get("content-type"), /application\/json/);
-      assert.deepEqual(await res.json(), { error: "unfilled_template", message: "Replace {placeholder} with a real value", docs: "https://402xagent.com/llms.txt" }, p);
+      const ub = await res.json(); // 0.48.0: + field/expected/received/openapi
+      assert.deepEqual({ error: ub.error, message: ub.message, docs: ub.docs }, { error: "unfilled_template", message: "Replace {placeholder} with a real value", docs: "https://402xagent.com/llms.txt" }, p);
+      assert.equal(ub.field, "path", p); assert.ok(ub.expected && ub.received, p); assert.equal(ub.openapi, "https://api.402xagent.com/openapi.json");
     }
   } finally { globalThis.fetch = ofetch; }
   assert.deepEqual(touched, []); assert.equal(fetched, 0);

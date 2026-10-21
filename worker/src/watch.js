@@ -4,6 +4,7 @@
 // all trial / rate-limit keys are stored only as hashes. Plan: docs/plan-watchtower.md.
 import { assertSafeUrl, resolveHost, parseX402Challenge } from "./spotcheck.js";
 import { canonicalize, signObject, signBytes } from "./sign.js";
+import { methodNotAllowed } from "./ops.js";
 
 export const WATCH_PRICE_ATOMIC = "1000000";
 export const WATCH_PRICE_USD = "1.00";
@@ -498,7 +499,7 @@ export async function handleWatch(req, env, ctx, url, deps) {
   const w = await auth(req, env, id);
   if (!w) return jsonResp({ error: "send Authorization: Bearer <watch_secret> (returned once at create)", code: "unauthorized" }, 401, { "www-authenticate": "Bearer" });
   if (m[2] === "/verify") {
-    if (req.method !== "POST") return jsonResp({ error: "POST" }, 405);
+    if (req.method !== "POST") return methodNotAllowed(req.method, "POST, OPTIONS", url.pathname, { docs: "https://402xagent.com/docs#watchtower" });
     const ev = { event_id: "evt-" + randHex(8), type: "watch.verify", occurred_at: iso(now), ...publicWatch(w), issuer: "402xAgent Watchtower" };
     const signed = (await signObject(env, ev)) || ev;
     const r = await postWebhook(env, w.webhook_url, signed, now, deps);
@@ -517,7 +518,7 @@ export async function handleWatch(req, env, ctx, url, deps) {
     return jsonResp({ watch_id: w.id, status: "deleted", purge_after: iso(new Date(now).getTime() + 30 * DAY) });
   }
   if (req.method === "GET" || req.method === "HEAD") return jsonResp(view(w));
-  return jsonResp({ error: "method not allowed" }, 405);
+  return methodNotAllowed(req.method, "GET, HEAD, DELETE, OPTIONS", url.pathname, { docs: "https://402xagent.com/docs#watchtower" });
 }
 
 /** Internal stat (Bearer WATCH_STATS_TOKEN): Queues trigger and (f) pricing review at 60 days or 50 paid watches. */
