@@ -22,21 +22,21 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 11:00:46.45 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-20 17:46:19 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>paid</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-21 14:41:56 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>487 ms</td></tr>
+<tr><th scope="row">Latency</th><td>451 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.05 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.05</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>$0.05</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>passed (newest point 41.8 h old, value 1.518)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.05.</p>
-<p>Evidence: <a href="../results/raw/20261020T174555Z/glassnode-mvrv.json">raw log for this check</a>. Machine-readable: <a href="glassnode-mvrv.json">glassnode-mvrv.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261021T144155Z/glassnode-mvrv.json">raw log for this check</a>. Machine-readable: <a href="glassnode-mvrv.json">glassnode-mvrv.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: a=BTC, i=24h. Passes if: newest point at most 48 h old and value between 0.3 and 6 (sanity check only, the weakest test).</p>
 <h2>Paid calls</h2>
@@ -55,6 +55,7 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-21 14:41:56 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>451 ms</td><td>$0.05</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261021T144155Z/glassnode-mvrv.json">raw log</a></td></tr>
 <tr><td>2026-10-20 17:46:19 UTC</td><td>paid</td><td>yes</td><td>402</td><td>487 ms</td><td>$0.05</td><td>yes</td><td><a href="../results/raw/20261020T174555Z/glassnode-mvrv.json">raw log</a></td></tr>
 <tr><td>2026-10-20 14:41:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>387 ms</td><td>$0.05</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261020T144156Z/glassnode-mvrv.json">raw log</a></td></tr>
 <tr><td>2026-10-19 14:44:12 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>513 ms</td><td>$0.05</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261019T144411Z/glassnode-mvrv.json">raw log</a></td></tr>
@@ -64,7 +65,6 @@
 <tr><td>2026-10-16 14:42:23 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>603 ms</td><td>$0.05</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261016T144222Z/glassnode-mvrv.json">raw log</a></td></tr>
 <tr><td>2026-10-15 14:42:18 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>198 ms</td><td>$0.05</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261015T144217Z/glassnode-mvrv.json">raw log</a></td></tr>
 <tr><td>2026-10-14 14:39:59 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>531 ms</td><td>$0.05</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261014T143958Z/glassnode-mvrv.json">raw log</a></td></tr>
-<tr><td>2026-10-13 17:57:09 UTC</td><td>paid</td><td>yes</td><td>402</td><td>409 ms</td><td>$0.05</td><td>yes</td><td><a href="../results/raw/20261013T175638Z/glassnode-mvrv.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>
