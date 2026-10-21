@@ -60,7 +60,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.46.0";
+export const VERSION = "0.46.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -79,7 +79,7 @@ const DEFAULTS = {
 // single fields. FACILITATOR_URL still wins over the preset's facilitator.
 export const PAYMENT_PRESETS = Object.freeze({
   base: Object.freeze({ network: "eip155:8453", v1Network: "base", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", assetName: "USD Coin", assetVersion: "2", facilitator: "https://facilitator.payai.network", explorer: "https://basescan.org", label: "Base" }),
-  "base-sepolia": Object.freeze({ network: "eip155:84532", v1Network: "base-sepolia", asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", assetName: "USDC", assetVersion: "2", facilitator: "https://x402.org/facilitator", explorer: "https://sepolia.basescan.org", label: "Base Sepolia (testnet)" }),
+  "base-sepolia": Object.freeze({ network: "eip155:84532", v1Network: "base-sepolia", asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", assetName: "USDC", assetVersion: "2", facilitator: "https://x402.org/facilitator", explorer: "https://sepolia.basescan.org", label: "Base Sepolia" }),
 });
 export function paymentPreset(env = {}) {
   const p = PAYMENT_PRESETS[String(env.PAYMENT_PRESET || "base").toLowerCase()] || PAYMENT_PRESETS.base;
@@ -403,6 +403,7 @@ export function cfg(env) {
     assetVersion: paymentPreset(env).assetVersion,
     v1Network: paymentPreset(env).v1Network,
     explorer: paymentPreset(env).explorer,
+    label: paymentPreset(env).label,
     facilitator: String(env.FACILITATOR_URL || paymentPreset(env).facilitator || DEFAULTS.FACILITATOR_URL).replace(/\/+$/, ""),
   };
 }
@@ -3824,14 +3825,15 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
 export const ER_EXAMPLE_REQUEST = { url: "https://api.402rates.com/v1/ping", commitment_ref: "cm-0123456789abcdef" };
 export const ER_VERIFY = "For each key k in locked_commitments (drift_history, hygiene_detail): \"sha256:\" + hex(sha256(RFC 8785 JCS of {snapshot: revealed[k].snapshot, nonce: revealed[k].nonce})) must equal locked_commitments[k] from your free check. Then verify this receipt's ed25519 signature (JCS of the receipt minus signature) with the kid in /.well-known/402xagent-keys.json.";
 export function erCfg(env) { return { ...spotCfg(env), priceAtomic: ER_PAID_ATOMIC, priceUsd: ER_PRICE_USD }; }
+export const erNet = (c) => (c && c.label) || "Base";
 export function erPaymentRequired(cd, resourceUrl, error, extra = {}) {
   return {
     x402Version: 2,
     error,
-    resource: { url: resourceUrl, description: "402xAgent endpoint report: the exact committed drift history and hygiene detail behind the free check's locked teasers. $0.05 USDC on Base.", mimeType: "application/json", serviceName: "402xAgent endpoint report", tags: ["x402", "reports", "drift", "receipts", "base"] },
-    accepts: [paymentRequirements(cd, resourceUrl, 2, { paidPath: true, description: "402xAgent endpoint report: $0.05 USDC on Base per report (no free tier)." })],
+    resource: { url: resourceUrl, description: `402xAgent endpoint report: the exact committed drift history and hygiene detail behind the free check's locked teasers. $0.05 USDC on ${erNet(cd)}.`, mimeType: "application/json", serviceName: "402xAgent endpoint report", tags: ["x402", "reports", "drift", "receipts", "base"] },
+    accepts: [paymentRequirements(cd, resourceUrl, 2, { paidPath: true, description: `402xAgent endpoint report: $0.05 USDC on ${erNet(cd)} per report (no free tier).` })],
     price_usd: ER_PRICE_USD,
-    asset: "USDC on Base (eip155:8453)",
+    asset: `USDC on ${erNet(cd)} (${cd.network})`,
     product: ER_ID,
     free_per_day: 0,
     example_request: ER_EXAMPLE_REQUEST,
@@ -3879,7 +3881,7 @@ async function handleEndpointReport(req, env, ctx, url) {
   const deny = (error) => { const body = erPaymentRequired(cd, resourceUrl, error); return json(body, 402, { "payment-required": b64encode(body) }); };
   let payload = null;
   if (!exempt) {
-    if (!hdr) return deny("Payment required: $0.05 USDC on Base via x402 for one endpoint report (no free tier).");
+    if (!hdr) return deny(`Payment required: $0.05 USDC on ${erNet(cd)} via x402 for one endpoint report (no free tier).`);
     payload = decodePaymentHeader(hdr);
     if (!payload) return deny("payment header is not valid base64 JSON x402 payload");
     const pbad = checkPayload(payload, cd);
@@ -3910,7 +3912,7 @@ async function handleEndpointReport(req, env, ctx, url) {
   const extraHeaders = { "cache-control": "no-store" };
   if (exempt) access = { tier: "exempt" };
   else {
-    const r = await verifyAndSettle(cd, payload, resourceUrl, { paidPath: true, description: "402xAgent endpoint report: $0.05 USDC on Base per report (no free tier)." });
+    const r = await verifyAndSettle(cd, payload, resourceUrl, { paidPath: true, description: `402xAgent endpoint report: $0.05 USDC on ${erNet(cd)} per report (no free tier).` });
     if (!r.ok) return deny("payment rejected: " + r.reason);
     const enc = b64encode(r.settle);
     extraHeaders["payment-response"] = enc;

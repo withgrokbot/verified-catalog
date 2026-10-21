@@ -69,7 +69,7 @@ SPOT_FREE_PER_IP_DAY = "25"
 # 0.35.0: /saves page (names sellers); approved and on
 SAVES_PAGE = "on"
 SPOT_PAID_PER_HOUR = "30"
-ENDPOINT_REPORT = "off"  # 0.46.0 paid /v1/products/endpoint-report; "1" to enable after migration 0012 is applied
+ENDPOINT_REPORT = "1"  # 0.46.1: paid /v1/products/endpoint-report on (migration 0012 applied); Base mainnet (no PAYMENT_* vars)
 # Payment network (0.46.0): unset = Base mainnet (prod). Local testnet only: --var PAYMENT_PRESET:base-sepolia --var FACILITATOR_URL:https://x402.org/facilitator
 # (eip155:84532, USDC 0x036CbD53842c5426634e7929541eC2318f3dCF7e). Optional overrides: PAYMENT_NETWORK, PAYMENT_ASSET, PAYMENT_ASSET_NAME, PAYMENT_ASSET_VERSION.
 
