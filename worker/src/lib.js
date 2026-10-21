@@ -51,7 +51,7 @@ import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
 import { staleStep, STALE_REF } from "./stale.js";
 import { dailySeed, dailyStep, DAILY_CRON, DAILY_REF } from "./daily.js";
 import { privateFree, scrubView } from "./privacy.js";
-import { ER_ID, ER_ROUTE_PATH, ER_PAID_ATOMIC, ER_PRICE_USD, ER_RECEIPT_RE, COMMIT_KEYS, GRADES, lockedBlock, commitSnapshots, loadCommitment, pruneCommitments, driftSnapshot, driftTeaser, hygieneSnapshot, receiptV2 } from "./report.js";
+import { ER_ID, ER_ROUTE_PATH, ER_PAID_ATOMIC, ER_PRICE_USD, ER_RECEIPT_RE, COMMIT_KEYS, GRADES, lockedBlock, commitSnapshots, loadCommitment, pruneCommitments, driftSnapshot, driftTeaser, hygieneSnapshot, receiptV2, gradeFor, explainOn, explainFree, explainPaid, explainReport, comparedFields, EXPLAIN_V } from "./report.js";
 import { observation, recordHistory, historyObservations, readHistory } from "./history.js";
 import { reasonFields, rulesJson, rulesHtml } from "./rules.js";
 import { qualityFor, qualityPublic, recordQuality } from "./quality.js";
@@ -1901,12 +1901,16 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       // 0.25.0: an outside free check with a clear verdict is listed in /v1/skips.json recent_checks (URL path only)
       const pub = publishable({ tier: "free", verdict: d.verdict, botTag: spotExcluded, client: q.client, ref: q.ref, url: q.url });
       if (pub && rid) await publishRecent(env, rid, pub);
-      return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), ...rf, payment_terms_sha256: termsHash, ...receiptFields, quality: qualityPublic(quality), reputation: reputationPublic(reputation), prior_checks: PRIOR_CHECKS, upsell: FREE_UPSELL, access };
+      // 0.49.0 (EXPLAIN_LINE): redacted line (field names + the public teasers only), response-only, not in the signed receipt
+      const ex = explainOn(env) ? { explain: explainFree({ diffFields: (v2.diff || []).map((x) => x.field), compared: comparedFields(exp, probe, pm0), driftCount: lk.locked.drift.count_30d, grade: lk.locked.hygiene.grade }), explain_v: EXPLAIN_V } : {};
+      return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), ...ex, ...rf, payment_terms_sha256: termsHash, ...receiptFields, quality: qualityPublic(quality), reputation: reputationPublic(reputation), prior_checks: PRIOR_CHECKS, upsell: FREE_UPSELL, access };
     }
     const acc = Array.isArray(probe.accepts) ? probe.accepts.find((a) => a && a.payTo) : null;
+    const exPaid = explainOn(env) ? { explain: explainPaid({ diff: v2.diff, compared: comparedFields(exp, probe, pm0), driftCount: driftTeaser(history && history.list).count_30d, grade: quality ? (gradeFor(quality.code) || {}).grade || null : null }), explain_v: EXPLAIN_V } : {};
     return {
       verdict: d.verdict,
       reason: d.reason,
+      ...exPaid,
       ...rf,
       quoted_price_usd: probe.quoted_price_usd == null ? null : probe.quoted_price_usd,
       claimed_price_usd: exp.claimed,
@@ -4040,6 +4044,7 @@ async function handleEndpointReport(req, env, ctx, url) {
     revealed: Object.fromEntries(COMMIT_KEYS.map((k) => [k, { snapshot: cm.snapshots[k] ?? null, nonce: cm.nonces[k] }])),
     ...(current ? { current } : {}),
     grades: Object.fromEntries(Object.entries(GRADES).map(([k, v]) => [k, v.grade])),
+    ...(explainOn(env) ? { explain: explainReport({ drift: cm.snapshots.drift_history, hygiene: cm.snapshots.hygiene_detail }), explain_v: EXPLAIN_V } : {}), // 0.49.0: signed (derived from revealed only)
     verify: ER_VERIFY,
     tier: access.tier,
     ...(access.tier === "paid" ? { payment_received: paymentReceived(access, ER_PAID_ATOMIC, cd) } : {}),

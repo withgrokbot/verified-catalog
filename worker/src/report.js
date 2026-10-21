@@ -198,3 +198,131 @@ export async function receiptV2({ probe, exp, pm0, listing, history, quality, pt
     hygiene_grade: g ? g.grade : null,
   };
 }
+
+// ================================================================== 0.49.0 (Max-approved plan docs/plan-0.49.0.md)
+// ---- 1) explanation line: deterministic templates only (no LLM, no seller text). EXPLAIN_V bumps on any wording change.
+export const EXPLAIN_V = "1";
+export const explainOn = (env) => ["1", "on"].includes(String((env && env.EXPLAIN_LINE) || "").toLowerCase());
+const FIELD_NOUN = { price: "price", pay_to: "payee", network: "network", asset: "asset" };
+export function usd(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "?";
+  let s = n.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+  if (!s.includes(".")) s += ".00"; else if (s.split(".")[1].length < 2) s += "0";
+  return "$" + s;
+}
+export function pct(from, to) {
+  const a = Number(from), b = Number(to);
+  if (!(a > 0) || !Number.isFinite(b)) return null;
+  const p = Math.round(((b - a) / a) * 100);
+  return (p > 0 ? "+" : "") + p + "%";
+}
+/** Seller payee (public) shortened: first 6 + last 4 characters. */
+export const shortAddr = (a) => { const s = String(a || ""); return s.length > 12 ? s.slice(0, 6) + "…" + s.slice(-4) : s; };
+const listJoin = (xs) => (xs.length <= 1 ? xs.join("") : xs.slice(0, -1).join(", ") + " and " + xs[xs.length - 1]);
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+/** Which listing fields were actually compared (mirrors diffOf's conditions). */
+export function comparedFields(exp, probe, pm0) {
+  const out = [];
+  const a = pm0 || ((probe && probe.accepts) || []).find((x) => x && x.payTo) || null;
+  if (exp && exp.claimed != null && probe && probe.quoted_price_usd != null) out.push("price");
+  if (exp && exp.pay_to && a && (a.pay_to || a.payTo)) out.push("pay_to");
+  if (exp && exp.network && a && a.network) out.push("network");
+  return out;
+}
+const tailClauses = (driftCount, grade, locked) => {
+  const out = [];
+  if (driftCount != null) out.push(`${driftCount} term change${driftCount === 1 ? "" : "s"} in 30d${locked ? " (locked)" : ""}`);
+  if (grade) out.push(`hygiene grade ${grade}`);
+  return out;
+};
+/** Paid line: values allowed (price from→to with %, payee shortened). */
+export function explainPaid({ diff = [], compared = [], driftCount = null, grade = null }) {
+  const by = Object.fromEntries((diff || []).map((d) => [d.field, d]));
+  const cl = [];
+  if (by.price) cl.push(`price moved ${usd(by.price.listed)} to ${usd(by.price.observed)}${pct(by.price.listed, by.price.observed) ? " (" + pct(by.price.listed, by.price.observed) + ")" : ""} since the listing`);
+  if (by.pay_to) cl.push(`payee changed to ${shortAddr(by.pay_to.observed)}`);
+  if (by.network) cl.push(`network changed to ${String(by.network.observed).slice(0, 40)}`);
+  const same = compared.filter((f) => !by[f]).map((f) => FIELD_NOUN[f]);
+  if (same.length) cl.push(cl.length ? `${listJoin(same)} unchanged` : `${listJoin(same)} ${same.length === 1 ? "matches" : "match"} the listing`);
+  if (!compared.length) cl.push("no listing to compare");
+  cl.push(...tailClauses(driftCount, grade, false));
+  return cap(cl.join("; ")) + ".";
+}
+/** Free (redacted) line: field names + public teasers only. Closed vocabulary; no amounts, %, addresses or dates. */
+export function explainFree({ diffFields = [], compared = [], driftCount = null, grade = null }) {
+  const diff = new Set(diffFields);
+  const cl = [];
+  const changed = compared.filter((f) => diff.has(f)).map((f) => FIELD_NOUN[f]);
+  const same = compared.filter((f) => !diff.has(f)).map((f) => FIELD_NOUN[f]);
+  if (changed.length) cl.push(`${listJoin(changed)} ${changed.length === 1 ? "differs" : "differ"} from the listing`);
+  if (same.length) cl.push(`${listJoin(same)} ${same.length === 1 ? "matches" : "match"}${changed.length ? "" : " the listing"}`);
+  if (!compared.length) cl.push("no listing to compare");
+  cl.push(...tailClauses(driftCount, grade, true));
+  return cap(cl.join("; ")) + ".";
+}
+export const FREE_EXPLAIN_RE = /^(?:(?:Price|Payee|Network|Asset|price|payee|network|asset)(?:(?:, | and )(?:price|payee|network|asset))* (?:differs?|matches|match)(?: from the listing| the listing)?|No listing to compare|no listing to compare)(?:; (?:(?:price|payee|network|asset)(?:(?:, | and )(?:price|payee|network|asset))* (?:matches|match)|\d+ term changes? in 30d \(locked\)|hygiene grade [A-F–]))*\.$/;
+/** er- report line: from the revealed drift snapshot (latest change) + hygiene. */
+export function explainReport({ drift, hygiene }) {
+  const ch = (drift && drift.changes) || [];
+  const cl = [`${drift && drift.capped ? "≥" : ""}${ch.length} term change${ch.length === 1 ? "" : "s"} in 30d`];
+  if (ch.length) {
+    const c = ch[0], parts = [];
+    if (c.fields.includes("price")) parts.push(`price ${usd(c.from.price_usd ?? Number(c.from.amount_atomic) / 1e6)} to ${usd(c.to.price_usd ?? Number(c.to.amount_atomic) / 1e6)}${pct(c.from.amount_atomic, c.to.amount_atomic) ? " (" + pct(c.from.amount_atomic, c.to.amount_atomic) + ")" : ""}`);
+    if (c.fields.includes("pay_to")) parts.push(`payee changed to ${shortAddr(c.to.pay_to)}`);
+    if (c.fields.includes("network")) parts.push(`network changed to ${String(c.to.network).slice(0, 40)}`);
+    if (c.fields.includes("asset")) parts.push("asset changed");
+    cl.push(`latest ${String(c.observed_at).slice(0, 10)}: ${parts.join(", ")}`);
+  }
+  if (hygiene && hygiene.grade) cl.push(`hygiene grade ${hygiene.grade}`);
+  return cap(cl.join("; ")) + ".";
+}
+
+// ---- 2) re-check window: 24h or 10 uses per paid er- report, same normalized endpoint, wallet-free proof of possession
+export const recheckOn = (env) => ["1", "on"].includes(String((env && env.RECHECK) || "").toLowerCase());
+export const RECHECK_MAX = 10, RECHECK_HOURS = 24, RECHECK_MIN_GAP_S = 60, RECHECK_FAIL_PER_DAY = 20;
+export const BULK_RETRY_DAYS = 7;
+export const RECHECK_SECRET_RE = /^rks_[0-9a-f]{64}$/;
+export const newRecheckSecret = () => "rks_" + randHex(32);
+export async function recheckHash(env, receiptId, secret) { return hmacHex(String(env.RECHECK_PEPPER || ""), receiptId + ":" + secret); }
+const ctEq = (a, b) => { a = String(a); b = String(b); if (a.length !== b.length) return false; let x = 0; for (let i = 0; i < a.length; i++) x |= a.charCodeAt(i) ^ b.charCodeAt(i); return x === 0; };
+/** Stores a credit and returns the one-time secret (never stored in clear). kind: window | bulk_retry. */
+export async function issueCredit(env, { receiptId, hkey, kind = "window", bulkId = null, now = new Date() }) {
+  const secret = newRecheckSecret();
+  const maxUses = kind === "window" ? RECHECK_MAX : 1;
+  const expires = iso(now.getTime() + (kind === "window" ? RECHECK_HOURS * 3600e3 : BULK_RETRY_DAYS * DAY));
+  await env.RECEIPTS_DB.prepare("INSERT INTO recheck_credits (receipt_id, kind, hkey, secret_hash, used, max_uses, created_at, expires_at, last_used_at, bulk_id) VALUES (?, ?, ?, ?, 0, ?, ?, ?, NULL, ?)")
+    .bind(receiptId, kind, hkey, await recheckHash(env, receiptId, secret), maxUses, iso(now.getTime()), expires, bulkId).run();
+  return { secret, kind, receipt_id: receiptId, max_uses: maxUses, expires_at: expires };
+}
+/** One atomic conditional UPDATE takes a use. On failure one SELECT names why (only after the secret verifies). */
+export async function redeemCredit(env, { receiptId, secret, hkey, now = new Date() }) {
+  const db = env.RECEIPTS_DB;
+  const h = await recheckHash(env, receiptId, secret);
+  const t = iso(now.getTime()), gap = iso(now.getTime() - RECHECK_MIN_GAP_S * 1000);
+  const row = await db.prepare("UPDATE recheck_credits SET used = used + 1, last_used_at = ? WHERE receipt_id = ? AND secret_hash = ? AND hkey = ? AND used < max_uses AND expires_at > ? AND (last_used_at IS NULL OR last_used_at <= ?) RETURNING kind, used, max_uses, expires_at")
+    .bind(t, receiptId, h, hkey, t, gap).first();
+  if (row) return { ok: true, ...row };
+  const cur = await db.prepare("SELECT kind, hkey, secret_hash, used, max_uses, expires_at, last_used_at FROM recheck_credits WHERE receipt_id = ?").bind(receiptId).first();
+  if (!cur || !ctEq(cur.secret_hash, h)) return { ok: false, code: "recheck_unauthorized" };
+  const state = { used: cur.used, max_uses: cur.max_uses, expires_at: cur.expires_at, kind: cur.kind };
+  if (cur.hkey !== hkey) return { ok: false, code: "recheck_wrong_endpoint", ...state };
+  if (!(cur.expires_at > t)) return { ok: false, code: "recheck_expired", ...state };
+  if (cur.used >= cur.max_uses) return { ok: false, code: "recheck_exhausted", ...state };
+  const retry = Math.max(1, Math.ceil((Date.parse(cur.last_used_at) + RECHECK_MIN_GAP_S * 1000 - now.getTime()) / 1000));
+  return { ok: false, code: "recheck_rate_limited", retry_after_s: retry, ...state };
+}
+export async function refundCredit(env, receiptId) {
+  try { await env.RECEIPTS_DB.prepare("UPDATE recheck_credits SET used = used - 1 WHERE receipt_id = ? AND used > 0").bind(receiptId).run(); return true; } catch (_) { return false; }
+}
+export async function pruneCredits(env, now = new Date()) {
+  try { await env.RECEIPTS_DB.prepare("DELETE FROM recheck_credits WHERE expires_at < ?").bind(iso(now.getTime() - DAY)).run(); } catch (_) {}
+}
+
+// ---- 3) bulk report: up to 5 URLs, min(n x $0.05, $0.20)
+export const bulkOn = (env) => ["1", "on"].includes(String((env && env.BULK_REPORT) || "").toLowerCase());
+export const BULK_ROUTE_PATH = "/v1/products/endpoint-report/bulk";
+export const BULK_MAX = 5;
+export const BULK_CAP_ATOMIC = 200000;
+export const bulkAtomic = (n) => String(Math.min(Math.max(1, n) * 50000, BULK_CAP_ATOMIC));
+export const EB_RECEIPT_RE = /^eb-[0-9a-f]{16}$/;

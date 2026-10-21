@@ -4225,6 +4225,54 @@ test("0.46.1 production vars (wrangler.toml): bare POST /v1/products/endpoint-re
   const er = tl.find((x) => x.name === "endpoint_report"); assert.ok(er); assert.equal(JSON.stringify(er).match(BARE), null);
 });
 
+test("0.49.0 explain line (EXPLAIN_LINE): off by default; free = redacted closed-vocabulary line (MCP too); exempt/paid shape = values; er- report line signed", async () => {
+  const U = "https://spot.target.test/explain-1";
+  spotTargetMode = "402";
+  const off = await send(SPOT + "?url=" + encodeURIComponent(U) + "&client=expl-off", { envo: spotEnv({ RECEIPTS_DB: fakeD1(), ENDPOINT_REPORT: "1", SPOT_FREE_PER_DAY: "5" }) });
+  assert.equal(off.status, 200); assert.equal(off.body.explain, undefined, "off by default");
+  const db = fakeD1();
+  const e = spotEnv({ RECEIPTS_DB: db, ENDPOINT_REPORT: "1", SPOT_FREE_PER_DAY: "5", EXPLAIN_LINE: "1" });
+  await seedHistory(db, U);
+  const fr = await send(SPOT + "?url=" + encodeURIComponent(U) + "&client=expl-a&claimed_price=0.5", { envo: e });
+  assert.equal(fr.status, 200); assert.equal(fr.body.access.tier, "free");
+  assert.match(fr.body.explain, R46.FREE_EXPLAIN_RE); assert.equal(fr.body.explain_v, "1");
+  assert.match(fr.body.explain, /^Price differs from the listing/);
+  assert.ok(!/\$|%|0x|\d{4}-\d\d/.test(fr.body.explain), "no amounts, %, addresses or dates in the free line");
+  assert.equal((fr.body.explain.replace("in 30d", "").match(/\d+/g) || []).join(","), String(fr.body.locked.drift.count_30d), "the only number is the public drift count");
+  assert.ok(db.rows.length > 0 && !JSON.stringify(db.rows).includes('"explain'), "free line is response-only (not in the stored/signed receipt)");
+  const m = await rpc({ jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: U + "?m=1", claimed_price: "0.5" } } }, { envo: e });
+  const mt = JSON.parse(m.body.result.content[0].text);
+  assert.match(mt.explain, R46.FREE_EXPLAIN_RE, "MCP check tool carries the same redacted line");
+  const ex = await send(SPOT + "?url=" + encodeURIComponent(U) + "&client=withgrokbot&claimed_price=0.5", { envo: e });
+  assert.equal(ex.status, 200); assert.match(ex.body.explain, /^Price moved \$0\.50 to \$[0-9.]+ \([+-]\d+%\) since the listing/);
+  // er- report: signed line from the revealed snapshot
+  const { W, keys, jwk, S } = await signingSetup("er-key-49");
+  e.env.RECEIPT_SIGNING_KEY = JSON.stringify(jwk); facMode = "ok";
+  const er = await erSend({ url: U }, { envo: e, headers: { "payment-signature": v2Payment({ amount: "50000" }) } });
+  assert.equal(er.status, 200); assert.match(er.body.explain, /^\d+ term changes? in 30d/);
+  assert.equal(er.body.explain, R46.explainReport({ drift: er.body.revealed.drift_history.snapshot, hygiene: er.body.revealed.hygiene_detail.snapshot }), "regenerates from revealed");
+  assert.equal((await W.verifyReceipt(er.body, keys)).valid, true, "explain is inside the signature");
+  S._resetSigner();
+});
+
+test("0.49.0 explain templates: golden strings; payee shortened 6+4; free line matches the closed regex over random diffs and never carries values", async () => {
+  const P = R46.explainPaid, F = R46.explainFree;
+  assert.equal(P({ diff: [{ field: "price", listed: "0.02", observed: "0.05" }], compared: ["price", "pay_to", "network"] }), "Price moved $0.02 to $0.05 (+150%) since the listing; payee and network unchanged.");
+  assert.equal(P({ diff: [{ field: "pay_to", listed: "0x1", observed: "0xAbCdEf0123456789aBcDeF0123456789AbCd1234" }], compared: ["price", "pay_to"], grade: "C" }), "Payee changed to 0xAbCd…1234; price unchanged; hygiene grade C.");
+  assert.equal(P({ diff: [], compared: ["price", "pay_to", "network"], driftCount: 0, grade: "A" }), "Price, payee and network match the listing; 0 term changes in 30d; hygiene grade A.");
+  assert.equal(P({ diff: [], compared: [] }), "No listing to compare.");
+  assert.equal(F({ diffFields: ["price"], compared: ["price", "pay_to", "network"], driftCount: 2, grade: "C" }), "Price differs from the listing; payee and network match; 2 term changes in 30d (locked); hygiene grade C.");
+  assert.equal(F({ diffFields: ["price", "pay_to"], compared: ["price", "pay_to"], grade: "–" }), "Price and payee differ from the listing; hygiene grade –.");
+  assert.equal(R46.usd(0.0025), "$0.0025"); assert.equal(R46.usd(9), "$9.00"); assert.equal(R46.pct("20000", "10000"), "-50%");
+  const fields = ["price", "pay_to", "network"];
+  for (let i = 0; i < 200; i++) {
+    const compared = fields.filter(() => Math.random() < 0.7), diffFields = compared.filter(() => Math.random() < 0.5);
+    const s = F({ diffFields, compared, driftCount: Math.random() < 0.5 ? Math.floor(Math.random() * 9) : null, grade: [null, "A", "C", "D", "F", "–"][i % 6] });
+    assert.match(s, R46.FREE_EXPLAIN_RE, s); assert.ok(!/\$|%|0x|:/.test(s), s);
+  }
+  assert.equal(P({ diff: [{ field: "price", listed: "0.02", observed: "0.05" }], compared: ["price"] }), P({ diff: [{ field: "price", listed: "0.02", observed: "0.05" }], compared: ["price"] }), "deterministic");
+});
+
 let passed = 0, skipped = 0;
 const SKIP = Symbol("skip");
 for (const [name, fn] of T) {
