@@ -36,3 +36,15 @@
   payment/client fields are shown only as a character count) and `openapi`. On `/mcp`, the same details go in `error.data` (JSON-RPC shape kept).
   The badge SVG 400 (`/badge/<bad host>`) stays an SVG image so `<img>` embeds still render.
 - `/skill.md` is new (it is linked from 405 bodies).
+
+## 503 review (14 in the Cloudflare count)
+
+- Code paths that return 503 on purpose all mean that a store or upstream was unavailable and nothing was charged: the discovery index
+  (D1 crawl_store), the receipt store (D1), the catalog data fetch, the Watchtower store/signing key/capacity, the endpoint-report store, the
+  chain RPC, and `/v1/ops/stats` before migration 0014.
+- Workers Observability (last 7 days) shows that the 503s were not from these paths. They were platform `exceededCpu` 503s on `GET /v1/discover`
+  (`?limit=1`, `?q=weather&limit=5`) between 13:34 and 13:36 PDT on 2026-10-20, all on version 3960aae3. That was the 0.45.0/0.45.1 discovery
+  rollout: a cold isolate parsed and sorted the full 122k-row index, and was then reverted and reapplied. 0.45.2 (13:49 PDT) fixed it with a presorted
+  module-scope cache, a faster base64 decode and `[limits] cpu_ms = 5000` on Workers Paid. No 503 responses came from our routes after that
+  version. The other "fetch 503" log lines are outbound subrequests: probed third-party endpoints that answered 503. They are not our responses.
+- No code change was needed for 0.48.0.
