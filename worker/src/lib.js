@@ -61,7 +61,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.47.0";
+export const VERSION = "0.47.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -3837,7 +3837,8 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
 // ------------------------------------------------------------------ 0.46.0 endpoint report (paid only, $0.05, ENDPOINT_REPORT flag)
 export const ER_EXAMPLE_REQUEST = { url: "https://api.402rates.com/v1/ping", commitment_ref: "cm-0123456789abcdef" };
 export const ER_VERIFY = "For each key k in locked_commitments (drift_history, hygiene_detail): \"sha256:\" + hex(sha256(RFC 8785 JCS of {snapshot: revealed[k].snapshot, nonce: revealed[k].nonce})) must equal locked_commitments[k] from your free check. Then verify this receipt's ed25519 signature (JCS of the receipt minus signature) with the kid in /.well-known/402xagent-keys.json.";
-export const watchDeps = (env) => ({ cfg: spotCfg(env), paymentHeader, decodePaymentHeader, checkPayload, verifyAndSettle, paymentRequirements, b64encode, ipPrefix });
+// 0.47.1: probes of our own routes are served in-process (same-zone subrequests 522), like the spot-check.
+export const watchDeps = (env) => ({ fetchImpl: selfFetch(env), cfg: spotCfg(env), paymentHeader, decodePaymentHeader, checkPayload, verifyAndSettle, paymentRequirements, b64encode, ipPrefix });
 export function erCfg(env) { return { ...spotCfg(env), priceAtomic: ER_PAID_ATOMIC, priceUsd: ER_PRICE_USD }; }
 export const erNet = (c) => (c && c.label) || "Base";
 export function erPaymentRequired(cd, resourceUrl, error, extra = {}) {

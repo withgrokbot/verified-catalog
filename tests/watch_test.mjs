@@ -436,6 +436,13 @@ test("flag + listings: wrangler.toml WATCHTOWER on with a $1 Base mainnet 402; o
 import { existsSync } from "node:fs";
 const existsMig = () => existsSync(join(ROOT, "worker", "migrations", "0013_watchtower.sql"));
 
+test("0.47.1: own-route probes are served in-process (same-zone fetch would 522); a self-watch of POST endpoint-report baselines a 402 with the $0.05 accept", async () => {
+  const env = { ENDPOINT_REPORT: "1", WATCHTOWER: "1" };
+  const deps = { ...watchDeps(env), resolveHostFn: async () => ["104.21.0.1"] };
+  const o = await W.probe("https://api.402xagent.com/v1/products/endpoint-report", "POST", env, deps);
+  assert.equal(o.http_status, 402); assert.equal(o.paywall, true); assert.equal(o.terms.amount, "50000");
+});
+
 let pass = 0;
 for (const t of tests) {
   try { await t.fn(); pass++; console.log("PASS " + t.name); }
