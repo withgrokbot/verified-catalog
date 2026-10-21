@@ -74,3 +74,12 @@ export async function signObject(env, obj) {
   }
 }
 export const _resetSigner = () => { cached = { raw: null, key: null, kid: null }; pending = null; };
+// 0.47.0 Watchtower: sign raw bytes (webhook deliveries sign `timestamp + "." + body`) with the same published key.
+export async function signBytes(env, bytes) {
+  try {
+    const s = await signer(env);
+    if (!s) return null;
+    const sig = await crypto.subtle.sign({ name: "Ed25519" }, s.key, typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes);
+    return { kid: s.kid, signature: b64u(sig) };
+  } catch (_) { return null; }
+}
