@@ -16,6 +16,7 @@ export function pricingHtml(origin, p) {
     ["Free check", `$0: ${p.freePerDay} live checks per client per UTC day, at most ${p.freePerIpDay} per network (IP) per day across client names. Dry runs (<code>&amp;mode=dry-run</code>) are free.`],
     ["Paid check", `${usd(p.paidAtomic)} per check, flat, whatever the target endpoint charges. Adds full payment terms and the payment object to sign.`],
     ["Payment status (after you pay)", `${usd(p.paidAtomic)} per lookup, flat, after the same ${p.freePerDay} free checks per day (shared with the check, same per-network cap). <code>POST /v1/products/payment-status</code>: did your Base USDC payment land, and is it safe to sign a new one? <a href="/docs#payment-status">Docs</a>.`],
+    ["Endpoint report", `$0.05 per report, flat, for everyone (no free tier): the exact committed drift history and hygiene detail behind the free check's locked teasers. <code>POST /v1/products/endpoint-report</code>${p.endpointReport ? "" : " (rolling out)"}.`],
     ["Hosted (integrator key)", `For routers and wallets, by arrangement: an integrator key (<code>Authorization: Bearer 402x_live_...</code>) gets 1,000 free hosted checks (once), then $0.02 per check, and $0.01 for each billable check after the first 1,000 in a calendar month (UTC). Covers the check and payment status, billed on a monthly USDC invoice instead of per-call x402. <a href="/docs#hosted">How it works</a>.`],
     ["Router pack", `${usd(p.routerPackAtomic)} for ${p.routerPackChecks} checks (${usd(p.routerCheckAtomic)} each), paid as one x402 payment; for registered router clients.`],
     ["Catalog lookup (<code>/v1/lookup</code>)", `${p.lookupFreePerDay} free per client per UTC day, then ${usd(p.lookupAtomic)} per call; <code>/v1/lookup/paid</code> is always ${usd(p.lookupAtomic)}.`],
@@ -39,7 +40,7 @@ const jwk = keys.find((k) => k.kid === receipt.kid);
 const { signature, ...signed } = receipt;
 const ok = verify(null, Buffer.from(jcs(signed)), createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: jwk.x }, format: "jwk" }), Buffer.from(signature, "base64url"));
 console.log(ok ? "valid" : "INVALID");`;
-export function docsHtml(origin, apiOrigin) {
+export function docsHtml(origin, apiOrigin, opts = {}) {
   const links = [
     ["/openapi.json", "OpenAPI spec", "every route, parameter and price"],
     ["/rules", "Rules", "verdicts, reason codes and confidence (JSON: /rules.json)"],
@@ -55,6 +56,15 @@ export function docsHtml(origin, apiOrigin) {
 <li>Client guard for @x402/fetch and @x402/axios: <a href="https://github.com/withgrokbot/x402-spotcheck">github.com/withgrokbot/x402-spotcheck</a></li></ul>
 <h2 id="quick-start">Quick start</h2>
 <p>Free check, no signup: <code>GET ${esc(apiOrigin)}/v1/products/endpoint-spot-check?url=&lt;endpoint&gt;&amp;mode=dry-run</code></p>
+<h2 id="endpoint-report">Endpoint report ($0.05): what the locked teasers hide</h2>
+<p>${opts.endpointReport ? "Live." : "Rolling out: the route answers 404 until it is switched on; the free teasers and commitments below are already live."} Every free check answer carries a <code>locked</code> block with two teasers: <b>drift</b> (for example "2 changes in 30d": a count only, never which terms or when) and <b>hygiene</b> (a grade: A = quality_ok, C = bad content type, D = schema mismatch, F = bad status or unreachable, "–" plus a reason when there is nothing to validate). Next to it, <code>locked_commitments</code> holds one <code>sha256:</code> digest per locked item (<code>drift_history</code>, <code>hygiene_detail</code>) and a <code>ref</code> (cm-…), valid for 30 days.</p>
+<p>Buy the report: <code>POST ${esc(apiOrigin)}/v1/products/endpoint-report</code> with JSON <code>{"url":"https://api.402rates.com/v1/ping","commitment_ref":"cm-0123456789abcdef"}</code> and an x402 payment of $0.05 USDC on Base (no free tier; the same price for everyone). The signed <code>er-</code> receipt reveals exactly the committed snapshots (which terms changed, when, from what to what; the full hygiene checks) with their nonces. Add <code>"include_current": true</code> to also get today's stored data under <code>current</code>, which the commitment does not cover. Without a <code>commitment_ref</code> the report commits and reveals in one step.</p>
+<h3 id="endpoint-report-verify">Verify a report</h3>
+<ol><li>Keep <code>locked_commitments</code> from your free check.</li>
+<li>For each key k: compute <code>"sha256:" + hex(sha256(JCS({snapshot: revealed[k].snapshot, nonce: revealed[k].nonce})))</code> (RFC 8785 canonical JSON; the nonce is 32 bytes hex).</li>
+<li>It must equal <code>locked_commitments[k]</code>. A changed snapshot, a different nonce or newer data gives a different digest.</li>
+<li>Verify the receipt's ed25519 signature with the kid in <a href="/.well-known/402xagent-keys.json">/.well-known/402xagent-keys.json</a> (see receipt signatures below).</li></ol>
+<p>Public views of every receipt (sc-, ps-, er-) never show buyer wallets, payment payloads, nonces of your payment, settle transactions or client IPs.</p>
 <h2 id="payment-status">After you pay: payment status</h2>
 <p>Your paid call timed out, or came back 5xx or an empty 402. Did the money move? <code>POST https://api.402xagent.com/v1/products/payment-status</code> with JSON <code>{"payment_payload":"&lt;base64 PAYMENT-SIGNATURE you sent&gt;","seller_url":"&lt;url you paid&gt;"}</code> (or <code>tx_hash</code>, or <code>from</code> + <code>nonce</code> + <code>valid_before</code>). Base USDC (EIP-3009 exact) only for now.</p>
 <ul><li><b>status</b>: landed (on-chain, 10+ confirmations), not_landed, pending (could still land, or too few confirmations), canceled, unknown.</li>
