@@ -2659,7 +2659,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.45.5");
+  assert.equal(VERSION, "0.45.6");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -3335,7 +3335,11 @@ test("0.40.0 payment-status: landed (10+ confirmations) -> landed, safe_to_resig
   // stored (final) and readable
   assert.equal(e.env.RECEIPTS_DB.rows.length, 1); assert.equal(b.stored, true);
   const got = await send("/v1/receipts/" + b.id, { envo: e });
-  assert.equal(got.status, 200); assert.deepEqual(got.body, b.receipt);
+  assert.equal(got.status, 200); assert.equal(got.body.id, b.id); assert.equal(got.body.redacted_v2, true, "0.45.6: public view is redacted + re-signed");
+  assert.ok(await crypto.subtle.verify({ name: "Ed25519" }, publicKey, Uint8Array.from(Buffer.from(got.body.signature, "base64url")), S.signingInput(got.body)), "re-signed public view verifies");
+  assert.notEqual(got.body.signature, b.receipt.signature, "old signature never served");
+  for (const v of [b.query && b.query.from, b.query && b.query.nonce, b.authorization && b.authorization.from, b.tx && b.tx.hash, b.tx && b.tx.submitter].filter((x) => x && x.length >= 8))
+    assert.ok(!JSON.stringify(got.body).toLowerCase().includes(String(v).toLowerCase()), "no buyer data in the public ps- view");
   // repeat: cached, no RPC
   psCalls.length = 0;
   const r2 = await psSend({ payment_payload: PS_PAYLOAD(), seller_url: "https://spot.target.test/ps" }, { envo: e });
@@ -3463,7 +3467,10 @@ test("0.40.1 payment-status: every PAID call writes a NEW signed receipt (new ps
     const tampered = { ...g, payment_received: { ...g.payment_received, payer: "0x" + "22".repeat(20) } };
     assert.equal((await W.verifyReceipt(tampered, { publicKey: { keys: [{ kty: "OKP", crv: "Ed25519", kid: jwk.kid, x: jwk.x }] } })).valid, false, "payer is under the signature");
     const served = await send("/v1/receipts/" + g.id, { envo: e });
-    assert.equal(served.status, 200); assert.equal((served.body.receipt || served.body).payment_received.settle_tx, TX);
+    assert.equal(served.status, 200); assert.equal(served.body.id, g.id); assert.equal(served.body.redacted_v2, true);
+    assert.equal(served.body.payment_received.settle_tx, undefined); assert.equal(served.body.payment_received.payer, undefined); assert.equal(served.body.payment_received.amount_usd, "0.02");
+    assert.ok(!JSON.stringify(served.body).includes(TX.slice(2)) && !JSON.stringify(served.body).includes("11".repeat(20)), "0.45.6: no payer / settle tx in public view");
+    assert.equal((await W.verifyReceipt(served.body, { publicKey: { keys: [{ kty: "OKP", crv: "Ed25519", kid: jwk.kid, x: jwk.x }] } })).valid, true, "re-signed view verifies");
     ids.push(g.id);
   }
   assert.notEqual(ids[0], ids[1], "each paid call has its own receipt");
@@ -3837,6 +3844,72 @@ test("0.45.5: no bare {placeholder} templates a crawler could follow in llms.txt
   }
   const { paths, ...rest } = oa; assert.equal(BARE.test(JSON.stringify(rest)), false, "templates only in paths keys");
   assert.equal(oa.paths["/v1/receipts/{id}"].get.parameters[0].example, "006776f7b6");
+});
+
+// ---------------------------------------------------------------- 0.45.6: privacy hotfix
+test("0.45.6 privacy sweep: no buyer wallet, settle tx, payment proof, nonce or client in any public view (sc- legacy signed + new, ps- legacy, lists, by-url, MCP); re-signed views verify; ids stable", async () => {
+  const S = await import("../worker/src/sign.js");
+  const { privateKey } = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const jwk = { ...(await crypto.subtle.exportKey("jwk", privateKey)), kid: "privacy-key" };
+  S._addTestKey({ kid: jwk.kid, x: jwk.x }); S._resetSigner();
+  const W = await import("/workspace/products/x402-spotcheck/receipt.js");
+  const keys = { publicKey: { keys: [{ kty: "OKP", crv: "Ed25519", kid: jwk.kid, x: jwk.x }] } };
+  const BUYER = "0x" + "b7".repeat(20), TXH = "0x" + "e4".repeat(32), NONCE = "0x" + "9c".repeat(32), SELLER = "0x" + "5e".repeat(20), CLIENT = "privacy-client-77", IPV = "198.51.100.23";
+  const SECRETS = [BUYER, TXH, NONCE, CLIENT, IPV, TXH.slice(2), BUYER.slice(2), NONCE.slice(2)];
+  const clean = (label, body) => { const t = JSON.stringify(body).toLowerCase(); for (const x of SECRETS) assert.ok(!t.includes(x.toLowerCase()), label + " leaks " + x.slice(0, 10)); for (const k of ["settle_tx", "basescan_url", "submitter", "payment_payload", "payer\"", "client_ip"]) assert.ok(!t.includes('"' + k.replace('"', '')), label + " has " + k); };
+  const env = spotEnv({ RECEIPT_SIGNING_KEY: JSON.stringify(jwk), RECEIPTS_DB: fakeD1() });
+  const db = env.env.RECEIPTS_DB;
+  const U = "https://seller.privacy.test/api";
+  const base = (id, at) => ({ id, url: U, access_tier: "paid", method: "GET", checked_at: at, check_type: "live", mode: "live", verdict: "pay", reason: "payment request matches the listed price",
+    live_402: { http_status: 402, x402_challenge: true, accepts: [{ scheme: "exact", network: "eip155:8453", asset: USDC, amount_atomic: "10000", pay_to: SELLER }], error: null, free_trial: null },
+    payment_received: { tier: "paid", payer: BUYER, amount_atomic: "20000", amount_usd: "0.02", asset: USDC, network: "eip155:8453", settle_tx: TXH, basescan_url: "https://basescan.org/tx/" + TXH },
+    client: CLIENT, ip: IPV, payment_payload: { authorization: { from: BUYER, nonce: NONCE } }, note: "settled by " + BUYER, permalink: "https://402xagent.com/v1/receipts/" + id });
+  const ins = (r) => db.prepare("INSERT INTO spot_receipts (id, url, created_at, verdict, reason, check_type, ref, norm_key, probed_at, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(r.id, r.url, r.checked_at, r.verdict, r.reason, r.check_type, null, null, r.checked_at, JSON.stringify(r)).run();
+  // legacy row: old signed_view carries the buyer data under its signature
+  const L = base("sc-00000000000000aa", "2026-10-19T10:00:00Z");
+  const { client: _c, ...lv } = L;
+  const { normReceipt: NR } = await import("../worker/src/lib.js");
+  const oldSigned = await S.signObject(env.env, NR(JSON.parse(JSON.stringify(lv)))); // as 0.38.0-0.45.5 stored it
+  await ins({ ...L, signed_view: oldSigned });
+  // unsigned legacy row
+  await ins(base("sc-00000000000000bb", "2026-10-19T09:00:00Z"));
+  for (const id of ["sc-00000000000000aa", "sc-00000000000000bb"]) {
+    const g = await send("/v1/receipts/" + id, { envo: env });
+    assert.equal(g.status, 200); assert.equal(g.body.id, id, "id stable"); assert.equal(g.body.redacted_v2, true);
+    clean(id, g.body);
+    assert.equal(g.body.live_402.accepts[0].pay_to, SELLER, "seller pay_to stays public");
+    assert.equal(g.body.payment_received.amount_usd, "0.02");
+    if (id.endsWith("aa")) { assert.notEqual(g.body.signature, oldSigned.signature, "old signature never served"); assert.equal((await W.verifyReceipt(g.body, keys)).valid, true, "re-signed legacy verifies"); }
+  }
+  clean("by-url", (await send("/v1/receipts/by-url?url=" + encodeURIComponent(U), { envo: env })).body);
+  const list = (await send("/v1/receipts?type=live", { envo: env })).body;
+  assert.ok(list.receipts.length >= 2); clean("list", list);
+  for (const r of list.receipts) if (r.signature) assert.equal((await W.verifyReceipt(r, keys)).valid, true);
+  const m = await rpc({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_receipt", arguments: { id: "sc-00000000000000aa" } } }, { envo: env });
+  clean("mcp get_receipt", m.body);
+  // new write: the signed public view is built without buyer data
+  const { saveLiveReceipt } = await import("../worker/src/lib.js");
+  await saveLiveReceipt(env.env, base("sc-00000000000000cc", "2026-10-21T10:00:00Z"));
+  const stored = JSON.parse(db.rows.find((r) => r.id === "sc-00000000000000cc").body);
+  assert.equal(stored.payment_received.payer, BUYER, "raw kept privately in storage");
+  clean("new signed_view", stored.signed_view);
+  const gn = (await send("/v1/receipts/sc-00000000000000cc", { envo: env })).body;
+  clean("new public", gn); assert.equal((await W.verifyReceipt(gn, keys)).valid, true);
+  // legacy ps- payment-status row (paid), signed with buyer data inside
+  const pe = psEnv({ RECEIPT_SIGNING_KEY: JSON.stringify(jwk) });
+  const ps = await S.signObject(pe.env, { id: "ps-00000000000000dd", type: "payment-status", status: "landed", checked_at: "2026-10-19T10:00:00Z",
+    query: { from: BUYER, nonce: NONCE, tx_hash: TXH, valid_before: null, seller_host: "seller.privacy.test" },
+    authorization: { from: BUYER, nonce: NONCE, used_onchain: true, event: "used" },
+    tx: { hash: TXH, basescan_url: "https://basescan.org/tx/" + TXH, block: 5, status: "success", confirmations: 12, submitter: "0x" + "fa".repeat(20), transfer: { from: BUYER, to: SELLER, value: "10000" } },
+    terms_match: { amount: "match", pay_to: "match" }, why: "nonce " + NONCE + " used", payment_received: { tier: "paid", payer: BUYER, settle_tx: TXH, basescan_url: "https://basescan.org/tx/" + TXH, amount_usd: "0.02" },
+    permalink: "https://402xagent.com/v1/receipts/ps-00000000000000dd" });
+  pe.env.RECEIPTS_DB.rows.push({ id: ps.id, lookup_key: "paid:" + ps.id, status: "landed", created_at: ps.checked_at, body: JSON.stringify(ps) });
+  const gp = await send("/v1/receipts/ps-00000000000000dd", { envo: pe });
+  assert.equal(gp.status, 200); assert.equal(gp.body.id, "ps-00000000000000dd"); assert.equal(gp.body.redacted_v2, true);
+  clean("ps legacy", gp.body); assert.ok(!JSON.stringify(gp.body).includes("fa".repeat(20)), "no submitter");
+  assert.equal(gp.body.query.seller_host, "seller.privacy.test"); assert.equal(gp.body.tx.confirmations, 12);
+  assert.notEqual(gp.body.signature, ps.signature); assert.equal((await W.verifyReceipt(gp.body, keys)).valid, true, "re-signed ps verifies");
+  S._resetSigner();
 });
 
 let passed = 0, skipped = 0;
