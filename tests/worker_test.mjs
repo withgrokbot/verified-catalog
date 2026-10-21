@@ -4150,6 +4150,32 @@ test("0.46.0 discovery: with ENDPOINT_REPORT on, .well-known, OpenAPI, llms.txt,
   assert.ok(existsSync(new URL("../worker/migrations/0012_commitments_reports.sql", import.meta.url)));
 });
 
+test("0.46.0 payment config: default (no env) accepts are byte-identical Base mainnet; base-sepolia preset switches network, asset, EIP-712 name and facilitator; overrides validated", async () => {
+  const MAIN = { scheme: "exact", network: "eip155:8453", amount: "20000", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: PAY_TO, maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" } };
+  for (const env of [{}, { PAYMENT_PRESET: "base" }, { PAYMENT_PRESET: "nonsense", PAYMENT_NETWORK: "bad", PAYMENT_ASSET: "0x12" }]) {
+    const c = L46.spotDynCfg(L46.spotCfg({ PAY_TO, ...env }), null);
+    assert.equal(JSON.stringify(L46.paymentRequirements(c, "https://x.test/r", 2)), JSON.stringify(MAIN), JSON.stringify(env));
+    assert.equal(c.facilitator, "https://facilitator.payai.network");
+    const v1 = L46.paymentRequirements(c, "https://x.test/r", 1);
+    assert.equal(v1.network, "base"); assert.equal(v1.asset, MAIN.asset); assert.deepEqual(v1.extra, MAIN.extra);
+  }
+  // real routes with the test env (mainnet default): the 402 accepts are unchanged
+  const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/cfg") + "&client=cfg-a", { envo: spotEnv({ SPOT_FREE_PER_DAY: "0" }) });
+  assert.equal(JSON.stringify(r.body.accepts[0]), JSON.stringify(MAIN));
+  const wk = (await send("/.well-known/x402")).body;
+  assert.equal(wk.payment.x402.asset, MAIN.asset); assert.deepEqual(wk.payment.x402.networks, ["eip155:8453"]);
+  // testnet preset
+  const sc = L46.erCfg({ PAY_TO, PAYMENT_PRESET: "base-sepolia" });
+  assert.deepEqual(L46.paymentRequirements(sc, "https://x.test/r", 2), { scheme: "exact", network: "eip155:84532", amount: "50000", asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", payTo: PAY_TO, maxTimeoutSeconds: 300, extra: { name: "USDC", version: "2" } });
+  assert.equal(sc.facilitator, "https://x402.org/facilitator");
+  assert.equal(L46.erCfg({ PAY_TO, PAYMENT_PRESET: "base-sepolia", FACILITATOR_URL: "https://fac.example.test/" }).facilitator, "https://fac.example.test", "FACILITATOR_URL wins");
+  assert.equal(L46.checkPayload({ x402Version: 2, accepted: { scheme: "exact", network: "eip155:8453", amount: "50000", asset: MAIN.asset, payTo: PAY_TO } }, sc), "unsupported scheme or network (exact on eip155:84532 only)", "mainnet payment refused on the testnet preset");
+  assert.equal(L46.checkPayload({ x402Version: 2, accepted: { scheme: "exact", network: "eip155:84532", amount: "50000", asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", payTo: PAY_TO } }, sc), "");
+  const pr = L46.paymentReceived({ tier: "paid", charged_usd: "0.05", tx: TX, payer: "0x" + "11".repeat(20) }, "50000", sc);
+  assert.equal(pr.network, "eip155:84532"); assert.equal(pr.basescan_url, "https://sepolia.basescan.org/tx/" + TX);
+  assert.equal(L46.paymentReceived({ tier: "paid", charged_usd: "0.02", tx: TX }, "20000").network, "eip155:8453", "default unchanged");
+});
+
 let passed = 0, skipped = 0;
 const SKIP = Symbol("skip");
 for (const [name, fn] of T) {

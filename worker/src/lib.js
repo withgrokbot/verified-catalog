@@ -74,6 +74,19 @@ const DEFAULTS = {
   NETWORK: "eip155:8453", // Base mainnet
   FACILITATOR_URL: "https://facilitator.payai.network",
 };
+// 0.46.0: what WE accept as payment. Default = Base mainnet (byte-identical to before). PAYMENT_PRESET=base-sepolia is for
+// local testnet runs (wrangler dev); PAYMENT_NETWORK / PAYMENT_ASSET / PAYMENT_ASSET_NAME / PAYMENT_ASSET_VERSION override
+// single fields. FACILITATOR_URL still wins over the preset's facilitator.
+export const PAYMENT_PRESETS = Object.freeze({
+  base: Object.freeze({ network: "eip155:8453", v1Network: "base", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", assetName: "USD Coin", assetVersion: "2", facilitator: "https://facilitator.payai.network", explorer: "https://basescan.org", label: "Base" }),
+  "base-sepolia": Object.freeze({ network: "eip155:84532", v1Network: "base-sepolia", asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", assetName: "USDC", assetVersion: "2", facilitator: "https://x402.org/facilitator", explorer: "https://sepolia.basescan.org", label: "Base Sepolia (testnet)" }),
+});
+export function paymentPreset(env = {}) {
+  const p = PAYMENT_PRESETS[String(env.PAYMENT_PRESET || "base").toLowerCase()] || PAYMENT_PRESETS.base;
+  const net = /^eip155:[0-9]{1,12}$/.test(String(env.PAYMENT_NETWORK || "")) ? String(env.PAYMENT_NETWORK) : p.network;
+  const asset = /^0x[0-9a-fA-F]{40}$/.test(String(env.PAYMENT_ASSET || "")) ? String(env.PAYMENT_ASSET) : p.asset;
+  return { ...p, network: net, asset, assetName: String(env.PAYMENT_ASSET_NAME || p.assetName).slice(0, 64), assetVersion: String(env.PAYMENT_ASSET_VERSION || p.assetVersion).slice(0, 16) };
+}
 const DEFAULT_DATA = "https://withgrokbot.github.io/verified-catalog/";
 const CACHE_TTL_S = 300;
 const STALE_AFTER_H_DEFAULT = 36;
@@ -384,8 +397,13 @@ export function cfg(env) {
     priceAtomic: price,
     priceUsd: (Number(price) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, ""),
     payTo,
-    network: DEFAULTS.NETWORK,
-    facilitator: String(env.FACILITATOR_URL || DEFAULTS.FACILITATOR_URL).replace(/\/+$/, ""),
+    network: paymentPreset(env).network,
+    asset: paymentPreset(env).asset,
+    assetName: paymentPreset(env).assetName,
+    assetVersion: paymentPreset(env).assetVersion,
+    v1Network: paymentPreset(env).v1Network,
+    explorer: paymentPreset(env).explorer,
+    facilitator: String(env.FACILITATOR_URL || paymentPreset(env).facilitator || DEFAULTS.FACILITATOR_URL).replace(/\/+$/, ""),
   };
 }
 
@@ -549,7 +567,7 @@ export async function takeFree(env, key, limit, now = new Date(), op = "take", c
 export function paymentRequirements(c, resourceUrl, version = 2, paidPathOrOpts = false) {
   const opts = typeof paidPathOrOpts === "boolean" ? { paidPath: paidPathOrOpts } : paidPathOrOpts || {};
   const paidPath = !!opts.paidPath;
-  const extra = { name: "USD Coin", version: "2" };
+  const extra = { name: c.assetName || "USD Coin", version: c.assetVersion || "2" };
   const description = opts.description
     || (paidPath
       ? `Verified catalog reliability lookup, paid per call (no free quota on this path). ${PAYMENT_POLICY}`
@@ -557,17 +575,17 @@ export function paymentRequirements(c, resourceUrl, version = 2, paidPathOrOpts 
   if (version === 1)
     return {
       scheme: "exact",
-      network: "base",
+      network: c.v1Network || "base",
       maxAmountRequired: c.priceAtomic,
       resource: resourceUrl,
       description,
       mimeType: "application/json",
       payTo: c.payTo,
       maxTimeoutSeconds: 300,
-      asset: USDC_BASE,
+      asset: c.asset || USDC_BASE,
       extra,
     };
-  return { scheme: "exact", network: c.network, amount: c.priceAtomic, asset: USDC_BASE, payTo: c.payTo, maxTimeoutSeconds: 300, extra };
+  return { scheme: "exact", network: c.network, amount: c.priceAtomic, asset: c.asset || USDC_BASE, payTo: c.payTo, maxTimeoutSeconds: 300, extra };
 }
 
 // Bazaar discovery extension (x402 v2 specs/extensions/bazaar.md): info + a JSON Schema (draft 2020-12) for info.
@@ -1868,7 +1886,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     if (rid) {
       const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, client: q.client || null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && (q.ref === STALE_REF || q.ref === DAILY_REF) ? "auto" : (access && access.tier) || null });
       Object.assign(rec, ptc, { history }, rf, { receipt_v2: v2 });
-      if (access && (access.tier === "paid" || access.tier === "router-pack")) rec.payment_received = paymentReceived(access, cd.priceAtomic); // 0.40.1
+      if (access && (access.tier === "paid" || access.tier === "router-pack")) rec.payment_received = paymentReceived(access, cd.priceAtomic, cd); // 0.40.1
       if (access && access.tier === "hosted") { const { tier: _t, ...hv } = access; rec.hosted = hv; } // 0.41.0: signed with the receipt
       await saveLiveReceipt(env, rec); // awaited: the next call's cache lookup must see it
     }
@@ -2212,12 +2230,12 @@ export function checkPayload(payload, c) {
   const v = Number(payload.x402Version || 1);
   if (v === 2) {
     const a = payload.accepted || {};
-    if (a.scheme !== "exact" || a.network !== c.network) return "unsupported scheme or network (exact on eip155:8453 only)";
+    if (a.scheme !== "exact" || a.network !== c.network) return `unsupported scheme or network (exact on ${c.network} only)`;
     if (String(a.amount) !== c.priceAtomic) return "amount does not match the price";
     if (String(a.payTo || "").toLowerCase() !== c.payTo.toLowerCase()) return "payTo does not match";
-    if (String(a.asset || "").toLowerCase() !== USDC_BASE.toLowerCase()) return "asset is not USDC on Base";
+    if (String(a.asset || "").toLowerCase() !== String(c.asset || USDC_BASE).toLowerCase()) return c.network === "eip155:8453" ? "asset is not USDC on Base" : `asset is not USDC on ${c.network}`;
   } else if (v === 1) {
-    if (payload.scheme !== "exact" || payload.network !== "base") return "unsupported scheme or network (exact on base only)";
+    if (payload.scheme !== "exact" || payload.network !== (c.v1Network || "base")) return `unsupported scheme or network (exact on ${c.v1Network || "base"} only)`;
   } else return "unsupported x402Version";
   const auth = (payload.payload && payload.payload.authorization) || {};
   if (auth.to && String(auth.to).toLowerCase() !== c.payTo.toLowerCase()) return "authorization is not to payTo";
@@ -2386,7 +2404,7 @@ export function openapi(origin, env = {}) {
           operationId: "lookupPaid",
           summary: `Same lookup as /v1/lookup, always paid: $${c.priceUsd} USDC on Base per call via x402 (no free quota). Identical results.`,
           parameters: Object.entries(QUERY_PROPS).map(([name, sch]) => ({ name, in: "query", schema: { type: "string" }, description: sch.description })),
-          "x-payment-info": { price: { mode: "fixed", currency: "USD", amount: c.priceUsd }, protocols: [{ x402: { scheme: "exact", network: c.network, asset: USDC_BASE, payTo: c.payTo } }] },
+          "x-payment-info": { price: { mode: "fixed", currency: "USD", amount: c.priceUsd }, protocols: [{ x402: { scheme: "exact", network: c.network, asset: c.asset, payTo: c.payTo } }] },
           responses: {
             200: { description: "same body as /v1/lookup, access.tier = paid, PAYMENT-RESPONSE header with the settlement tx" },
             400: { description: "bad parameters (checked after the 402, before anything is settled)" },
@@ -2400,7 +2418,7 @@ export function openapi(origin, env = {}) {
           summary: "Overnight Chief of Staff Setup Pack: prompts, HTML template, and PDF guide ($9 USDC on Base via x402, always paid)",
           "x-payment-info": {
             price: { mode: "fixed", currency: "USD", amount: packCfg(env).priceUsd },
-            protocols: [{ x402: { scheme: "exact", network: packCfg(env).network, asset: USDC_BASE, payTo: packCfg(env).payTo } }],
+            protocols: [{ x402: { scheme: "exact", network: packCfg(env).network, asset: packCfg(env).asset, payTo: packCfg(env).payTo } }],
           },
           responses: {
             200: { description: "JSON with product, title, price_usdc, files.prompts, files.templates, files.guide (PDF base64), access/settlement" },
@@ -2412,7 +2430,7 @@ export function openapi(origin, env = {}) {
           summary: "Same as GET /v1/products/overnight-cos-pack (POST accepted for discovery probes)",
           "x-payment-info": {
             price: { mode: "fixed", currency: "USD", amount: packCfg(env).priceUsd },
-            protocols: [{ x402: { scheme: "exact", network: packCfg(env).network, asset: USDC_BASE, payTo: packCfg(env).payTo } }],
+            protocols: [{ x402: { scheme: "exact", network: packCfg(env).network, asset: packCfg(env).asset, payTo: packCfg(env).payTo } }],
           },
           responses: {
             200: { description: "same as GET" },
@@ -2459,7 +2477,7 @@ export function openapi(origin, env = {}) {
           ],
           "x-payment-info": {
             price: { mode: "fixed", currency: "USD", amount: "0.02", amount_atomic: "20000" },
-            protocols: [{ x402: { scheme: "exact", network: spotCfg(env).network, asset: USDC_BASE, payTo: spotCfg(env).payTo } }],
+            protocols: [{ x402: { scheme: "exact", network: spotCfg(env).network, asset: spotCfg(env).asset, payTo: spotCfg(env).payTo } }],
           },
           responses: {
             200: { description: "No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx and network errors; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. Free tier: verdict (pay|skip|recheck), a plain-words reason, access. Paid tier: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, payment (the exact signable payment when verdict is pay), payment_terms_sha256, access (with settlement tx). Free tier also carries payment_terms_sha256", content: { "application/json": { schema: { oneOf: [SPOT_PAID_SCHEMA, SPOT_FREE_SCHEMA] }, examples: { paid: { value: SPOT_PAID_EXAMPLE }, free: { value: SPOT_FREE_EXAMPLE } } } } },
@@ -3406,7 +3424,7 @@ export function agentToolsToken(env, host) {
 
 export function wellKnownX402(env, host = "") {
   const c = cfg(env), pk = packCfg(env);
-  const acc = (amount, desc) => ({ scheme: "exact", network: c.network, asset: USDC_BASE, payTo: c.payTo, ...(amount ? { amount } : {}), maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" }, ...(desc ? { description: desc } : {}) });
+  const acc = (amount, desc) => ({ scheme: "exact", network: c.network, asset: c.asset, payTo: c.payTo, ...(amount ? { amount } : {}), maxTimeoutSeconds: 300, extra: { name: c.assetName, version: c.assetVersion }, ...(desc ? { description: desc } : {}) });
   const R = (p) => API_ORIGIN + p;
   return {
     version: 1,
@@ -3416,7 +3434,7 @@ export function wellKnownX402(env, host = "") {
     free_check: { url: FREE_CHECK_URL, example: FREE_CHECK_EXAMPLE_URL, example_response: FREE_CHECK_EXAMPLE, prior_checks: PRIOR_CHECKS, then: "the paid check (HTTP 402) for the full payment terms" },
     free_pages: { skips: CANON_ORIGIN + "/v1/skips.json", saves: CANON_ORIGIN + "/saves.json", bazaar: CANON_ORIGIN + "/bazaar.json", receipts: CANON_ORIGIN + "/v1/receipts", openapi: API_ORIGIN + "/openapi.json", llms: CANON_ORIGIN + "/llms.txt", rules: CANON_ORIGIN + "/rules.json" },
     resources: [R("/v1/lookup/paid"), R("/v1/products/overnight-cos-pack"), R("/v1/products/endpoint-spot-check"), R("/v1/products/payment-status"), ...(endpointReportOn(env) ? [R(ER_ROUTE_PATH)] : [])],
-    payment: { x402: { version: 2, scheme: "exact", networks: [c.network], primaryNetwork: c.network, currency: "USDC", asset: USDC_BASE, payTo: c.payTo } },
+    payment: { x402: { version: 2, scheme: "exact", networks: [c.network], primaryNetwork: c.network, currency: "USDC", asset: c.asset, payTo: c.payTo } },
     resourceCatalog: [
       { url: R("/v1/lookup/paid"), method: "GET", description: "Reliability lookup: x402 services for a task at a price, ranked by known-answer pass rate", accepts: [acc(c.priceAtomic)] },
       { url: R("/v1/products/overnight-cos-pack"), methods: ["GET", "POST"], description: "Overnight Chief of Staff Setup Pack (prompts, template, PDF guide)", accepts: [acc(pk.priceAtomic)] },
@@ -3786,7 +3804,7 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
       id: pid,
       checked_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
       tier: access.tier,
-      ...(access.tier === "paid" ? { payment_received: paymentReceived(access, cd.priceAtomic) } : { hosted: (({ tier: _t, ...hv }) => hv)(access) }),
+      ...(access.tier === "paid" ? { payment_received: paymentReceived(access, cd.priceAtomic, cd) } : { hosted: (({ tier: _t, ...hv }) => hv)(access) }),
       chain_answer: { receipt_id: chain.stored && chain.id ? chain.id : null, receipt_url: chain.stored && chain.permalink ? chain.permalink : null, checked_at: chain.checked_at, cached },
       permalink: env.RECEIPTS_DB ? CANON_ORIGIN + "/v1/receipts/" + pid : null, // same origin as the chain answer
       stored: !!env.RECEIPTS_DB,
@@ -3909,7 +3927,7 @@ async function handleEndpointReport(req, env, ctx, url) {
     grades: Object.fromEntries(Object.entries(GRADES).map(([k, v]) => [k, v.grade])),
     verify: ER_VERIFY,
     tier: access.tier,
-    ...(access.tier === "paid" ? { payment_received: paymentReceived(access, ER_PAID_ATOMIC) } : {}),
+    ...(access.tier === "paid" ? { payment_received: paymentReceived(access, ER_PAID_ATOMIC, cd) } : {}),
     price_usd: ER_PRICE_USD,
     worker_version: VERSION,
     permalink: CANON_ORIGIN + "/v1/receipts/" + id,
@@ -3922,15 +3940,15 @@ async function handleEndpointReport(req, env, ctx, url) {
 }
 
 // 0.40.1: what a paid receipt records about the payment we received (all public on-chain data; no headers, no signature)
-export function paymentReceived(access, amountAtomic) {
+export function paymentReceived(access, amountAtomic, c = null) {
   return {
     tier: access.tier,
     payer: access.payer ? String(access.payer).toLowerCase() : null,
     amount_atomic: String(amountAtomic),
     amount_usd: access.charged_usd != null ? String(access.charged_usd) : (Number(amountAtomic) / 1e6).toString(),
-    asset: USDC_BASE,
-    network: "eip155:8453",
+    asset: (c && c.asset) || USDC_BASE,
+    network: (c && c.network) || "eip155:8453",
     settle_tx: access.tx || null,
-    basescan_url: access.tx ? "https://basescan.org/tx/" + access.tx : null,
+    basescan_url: access.tx ? ((c && c.explorer) || "https://basescan.org") + "/tx/" + access.tx : null,
   };
 }
