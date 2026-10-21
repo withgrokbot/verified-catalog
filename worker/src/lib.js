@@ -49,6 +49,7 @@ import { expiryOpts, applyExpiry } from "./expiry.js";
 import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
 import { staleStep, STALE_REF } from "./stale.js";
 import { dailySeed, dailyStep, DAILY_CRON, DAILY_REF } from "./daily.js";
+import { privateFree, scrubView } from "./privacy.js";
 import { observation, recordHistory, historyObservations } from "./history.js";
 import { reasonFields, rulesJson, rulesHtml } from "./rules.js";
 import { qualityFor, qualityPublic, recordQuality } from "./quality.js";
@@ -58,7 +59,7 @@ import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 export { landingHtml };
-export const VERSION = "0.45.5";
+export const VERSION = "0.45.6";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1468,7 +1469,7 @@ export async function saveLiveReceipt(env, r) {
   // 0.38.0: with RECEIPT_SIGNING_KEY set, the receipt as served (normReceipt view) is signed once and stored as signed_view;
   // reads return that exact view so the signature keeps verifying. Without the secret: unsigned, unchanged.
   try {
-    const signed = await signObject(env, normReceipt(JSON.parse(JSON.stringify(r))));
+    const signed = await signObject(env, scrubView(normReceipt(JSON.parse(JSON.stringify(r)))).view); // 0.45.6: buyer data never signed into the public view
     if (signed) r = { ...r, signed_view: signed };
   } catch (_) {}
   try {
@@ -1568,7 +1569,7 @@ export async function publicReceipt(env, body) {
     const { client, signature, kid, ...rest } = v;
     v = signature ? (await signObject(env, rest)) || rest : rest;
   }
-  return v;
+  return privateFree(env, v); // 0.45.6: no buyer wallet, settle tx or payment proof in any public view
 }
 export async function getLiveReceipt(env, id) {
   if (!env.RECEIPTS_DB || !LIVE_RECEIPT_RE.test(id)) return null;
@@ -3392,7 +3393,8 @@ const routeInnerHolder = {
     if (path === "/v1/receipts/by-url" || /^\/v1\/receipts\/sc-/.test(path)) return handleLiveReceipts(req, env, url, path);
     if (path === "/v1/receipts" && url.searchParams.has("type")) return handleReceiptList(env, url);
     if (/^\/v1\/receipts\/ps-[0-9a-f]{16}$/.test(path)) {
-      const r = await receiptById(env, path.slice("/v1/receipts/".length));
+      const r0 = await receiptById(env, path.slice("/v1/receipts/".length));
+      const r = r0 ? await privateFree(env, r0) : null; // 0.45.6
       return r ? json(r, 200, { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" }) : json({ error: "no payment-status receipt with this id (only final answers are stored)" }, 404);
     }
     if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return handleReceipts(url, env);
