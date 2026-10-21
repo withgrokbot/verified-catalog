@@ -2659,7 +2659,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.45.4");
+  assert.equal(VERSION, "0.45.5");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -3799,6 +3799,44 @@ test("0.42.1 self-check: own hosts are served in-process (same-zone fetch fails)
   assert.equal(s.status, 200);
   assert.notEqual(s.body.reason_code, "server_error");
   assert.equal(s.body.verdict, "pay", JSON.stringify(s.body).slice(0, 300));
+});
+
+// ---------------------------------------------------------------- 0.45.5: crawler-safe templates
+test("0.45.5: paths with literal or encoded {placeholder} get a cheap 400 unfilled_template, never touching env (no D1/KV/fetch)", async () => {
+  const touched = [];
+  const env = new Proxy({}, { get(_, k) { touched.push(String(k)); throw new Error("env touched: " + String(k)); } });
+  const ofetch = globalThis.fetch; let fetched = 0; globalThis.fetch = async () => { fetched++; throw new Error("no fetch"); };
+  try {
+    for (const p of ["/reputation/%7Bhost%7D", "/v1/receipts/%7Bid%7D", "/badge/%7Bhost%7D", "/badge/%7bhost%7d.svg", "/reputation/{host}.json", "/x/%7D", "/v1/receipts/{id}"]) {
+      const res = await worker.fetch(new Request("https://api.402xagent.com" + p), env, { waitUntil() {} });
+      assert.equal(res.status, 400, p);
+      assert.match(res.headers.get("content-type"), /application\/json/);
+      assert.deepEqual(await res.json(), { error: "unfilled_template", message: "Replace {placeholder} with a real value", docs: "https://402xagent.com/llms.txt" }, p);
+    }
+  } finally { globalThis.fetch = ofetch; }
+  assert.deepEqual(touched, []); assert.equal(fetched, 0);
+  // a brace only in the query string is not a template path
+  assert.notEqual((await send("/health?x=%7Bid%7D")).body.error, "unfilled_template");
+});
+
+test("0.45.5: no bare {placeholder} templates a crawler could follow in llms.txt, docs, skips summary, home or OpenAPI prose; OpenAPI path params carry real examples", async () => {
+  const BARE = /\{(host|id|param|slug|name|domain|endpoint)\}|%7B|sc-<id>/i;
+  for (const p of ["/llms.txt", "/docs", "/", "/v1/receipts", "/.well-known/x402", "/rules.json", "/blog"]) {
+    const e = meteredEnv();
+    const res = await worker.fetch(new Request("https://402xagent.com" + p, { headers: { accept: p === "/docs" || p === "/" || p === "/blog" ? "text/html" : "*/*" } }), e.env, { waitUntil() {} });
+    const txt = await res.text();
+    const m = txt.match(BARE); assert.equal(m, null, p + ": " + (m && txt.slice(Math.max(0, m.index - 80), m.index + 40)));
+  }
+  const oa = (await send("/openapi.json")).body;
+  for (const [k, ops] of Object.entries(oa.paths)) {
+    const tpl = [...k.matchAll(/\{([a-z_]+)\}/g)].map((x) => x[1]);
+    for (const op of Object.values(ops)) {
+      assert.equal(BARE.test(JSON.stringify({ ...op, parameters: undefined })), false, k + ": template in prose");
+      for (const n of tpl) { const prm = (op.parameters || []).find((x) => x.name === n && x.in === "path"); assert.ok(prm && prm.required && prm.example, k + " param " + n); }
+    }
+  }
+  const { paths, ...rest } = oa; assert.equal(BARE.test(JSON.stringify(rest)), false, "templates only in paths keys");
+  assert.equal(oa.paths["/v1/receipts/{id}"].get.parameters[0].example, "006776f7b6");
 });
 
 let passed = 0, skipped = 0;
