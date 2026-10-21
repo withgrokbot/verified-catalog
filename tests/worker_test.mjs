@@ -2672,7 +2672,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.46.0");
+  assert.equal(VERSION, "0.46.1");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -3951,7 +3951,7 @@ const erSend = (body, o = {}) => send(ER, { method: "POST", body: JSON.stringify
 test("0.46.0 drift teaser: counts term changes in 30d (price, pay_to, network, asset); older and no-terms rows ignored; never says which or when", async () => {
   const t = (agoD, amount, payTo = CURW, net = "eip155:8453") => ({ observed_at: iso(now - agoD * D46), amount_atomic: amount, pay_to: payTo, network: net, asset: "0xa" });
   assert.deepEqual(R46.driftTeaser([], new Date(now)), { teaser: "no data yet", count_30d: null });
-  assert.deepEqual(R46.driftTeaser([t(1, "1"), t(2, "1")], new Date(now)), { teaser: "0 changes in 30d", count_30d: 0 });
+  assert.deepEqual(R46.driftTeaser([t(1, "1"), t(2, "1")], new Date(now)), { teaser: "no changes seen", count_30d: 0 }, "0.46.1: short history");
   assert.deepEqual(R46.driftTeaser([t(1, "1"), t(2, "2")], new Date(now)), { teaser: "1 change in 30d", count_30d: 1 });
   assert.deepEqual(R46.driftTeaser([t(1, "1"), { observed_at: iso(now - 1.5 * D46) }, t(2, "2", OLDW), t(3, "2", OLDW, "eip155:1"), t(40, "2", OLDW, "eip155:1"), t(45, "7", OLDW, "eip155:1")], new Date(now)), { teaser: "2 changes in 30d", count_30d: 2 });
   const snap = R46.driftSnapshot([t(1, "1"), t(2, "2", OLDW)], new Date(now));
@@ -4146,7 +4146,8 @@ test("0.46.0 discovery: with ENDPOINT_REPORT on, .well-known, OpenAPI, llms.txt,
   assert.ok(tl.includes("endpoint_report"));
   assert.ok(!(await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" }, { envo: offE })).body.result.tools.some((t) => t.name === "endpoint_report"));
   const wr = readFileSync(new URL("../worker/wrangler.toml", import.meta.url), "utf8");
-  assert.match(wr, /^ENDPOINT_REPORT = "off"/m, "off by default");
+  assert.match(wr, /^ENDPOINT_REPORT = "1"/m, "0.46.1: on in production");
+  assert.doesNotMatch(wr, /^PAYMENT_(PRESET|NETWORK|ASSET)/m, "production stays on the Base mainnet default");
   assert.ok(existsSync(new URL("../worker/migrations/0012_commitments_reports.sql", import.meta.url)));
 });
 
@@ -4174,6 +4175,49 @@ test("0.46.0 payment config: default (no env) accepts are byte-identical Base ma
   const pr = L46.paymentReceived({ tier: "paid", charged_usd: "0.05", tx: TX, payer: "0x" + "11".repeat(20) }, "50000", sc);
   assert.equal(pr.network, "eip155:84532"); assert.equal(pr.basescan_url, "https://sepolia.basescan.org/tx/" + TX);
   assert.equal(L46.paymentReceived({ tier: "paid", charged_usd: "0.02", tx: TX }, "20000").network, "eip155:8453", "default unchanged");
+});
+
+test("0.46.1 drift teaser: 0 changes with a capped or short history says 'no changes seen' (never '≥0'); a full 30-day window with 0 says '0 changes in 30d'; ≥N only for N>0", async () => {
+  const t = (agoD, amount) => ({ observed_at: iso(now - agoD * D46), amount_atomic: amount, pay_to: CURW, network: "eip155:8453", asset: "0xa" });
+  const capped0 = R46.driftTeaser(Array.from({ length: 30 }, (_, i) => t(i * 0.5, "1")), new Date(now));
+  assert.deepEqual(capped0, { teaser: "no changes seen", count_30d: 0 });
+  assert.deepEqual(R46.driftTeaser([t(1, "1"), t(20, "1"), t(35, "1")], new Date(now)), { teaser: "0 changes in 30d", count_30d: 0 });
+  assert.deepEqual(R46.driftTeaser([t(1, "1"), t(2, "2")], new Date(now)), { teaser: "1 change in 30d", count_30d: 1 });
+  const cappedN = R46.driftTeaser(Array.from({ length: 30 }, (_, i) => t(i * 0.5, i < 2 ? "1" : "2")), new Date(now));
+  assert.deepEqual(cappedN, { teaser: "≥1 change in 30d", count_30d: 1 });
+  for (let i = 0; i < 40; i++) assert.doesNotMatch(R46.driftTeaser(Array.from({ length: 30 }, (_, k) => t(k * (i / 20 + 0.1), String(k % (i % 3 + 1)))), new Date(now)).teaser, /≥0/);
+});
+
+test("0.46.1 endpoint-report 402 text names the active preset: 'USDC on Base' by default, 'USDC on Base Sepolia' on the testnet preset", async () => {
+  const body = { url: "https://api.402rates.com/v1/ping" };
+  const main = (await erSend(body, { envo: spotEnv({ ENDPOINT_REPORT: "1", RECEIPTS_DB: fakeD1() }) })).body;
+  assert.match(main.resource.description, /\$0\.05 USDC on Base\.$/); assert.equal(main.asset, "USDC on Base (eip155:8453)"); assert.match(main.error, /USDC on Base via x402/);
+  const sep = (await erSend(body, { envo: spotEnv({ ENDPOINT_REPORT: "1", PAYMENT_PRESET: "base-sepolia", RECEIPTS_DB: fakeD1() }) })).body;
+  assert.match(sep.resource.description, /\$0\.05 USDC on Base Sepolia\.$/); assert.equal(sep.asset, "USDC on Base Sepolia (eip155:84532)"); assert.match(sep.error, /USDC on Base Sepolia via x402/);
+  assert.equal(sep.accepts[0].network, "eip155:84532");
+});
+
+test("0.46.1 production vars (wrangler.toml): bare POST /v1/products/endpoint-report = 402 with one $0.05 Base mainnet USDC accept; listed in .well-known, OpenAPI, llms.txt, MCP, pricing with no bare templates", async () => {
+  const wr = readFileSync(new URL("../worker/wrangler.toml", import.meta.url), "utf8");
+  const vars = {}; for (const m of wr.split("[vars]")[1].split(/\n\[/)[0].matchAll(/^([A-Z_0-9]+) = "([^"]*)"/gm)) vars[m[1]] = m[2];
+  assert.equal(vars.ENDPOINT_REPORT, "1");
+  const e = spotEnv({ ...vars, RECEIPTS_DB: fakeD1() });
+  const r = await send(ER, { method: "POST", envo: e });
+  assert.equal(r.status, 402); assert.equal(r.body.discovery, true); assert.equal(r.body.price_usd, "0.05"); assert.equal(r.body.free_per_day, 0);
+  assert.deepEqual(r.body.accepts, [{ scheme: "exact", network: "eip155:8453", amount: "50000", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: vars.PAY_TO, maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" } }]);
+  assert.deepEqual(JSON.parse(Buffer.from(r.headers.get("payment-required"), "base64").toString()), r.body);
+  assert.equal(e.env.RECEIPTS_DB.ops.length, 0, "nothing read");
+  const BARE = /\{(host|id|param|slug|name|domain|endpoint)\}|%7B|sc-<id>/i;
+  const get = async (p, accept = "*/*") => (await worker.fetch(new Request("https://402xagent.com" + p, { headers: { accept } }), e.env, { waitUntil() {} })).text();
+  for (const [p, needle] of [["/.well-known/x402", "/v1/products/endpoint-report"], ["/openapi.json", "/v1/products/endpoint-report"], ["/llms.txt", "endpoint-report"], ["/pricing", "$0.05 per report"], ["/docs", 'id="endpoint-report"']]) {
+    const txt = await get(p, p === "/pricing" || p === "/docs" ? "text/html" : "*/*");
+    assert.ok(txt.includes(needle), p);
+    const scan = p === "/openapi.json" ? (() => { const o = JSON.parse(txt); return JSON.stringify({ ...o, paths: Object.values(o.paths) }); })() : txt; // templates allowed only as OpenAPI paths keys
+    assert.equal(scan.match(BARE), null, p + " bare template");
+  }
+  assert.ok(!(await get("/pricing", "text/html")).includes("rolling out"));
+  const tl = (await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" }, { envo: e })).body.result.tools;
+  const er = tl.find((x) => x.name === "endpoint_report"); assert.ok(er); assert.equal(JSON.stringify(er).match(BARE), null);
 });
 
 let passed = 0, skipped = 0;

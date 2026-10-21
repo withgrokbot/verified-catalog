@@ -67,6 +67,10 @@ export function driftTeaser(list, now = new Date()) {
   if (rows.filter(hasTerms).length < 2) return { teaser: "no data yet", count_30d: null };
   const s = driftSnapshot(rows, now);
   const n = s.changes.length;
+  // 0.46.1: a capped or short history (oldest row inside the window) with no change says "no changes seen", never "≥0"
+  const oldest = Date.parse(rows[rows.length - 1].observed_at);
+  const short = !(oldest < now.getTime() - DRIFT_WINDOW_DAYS * DAY);
+  if (n === 0 && (s.capped || short)) return { teaser: "no changes seen", count_30d: 0 };
   return { teaser: `${s.capped ? "≥" : ""}${n} change${n === 1 ? "" : "s"} in ${DRIFT_WINDOW_DAYS}d`, count_30d: n };
 }
 
