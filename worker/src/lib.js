@@ -51,7 +51,7 @@ import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
 import { staleStep, STALE_REF } from "./stale.js";
 import { dailySeed, dailyStep, DAILY_CRON, DAILY_REF } from "./daily.js";
 import { privateFree, scrubView } from "./privacy.js";
-import { ER_ID, ER_ROUTE_PATH, ER_PAID_ATOMIC, ER_PRICE_USD, ER_RECEIPT_RE, COMMIT_KEYS, GRADES, lockedBlock, commitSnapshots, loadCommitment, pruneCommitments, driftSnapshot, driftTeaser, hygieneSnapshot, receiptV2, gradeFor, explainOn, explainFree, explainPaid, explainReport, comparedFields, EXPLAIN_V } from "./report.js";
+import { ER_ID, ER_ROUTE_PATH, ER_PAID_ATOMIC, ER_PRICE_USD, ER_RECEIPT_RE, COMMIT_KEYS, GRADES, lockedBlock, commitSnapshots, loadCommitment, pruneCommitments, driftSnapshot, driftTeaser, hygieneSnapshot, receiptV2, gradeFor, explainOn, explainFree, explainPaid, explainReport, comparedFields, EXPLAIN_V, recheckOn, issueCredit, redeemCredit, refundCredit, pruneCredits, RECHECK_SECRET_RE, RECHECK_FAIL_PER_DAY, bulkOn, BULK_ROUTE_PATH, BULK_MAX, bulkAtomic, BULK_RETRY_DAYS } from "./report.js";
 import { observation, recordHistory, historyObservations, readHistory } from "./history.js";
 import { reasonFields, rulesJson, rulesHtml } from "./rules.js";
 import { qualityFor, qualityPublic, recordQuality } from "./quality.js";
@@ -3980,20 +3980,19 @@ async function handleEndpointReport(req, env, ctx, url) {
   const resourceUrl = url.origin + ER_ROUTE_PATH;
   const hdr = paymentHeader(req);
   const rb = await psReadBody(req, url);
-  const bad = (code, field, problem, status = 400) => json({ error: problem + ". Nothing was charged.", code, field, example: { method: "POST", url: API_ORIGIN + ER_ROUTE_PATH, body: ER_EXAMPLE_REQUEST }, docs: CANON_ORIGIN + "/docs#endpoint-report" }, status);
+  const bad = erBad;
   if (rb.error) return bad("bad_body", "body", "the body must be a JSON object");
   const b = rb.b;
   const qLike = { client: b.client || null, payer: null, errors: [], task: null, endpoint: null, max_price: null, n: 1, limit: 1, ref: b.ref || null };
-  if (!b.url && !hdr) {
+  const recheckReq = recheckOn(env) && b.recheck_of != null && b.recheck_of !== "";
+  if (!b.url && !hdr && !recheckReq) {
     const body = erPaymentRequired(cd, resourceUrl, "Missing url. POST JSON {\"url\": ..., \"commitment_ref\": ...} (commitment_ref from the free check's locked_commitments) to buy the report.", { discovery: true });
     return json(body, 402, { "payment-required": b64encode(body) });
   }
-  let target = null;
-  try { target = new URL(String(b.url || "")); } catch (_) {}
-  if (!target || !/^https?:$/.test(target.protocol) || !target.hostname) return bad("bad_url", "url", '"url" must be a full http(s) URL');
-  const ref = b.commitment_ref != null && b.commitment_ref !== "" ? String(b.commitment_ref) : null;
-  if (ref && !/^cm-[0-9a-f]{16}$/.test(ref)) return bad("bad_commitment_ref", "commitment_ref", '"commitment_ref" is cm- + 16 hex, from locked_commitments.ref of a free check');
-  const includeCurrent = b.include_current === true || ["1", "true", "yes"].includes(String(b.include_current ?? "").toLowerCase());
+  const p = erParseTarget(b);
+  if (p.error) return p.error;
+  const { target, ref, includeCurrent } = p;
+  if (recheckReq) return handleRecheck(req, env, ctx, { b, target, ref, includeCurrent, cd, resourceUrl });
   const exempt = isExempt(qLike, env);
   const deny = (error) => { const body = erPaymentRequired(cd, resourceUrl, error); return json(body, 402, { "payment-required": b64encode(body) }); };
   let payload = null;
@@ -4004,39 +4003,54 @@ async function handleEndpointReport(req, env, ctx, url) {
     const pbad = checkPayload(payload, cd);
     if (pbad) return deny("payment rejected: " + pbad);
   }
-  const unavailable = () => json({ error: "report store unavailable; nothing was charged, try again shortly", code: "store_unavailable" }, 503);
-  if (!env.RECEIPTS_DB) return unavailable();
-  const now = new Date();
+  if (!env.RECEIPTS_DB) return erUnavailable();
+  const getAccess = async () => {
+    if (exempt) return { access: { tier: "exempt" } };
+    const r = await verifyAndSettle(cd, payload, resourceUrl, { paidPath: true, description: `402xAgent endpoint report: $0.05 USDC on ${erNet(cd)} per report (no free tier).` });
+    if (!r.ok) return { response: deny("payment rejected: " + r.reason) };
+    const enc = b64encode(r.settle);
+    return { access: { tier: "paid", charged_usd: ER_PRICE_USD, tx: r.settle.transaction, payer: r.settle.payer || null }, headers: { "payment-response": enc, "x-payment-response": enc } };
+  };
+  const r = await erBuild(env, ctx, { target, ref, includeCurrent, cd, getAccess, issue: true });
+  return r.ok ? json(r.out, 200, r.headers) : r.response;
+}
+const erBad = (code, field, problem, status = 400) => json({ error: problem + ". Nothing was charged.", code, field, example: { method: "POST", url: API_ORIGIN + ER_ROUTE_PATH, body: ER_EXAMPLE_REQUEST }, docs: CANON_ORIGIN + "/docs#endpoint-report" }, status);
+const erUnavailable = (extra = {}) => json({ error: "report store unavailable; nothing was charged, try again shortly", code: "store_unavailable", ...extra }, 503);
+function erParseTarget(b, field = "url", bad = erBad) {
+  let target = null;
+  try { target = new URL(String(b.url || "")); } catch (_) {}
+  if (!target || !/^https?:$/.test(target.protocol) || !target.hostname) return { error: bad("bad_url", field, '"url" must be a full http(s) URL') };
+  const ref = b.commitment_ref != null && b.commitment_ref !== "" ? String(b.commitment_ref) : null;
+  if (ref && !/^cm-[0-9a-f]{16}$/.test(ref)) return { error: bad("bad_commitment_ref", "commitment_ref", '"commitment_ref" is cm- + 16 hex, from locked_commitments.ref of a free check') };
+  const includeCurrent = b.include_current === true || ["1", "true", "yes"].includes(String(b.include_current ?? "").toLowerCase());
+  return { target, ref, includeCurrent };
+}
+// One signed er- report (single, re-check, bulk item). getAccess runs AFTER the store reads succeed, so nothing is
+// settled when the store is down. Returns {ok, out, headers, id, hk} or {ok:false, response, code}.
+async function erBuild(env, ctx, { target, ref, includeCurrent, cd, getAccess, issue = false, extraBody = {}, id: fixedId = null, now = new Date() }) {
   const stamp = now.toISOString().replace(/\.\d{3}Z$/, "Z");
   const hk = await historyKey(target.toString());
   let cm = null, current = null;
   try {
     if (ref) {
       cm = await loadCommitment(env, ref, now);
-      if (!cm) return bad("commitment_not_found", "commitment_ref", "no live commitment with this ref (they expire after 30 days); omit commitment_ref to get a freshly committed report", 404);
-      if (cm.hkey !== hk) return bad("commitment_mismatch", "commitment_ref", "this commitment_ref belongs to a different endpoint URL");
+      if (!cm) return { ok: false, code: "commitment_not_found", response: erBad("commitment_not_found", "commitment_ref", "no live commitment with this ref (they expire after 30 days); omit commitment_ref to get a freshly committed report", 404) };
+      if (cm.hkey !== hk) return { ok: false, code: "commitment_mismatch", response: erBad("commitment_mismatch", "commitment_ref", "this commitment_ref belongs to a different endpoint URL") };
     }
     if (!cm || includeCurrent) {
       const fresh = await storedSnapshots(env, hk, now);
       if (!cm) {
         const c = await commitSnapshots(env, { hk, url: storedUrl(target.toString()), snapshots: fresh, now });
         cm = c ? await loadCommitment(env, c.ref, now) : null;
-        if (!cm) return unavailable();
+        if (!cm) return { ok: false, code: "store_unavailable", response: erUnavailable() };
       } else current = { computed_at: stamp, drift_history: fresh.drift_history, hygiene_detail: fresh.hygiene_detail, note: "stored data as of now; NOT covered by the commitment (the commitment covers revealed only)" };
     }
-  } catch (_) { return unavailable(); }
-  let access;
-  const extraHeaders = { "cache-control": "no-store" };
-  if (exempt) access = { tier: "exempt" };
-  else {
-    const r = await verifyAndSettle(cd, payload, resourceUrl, { paidPath: true, description: `402xAgent endpoint report: $0.05 USDC on ${erNet(cd)} per report (no free tier).` });
-    if (!r.ok) return deny("payment rejected: " + r.reason);
-    const enc = b64encode(r.settle);
-    extraHeaders["payment-response"] = enc;
-    extraHeaders["x-payment-response"] = enc;
-    access = { tier: "paid", charged_usd: ER_PRICE_USD, tx: r.settle.transaction, payer: r.settle.payer || null };
-  }
-  const id = newErId();
+  } catch (_) { return { ok: false, code: "store_unavailable", response: erUnavailable() }; }
+  const ga = await getAccess();
+  if (ga.response) return { ok: false, code: "payment", response: ga.response };
+  const access = ga.access;
+  const extraHeaders = { "cache-control": "no-store", ...(ga.headers || {}) };
+  const id = fixedId || newErId();
   const body = {
     id, type: ER_ID, service: "402xAgent endpoint report", url: storedUrl(target.toString()), checked_at: stamp,
     commitment_ref: cm.ref, committed_at: cm.created_at, expires_at: cm.expires_at,
@@ -4048,15 +4062,72 @@ async function handleEndpointReport(req, env, ctx, url) {
     verify: ER_VERIFY,
     tier: access.tier,
     ...(access.tier === "paid" ? { payment_received: paymentReceived(access, ER_PAID_ATOMIC, cd) } : {}),
+    ...extraBody,
     price_usd: ER_PRICE_USD,
     worker_version: VERSION,
     permalink: CANON_ORIGIN + "/v1/receipts/" + id,
   };
   const signed = (await signObject(env, body)) || body;
-  try { await env.RECEIPTS_DB.prepare("INSERT INTO endpoint_reports (id, created_at, body) VALUES (?, ?, ?)").bind(id, stamp, JSON.stringify(signed)).run(); } catch (_) { signed.stored = false; }
-  const prune = pruneCommitments(env, now);
+  let stored = true;
+  try { await env.RECEIPTS_DB.prepare("INSERT INTO endpoint_reports (id, created_at, body) VALUES (?, ?, ?)").bind(id, stamp, JSON.stringify(signed)).run(); } catch (_) { stored = false; signed.stored = false; }
+  const prune = Promise.all([pruneCommitments(env, now), recheckOn(env) ? pruneCredits(env, now) : null]);
   if (ctx && ctx.waitUntil) ctx.waitUntil(prune); else await prune;
-  return json(signed, 200, extraHeaders);
+  // 0.49.0 (RECHECK): the one-time secret goes OUTSIDE the signed object (never stored in clear, never in a public view)
+  let out = signed;
+  if (issue && recheckOn(env) && access.tier !== "exempt") {
+    let credit = null;
+    if (stored && env.RECHECK_PEPPER) { try { credit = await issueCredit(env, { receiptId: id, hkey: hk, kind: "window", now }); } catch (_) { credit = null; } }
+    out = { ...signed, recheck: credit ? recheckOffer(credit) : { available: false, reason: "re-check store unavailable for this report" } };
+  }
+  return { ok: true, out, signed, headers: extraHeaders, id, hk };
+}
+export function recheckOffer(c) {
+  return {
+    available: true, secret: c.secret, receipt_id: c.receipt_id, kind: c.kind, max_uses: c.max_uses, expires_at: c.expires_at,
+    how: `POST ${API_ORIGIN}${ER_ROUTE_PATH} with JSON {"url": <same endpoint>, "recheck_of": "${c.receipt_id}"} and header X-Recheck-Secret: <secret>. No payment. The secret is shown once and is not part of the signed receipt; keep it private.`,
+  };
+}
+const RK_DOC = "https://api.402xagent.com/openapi.json";
+async function handleRecheck(req, env, ctx, { b, target, ref, includeCurrent, cd, resourceUrl }) {
+  const id = String(b.recheck_of);
+  if (!ER_RECEIPT_RE.test(id)) return erBad("bad_recheck_of", "recheck_of", '"recheck_of" is the er- id of your paid report (er- + 16 hex)');
+  if (!env.RECEIPTS_DB || !env.RECHECK_PEPPER) return json({ error: "re-check store unavailable; nothing was charged, try again shortly", code: "store_unavailable" }, 503);
+  const now = new Date();
+  const fk = "rf:" + (await quotaKey(req, {}, env, now));
+  const toMidnight = () => Math.max(1, Math.ceil((Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1) - now.getTime()) / 1000));
+  const limited = (retry, extra = {}) => json({ error: "too many re-check attempts; try again later", code: "recheck_rate_limited", retry_after_s: retry, ...extra }, 429, { "retry-after": String(retry) });
+  const lim = await takeFree(env, fk, RECHECK_FAIL_PER_DAY, now, "peek", "recheck-fail");
+  if (!lim.free && lim.used != null) return limited(toMidnight());
+  const secret = req.headers.get("x-recheck-secret") || "";
+  const unauth = async () => {
+    await takeFree(env, fk, RECHECK_FAIL_PER_DAY, now, "take", "recheck-fail");
+    return json({ error: "re-check not authorized: send header X-Recheck-Secret with the rks_ secret returned once with the paid report. Nothing was charged.", code: "recheck_unauthorized", field: "X-Recheck-Secret", expected: "rks_ + 64 hex (recheck.secret from the paid response)", received: secret ? "[not echoed]" : "[not sent]", openapi: RK_DOC }, 401, { "www-authenticate": "X-Recheck-Secret" });
+  };
+  if (!RECHECK_SECRET_RE.test(secret)) return unauth();
+  const hk = await historyKey(target.toString());
+  let red;
+  try { red = await redeemCredit(env, { receiptId: id, secret, hkey: hk, now }); } catch (_) { return json({ error: "re-check store unavailable; nothing was charged, try again shortly", code: "store_unavailable" }, 503); }
+  const state = (x) => ({ used: x.used, max_uses: x.max_uses, expires_at: x.expires_at, kind: x.kind });
+  if (!red.ok) {
+    if (red.code === "recheck_unauthorized") return unauth();
+    if (red.code === "recheck_wrong_endpoint") return json({ error: "this re-check secret belongs to a different endpoint. Nothing was charged.", code: red.code, field: "url", expected: "the same endpoint URL as " + id, received: storedUrl(target.toString()), openapi: RK_DOC }, 409);
+    if (red.code === "recheck_rate_limited") return limited(red.retry_after_s, { recheck: state(red) });
+    const msg = red.code === "recheck_expired" ? "the re-check window has expired" : "all re-checks in this window are used";
+    const body = erPaymentRequired(cd, resourceUrl, `${msg}; pay $0.05 for a new report (it comes with a new window)`, { code: red.code, recheck: state(red) });
+    return json(body, 402, { "payment-required": b64encode(body) });
+  }
+  const tier = red.kind === "bulk_retry" ? "bulk_retry" : "recheck";
+  const r = await erBuild(env, ctx, { target, ref, includeCurrent: red.kind === "window" ? true : includeCurrent, cd, now,
+    getAccess: async () => ({ access: { tier } }), extraBody: { recheck_of: id, recheck: state(red) }, id: red.kind === "bulk_retry" ? id : null });
+  if (!r.ok) {
+    const refunded = await refundCredit(env, id);
+    if (r.response.status >= 500) return erUnavailable({ credit_refunded: refunded });
+    const j = await r.response.json().catch(() => ({}));
+    return json({ ...j, credit_refunded: refunded }, r.response.status);
+  }
+  const fw = writeFunnel(env.RECEIPTS_DB, [[ER_ROUTE_PATH, "outside", tier, ""]]).catch(() => {});
+  if (ctx && ctx.waitUntil) ctx.waitUntil(fw); else await fw;
+  return json(r.out, 200, r.headers);
 }
 
 // 0.40.1: what a paid receipt records about the payment we received (all public on-chain data; no headers, no signature)
