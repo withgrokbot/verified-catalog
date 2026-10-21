@@ -155,6 +155,94 @@ test("recheck: atomic counter (parallel redeems at 9 used -> exactly one wins); 
   assert.equal((await recheck(noPep, p.j.id, "rks_" + "1".repeat(64))).status, 503);
 });
 
+// ---------------------------------------------------------------- 3) bulk report
+const BULK = "/v1/products/endpoint-report/bulk";
+const urls = (n) => Array.from({ length: n }, (_, i) => `https://seller${i}.example.test/api/x`);
+test("bulk: off -> 404; bare 402 discovery; price min(n x 50000, 200000); 6 URLs / bad URL / duplicate -> 400 with nothing verified or settled", async () => {
+  assert.equal((await setup({ BULK_REPORT: undefined }).call("POST", BULK, { body: { urls: urls(2) } })).status, 404);
+  const t = setup();
+  const bare = await t.call("POST", BULK, { body: {} });
+  assert.equal(bare.status, 402); assert.equal(bare.j.discovery, true); assert.equal(bare.j.accepts[0].amount, "200000");
+  for (const [n, amt] of [[1, "50000"], [2, "100000"], [3, "150000"], [4, "200000"], [5, "200000"]]) {
+    const r = await t.call("POST", BULK, { body: { urls: urls(n) } });
+    assert.equal(r.status, 402); assert.equal(r.j.accepts[0].amount, amt, "n=" + n); assert.equal(r.j.accepts[0].network, "eip155:8453"); assert.equal(r.j.urls_count, n);
+  }
+  assert.equal(R.bulkAtomic(1), "50000"); assert.equal(R.bulkAtomic(5), "200000");
+  const v0 = fac.verifies, s0 = fac.settles;
+  const six = await t.call("POST", BULK, { body: { urls: urls(6) }, headers: pay("200000") });
+  assert.equal(six.status, 400); assert.equal(six.j.field, "urls");
+  const badu = await t.call("POST", BULK, { body: { urls: [urls(1)[0], "ftp://nope"] }, headers: pay("100000") });
+  assert.equal(badu.status, 400); assert.equal(badu.j.field, "urls[1]");
+  const dup = await t.call("POST", BULK, { body: { urls: [U, U + "/"] }, headers: pay("100000") });
+  assert.equal(dup.status, 400); assert.equal(dup.j.code, "duplicate_url");
+  const wrong = await t.call("POST", BULK, { body: { urls: urls(3) }, headers: pay("200000") });
+  assert.equal(wrong.status, 402); assert.match(wrong.j.error, /amount does not match/, "3 URLs must pay 150000, not the cap");
+  assert.equal(fac.verifies, v0); assert.equal(fac.settles, s0, "nothing verified or settled");
+  const listed = await t.call("GET", "/.well-known/x402");
+  assert.ok(listed.j.resources.includes("https://api.402xagent.com" + BULK));
+});
+
+test("bulk: 5 URLs, one settlement; 5 signed er- (bulk_id/index) + signed eb- envelope; per-URL re-check windows; privacy", async () => {
+  const t = setup();
+  const s0 = fac.settles;
+  const r = await t.call("POST", BULK, { body: { urls: urls(5) }, headers: pay("200000") });
+  assert.equal(r.status, 200, r.text); assert.equal(fac.settles, s0 + 1, "one settlement"); assert.ok(r.headers.get("payment-response"));
+  assert.match(r.j.bulk_id, R.EB_RECEIPT_RE); assert.equal(r.j.results.length, 5);
+  for (const [i, x] of r.j.results.entries()) {
+    assert.equal(x.status, "ok"); assert.equal(x.index, i); assert.equal(x.receipt.bulk_id, r.j.bulk_id); assert.equal(x.receipt.bulk_index, i); assert.equal(x.receipt.tier, "bulk");
+    assert.ok(x.receipt.signature, "each item signed"); assert.match(x.receipt.explain, /term change/);
+    assert.equal(x.recheck.available, true); assert.equal(x.recheck.max_uses, 10);
+    assert.ok(!JSON.stringify(x.receipt).includes("rks_"), "secret outside the signed item");
+  }
+  const E = r.j.envelope;
+  assert.equal(E.count, 5); assert.equal(E.ok, 5); assert.equal(E.amount_atomic, "200000"); assert.ok(E.signature); assert.equal(E.payment_received.amount_atomic, "200000");
+  const one = r.j.results[2];
+  assert.equal((await recheck(t, one.receipt_id, one.recheck.secret, urls(5)[2])).status, 200, "bulk item re-check works");
+  const pub = await t.call("GET", "/v1/receipts/" + r.j.bulk_id);
+  assert.equal(pub.status, 200); assert.equal(pub.j.id, r.j.bulk_id);
+  const dump = (JSON.stringify([t.sql("SELECT * FROM recheck_credits"), t.sql("SELECT * FROM paywall_daily"), t.sql("SELECT * FROM notfound_daily")]) + pub.text).toLowerCase();
+  for (const x of [PAYER.slice(2), TXH.slice(2), "203.0.113", "rks_"]) assert.ok(!dump.includes(x), x);
+  const fn = Object.fromEntries(t.sql("SELECT event, SUM(n) n FROM paywall_daily WHERE route = ? GROUP BY event", BULK).map((x) => [x.event, x.n]));
+  assert.equal(fn.settled, 1); assert.equal(fn.attempt, 1);
+});
+
+test("bulk: a URL that fails after payment -> failed item + single-use 7-day bulk_retry credit that redeems once to a full report; credit store down -> unfulfilled logged", async () => {
+  const t = setup();
+  const list = urls(3);
+  const r = await t.call("POST", BULK, { body: { urls: list, commitment_refs: { [list[1]]: "cm-0123456789abcdef" } }, headers: pay("150000") });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(r.j.results.map((x) => x.status), ["ok", "failed", "ok"]);
+  const f = r.j.results[1];
+  assert.equal(f.error.code, "commitment_not_found"); assert.equal(f.credit.kind, "bulk_retry"); assert.equal(f.credit.max_uses, 1); assert.match(f.credit.secret, R.RECHECK_SECRET_RE);
+  const days = (Date.parse(f.credit.expires_at) - Date.now()) / 86400000; assert.ok(days > 6.9 && days <= 7.01, String(days));
+  assert.equal(r.j.envelope.failed, 1); assert.equal(r.j.envelope.items[1].credit_receipt_id, f.credit.receipt_id);
+  const red = await recheck(t, f.credit.receipt_id, f.credit.secret, list[1]);
+  assert.equal(red.status, 200, red.text); assert.equal(red.j.id, f.credit.receipt_id, "the reserved id becomes the report"); assert.equal(red.j.tier, "bulk_retry"); assert.ok(red.j.revealed);
+  clearGap(t, f.credit.receipt_id);
+  const again = await recheck(t, f.credit.receipt_id, f.credit.secret, list[1]);
+  assert.equal(again.status, 402); assert.equal(again.j.code, "recheck_exhausted", "single use");
+  // credit store down after settlement: item marked unfulfilled + counted for the manual path
+  const t2 = setup({ RECHECK: undefined });
+  const r2 = await t2.call("POST", BULK, { body: { urls: list.slice(0, 2), commitment_refs: { [list[0]]: "cm-0123456789abcdef" } }, headers: pay("100000") });
+  assert.equal(r2.j.results[0].credit, null); assert.equal(r2.j.results[0].unfulfilled, true);
+  assert.equal(t2.sql("SELECT n FROM paywall_daily WHERE event = 'bulk_unfulfilled'")[0].n, 1);
+  // store down BEFORE settlement: 503, nothing settled
+  const t3 = setup(); const s0 = fac.settles;
+  d1.fail = /endpoint_bulk/;
+  const r3 = await t3.call("POST", BULK, { body: { urls: list }, headers: pay("150000") });
+  d1.fail = null;
+  assert.equal(r3.status, 503); assert.equal(fac.settles, s0);
+});
+
+test("bulk: CPU/time budget: 5 URLs well under 150 ms of handler time locally", async () => {
+  const t = setup();
+  await t.call("POST", BULK, { body: { urls: urls(5) }, headers: pay("200000") }); // warm
+  const t0 = performance.now();
+  const r = await t.call("POST", BULK, { body: { urls: urls(5).map((u) => u + "2") }, headers: pay("200000") });
+  const ms = performance.now() - t0;
+  assert.equal(r.status, 200); assert.ok(ms < 150, ms.toFixed(1) + " ms");
+});
+
 let pass = 0, fail = 0;
 for (const { name, fn } of tests) {
   try { await fn(); pass++; console.log("PASS " + name); } catch (e) { fail++; console.log("FAIL " + name + "\n  " + String((e && e.stack) || e).split("\n").slice(0, 7).join("\n  ")); }
