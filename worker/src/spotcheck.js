@@ -240,6 +240,7 @@ export function parseX402Challenge({ status, headers, bodyText }) {
     accepts,
     quoted_price_usd: quoted,
     known_answer: shapeValid ? true : present ? false : null,
+    x402_version: challenge && challenge.x402Version != null && Number.isFinite(Number(challenge.x402Version)) ? Number(challenge.x402Version) : null, // 0.46.0 receipt_v2
     challenge_error: challenge && challenge.error ? String(challenge.error).slice(0, 200) : null,
   };
 }

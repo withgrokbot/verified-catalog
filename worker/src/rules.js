@@ -1,3 +1,4 @@
+import { GRADES } from "./report.js";
 // 0.30.0: stable reason codes + confidence, published at /rules (HTML) and /rules.json. Additive only: the human
 // reason stays in `reason` (free) / `reason_text` (receipts); `reason_code` is the stable machine code.
 import { REASON_TEXT } from "./recent.js";
@@ -56,6 +57,7 @@ export function rulesJson(origin) {
     confidence: { levels: ["high", "medium", "low"], rules: CONFIDENCE_RULES },
     // 0.37.0 (additive, separate from reason_code: never changes a verdict)
     quality_codes: QUALITY_CODES.map((q) => ({ code: q.code, reputation_value: q.score, rule: q.rule })),
+    hygiene_grades: Object.fromEntries(Object.entries(GRADES).map(([k, v]) => [k, v.reason ? { grade: v.grade, reason: v.reason } : { grade: v.grade }])), // 0.46.0 locked teaser grade
     reputation: REPUTATION_RULES,
     fields: {
       reason_code: "stable machine code (this list); never renamed, new codes may be added",
