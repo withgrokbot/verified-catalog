@@ -70,7 +70,7 @@ SPOT_FREE_PER_IP_DAY = "25"
 SAVES_PAGE = "on"
 SPOT_PAID_PER_HOUR = "30"
 ENDPOINT_REPORT = "1"  # 0.46.1: paid /v1/products/endpoint-report on (migration 0012 applied); Base mainnet (no PAYMENT_* vars)
-WATCHTOWER = "off"  # 0.47.0: /v1/watch + cron re-probe; turn on only after migration 0013 is applied and the Sepolia + 48 h self-test pass
+WATCHTOWER = "1"  # 0.47.0: Watchtower on (migration 0013 applied); Base mainnet preset (no PAYMENT_* vars)
 # Payment network (0.46.0): unset = Base mainnet (prod). Local testnet only: --var PAYMENT_PRESET:base-sepolia --var FACILITATOR_URL:https://x402.org/facilitator
 # (eip155:84532, USDC 0x036CbD53842c5426634e7929541eC2318f3dCF7e). Optional overrides: PAYMENT_NETWORK, PAYMENT_ASSET, PAYMENT_ASSET_NAME, PAYMENT_ASSET_VERSION.
 

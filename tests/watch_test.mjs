@@ -403,9 +403,12 @@ test("privacy sweep: no payer wallet, tx hash, payment payload or client IP in a
   assert.ok(!all.replace(c.text, "").includes(c.j.watch_secret)); // the secret appears only in the create answer
 });
 
-test("flag + listings: WATCHTOWER off (wrangler.toml default) -> /v1/watch 404 and not listed; on -> .well-known, OpenAPI (path params with examples), llms.txt, docs, pricing list it with concrete examples, no bare templates", async () => {
+test("flag + listings: wrangler.toml WATCHTOWER on with a $1 Base mainnet 402; off -> /v1/watch 404 and not listed; on -> .well-known, OpenAPI (path params with examples), llms.txt, docs, pricing list it with concrete examples, no bare templates", async () => {
   const toml = readFileSync(join(ROOT, "worker", "wrangler.toml"), "utf8");
-  assert.match(toml, /^WATCHTOWER = "off"/m);
+  assert.match(toml, /^WATCHTOWER = "1"/m); // 0.47.0 production: on, Base mainnet preset
+  assert.ok(!/^PAYMENT_(PRESET|NETWORK|ASSET)/m.test(toml));
+  { const pr = await worker.fetch(new Request("https://api.402xagent.com/v1/watch", { method: "POST" }), { WATCHTOWER: "1", RECEIPTS_DB: d1(), WATCH_PEPPER: "p", RECEIPT_SIGNING_KEY: JSON.stringify(jwk) }, { waitUntil() {} });
+    const j = await pr.json(); assert.equal(pr.status, 402); assert.equal(j.accepts.length, 1); assert.equal(j.accepts[0].network, "eip155:8453"); assert.equal(j.accepts[0].amount, "1000000"); assert.equal(j.accepts[0].asset, "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"); }
   assert.ok(!/WATCH_DEV_LOCAL/.test(toml.replace(/#.*$/gm, "")));
   assert.equal(existsMig(), true);
   const get = async (env, p, init) => worker.fetch(new Request("https://api.402xagent.com" + p, init), env, { waitUntil() {} });
