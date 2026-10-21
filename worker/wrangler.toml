@@ -73,6 +73,8 @@ ENDPOINT_REPORT = "1"  # 0.46.1: paid /v1/products/endpoint-report on (migration
 WATCHTOWER = "1"  # 0.47.0: Watchtower on (migration 0013 applied); Base mainnet preset (no PAYMENT_* vars)
 # 0.48.0 ops counters (migration 0014): paywall funnel + 404 path log in D1. OPS_COUNTERS = "off" disables. Optional DRILL_WALLETS
 # (comma list of the drill wallet addresses) marks those payers as self traffic, like PAY_TO; unset = only PAY_TO is self.
+# 0.49.0 flags, all OFF by default (see docs/deploy-0.49.0.md): EXPLAIN_LINE = "1" (explanation line), RECHECK = "1" (24 h / 10 re-check
+# window; needs migration 0015 + secret RECHECK_PEPPER), BULK_REPORT = "1" (bulk endpoint report; needs 0015, ENDPOINT_REPORT and RECHECK for credits).
 # Payment network (0.46.0): unset = Base mainnet (prod). Local testnet only: --var PAYMENT_PRESET:base-sepolia --var FACILITATOR_URL:https://x402.org/facilitator
 # (eip155:84532, USDC 0x036CbD53842c5426634e7929541eC2318f3dCF7e). Optional overrides: PAYMENT_NETWORK, PAYMENT_ASSET, PAYMENT_ASSET_NAME, PAYMENT_ASSET_VERSION.
 

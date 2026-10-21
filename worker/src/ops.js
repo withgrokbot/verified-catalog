@@ -17,7 +17,7 @@ const day = (d = new Date()) => new Date(d).toISOString().slice(0, 10);
 // Routes that can answer 402. Anything else that answers 402 is counted under its normalized path.
 export function paywallRoute(path) {
   if (path === "/v1/lookup/paid" || path === "/v1/products/overnight-cos-pack" || path === "/v1/products/endpoint-spot-check" ||
-      path === "/v1/products/payment-status" || path === "/v1/products/endpoint-report" || path === "/v1/watch") return path;
+      path === "/v1/products/payment-status" || path === "/v1/products/endpoint-report" || path === "/v1/products/endpoint-report/bulk" || path === "/v1/watch") return path;
   if (/^\/v1\/watch\/wt-[0-9a-f]{16}\/renew$/.test(path)) return "/v1/watch/:id/renew";
   return "";
 }
