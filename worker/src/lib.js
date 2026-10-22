@@ -60,9 +60,9 @@ import { handleBadge, badgeSnippets } from "./badge.js";
 import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
-import { paywallRoute, segmentOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
+import { inputError, INPUT_ERROR_HEADER, paywallRoute, segmentOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.49.0";
+export const VERSION = "0.49.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -2676,6 +2676,14 @@ function lookupBody(q, data, out, access) {
     };
 }
 
+export function lookupUsage() {
+  return {
+    usage: "GET /v1/lookup?task=<task slug>&max_price=<USD>&n=<1-20>, or ?endpoint=<url> for one service. 5 free lookups per client per UTC day, then /v1/lookup/paid.",
+    examples: [CANON_ORIGIN + "/v1/lookup?task=web-search&max_price=0.01&n=5", CANON_ORIGIN + "/v1/lookup?task=crypto-market-data&max_price=0.05&n=3", CANON_ORIGIN + "/v1/lookup?endpoint=https://api.402rates.com/v1/ping"],
+    params: { task: "a task slug from /v1/tasks", max_price: "non-negative USD number", n: "1-20 (default 5)", endpoint: "a full http(s) URL (instead of task)", client: "optional client name (1-64 chars)" },
+    tasks: CANON_ORIGIN + "/v1/tasks", paid: CANON_ORIGIN + "/v1/lookup/paid?task=web-search&max_price=0.01&n=5", openapi: API_ORIGIN + "/openapi.json", skill: API_ORIGIN + "/skill.md",
+  };
+}
 async function handleLookup(req, env, ctx, url) {
   const q = parseQuery(url);
   const cid = await clientId(req, q, env);
@@ -2683,6 +2691,11 @@ async function handleLookup(req, env, ctx, url) {
   const ua = req.headers.get("user-agent") || "";
   const referer = refererHost(req);
   const c = cfg(env);
+  // 0.49.1: a bare GET (no task/endpoint/other params) is a usage request: 200 with examples, no data load, no quota used
+  if (![...url.searchParams.keys()].some((k) => !["client", "ref"].includes(k))) {
+    writePoint(env, dataPoint({ product: "lookup", cid, q, excluded, candidates: 0, ua, returnedPayTo: [], status: 200, referer, access: "lookup-usage" }));
+    return json(lookupUsage(), 200, { "cache-control": "public, max-age=300" });
+  }
   if (!q.task && !q.endpoint) q.errors.push("task or endpoint is required (see /v1/tasks)");
   let data;
   try {
@@ -3367,11 +3380,12 @@ async function opsWrap(req, env, ctx, inner) {
         const segment = segmentOf(payload, env, cfg(env).payTo);
         const settled = !!(res.headers.get("payment-response") || res.headers.get("x-payment-response")) && res.status < 400;
         const status = res.status;
+        const inputErr = res.headers.get(INPUT_ERROR_HEADER);
         const errClone = hasPayment && !settled && status === 402 ? res.clone() : null;
         later((async () => {
           let errText = "";
           if (errClone) { try { const j = await errClone.json(); errText = String(j.error || j.reason || ""); } catch (_) {} }
-          await writeFunnel(db, funnelRows({ route, hasPayment, status, settled, errText, segment }));
+          await writeFunnel(db, funnelRows({ route, hasPayment, status, settled, errText, segment, inputError: !!inputErr }));
         })());
       } else if (res.status === 404 && path !== "/v1/ops/stats" && path !== "/v1/watch/stats") {
         later(writeNotFound(db, req.method, path));
@@ -3989,7 +4003,14 @@ async function handleEndpointReport(req, env, ctx, url) {
   const resourceUrl = url.origin + ER_ROUTE_PATH;
   const hdr = paymentHeader(req);
   const rb = await psReadBody(req, url);
-  const bad = erBad;
+  // 0.49.1: without a payment header, bad input gets the normal $0.05 402 + input_error (re-checks keep their 400s/401s)
+  const softOk = !hdr && !(recheckOn(env) && rb.b && rb.b.recheck_of != null && rb.b.recheck_of !== "");
+  const bad = softOk ? (code, field, problem, status = 400) => {
+    if (status !== 400) return erBad(code, field, problem, status);
+    const src = rb.b || {};
+    const body = erPaymentRequired(cd, resourceUrl, problem + ". Nothing was charged.", inputError({ code, field, expected: problem.replace(/^"[a-z_]+" (must be|is) /, ""), received: field === "body" ? "[not a JSON object]" : src[field] }));
+    return json(body, 402, { "payment-required": b64encode(body), [INPUT_ERROR_HEADER]: field });
+  } : erBad;
   if (rb.error) return bad("bad_body", "body", "the body must be a JSON object");
   const b = rb.b;
   const qLike = { client: b.client || null, payer: null, errors: [], task: null, endpoint: null, max_price: null, n: 1, limit: 1, ref: b.ref || null };
@@ -3998,7 +4019,7 @@ async function handleEndpointReport(req, env, ctx, url) {
     const body = erPaymentRequired(cd, resourceUrl, "Missing url. POST JSON {\"url\": ..., \"commitment_ref\": ...} (commitment_ref from the free check's locked_commitments) to buy the report.", { discovery: true });
     return json(body, 402, { "payment-required": b64encode(body) });
   }
-  const p = erParseTarget(b);
+  const p = erParseTarget(b, "url", bad);
   if (p.error) return p.error;
   const { target, ref, includeCurrent } = p;
   if (recheckReq) return handleRecheck(req, env, ctx, { b, target, ref, includeCurrent, cd, resourceUrl });
@@ -4119,8 +4140,19 @@ async function handleBulkReport(req, env, ctx, url) {
   if (!endpointReportOn(env) || !bulkOn(env)) return json({ error: "bulk endpoint-report is not enabled yet", code: "not_enabled", docs: CANON_ORIGIN + "/docs#endpoint-report" }, 404);
   const resourceUrl = url.origin + BULK_ROUTE_PATH;
   const hdr = paymentHeader(req);
-  const bad = (code, field, problem, status = 400) => json({ error: problem + ". Nothing was charged.", code, field, example: { method: "POST", url: API_ORIGIN + BULK_ROUTE_PATH, body: BULK_EXAMPLE_REQUEST }, docs: CANON_ORIGIN + "/docs#endpoint-report" }, status);
+  const bad400 = (code, field, problem, status = 400) => json({ error: problem + ". Nothing was charged.", code, field, example: { method: "POST", url: API_ORIGIN + BULK_ROUTE_PATH, body: BULK_EXAMPLE_REQUEST }, docs: CANON_ORIGIN + "/docs#endpoint-report" }, status);
   const rb = await psReadBody(req, url);
+  // 0.49.1: without a payment header, bad input gets a 402 + input_error. Price shown: n = the number of entries sent when
+  // urls is a non-empty array (capped at 5, so it never exceeds $0.20), else the 1-URL price ($0.05). Informational only.
+  const bad = hdr ? bad400 : (code, field, problem, status = 400) => {
+    if (status !== 400) return bad400(code, field, problem, status);
+    const src = rb.b || {};
+    const n0 = Array.isArray(src.urls) && src.urls.length ? Math.min(src.urls.length, BULK_MAX) : 1;
+    const m = /^urls\[(\d+)\]$/.exec(field);
+    const received = field === "body" ? "[not a JSON object]" : m ? (Array.isArray(src.urls) ? src.urls[Number(m[1])] : undefined) : field === "urls" ? (Array.isArray(src.urls) ? `[array of ${src.urls.length}]` : src.urls) : src[field];
+    const body = bulkPaymentRequired(bulkCfg(env, n0), resourceUrl, problem + ". Nothing was charged.", n0, inputError({ code, field, expected: problem, received }));
+    return json(body, 402, { "payment-required": b64encode(body), [INPUT_ERROR_HEADER]: field });
+  };
   if (rb.error) return bad("bad_body", "body", "the body must be a JSON object");
   const b = rb.b;
   if (b.urls == null && !hdr) {

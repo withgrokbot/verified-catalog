@@ -4,7 +4,7 @@
 // all trial / rate-limit keys are stored only as hashes. Plan: docs/plan-watchtower.md.
 import { assertSafeUrl, resolveHost, parseX402Challenge } from "./spotcheck.js";
 import { canonicalize, signObject, signBytes } from "./sign.js";
-import { methodNotAllowed } from "./ops.js";
+import { methodNotAllowed, inputError, INPUT_ERROR_HEADER } from "./ops.js";
 
 export const WATCH_PRICE_ATOMIC = "1000000";
 export const WATCH_PRICE_USD = "1.00";
@@ -339,7 +339,7 @@ function paymentRequired(cd, deps, resourceUrl, error, extra = {}) {
     how_to_pay: "Retry the same request with a PAYMENT-SIGNATURE header (x402 v2; X-PAYMENT also accepted) for the amount and payTo above.",
     docs: "https://402xagent.com/docs#watchtower", ...extra,
   };
-  return jsonResp(body, 402, { "payment-required": deps.b64encode(body) });
+  return jsonResp(body, 402, { "payment-required": deps.b64encode(body), ...(extra.input_error ? { [INPUT_ERROR_HEADER]: extra.input_error.field } : {}) });
 }
 async function readBody(req) { try { const t = await req.text(); if (!t) return {}; const b = JSON.parse(t); return b && typeof b === "object" && !Array.isArray(b) ? b : null; } catch (_) { return null; } }
 async function settle(req, cd, deps, resourceUrl) {
@@ -400,23 +400,26 @@ export async function handleWatch(req, env, ctx, url, deps) {
   if (path === "/v1/watch") {
     if (req.method !== "POST") return paymentRequired(cd, deps, url.origin + "/v1/watch", "POST JSON {url, method?, webhook_url} to create a watch.", { discovery: true });
     const b = await readBody(req);
-    if (!b) return bad("bad_body", "body", "the body must be a JSON object");
+    // 0.49.1: no payment header + bad input -> the normal 402 + input_error (price/accepts unchanged); with a header: strict 400
+    const soft = (code, field, msg, received) => deps.paymentHeader(req) ? bad(code, field, msg)
+      : paymentRequired(cd, deps, url.origin + "/v1/watch", msg + ". Nothing was charged.", inputError({ code, field, expected: msg, received }));
+    if (!b) return soft("bad_body", "body", "the body must be a JSON object", "[not a JSON object]");
     if (!b.url && !b.webhook_url && !deps.paymentHeader(req)) return paymentRequired(cd, deps, url.origin + "/v1/watch", "Missing url and webhook_url.", { discovery: true });
     const method = String(b.method || "GET").toUpperCase();
-    if (!["GET", "POST"].includes(method)) return bad("bad_method", "method", '"method" is GET or POST');
+    if (!["GET", "POST"].includes(method)) return soft("bad_method", "method", '"method" is GET or POST', b.method);
     let t;
     try { t = new URL(String(b.url || "")); } catch (_) {}
-    if (!t || !/^https?:$/.test(t.protocol)) return bad("bad_url", "url", '"url" must be a full http(s) URL');
+    if (!t || !/^https?:$/.test(t.protocol)) return soft("bad_url", "url", '"url" must be a full http(s) URL', b.url);
     t.search = ""; t.hash = "";
     let wh;
     try { wh = new URL(String(b.webhook_url || "")); } catch (_) {}
-    if (!wh) return bad("bad_webhook_url", "webhook_url", '"webhook_url" must be a full https URL');
+    if (!wh) return soft("bad_webhook_url", "webhook_url", '"webhook_url" must be a full https URL', b.webhook_url);
     const hkey = await sha256Hex(method + " " + t.toString());
     const whHash = await sha256Hex(wh.toString());
     const existing = await db.prepare("SELECT id, status, paid_until FROM watches WHERE hkey = ? AND webhook_hash = ? AND status != 'deleted'").bind(hkey, whHash).first();
     if (existing) return jsonResp({ watch_id: existing.id, status: existing.status, paid_until: existing.paid_until, existing: true, note: "this endpoint + webhook pair is already watched; the secret is never shown again. Extend it with POST /v1/watch/" + existing.id + "/renew. Nothing was charged." }, 200);
     const s1 = await safeTarget(t.toString(), env, deps);
-    if (!s1.ok) return bad("unsafe_url", "url", "url refused: " + s1.reason);
+    if (!s1.ok) return soft("unsafe_url", "url", "url refused: " + s1.reason, b.url);
     const s2 = await safeTarget(wh.toString(), env, deps, { webhook: true });
     if (!s2.ok) return bad("unsafe_webhook_url", "webhook_url", "webhook_url refused: " + s2.reason);
     // abuse limits

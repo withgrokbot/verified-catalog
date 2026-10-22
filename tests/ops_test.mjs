@@ -151,7 +151,8 @@ test("400: every 400 names field, expected, received (sanitized) and the openapi
     ["POST", ER, { url: "https://a.test/x", commitment_ref: "0x" + "ab".repeat(32) }, "commitment_ref", "[66 chars, not echoed]"],
   ];
   for (const [method, path, body, field, received] of cases) {
-    const r = await t.call(method, path, { body });
+    // 0.49.1: paid POST routes give the strict 400 only when a payment header is present (unpaid -> 402 + input_error)
+    const r = await t.call(method, path, { body, headers: method === "POST" ? pay(OUTSIDE) : {} });
     assert.equal(r.status, 400, path + " " + r.text);
     assert.equal(r.j.field, field, path); assert.equal(r.j.received, received, path);
     assert.ok(typeof r.j.expected === "string" && r.j.expected.length > 3, path);
@@ -163,6 +164,49 @@ test("400: every 400 names field, expected, received (sanitized) and the openapi
   // MCP parse errors keep JSON-RPC shape; details in error.data
   const m = await t.call("POST", "/mcp", { body: "{bad" });
   assert.equal(m.status, 400); assert.equal(m.j.jsonrpc, "2.0"); assert.equal(m.j.error.data.field, "body"); assert.equal(m.j.error.data.openapi, "https://api.402xagent.com/openapi.json");
+});
+
+test("0.49.1: unpaid invalid input on paid POSTs -> 402 with normal accepts + input_error; with a payment header -> strict 400, nothing verified; funnel tags input_error", async () => {
+  const t = setup({ BULK_REPORT: "1", WATCHTOWER: "1", WATCH_PEPPER: "test-pepper" });
+  const BULK = ER + "/bulk";
+  const okER = await t.call("POST", ER, { body: { url: "https://spot.target.test/x" } });
+  assert.equal(okER.status, 402);
+  const cases = [
+    [ER, "{not json", "body", okER.j.accepts],
+    [ER, { url: "ftp://x" }, "url", okER.j.accepts],
+    [BULK, { urls: ["https://a.test/1", "ftp://x"] }, "urls[1]", null],
+    [BULK, { urls: "nope" }, "urls", null],
+  ];
+  let verified = 0; const of = globalThis.fetch;
+  globalThis.fetch = async (u, i) => { if (/\/(verify|settle)$/.test(String(u))) verified++; return of(u, i); };
+  try {
+    for (const [path, body, field, acc] of cases) {
+      const r = await t.call("POST", path, { body });
+      assert.equal(r.status, 402, path + " " + r.text);
+      assert.equal(r.j.input_error.field, field, path);
+      assert.ok(r.j.input_error.expected && r.j.input_error.received, path);
+      assert.ok(Array.isArray(r.j.accepts) && r.j.accepts.length > 0, path);
+      if (acc) assert.deepEqual(r.j.accepts, acc, "accepts unchanged " + path);
+      assert.ok(r.headers.get("payment-required"), path);
+      const h = await t.call("POST", path, { body, headers: pay(OUTSIDE) });
+      assert.equal(h.status, 400, "with header " + path + " " + h.text);
+      assert.equal(h.j.field, field, path);
+    }
+    // bulk price for invalid input: n = urls entries (2) -> 2 x $0.05; non-array -> 1-URL price
+    const b2 = await t.call("POST", BULK, { body: { urls: ["https://a.test/1", "ftp://x"] } });
+    assert.equal(b2.j.accepts[0].amount, "100000");
+    const b1 = await t.call("POST", BULK, { body: { urls: "nope" } });
+    assert.equal(b1.j.accepts[0].amount, "50000");
+  } finally { globalThis.fetch = of; }
+  assert.equal(verified, 0, "nothing verified or settled");
+  const f = funnel(t);
+  assert.equal(f[`${ER}|outside|402|input_error`], 2);
+  assert.equal(f[`${BULK}|outside|402|input_error`], 4);
+  // the watch route's funnel tag comes from the same x-402-input-error header (tested in watch_test)
+  assert.deepEqual(O.funnelRows({ route: "/v1/watch", segment: "outside", status: 402, hasPayment: false, inputError: true }).map((x) => x.slice(0, 4)), [["/v1/watch", "outside", "402", "input_error"]]);
+  const s = await t.call("GET", "/v1/ops/stats", { headers: { authorization: "Bearer stat-token" } });
+  assert.equal(s.j.paywall_funnel[ER].outside["402_input_error"], 2);
+  assert.equal(s.j.paywall_funnel[ER].outside["402"], 3);
 });
 
 test("failReason buckets + privacy: counters hold no IP, wallet, payload, tx hash or query", async () => {
