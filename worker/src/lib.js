@@ -63,7 +63,7 @@ export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECK
 import { BRAND_ASSETS } from "./brand.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.50.0";
+export const VERSION = "0.50.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1456,12 +1456,14 @@ export function isOwnHost(h) {
   h = String(h || "").toLowerCase();
   return OWN_HOSTS.has(h) || /^verified-catalog-lookup\.[a-z0-9-]+\.workers\.dev$/.test(h);
 }
-export function selfFetch(env, base) {
+// 0.50.1: opts.allowSpotCheck lets the hygiene probe (plain unpaid GET, never recursive: hygiene is not a probe target
+// of the spot-check) reach our own spot-check route in-process too.
+export function selfFetch(env, base, opts = {}) {
   const inner = base || fetch;
   return async (input, init = {}) => {
     let u;
     try { u = new URL(typeof input === "string" ? input : input.url); } catch (_) { return inner(input, init); }
-    if (u.protocol !== "https:" || !isOwnHost(u.hostname) || u.pathname.startsWith("/v1/products/endpoint-spot-check")) return inner(input, init);
+    if (u.protocol !== "https:" || !isOwnHost(u.hostname) || (!opts.allowSpotCheck && u.pathname.startsWith("/v1/products/endpoint-spot-check"))) return inner(input, init);
     const { cf, ...rest } = init || {};
     const headers = new Headers(rest.headers || {});
     headers.set("x-402xagent-self-probe", "1");
@@ -3195,7 +3197,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
     let data;
     try {
       if (name === "x402_hygiene") {
-        const hr = await handleHygiene(new Request(API_ORIGIN + "/v1/hygiene?url=" + encodeURIComponent(String(args.url || "")), { headers: { "cf-connecting-ip": req.headers.get("cf-connecting-ip") || "" } }), env);
+        const hr = await handleHygiene(new Request(API_ORIGIN + "/v1/hygiene?url=" + encodeURIComponent(String(args.url || "")), { headers: { "cf-connecting-ip": req.headers.get("cf-connecting-ip") || "" } }), env, { probeFetchImpl: selfFetch(env, undefined, { allowSpotCheck: true }) });
         const hb = await hr.json();
         if (hr.status !== 200) return err(hb.error);
         data = hb;
@@ -3666,7 +3668,7 @@ const routeInnerHolder = {
       }
     }
     if (path === "/openapi.json") return json(openapi(url.origin, env));
-    if (path === "/v1/hygiene") return handleHygiene(req, env);
+    if (path === "/v1/hygiene") return handleHygiene(req, env, { probeFetchImpl: selfFetch(env, undefined, { allowSpotCheck: true }) });
     if (path === "/health") return json({ ok: true, version: VERSION });
     if ((req.method === "GET" || req.method === "HEAD") && Object.prototype.hasOwnProperty.call(BRAND_ASSETS, path)) {
       const asset = BRAND_ASSETS[path];

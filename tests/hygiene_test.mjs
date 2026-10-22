@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 const codes = (r) => r.deductions.map((d) => d.code).sort();
 const sum = (r) => r.deductions.reduce((a, d) => a + d.points, 0);
 
-test("0.50.0 version", () => assert.equal(VERSION, "0.50.0"));
+test("0.50.1 version", () => assert.equal(VERSION, "0.50.1"));
 
 test("good fixture: 100 / A, no deductions, 402 discipline scored", () => {
   const r = hygiene(GOOD);
@@ -172,4 +172,28 @@ test("paid report hygiene field never changes the verdict", async () => {
   const h = await reportHygiene(env, "https://seller.fixture/api");
   assert.equal(h.grade, "A");
   assert.ok(!("verdict" in h));
+});
+
+test("0.50.1: our own endpoint-report and endpoint-spot-check are probed in-process and score well (same-zone fetch would 522)", async () => {
+  const realFetch = globalThis.fetch;
+  const outbound = [];
+  globalThis.fetch = async (u, init) => {
+    const s = String(typeof u === "string" ? u : u.url);
+    if (s.startsWith("https://cloudflare-dns.com/")) return new Response(JSON.stringify({ Answer: /type=A$/.test(s) ? [{ type: 1, data: "104.21.0.1" }] : [] }), { headers: { "content-type": "application/dns-json" } });
+    outbound.push(s);
+    return new Response("error code: 522", { status: 522 });
+  };
+  try {
+    const env = { RECEIPTS_DB: fakeD1(), CLIENT_SALT: "s", ENDPOINT_REPORT: "1", PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", DATA_BASE_URL: "https://data.fixture/vc/" };
+    for (const p of ["/v1/products/endpoint-report", "/v1/products/endpoint-spot-check"]) {
+      const target = "https://api.402xagent.com" + p;
+      const res = await worker.fetch(get("?url=" + encodeURIComponent(target)), env, { waitUntil() {} });
+      const j = await res.json();
+      assert.equal(res.status, 200, p + " " + JSON.stringify(j));
+      const c = j.deductions.map((d) => d.code);
+      assert.ok(!c.includes("version_missing") && !c.includes("unparseable"), p + " " + c.join(","));
+      assert.ok(j.score >= 70, p + " score " + j.score + " " + c.join(","));
+    }
+    assert.ok(!outbound.some((u) => u.includes("402xagent.com")), "own hosts never fetched over the network: " + outbound.join(" "));
+  } finally { globalThis.fetch = realFetch; }
 });

@@ -121,7 +121,7 @@ async function probeSeller(url, fetchImpl) {
   for (let i = 0; i < HYGIENE_SAMPLES; i++) {
     const t0 = Date.now();
     let resp;
-    try { resp = await fetchImpl(url, { method: "GET", redirect: "manual", headers: { accept: "application/json", "user-agent": "402xAgent-hygiene/0.50.0 (+https://402xagent.com/docs)" }, signal: AbortSignal.timeout(HYGIENE_TIMEOUT_MS) }); }
+    try { resp = await fetchImpl(url, { method: "GET", redirect: "manual", headers: { accept: "application/json", "user-agent": "402xAgent-hygiene/0.50.1 (+https://402xagent.com/docs)" }, signal: AbortSignal.timeout(HYGIENE_TIMEOUT_MS) }); }
     catch (_) { if (!first) return null; break; }
     const text = (await resp.text()).slice(0, MAX_BODY);
     latencies.push(Date.now() - t0);
@@ -153,7 +153,8 @@ export async function handleHygiene(req, env, deps = {}, now = new Date()) {
     n = row ? Number(row.n) : 1;
   } catch (_) { return J({ error: "hygiene store unavailable, try again shortly" }, 503); }
   if (n > HYGIENE_FREE_PER_DAY) return J({ error: `free hygiene quota used: ${HYGIENE_FREE_PER_DAY} per day per network; cached results stay free`, limit: HYGIENE_FREE_PER_DAY }, 429, { "retry-after": "3600" });
-  const probe = await probeSeller(url, fetchImpl);
+  // 0.50.1: our own hosts are probed in-process (same-zone subrequests never reach the Worker)
+  const probe = await probeSeller(url, deps.probeFetchImpl || fetchImpl);
   if (!probe) return J({ url, error: "endpoint unreachable (5 s timeout); nothing scored" }, 502);
   const { score, grade, deductions } = hygiene(probe);
   const scored_at = iso(now);
