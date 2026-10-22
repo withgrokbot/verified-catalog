@@ -16,7 +16,7 @@ test("homepage badge: text link only until graded, no img", () => {
   assert.equal(m[1], COPY);
   const foot = html.slice(html.indexOf("aer-badge"), html.indexOf("</footer>"));
   assert.ok(!/<img[^>]+agenteconomy/.test(html), "no badge img");
-  assert.match(foot, /re-enabled once/);
+  assert.ok(!/agenteconomy\.report\/s\/[^"]*\.svg/.test(html), "no SVG URL in source (incl. comments)");
   assert.ok(!/grade[ds]? [A-F]\b/.test(foot), "no grade commentary");
 });
 
