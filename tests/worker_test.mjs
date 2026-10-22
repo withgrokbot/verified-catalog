@@ -283,10 +283,9 @@ test("not qualifying: self, crawler, uptime bot, missing price, no candidates, b
   assert.match(r.body.error, /payer/);
   assert.deepEqual([r.points[0].doubles[0], r.points[0].blobs[5]], [0, "bad-params"]);
   const r2 = await call("/v1/lookup");
-  assert.equal(r2.status, 400);
-  assert.ok(r2.body.tasks.includes("web-search"));
-  assert.ok(r2.body.try_free_lookup.url.includes("ref=via-402-hint"));
-  assert.match(r2.body.also_available.url, /\/v1\/products\/overnight-cos-pack$/);
+  assert.equal(r2.status, 200, "0.49.1: bare /v1/lookup is a 200 with usage examples");
+  assert.ok(r2.body.examples.some((e) => e.includes("task=web-search")));
+  assert.ok(Array.isArray(r2.body.examples) && r2.body.examples.length > 0);
   p = await q("/v1/lookup?task=web-search&max_price=0.02", { ua: "curl/8.5.0" });
   assert.equal(p.doubles[0], 1, "an agent with a generic UA still counts");
 });
@@ -2675,7 +2674,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.49.0");
+  assert.equal(VERSION, "0.49.1");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)

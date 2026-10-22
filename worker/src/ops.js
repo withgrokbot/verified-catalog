@@ -45,10 +45,10 @@ export function segmentOf(payload, env, payTo) {
 }
 
 /** Counter rows for one request/response pair. `payload` = decoded payment header or null; `errText` = response error text. */
-export function funnelRows({ route, hasPayment, status, settled, errText, segment }) {
+export function funnelRows({ route, hasPayment, status, settled, errText, segment, inputError = false }) {
   const rows = [];
   const seg = segment || "outside";
-  if (status === 402) rows.push([route, seg, "402", ""]);
+  if (status === 402) rows.push([route, seg, "402", !hasPayment && inputError ? "input_error" : ""]);
   if (hasPayment) {
     rows.push([route, seg, "attempt", ""]);
     if (settled) rows.push([route, seg, "settled", ""]);
@@ -100,13 +100,21 @@ export async function opsStats(db, { days = 7, now = new Date() } = {}) {
   const f = ((await db.prepare("SELECT route, segment, event, reason, SUM(n) AS n FROM paywall_daily WHERE day >= ? GROUP BY route, segment, event, reason ORDER BY route, segment, event, reason").bind(since).all()) || {}).results || [];
   const funnel = {};
   for (const r of f) {
-    const x = ((funnel[r.route] ||= {})[r.segment] ||= { "402": 0, attempt: 0, settled: 0, not_charged: 0, failed: 0, failed_by_reason: Object.fromEntries(FAIL_REASONS.map((k) => [k, 0])) });
+    const x = ((funnel[r.route] ||= {})[r.segment] ||= { "402": 0, "402_input_error": 0, attempt: 0, settled: 0, not_charged: 0, failed: 0, failed_by_reason: Object.fromEntries(FAIL_REASONS.map((k) => [k, 0])) });
     if (r.event === "failed") { x.failed += r.n; x.failed_by_reason[r.reason in x.failed_by_reason ? r.reason : "other"] += r.n; }
-    else if (r.event in x) x[r.event] += r.n;
+    else if (r.event in x) { x[r.event] += r.n; if (r.event === "402" && r.reason === "input_error") x["402_input_error"] += r.n; }
   }
   const top = ((await db.prepare("SELECT method, path, SUM(n) AS n FROM notfound_daily WHERE day >= ? GROUP BY method, path ORDER BY n DESC, path LIMIT 20").bind(since).all()) || {}).results || [];
   const tot = (await db.prepare("SELECT SUM(n) AS n FROM notfound_daily WHERE day >= ?").bind(since).first()) || {};
   return { since, until: day(now), days: n, paywall_funnel: funnel, not_found: { total: tot.n || 0, top20: top } };
+}
+
+// ------------------------------------------------------------------ 0.49.1 input_error on unpaid 402s
+// Paid POST routes answer a request WITHOUT a payment header and with bad input with the normal 402 (same accepts and
+// price) plus this informational block, so x402 crawlers see the challenge. With a payment header the strict 400 stays.
+export const INPUT_ERROR_HEADER = "x-402-input-error";
+export function inputError({ code, field, expected, received }) {
+  return { input_error: { code, field, expected, received: received === undefined || received === null ? "[not sent]" : sanitizeReceived(field, received), note: "informational: fix this input before paying; it does not change the price or the accepts. With a payment header this request is a 400 and nothing is settled." } };
 }
 
 // ------------------------------------------------------------------ 405

@@ -436,6 +436,21 @@ test("flag + listings: wrangler.toml WATCHTOWER on with a $1 Base mainnet 402; o
 import { existsSync } from "node:fs";
 const existsMig = () => existsSync(join(ROOT, "worker", "migrations", "0013_watchtower.sql"));
 
+test("0.49.1: unpaid invalid create -> 402 with the normal accepts + input_error (+ x-402-input-error header); with a payment header -> strict 400, nothing settled", async () => {
+  const t = setup();
+  assert.equal((await t.call("POST", "/v1/watch", { url: "https://api.example.com/x", webhook_url: "https://hooks.example.org/h" })).status, 201, "trial used");
+  const ok = await t.call("POST", "/v1/watch", { url: "https://api.example.com/y", webhook_url: "https://hooks.example.org/h" });
+  assert.equal(ok.status, 402);
+  const r = await t.call("POST", "/v1/watch", { url: "ftp://x", webhook_url: "https://hooks.example.org/h" });
+  assert.equal(r.status, 402, r.text);
+  assert.equal(r.j.input_error.field, "url");
+  assert.equal(r.j.input_error.received, "ftp://x");
+  assert.deepEqual(r.j.accepts, ok.j.accepts);
+  assert.ok(r.headers.get("x-402-input-error"));
+  const h = await t.call("POST", "/v1/watch", { url: "ftp://x", webhook_url: "https://hooks.example.org/h" }, t.payHdr());
+  assert.equal(h.status, 400, h.text);
+  assert.equal(t.settled.length, 0);
+});
 test("0.47.1: own-route probes are served in-process (same-zone fetch would 522); a self-watch of POST endpoint-report baselines a 402 with the $0.05 accept", async () => {
   const env = { ENDPOINT_REPORT: "1", WATCHTOWER: "1" };
   const deps = { ...watchDeps(env), resolveHostFn: async () => ["104.21.0.1"] };
