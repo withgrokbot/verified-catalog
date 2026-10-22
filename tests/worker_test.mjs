@@ -630,7 +630,7 @@ test("MCP /mcp: initialize, tools/list (catalog tools + products), ping, notific
   const pyTools = JSON.parse(py.stdout).result.tools;
   const workerTools = r.body.result.tools;
   assert.deepEqual(workerTools.slice(0, 3), pyTools, "first 3 tools match mcp/server.py");
-  assert.deepEqual(workerTools.map((t) => t.name), ["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "get_receipt", "endpoint_spot_check", "payment_status", "discover"]);
+  assert.deepEqual(workerTools.map((t) => t.name), ["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "get_receipt", "endpoint_spot_check", "payment_status", "x402_hygiene", "discover"]);
   assert.deepEqual((await rpc({ jsonrpc: "2.0", id: 3, method: "ping" }, { envo: e })).body, { jsonrpc: "2.0", id: 3, result: {} });
   assert.equal((await rpc({ jsonrpc: "2.0", id: 4, method: "nope" }, { envo: e })).body.error.code, -32601);
   assert.equal((await rpc({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "nope" } }, { envo: e })).body.error.message, "unknown tool 'nope'");
@@ -2677,7 +2677,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.49.3");
+  assert.equal(VERSION, "0.50.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
