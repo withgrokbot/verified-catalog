@@ -269,3 +269,9 @@ export function placeholderInputError(field, received) {
 export function placeholder400(field, received) {
   return { error: PLACEHOLDER_MESSAGE, code: "placeholder_host", field, expected: PLACEHOLDER_EXPECTED, received: received === undefined || received === null ? "[not sent]" : sanitizeReceived(field, received), note: "Nothing was charged." };
 }
+
+/** 0.51.0: self_test label for a settled payment: true only when the signer is our own payTo or one of DRILL_WALLETS
+ *  (never self-declared by a header). Such payments are excluded from revenue and demand stats. */
+export function selfTestOf(payload, env, payTo) {
+  return segmentOf(payload, env || {}, payTo || (env && env.PAY_TO)) === "self";
+}

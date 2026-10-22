@@ -444,7 +444,7 @@ test("paid lookup: verify + settle through the facilitator, identical results, P
   assert.deepEqual(r.body.results, free.body.results, "payment never changes results or sort order");
   assert.deepEqual(r.body.facts_only, free.body.facts_only, "payment never changes listings");
   assert.equal(r.body.matched, free.body.matched);
-  assert.deepEqual(r.body.access, { tier: "paid", charged_usd: "0.02", asset: "USDC on Base", tx: TX, basescan_url: "https://basescan.org/tx/" + TX, payer: "0x" + "11".repeat(20) });
+  assert.deepEqual(r.body.access, { tier: "paid", charged_usd: "0.02", asset: "USDC on Base", tx: TX, basescan_url: "https://basescan.org/tx/" + TX, payer: "0x" + "11".repeat(20), facilitator: "facilitator.fixture" }); // 0.51.0: facilitator recorded per receipt
   assert.equal(r.body.payment_policy, PAYMENT_POLICY);
   assert.deepEqual(unb64(r.headers.get("payment-response")), { success: true, transaction: TX, network: "eip155:8453", payer: "0x" + "11".repeat(20) });
   assert.deepEqual(facCalls.map((x) => x[0]), ["/verify", "/settle"]);
@@ -2681,7 +2681,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.50.2");
+  assert.equal(VERSION, "0.51.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)

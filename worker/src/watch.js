@@ -326,6 +326,21 @@ export async function watchTick(env, now = new Date(), deps = {}) {
 }
 
 // ------------------------------------------------------------------ HTTP API
+// 0.51.0: Bazaar discovery metadata for POST /v1/watch (small; docs link for the rest).
+export function watchBazaarExtension() {
+  return {
+    info: { input: { type: "http", method: "POST", bodyType: "json", body: EXAMPLE_CREATE }, output: { type: "json", example: { id: "wt-0123456789abcdef", secret: "returned once", status: "active", paid_until: "2026-11-21T00:00:00Z" }, docs: "https://402xagent.com/docs#watchtower" } },
+    schema: {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties: {
+        input: { type: "object", properties: { type: { type: "string", const: "http" }, method: { type: "string", const: "POST" }, bodyType: { type: "string", const: "json" }, body: { type: "object", properties: { url: { type: "string", description: "x402 endpoint to watch" }, method: { type: "string", enum: ["GET", "POST"] }, webhook_url: { type: "string", description: "https URL for signed drift/down/recovery webhooks" } }, required: ["url", "webhook_url"] } }, required: ["type", "method", "bodyType", "body"] },
+        output: { type: "object", properties: { type: { type: "string" }, example: { type: "object" }, docs: { type: "string" } }, required: ["type"] },
+      },
+      required: ["input"],
+    },
+  };
+}
 export const watchCfgOf = (base) => ({ ...base, priceAtomic: WATCH_PRICE_ATOMIC, priceUsd: WATCH_PRICE_USD });
 function paymentRequired(cd, deps, resourceUrl, error, extra = {}) {
   const net = cd.label || "Base";
@@ -334,6 +349,7 @@ function paymentRequired(cd, deps, resourceUrl, error, extra = {}) {
     x402Version: 2, error,
     resource: { url: resourceUrl, description: desc, mimeType: "application/json" },
     accepts: [deps.paymentRequirements(cd, resourceUrl, 2, { paidPath: true, description: desc })],
+    extensions: { bazaar: watchBazaarExtension() },
     price_usd: WATCH_PRICE_USD, period_days: WATCH_PERIOD_DAYS, asset: `USDC on ${net} (${cd.network})`, product: "watchtower",
     example_request: { method: "POST", url: "https://api.402xagent.com/v1/watch", body: EXAMPLE_CREATE },
     how_to_pay: "Retry the same request with a PAYMENT-SIGNATURE header (x402 v2; X-PAYMENT also accepted) for the amount and payTo above.",
@@ -353,14 +369,14 @@ async function settle(req, cd, deps, resourceUrl) {
     const r = await deps.verifyAndSettle(cd, payload, resourceUrl, { paidPath: true, description: `402xAgent Watchtower: $1 USDC on ${cd.label || "Base"} per watch per 30 days.` });
     if (!r.ok) return { error: "payment rejected: " + r.reason };
     const enc = deps.b64encode(r.settle);
-    return { headers: { "payment-response": enc, "x-payment-response": enc } };
+    return { headers: { "payment-response": enc, "x-payment-response": enc }, facilitator: r.facilitator || null };
   } };
 }
 /** Signed `wr-` payment receipt: amount, network, asset, seller pay_to and the period only (never payer or tx). */
-async function paymentReceipt(env, w, kind, cd, paidUntil, now) {
+async function paymentReceipt(env, w, kind, cd, paidUntil, now, facilitator = null) {
   const id = "wr-" + randHex(8);
   const body = { id, type: "watchtower-payment", kind, watch_id: w.id, endpoint: w.url, paid_until: paidUntil, period_days: WATCH_PERIOD_DAYS, issued_at: iso(now),
-    payment_received: { amount_usd: WATCH_PRICE_USD, amount_atomic: WATCH_PRICE_ATOMIC, network: cd.network, asset: cd.asset, pay_to: cd.payTo }, issuer: "402xAgent Watchtower" };
+    payment_received: { amount_usd: WATCH_PRICE_USD, amount_atomic: WATCH_PRICE_ATOMIC, network: cd.network, asset: cd.asset, pay_to: cd.payTo, ...(facilitator ? { facilitator } : {}) }, issuer: "402xAgent Watchtower" };
   const signed = (await signObject(env, body)) || body;
   await env.RECEIPTS_DB.prepare("INSERT INTO watch_events (id, watch_id, type, created_at, payload) VALUES (?, ?, 'receipt', ?, ?)").bind(id, w.id, iso(now), JSON.stringify(signed)).run();
   return signed;
@@ -464,8 +480,8 @@ export async function handleWatch(req, env, ctx, url, deps) {
     const signedVerify = (await signObject(env, verifyEv)) || verifyEv;
     const vr = await postWebhook(env, wh.toString(), signedVerify, now, deps);
     if (!vr.ok) return bad("webhook_verify_failed", "webhook_url", "the webhook did not answer the signed watch.verify event with a 2xx within 5 s (got " + (vr.status ?? vr.error) + ")");
-    let payHeaders = {};
-    if (!pay.none) { const r = await pay.go(); if (r.error) return paymentRequired(cd, deps, url.origin + "/v1/watch", r.error); payHeaders = r.headers; }
+    let payHeaders = {}, payFacilitator = null;
+    if (!pay.none) { const r = await pay.go(); if (r.error) return paymentRequired(cd, deps, url.origin + "/v1/watch", r.error); payHeaders = r.headers; payFacilitator = r.facilitator; }
     else {
       // claim the trial atomically: the domain row is the gate (a concurrent second create loses here)
       const ins = await db.prepare("INSERT OR IGNORE INTO trial_claims (key_hash, kind, n, claimed_at) VALUES (?, 'domain', 1, ?)").bind(domHash, iso(now)).run();
@@ -481,7 +497,7 @@ export async function handleWatch(req, env, ctx, url, deps) {
     await db.prepare("INSERT INTO watches (id, secret_hash, url, method, hkey, webhook_url, webhook_hash, webhook_domain_hash, ip_hash, status, trial, paid, created_at, paid_until, period_start, slot, next_probe_at, baseline_json, baseline_sig, baseline_at, state, last_event_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'up', ?)")
       .bind(id, await sha256Hex(pepper(env) + ":" + secret), t.toString(), method, hkey, wh.toString(), whHash, domHash, ipHash, trial ? 1 : 0, trial ? 0 : 1, iso(now), paidUntil, iso(now), slot, iso(new Date(now).getTime() + probeInterval(env)), JSON.stringify(base), bsig, iso(now), signedVerify.event_id).run();
     await db.prepare("INSERT INTO watch_events (id, watch_id, type, created_at, payload) VALUES (?, ?, 'watch.verify', ?, ?)").bind(signedVerify.event_id, id, iso(now), JSON.stringify(signedVerify)).run();
-    const rc = trial ? null : await paymentReceipt(env, w, "create", cd, paidUntil, now);
+    const rc = trial ? null : await paymentReceipt(env, w, "create", cd, paidUntil, now, payFacilitator);
     return jsonResp({ watch_id: id, watch_secret: secret, secret_note: "shown once; send as Authorization: Bearer <watch_secret> to GET, verify or DELETE this watch", status: "active", trial, paid_until: paidUntil,
       baseline: { ...base, sig: bsig }, verify_event_id: signedVerify.event_id, ...(rc ? { receipt_id: rc.id, receipt: rc } : {}), manage: { get: "/v1/watch/" + id, renew: "/v1/watch/" + id + "/renew", verify: "/v1/watch/" + id + "/verify" } }, 201, payHeaders);
   }
@@ -503,7 +519,7 @@ export async function handleWatch(req, env, ctx, url, deps) {
     const resumed = w.status === "paused";
     await db.prepare("UPDATE watches SET paid_until = ?, status = 'active', paused_reason = NULL, paid = paid + 1, period_start = ?, probes_period = 0, fail_days = 0, was_paused = CASE WHEN status = 'paused' THEN 1 ELSE was_paused END, next_probe_at = CASE WHEN status = 'paused' THEN ? ELSE next_probe_at END WHERE id = ?").bind(paidUntil, iso(now), iso(now), id).run();
     if (resumed) await writeEvent(env, w, "resumed", { reason: "renewed", paid_until: paidUntil }, now, deps);
-    const rc = await paymentReceipt(env, w, "renew", cd, paidUntil, now);
+    const rc = await paymentReceipt(env, w, "renew", cd, paidUntil, now, r.facilitator);
     return jsonResp({ watch_id: id, status: "active", resumed, paid_until: paidUntil, receipt_id: rc.id, receipt: rc }, 200, r.headers);
   }
   const w = await auth(req, env, id);

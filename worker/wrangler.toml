@@ -48,6 +48,10 @@ FREE_PER_DAY = "5"
 PRICE_ATOMIC = "20000"
 PAY_TO = "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
 FACILITATOR_URL = "https://facilitator.payai.network"
+# 0.51.0 CDP facilitator (see docs/cdp-0.51.0.md). OFF by default: FACILITATOR_PRIMARY unset/"payai" = PayAI only, unchanged.
+# To enable: secrets CDP_API_KEY_ID + CDP_API_KEY_SECRET (wrangler secret put; never in this file), then
+#   FACILITATOR_PRIMARY = "cdp"  and optionally  FACILITATOR_CDP_ROUTES = "/v1/products/endpoint-spot-check"  (comma list; empty = all).
+# CDP verify 5xx/timeout -> PayAI fallback; CDP 4xx decline -> no fallback; a verified payment is only ever settled on CDP.
 # agent-tools.cloud ownership proof (descriptor method, https://agent-tools.cloud/docs/claim): per-host public verify tokens,
 # served top-level as "agentToolsVerify" in that host's /.well-known/x402 and at /.well-known/agent-tools-verify.txt.
 # They re-check daily; keep these in place. Each token appears only on its own host.

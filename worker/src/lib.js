@@ -59,11 +59,12 @@ import { hostReputation, reputationPublic, hostOf, handleReputation } from "./re
 import { handleBadge, badgeSnippets } from "./badge.js";
 import { handleSaves } from "./saves.js";
 import { handleHygiene, reportHygiene } from "./hygiene.js";
+import { facilitatorChain, callFacilitator } from "./facilitator.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
-import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
+import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.50.2";
+export const VERSION = "0.51.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -410,6 +411,8 @@ export function cfg(env) {
     explorer: paymentPreset(env).explorer,
     label: paymentPreset(env).label,
     facilitator: String(env.FACILITATOR_URL || paymentPreset(env).facilitator || DEFAULTS.FACILITATOR_URL).replace(/\/+$/, ""),
+    // 0.51.0: per-route facilitator order (function: never serialised; default [payai] = unchanged).
+    facilitatorChain: (path) => facilitatorChain(env, path, String(env.FACILITATOR_URL || paymentPreset(env).facilitator || DEFAULTS.FACILITATOR_URL).replace(/\/+$/, "")),
   };
 }
 
@@ -892,6 +895,7 @@ async function handleOvernightCosPack(req, env, ctx, url) {
     tx: r.settle.transaction,
     basescan_url: "https://basescan.org/tx/" + r.settle.transaction,
     payer: r.settle.payer || null,
+    facilitator: r.facilitator || null, // 0.51.0
     settlement: r.settle,
   };
   const body = await buildPackResponse(env, settlement);
@@ -1931,7 +1935,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const v2 = await receiptV2({ probe, exp, pm0, listing, history, quality, ptc, method: q.method, url: q.url, normalized: safeNorm(q.url), crawlMeta: RECEIPTS_META && RECEIPTS_META.crawled_at ? String(RECEIPTS_META.crawled_at).slice(0, 10) : null });
     const receiptFields = { receipt_id: rid, receipt_url: rid ? CANON_ORIGIN + "/v1/receipts/" + rid : null, pay_to_changed: ptc.pay_to_changed, history };
     if (rid) {
-      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked ? "self-test" : null, client: q.client || null, checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && (q.ref === STALE_REF || q.ref === DAILY_REF) ? "auto" : (access && access.tier) || null });
+      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked || (access && access.self_test) ? "self-test" : null, client: q.client || null, checkType: access && access.self_test ? "self-checked" : checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && (q.ref === STALE_REF || q.ref === DAILY_REF) ? "auto" : (access && access.tier) || null });
       Object.assign(rec, ptc, { history }, rf, { receipt_v2: v2 });
       if (access && (access.tier === "paid" || access.tier === "router-pack")) rec.payment_received = paymentReceived(access, cd.priceAtomic, cd); // 0.40.1
       if (access && access.tier === "hosted") { const { tier: _t, ...hv } = access; rec.hosted = hv; } // 0.41.0: signed with the receipt
@@ -2129,9 +2133,11 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         tx: r.settle.transaction,
         basescan_url: "https://basescan.org/tx/" + r.settle.transaction,
         payer: r.settle.payer || null,
+    facilitator: r.facilitator || null, // 0.51.0
       };
       freeUsed = t.used;
-      const selfPaid = String(r.settle.payer || authFrom || "").toLowerCase() === c.payTo.toLowerCase();
+      // 0.51.0: self_test = payer is our payTo or a DRILL_WALLETS address (never self-declared); excluded from revenue + demand
+      const selfPaid = String(r.settle.payer || authFrom || "").toLowerCase() === c.payTo.toLowerCase() || selfTestOf(payload, env, c.payTo);
       if (selfPaid) access.self_test = true;
       if (isRouter) {
         const n = Math.floor(Number(cd.priceAtomic) / rcfg.perCheckAtomic) - 1;
@@ -2309,8 +2315,36 @@ async function facilitatorCall(c, path, body) {
   return { status: r.status, body: j || {} };
 }
 
-// verify, then settle. Returns {ok, settle?, reason}.
+// 0.51.0: which facilitator a result came from (recorded per receipt as access.facilitator).
+export function facilitatorLabel(u) {
+  try { const h = new URL(u).hostname; return /(^|\.)payai\.network$/.test(h) ? "payai" : h === "api.cdp.coinbase.com" ? "cdp" : h; } catch (_) { return "unknown"; }
+}
+// verify, then settle. Returns {ok, settle?, reason, facilitator, fallback_from?}. Default chain [payai] = the 0.50.2 path.
 export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
+  const chain = typeof c.facilitatorChain === "function" ? c.facilitatorChain(new URL(url.toString()).pathname) : [];
+  if (!chain.length || chain[0].name !== "cdp") return { ...(await verifyAndSettleLegacy(c, payload, url, paidPathOrOpts)), facilitator: facilitatorLabel(c.facilitator) };
+  const cdp = chain[0];
+  const v = Number(payload.x402Version || 1);
+  const body = { x402Version: v, paymentPayload: payload, paymentRequirements: paymentRequirements(c, url.toString(), v, paidPathOrOpts) };
+  let vr = null;
+  try { vr = await callFacilitator(cdp, "/verify", body); } catch (_) { vr = null; }
+  if (!vr || vr.status >= 500) // CDP down/timeout before anything was accepted: verify + settle on PayAI instead
+    return { ...(await verifyAndSettleLegacy(c, payload, url, paidPathOrOpts)), facilitator: facilitatorLabel(c.facilitator), fallback_from: "cdp" };
+  if (vr.status >= 400 || !vr.body.isValid) return { ok: false, reason: "payment not valid: " + (vr.body.invalidReason || vr.body.errorMessage || "HTTP " + vr.status), facilitator: "cdp" };
+  let sr;
+  try {
+    sr = await callFacilitator(cdp, "/settle", body);
+    for (let i = 0; i < 3 && sr.body.errorReason === "settlement_pending"; i++) {
+      await new Promise((res) => setTimeout(res, 1500));
+      sr = await callFacilitator(cdp, "/settle", body);
+    }
+  } catch (_) {
+    return { ok: false, reason: "facilitator unreachable (settle)", facilitator: "cdp" }; // never re-settled elsewhere
+  }
+  if (!sr.body.success || !sr.body.transaction) return { ok: false, reason: "settlement failed: " + (sr.body.errorReason || "HTTP " + sr.status), settle: sr.body, facilitator: "cdp" };
+  return { ok: true, settle: { success: true, transaction: sr.body.transaction, network: sr.body.network || c.network, payer: sr.body.payer || vr.body.payer || "" }, facilitator: "cdp" };
+}
+async function verifyAndSettleLegacy(c, payload, url, paidPathOrOpts = false) {
   const v = Number(payload.x402Version || 1);
   const body = { x402Version: v, paymentPayload: payload, paymentRequirements: paymentRequirements(c, url.toString(), v, paidPathOrOpts) };
   let vr;
@@ -2799,6 +2833,7 @@ async function handleLookup(req, env, ctx, url) {
         tx: r.settle.transaction,
         basescan_url: "https://basescan.org/tx/" + r.settle.transaction,
         payer: r.settle.payer || null,
+    facilitator: r.facilitator || null, // 0.51.0
       };
       point({ status: 200, access: "paid", amountUsd: Number(c.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed: t.used });
     }
@@ -2848,7 +2883,7 @@ async function handlePaidLookup(req, env, ctx, url) {
   const r = await verifyAndSettle(c, payload, resourceUrl, true);
   if (!r.ok) return deny("payment rejected: " + r.reason, "payment-failed", signerOf(payload));
   const enc = b64encode(r.settle);
-  const access = { tier: "paid", charged_usd: c.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null };
+  const access = { tier: "paid", charged_usd: c.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null, facilitator: r.facilitator || null };
   point({ status: 200, access: "paid", amountUsd: Number(c.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer });
   return json(lookupBody(q, data, out, access), 200, { "payment-response": enc, "x-payment-response": enc });
 }
@@ -3988,7 +4023,7 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
     const enc = b64encode(r.settle);
     extraHeaders["payment-response"] = enc;
     extraHeaders["x-payment-response"] = enc;
-    access = { tier: "paid", charged_usd: cd.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null };
+    access = { tier: "paid", charged_usd: cd.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null, facilitator: r.facilitator || null };
   }
   if (access.tier === "paid" || access.tier === "hosted") {
     // 0.40.1: every PAID call gets its own signed receipt (new ps- id, own D1 row) carrying who paid, how much and the
@@ -4023,12 +4058,40 @@ export const ER_VERIFY = "For each key k in locked_commitments (drift_history, h
 export const watchDeps = (env) => ({ fetchImpl: selfFetch(env), cfg: spotCfg(env), paymentHeader, decodePaymentHeader, checkPayload, verifyAndSettle, paymentRequirements, b64encode, ipPrefix });
 export function erCfg(env) { return { ...spotCfg(env), priceAtomic: ER_PAID_ATOMIC, priceUsd: ER_PRICE_USD }; }
 export const erNet = (c) => (c && c.label) || "Base";
+// 0.51.0: Bazaar discovery metadata for the POST products (kept small; full docs at the linked page).
+export function postBazaarExtension(body, bodySchema, outputExample, docs) {
+  return {
+    info: { input: { type: "http", method: "POST", bodyType: "json", body }, output: { type: "json", example: outputExample, docs } },
+    schema: {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties: {
+        input: { type: "object", properties: { type: { type: "string", const: "http" }, method: { type: "string", const: "POST" }, bodyType: { type: "string", const: "json" }, body: bodySchema }, required: ["type", "method", "bodyType", "body"] },
+        output: { type: "object", properties: { type: { type: "string" }, example: { type: "object" }, docs: { type: "string" } }, required: ["type"] },
+      },
+      required: ["input"],
+    },
+  };
+}
+export function erBazaarExtension() {
+  return postBazaarExtension(ER_EXAMPLE_REQUEST,
+    { type: "object", properties: { url: { type: "string", description: "the x402 endpoint you free-checked" }, commitment_ref: { type: "string", description: "locked_commitments.ref from that free check (cm-...)" } }, required: ["url", "commitment_ref"] },
+    { id: "er-0123456789abcdef", url: ER_EXAMPLE_REQUEST.url, locked_commitments: { ref: ER_EXAMPLE_REQUEST.commitment_ref }, revealed: { drift_history: {}, hygiene_detail: {} }, signature: "..." },
+    CANON_ORIGIN + "/docs#endpoint-report");
+}
+export function bulkBazaarExtension() {
+  return postBazaarExtension(BULK_EXAMPLE_REQUEST,
+    { type: "object", properties: { urls: { type: "array", items: { type: "string" }, description: `1-${BULK_MAX} distinct x402 endpoint URLs; price min(n x $0.05, $0.20)` } }, required: ["urls"] },
+    { items: [{ url: BULK_EXAMPLE_REQUEST.urls[0], status: "ok", report_id: "er-0123456789abcdef" }], charged_usd: "0.10" },
+    CANON_ORIGIN + "/docs#endpoint-report");
+}
 export function erPaymentRequired(cd, resourceUrl, error, extra = {}) {
   return {
     x402Version: 2,
     error,
     resource: { url: resourceUrl, description: `402xAgent endpoint report: the exact committed drift history and hygiene detail behind the free check's locked teasers. $0.05 USDC on ${erNet(cd)}.`, mimeType: "application/json", serviceName: "402xAgent endpoint report", tags: ["x402", "reports", "drift", "receipts", "base"] },
     accepts: [paymentRequirements(cd, resourceUrl, 2, { paidPath: true, description: `402xAgent endpoint report: $0.05 USDC on ${erNet(cd)} per report (no free tier).` })],
+    extensions: { bazaar: erBazaarExtension() },
     price_usd: ER_PRICE_USD,
     asset: `USDC on ${erNet(cd)} (${cd.network})`,
     product: ER_ID,
@@ -4100,7 +4163,7 @@ async function handleEndpointReport(req, env, ctx, url) {
     const r = await verifyAndSettle(cd, payload, resourceUrl, { paidPath: true, description: `402xAgent endpoint report: $0.05 USDC on ${erNet(cd)} per report (no free tier).` });
     if (!r.ok) return { response: deny("payment rejected: " + r.reason) };
     const enc = b64encode(r.settle);
-    return { access: { tier: "paid", charged_usd: ER_PRICE_USD, tx: r.settle.transaction, payer: r.settle.payer || null }, headers: { "payment-response": enc, "x-payment-response": enc } };
+    return { access: { tier: "paid", charged_usd: ER_PRICE_USD, tx: r.settle.transaction, payer: r.settle.payer || null, facilitator: r.facilitator || null }, headers: { "payment-response": enc, "x-payment-response": enc } };
   };
   const r = await erBuild(env, ctx, { target, ref, includeCurrent, cd, getAccess, issue: true });
   return r.ok ? json(r.out, 200, r.headers) : r.response;
@@ -4192,6 +4255,7 @@ export function bulkPaymentRequired(cd, resourceUrl, error, n, extra = {}) {
     x402Version: 2, error,
     resource: { url: resourceUrl, description: `402xAgent bulk endpoint report: up to ${BULK_MAX} endpoints in one call, $0.05 each, capped at $0.20 (USDC on ${erNet(cd)}).`, mimeType: "application/json", serviceName: "402xAgent bulk endpoint report" },
     accepts: [paymentRequirements(cd, resourceUrl, 2, { paidPath: true, description: `402xAgent bulk endpoint report: ${n} endpoint${n === 1 ? "" : "s"}, $${cd.priceUsd} USDC on ${erNet(cd)}.` })],
+    extensions: { bazaar: bulkBazaarExtension() },
     price_usd: cd.priceUsd, pricing: "min(n x $0.05, $0.20) per call, n = 1-5 distinct endpoints", urls_count: n, asset: `USDC on ${erNet(cd)} (${cd.network})`,
     product: "endpoint-report-bulk", free_per_day: 0, example_request: BULK_EXAMPLE_REQUEST,
     how_to_pay: "Retry the same request (same urls) with a PAYMENT-SIGNATURE header (x402 v2; X-PAYMENT also accepted) for the amount and payTo above.",
@@ -4256,7 +4320,7 @@ async function handleBulkReport(req, env, ctx, url) {
     const r = await verifyAndSettle(cd, payload, resourceUrl, { paidPath: true, description: `402xAgent bulk endpoint report: ${n} endpoint${n === 1 ? "" : "s"}, $${cd.priceUsd} USDC on ${erNet(cd)}.` });
     if (!r.ok) return deny("payment rejected: " + r.reason);
     const enc = b64encode(r.settle);
-    access = { tier: "paid", charged_usd: cd.priceUsd, tx: r.settle.transaction, payer: r.settle.payer || null };
+    access = { tier: "paid", charged_usd: cd.priceUsd, tx: r.settle.transaction, payer: r.settle.payer || null, facilitator: r.facilitator || null };
     headers = { ...headers, "payment-response": enc, "x-payment-response": enc };
   }
   const bulkId = newEbId();

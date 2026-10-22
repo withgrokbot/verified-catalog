@@ -1,0 +1,50 @@
+{
+ "lookup_paid": {
+  "status": 402,
+  "accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"20000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "header_accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"20000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "bazaar": true
+ },
+ "pack": {
+  "status": 402,
+  "accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"9000000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "header_accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"9000000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "bazaar": true
+ },
+ "payment_status": {
+  "status": 402,
+  "accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"20000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "header_accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"20000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "bazaar": true
+ },
+ "spot_discovery": {
+  "status": 402,
+  "accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"20000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "header_accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"20000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "bazaar": true
+ },
+ "spot_placeholder": {
+  "status": 402,
+  "accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"20000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "header_accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"20000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "bazaar": true
+ },
+ "endpoint_report": {
+  "status": 402,
+  "accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"50000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "header_accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"50000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "bazaar": null
+ },
+ "bulk": {
+  "status": 402,
+  "accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"200000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "header_accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"200000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "bazaar": null
+ },
+ "watch": {
+  "status": 402,
+  "accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "header_accepts": "[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x37cfCC8a29e9ff9458902B29E31E42dc7B718674\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}]",
+  "bazaar": null
+ }
+}
