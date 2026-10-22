@@ -47,7 +47,7 @@ Spec (via Max): watch one x402 endpoint for $1/month, prepaid via x402. API only
   - 720 probes ≈ 720 D1 writes plus about 30 rollup writes. That is under $0.001 above the included 50M writes ($1/M after).
   - About 7 CPU-seconds ≈ $0.0002. Subrequests are free.
   - **Total under $0.01 of the $1.** The real costs are support and abuse, not compute.
-- **Probes:** each run uses the existing SSRF-safe probe as client `watchtower` (self-checked: not counted as an outside check, not listed in recent_checks). It writes `endpoint_history` and `endpoint_quality`, which also feed the free teasers. A `sc-` receipt is written only on events.
+- **Probes:** each run uses the existing probe (blocks private, loopback and link-local addresses on every redirect hop) as client `watchtower` (self-checked: not counted as an outside check, not listed in recent_checks). It writes `endpoint_history` and `endpoint_quality`, which also feed the free teasers. A `sc-` receipt is written only on events.
 
 ## 5. Event semantics
 - **Baseline:** terms signature (network, asset, payTo, amount_atomic, the same `sig` as history.js), x402_version, scheme set, http status class.

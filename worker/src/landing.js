@@ -270,7 +270,7 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
   <h2 id="how-h">Three steps before the payment leaves your agent</h2>
   <p class="lead">One unpaid probe, one comparison, one decision. Every check leaves a public receipt.</p>
   <div class="steps">
-    <div class="card step"><span class="num n1">1</span><b>Probe</b><p>One unpaid, SSRF-safe request to the target. 402xAgent never pays it. The probe is reused for 5 minutes, so two checks in a row agree.</p></div>
+    <div class="card step"><span class="num n1">1</span><b>Probe</b><p>One unpaid request to the target; private, loopback and link-local addresses are blocked on every redirect hop. 402xAgent never pays it. The probe is reused for 5 minutes, so two checks in a row agree.</p></div>
     <div class="card step"><span class="num n2">2</span><b>Compare</b><p>The live 402 against the listing: price, network (supported mainnets), the canonical USDC contract and pay_to.</p></div>
     <div class="card step"><span class="num n3">3</span><b>Decide</b><p><strong class="t-pay">pay</strong> with the exact terms to sign, <strong class="t-skip">skip</strong> on a mismatch or no paywall, <strong class="t-recheck">recheck</strong> only for timeouts, 5xx or an active free trial.</p></div>
   </div>

@@ -696,7 +696,7 @@ export function hintFields(origin) {
       price_usdc: "0.02",
       free_per_day: 5,
       url: origin + "/v1/products/endpoint-spot-check?url=https%3A%2F%2Fexample.com&client=YOUR_CLIENT_ID&ref=via-402-hint",
-      note: "5 free SSRF-safe x402 challenge probes per client per UTC day (25 per network across client names), then $0.02 USDC a check on Base. Free result: verdict + plain reason; paid adds quoted/claimed price, pay-to, network.",
+      note: "5 free x402 challenge probes (private, loopback and link-local addresses blocked on every redirect hop) per client per UTC day (25 per network across client names), then $0.02 USDC a check on Base. Free result: verdict + plain reason; paid adds quoted/claimed price, pay-to, network.",
     },
   };
 }
@@ -1155,7 +1155,7 @@ export function spotPaymentRequired(c, resourceUrl, error, used, target = "") {
     error: error + ` The free check (${c.freePerDay}/day, resets 00:00 UTC) is ${FREE_CHECK_URL}; a free dry run works now: add &mode=dry-run.`,
     resource: {
       url: resourceUrl,
-      description: `${SPOT_SERVICE_NAME}: SSRF-safe probe of a public URL for an x402 PAYMENT-REQUIRED challenge. Never pays the target. $${c.priceUsd} USDC on Base after ${c.freePerDay} free checks per UTC day.`,
+      description: `${SPOT_SERVICE_NAME}: probe of a public URL (blocks private, loopback and link-local addresses on every redirect hop) for an x402 PAYMENT-REQUIRED challenge. Never pays the target. $${c.priceUsd} USDC on Base after ${c.freePerDay} free checks per UTC day.`,
       mimeType: "application/json",
       serviceName: SPOT_SERVICE_NAME,
       tags: SPOT_TAGS,
@@ -2489,7 +2489,7 @@ export function openapi(origin, env = {}) {
       title: "402xAgent: x402 pre-payment checks + verified catalog",
       version: VERSION,
       contact: { url: "https://github.com/withgrokbot/verified-catalog/issues" },
-      "x-guidance": `Ask GET /v1/lookup?task=<task>&max_price=<usd> (task names: /v1/tasks). ${c.freePerDay} free calls per client per UTC day, then the same path answers 402; /v1/lookup/paid is the always-paid twin ($${c.priceUsd} USDC on Base via x402) with identical results. Products: GET /v1/products/overnight-cos-pack ($9 USDC); GET /v1/products/endpoint-spot-check (5 free/day (25 per network) then $0.02 USDC a check, SSRF-safe x402 probe). Free MCP: POST /mcp.`,
+      "x-guidance": `Ask GET /v1/lookup?task=<task>&max_price=<usd> (task names: /v1/tasks). ${c.freePerDay} free calls per client per UTC day, then the same path answers 402; /v1/lookup/paid is the always-paid twin ($${c.priceUsd} USDC on Base via x402) with identical results. Products: GET /v1/products/overnight-cos-pack ($9 USDC); GET /v1/products/endpoint-spot-check (5 free/day (25 per network) then $0.02 USDC a check, x402 probe that blocks private, loopback and link-local addresses on every redirect hop). Free MCP: POST /mcp.`,
       description:
         `Start free: GET ${FREE_CHECK_URL} (5 free checks per client per UTC day (at most 25 per network); free dry runs with &mode=dry-run). Real example: GET ${FREE_CHECK_EXAMPLE_URL} -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}. Prior checks: ${PRIOR_CHECKS}. Then, only for the full payment terms: the paid check (HTTP 402, $0.02 USDC on Base via x402). ` +
         `Also: is an x402 endpoint reliable for task X at price <= Y? Facts from our own paid calls: receipts with settlement tx, delivered yes/no and a known-answer pass/fail. Pricing: ${c.freePerDay} free lookups per client per UTC day, then HTTP 402 with an x402 payment requirement of $${c.priceUsd} USDC on Base per lookup. ${PAYMENT_POLICY} Not investment advice; we hold no customer funds.`,
@@ -3121,7 +3121,7 @@ export const MCP_TOOLS = [
   {
     name: "endpoint_spot_check",
     description:
-      "Decision-shaped SSRF-safe 402xAgent check of a public URL for an x402 PAYMENT-REQUIRED / 402 challenge. " +
+      "Decision-shaped 402xAgent check of a public URL (private, loopback and link-local addresses blocked on every redirect hop) for an x402 PAYMENT-REQUIRED / 402 challenge. " +
       "Every answer has reason_code (stable code) and confidence (high|medium|low); rules: https://402xagent.com/rules.json. History: stable_for_days, last_changed, drift. " +
       "Free: verdict (pay|skip|recheck), a plain-words reason, payment_terms_sha256 (hash of the approved payment), and access. Paid: verdict, reason code, quoted/claimed price, pay_to, network, asset, and payment = the exact {network, asset, amount_atomic, amount_usd, pay_to} a router may sign (verdict pay only), plus access with the settlement tx. " +
       "No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx and network errors; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. " +
@@ -3798,7 +3798,7 @@ const routeInnerHolder = {
             title: SPOT_SERVICE_NAME,
             price_usdc: "0.02",
             free_per_day: 5,
-            note: "5 free SSRF-safe x402 challenge probes per client per UTC day (25 per network across client names), then $0.02 USDC a check; never pays the target. SELF_CLIENTS exempt from free quota only.",
+            note: "5 free x402 challenge probes (private, loopback and link-local addresses blocked on every redirect hop) per client per UTC day (25 per network across client names), then $0.02 USDC a check; never pays the target. SELF_CLIENTS exempt from free quota only.",
           },
         },
         mcp: CANON_ORIGIN + "/mcp",

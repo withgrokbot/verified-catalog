@@ -1,4 +1,4 @@
-// Endpoint spot-check: SSRF-safe probe of a public URL for an x402 PAYMENT-REQUIRED challenge.
+// Endpoint spot-check: probe of a public URL (blocks private, loopback and link-local addresses on every redirect hop) for an x402 PAYMENT-REQUIRED challenge.
 // NEVER sends PAYMENT-SIGNATURE / X-PAYMENT / settles to the target. Probe only (GET/HEAD).
 import { qualityMeta } from "./quality.js";
 
