@@ -81,7 +81,7 @@ ${opts.watchtower ? `<h2 id="watchtower">Watchtower ($1 per 30 days)</h2>
 <p>A real case from our own client. Facts only; times are Pacific (UTC-7).</p>
 <ul><li><b>10:49:28</b>: the seller's 402 asked $0.001 (amount <code>1000</code>, USDC on Base) to payTo <code>0xf567…cb98</code>, <code>maxTimeoutSeconds</code> 300. The client signed and sent the paid retry.</li>
 <li><b>~10:49:48</b>: the client gave up after 20,359 ms. No response body was delivered.</li>
-<li><b>10:51:19</b>: the authorization settled on-chain in block 52691866 (tx <code>0x2b4cc694…13ee</code>, from <code>0x37cf…8674</code>, relayer <code>0xa32c…d101</code>).</li>
+<li><b>10:51:19</b>: the authorization settled on-chain in block 52691866 (tx <code>0x2b4cc694…13ee</code>, from <code>0x37cf…8674</code> (our payTo; <a href="https://agenteconomy.report/api/claim/api.402xagent.com" rel="noopener">Verified owner</a>), relayer <code>0xa32c…d101</code>).</li>
 <li><b>11:12:28</b>: one free payment-status check with <code>tx_hash</code>, <code>from</code>, <code>nonce</code> and <code>seller_url</code> (no payload needed when you have these).</li></ul>
 <p>Answer: <b>status</b> <code>landed</code> (reason <code>settled_onchain</code>, 634 confirmations), amount and payTo match the seller's 402 terms, two RPC sources (Alchemy and Infura) agreed, <b>safe_to_resign</b> <code>false</code>. So: don't sign a new payment; the money moved, and the next step is to ask the seller for the response or a refund, using the tx as evidence. Signed receipt: <a href="https://402xagent.com/v1/receipts/ps-65a4fdffae01d2b6">https://402xagent.com/v1/receipts/ps-65a4fdffae01d2b6</a>.</p>
 <h2 id="expiry-check">Expiry check (opt-in)</h2>
