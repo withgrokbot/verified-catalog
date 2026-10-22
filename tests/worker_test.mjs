@@ -1086,16 +1086,20 @@ test("spot-check Bazaar/402 examples match the real paid and free response shape
   assert.equal(free.body.access.tier, "free");
   assert.equal(unpaid.status, 402);
   assert.equal(paid.body.access.tier, "paid");
-  const bz = unpaid.body.extensions.bazaar;
+  // 0.50.2: the 402 carries trimmed Bazaar metadata + a docs link; full examples moved to GET .../endpoint-spot-check/docs
+  assert.equal(unpaid.body.docs, "https://api.402xagent.com/v1/products/endpoint-spot-check/docs");
+  assert.equal(unpaid.body.extensions.bazaar.info.output.docs, unpaid.body.docs);
+  const docs = (await send("/v1/products/endpoint-spot-check/docs", { envo: e })).body;
+  const bz = docs.bazaar;
   const keys = (o) => Object.keys(o).sort();
   assert.deepEqual(keys(bz.info.output.example), keys(paid.body), "bazaar example = real paid shape");
   assert.deepEqual(keys(bz.info.output.example.access).filter((k) => k in paid.body.access), keys(bz.info.output.example.access));
   assert.equal(bz.info.output.example.access.tier, "paid");
   assert.deepEqual(keys(bz.info.output.free_example), keys(free.body), "free example = real free shape");
   assert.ok(!("quoted_price_usd" in bz.info.output.free_example), "free example must not show quoted_price");
-  assert.deepEqual(keys(unpaid.body.paid_example), keys(paid.body));
-  assert.deepEqual(keys(unpaid.body.free_example), keys(free.body));
-  for (const f of unpaid.body.paid_fields) assert.ok(f in paid.body && !(f in free.body), f);
+  assert.deepEqual(keys(docs.paid_example), keys(paid.body));
+  assert.deepEqual(keys(docs.free_example), keys(free.body));
+  for (const f of docs.paid_fields) assert.ok(f in paid.body && !(f in free.body), f);
   for (const k of bz.schema.properties.output.properties.example.required) assert.ok(k in paid.body, k);
   for (const k of bz.schema.properties.output.properties.free_example.required) assert.ok(k in free.body, k);
   const oa = (await send("/openapi.json", { envo: e })).body;
@@ -2677,7 +2681,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.50.1");
+  assert.equal(VERSION, "0.50.2");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)

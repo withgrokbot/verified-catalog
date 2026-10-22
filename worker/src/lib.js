@@ -63,7 +63,7 @@ export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECK
 import { BRAND_ASSETS } from "./brand.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.50.1";
+export const VERSION = "0.50.2";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -99,6 +99,8 @@ const CRAWLER_RE = /(googlebot|google-inspectiontool|googleother|bingbot|bingpre
 const UPTIME_RE = /(uptime|pingdom|statuscake|site24x7|betteruptime|better stack|hetrixtools|freshping|nodeping|monitis|checkly|updown\.io|cron-job\.org|healthcheck|monitor)/i;
 const SELF_UA_RE = /withgrokbot/i;
 
+// 0.50.2: json402c = compact JSON (no pretty-print) for the spot-check 402s (< 4 KB body).
+const json402c = (obj, status, extra = {}) => { const r = json(obj, status, extra); return new Response(JSON.stringify(obj), { status: r.status, headers: r.headers }); };
 const json = (obj, status = 200, extra = {}) =>
   new Response(JSON.stringify(obj, null, 2), {
     status,
@@ -1085,31 +1087,12 @@ export const SPOT_FREE_SCHEMA = {
   additionalProperties: false,
 };
 
-export function spotPaymentRequired(c, resourceUrl, error, used, target = "") {
-  const origin = new URL(resourceUrl).origin;
-  const ft = freeCheckField(target);
+// 0.50.2: the long examples/docs that used to ride in every 402 body (42 KB -> < 4 KB). Free GET, same content.
+export const SPOT_DOCS_URL = API_ORIGIN + "/v1/products/endpoint-spot-check/docs";
+export function spotDocs(origin = API_ORIGIN) {
   return {
-    x402Version: 2,
-    error: error + ` The free check (${c.freePerDay}/day, resets 00:00 UTC) is ${FREE_CHECK_URL}; a free dry run works now: add &mode=dry-run.`,
-    resource: {
-      url: resourceUrl,
-      description: `${SPOT_SERVICE_NAME}: SSRF-safe probe of a public URL for an x402 PAYMENT-REQUIRED challenge. Never pays the target. $${c.priceUsd} USDC on Base after ${c.freePerDay} free checks per UTC day.`,
-      mimeType: "application/json",
-      serviceName: SPOT_SERVICE_NAME,
-      tags: SPOT_TAGS,
-    },
-    accepts: [paymentRequirements(c, resourceUrl, 2, {
-      paidPath: false,
-      description: `${SPOT_SERVICE_NAME}: one probe after the ${c.freePerDay} free checks per UTC day. $${c.priceUsd} USDC on Base. Never pays the target under test.`,
-    })],
-    extensions: { bazaar: spotBazaarExtension() },
-    price_usd: c.priceUsd,
-    asset: "USDC on Base (eip155:8453)",
     product: SPOT_ID,
-    free_per_day: c.freePerDay,
-    free_used_today: used,
-    free_resets: "00:00 UTC",
-    free_check: { ...ft, dry_run_now: (ft.this_endpoint || FREE_CHECK_URL) + "&mode=dry-run" },
+    route: origin + "/v1/products/endpoint-spot-check",
     paid_fields: ["quoted_price_usd", "claimed_price_usd", "pay_to", "network", "asset", "expected_pay_to", "expected_network", "expected_source", "payment"],
     paid_example: {
       verdict: "skip",
@@ -1140,9 +1123,52 @@ export function spotPaymentRequired(c, resourceUrl, error, used, target = "") {
     paid_example_note: "Real case: https://kr-intel-agent-production.up.railway.app/api/briefing is listed as a $0.35 x402 endpoint; the live probe gets HTTP 404 with no 402 challenge, so there is nothing safe to pay. Receipt: " + origin + "/v1/receipts/395e5cd716. (Any response without 402 terms is skip/no_paywall, except recheck/free_trial_active when the seller sends x-free-trial headers; recheck is only for timeouts, 5xx and network errors.)",
     free_example: SPOT_FREE_EXAMPLE,
     skips_page: CANON_ORIGIN + "/v1/skips",
+    ...hintFields(CANON_ORIGIN),
+    bazaar: spotBazaarExtension(),
+  };
+}
+const stripDescriptions = (o) => Array.isArray(o) ? o.map(stripDescriptions) : o && typeof o === "object" ? Object.fromEntries(Object.entries(o).filter(([k]) => k !== "description").map(([k, v]) => [k, stripDescriptions(v)])) : o;
+// 0.50.2: Bazaar metadata kept in the 402 (input + output type), full schema/examples at SPOT_DOCS_URL.
+export function spotBazaarExtensionLite() {
+  const full = spotBazaarExtension();
+  return {
+    info: { input: full.info.input, output: { type: "json", docs: SPOT_DOCS_URL } },
+    schema: {
+      $schema: full.schema.$schema,
+      type: "object",
+      properties: { input: stripDescriptions(full.schema.properties.input), output: { type: "object", properties: { type: { type: "string" }, docs: { type: "string" } }, required: ["type"] } },
+      required: full.schema.required,
+    },
+  };
+}
+export function spotPaymentRequired(c, resourceUrl, error, used, target = "") {
+  const origin = new URL(resourceUrl).origin;
+  const ft = freeCheckField(target);
+  return {
+    x402Version: 2,
+    error: error + ` The free check (${c.freePerDay}/day, resets 00:00 UTC) is ${FREE_CHECK_URL}; a free dry run works now: add &mode=dry-run.`,
+    resource: {
+      url: resourceUrl,
+      description: `${SPOT_SERVICE_NAME}: SSRF-safe probe of a public URL for an x402 PAYMENT-REQUIRED challenge. Never pays the target. $${c.priceUsd} USDC on Base after ${c.freePerDay} free checks per UTC day.`,
+      mimeType: "application/json",
+      serviceName: SPOT_SERVICE_NAME,
+      tags: SPOT_TAGS,
+    },
+    accepts: [paymentRequirements(c, resourceUrl, 2, {
+      paidPath: false,
+      description: `${SPOT_SERVICE_NAME}: one probe after the ${c.freePerDay} free checks per UTC day. $${c.priceUsd} USDC on Base. Never pays the target under test.`,
+    })],
+    extensions: { bazaar: spotBazaarExtensionLite() },
+    price_usd: c.priceUsd,
+    asset: "USDC on Base (eip155:8453)",
+    product: SPOT_ID,
+    free_per_day: c.freePerDay,
+    free_used_today: used,
+    free_resets: "00:00 UTC",
+    free_check: { ...ft, dry_run_now: (ft.this_endpoint || FREE_CHECK_URL) + "&mode=dry-run" },
     how_to_pay:
       "Retry the same request with a PAYMENT-SIGNATURE header (x402 v2; X-PAYMENT is also accepted) holding a signed USDC EIP-3009 authorization for the amount and payTo above.",
-    ...hintFields(CANON_ORIGIN),
+    docs: SPOT_DOCS_URL,
   };
 }
 
@@ -1832,11 +1858,11 @@ export function spotLossReason(d, claimed) {
 // 0.49.2: placeholder hosts (example.com, localhost, *.test, ...; ops.js) are rejected before any probe or free quota.
 // No payment header: the route's normal 402 (same accepts) + input_error. With a payment header: strict 400.
 // x-402-placeholder tells opsWrap to count it on its own funnel event.
-function placeholderReject(hdr, field, received, body402) {
+function placeholderReject(hdr, field, received, body402, compact = false) {
   const ph = { [PLACEHOLDER_HEADER]: "1", "cache-control": "no-store" };
   if (hdr) return json(placeholder400(field, received), 400, ph);
   const body = { ...body402, error: PLACEHOLDER_MESSAGE, ...placeholderInputError(field, received) };
-  return json(body, 402, { "payment-required": b64encode(body), [INPUT_ERROR_HEADER]: field, ...ph });
+  return (compact ? json402c : json)(body, 402, { "payment-required": b64encode(body), [INPUT_ERROR_HEADER]: field, ...ph });
 }
 async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const c = spotCfg(env);
@@ -1861,7 +1887,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       const help = spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem, fix);
       const body = { ...spotPaymentRequired(spotDynCfg(c, null), resourceUrl, "Missing url. Add ?url=<x402 endpoint> (or POST JSON {\"url\": ...}) to run a check.", 0, ""), hint: help.error, field: help.field, example: help.example, discovery: true };
       body.pricing = "flat $0.02 USDC per check (any target price)";
-      return json(body, 402, { "payment-required": b64encode(body) });
+      return json402c(body, 402, { "payment-required": b64encode(body) });
     }
     const usage = q.errors[0].missing && !(q.ctx.unknown || []).length && (req.method === "GET" || req.method === "HEAD"); // a misnamed param (?link=) stays 400
     return json(spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem, fix), usage ? 200 : 400);
@@ -1871,7 +1897,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: paymentHeader(req) ? 400 : 402, referer, access: "spot-placeholder", shape }));
     const b402 = spotPaymentRequired(spotDynCfg(c, null), resourceUrl, PLACEHOLDER_MESSAGE, 0, "");
     b402.pricing = "flat $0.02 USDC per check (any target price)";
-    return placeholderReject(paymentHeader(req), "url", q.url, b402);
+    return placeholderReject(paymentHeader(req), "url", q.url, b402, true);
   }
   const listing = await listingForAsync(env, q.url);
   const exp = {
@@ -1958,7 +1984,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       ? `router tier: $${rcfg.perCheckAtomic / 1e6} per check, billed per pack of checks in one settlement`
       : "flat $0.02 USDC per check (any target price)";
     writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 402, referer, access: kind, freeUsed: used, paidBy: payer, failReason: kind === "payment-failed" ? error : "", shape }));
-    return json(body, 402, { "payment-required": b64encode(body) });
+    return json402c(body, 402, { "payment-required": b64encode(body) });
   };
 
   // Early SSRF gate (no fetch for blocked literals/hosts): run probe only after access.
@@ -3591,6 +3617,7 @@ const routeInnerHolder = {
     // POST is accepted on the paid path so method-probing discovery tools get the same 402.
     if (path === "/v1/lookup/paid" && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaidLookup(req, env, ctx, url);
     if (path === "/v1/products/overnight-cos-pack" && ["GET", "HEAD", "POST"].includes(req.method)) return handleOvernightCosPack(req, env, ctx, url);
+    if (path === "/v1/products/endpoint-spot-check/docs" && (req.method === "GET" || req.method === "HEAD")) return new Response(JSON.stringify(spotDocs(API_ORIGIN), null, 2), { headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });
     if (path === "/v1/products/endpoint-spot-check" && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointSpotCheck(req, env, ctx, url);
     if (path === PS_ROUTE_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaymentStatus(req, env, ctx, url);
     if (path === ER_ROUTE_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointReport(req, env, ctx, url);

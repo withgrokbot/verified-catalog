@@ -121,7 +121,7 @@ async function probeSeller(url, fetchImpl) {
   for (let i = 0; i < HYGIENE_SAMPLES; i++) {
     const t0 = Date.now();
     let resp;
-    try { resp = await fetchImpl(url, { method: "GET", redirect: "manual", headers: { accept: "application/json", "user-agent": "402xAgent-hygiene/0.50.1 (+https://402xagent.com/docs)" }, signal: AbortSignal.timeout(HYGIENE_TIMEOUT_MS) }); }
+    try { resp = await fetchImpl(url, { method: "GET", redirect: "manual", headers: { accept: "application/json", "user-agent": "402xAgent-hygiene/0.50.2 (+https://402xagent.com/docs)" }, signal: AbortSignal.timeout(HYGIENE_TIMEOUT_MS) }); }
     catch (_) { if (!first) return null; break; }
     const text = (await resp.text()).slice(0, MAX_BODY);
     latencies.push(Date.now() - t0);
