@@ -55,7 +55,8 @@ function setup(extra = {}) {
   const rows = (t) => env.RECEIPTS_DB.raw.prepare("SELECT * FROM " + t).all();
   return { env, call, rows };
 }
-const pay = (from, over = {}) => ({ "payment-signature": btoa(JSON.stringify({ x402Version: 2, accepted: { scheme: "exact", network: "eip155:8453", amount: "50000", asset: USDC, payTo: PAY_TO, ...over }, payload: { signature: "0x" + "11".repeat(65), authorization: { from, to: PAY_TO, value: over.amount || "50000", validAfter: "0", validBefore: "9999999999", nonce: "0x" + "22".repeat(32) } } })) });
+let payN = 0; // 0.51.1: a fresh nonce per signed payment (a reused nonce now replays the stored settlement)
+const pay = (from, over = {}) => ({ "payment-signature": btoa(JSON.stringify({ x402Version: 2, accepted: { scheme: "exact", network: "eip155:8453", amount: "50000", asset: USDC, payTo: PAY_TO, ...over }, payload: { signature: "0x" + "11".repeat(65), authorization: { from, to: PAY_TO, value: over.amount || "50000", validAfter: "0", validBefore: "9999999999", nonce: "0x" + (++payN).toString(16).padStart(64, "0") } } })) });
 const ER = "/v1/products/endpoint-report";
 const funnel = (t) => Object.fromEntries(t.rows("paywall_daily").map((r) => [[r.route, r.segment, r.event, r.reason].join("|"), r.n]));
 

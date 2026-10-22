@@ -45,7 +45,7 @@ function ipv4Parts(ip) {
 export function isBlockedIPv4(ip) {
   const p = ipv4Parts(ip);
   if (!p) return false;
-  const [a, b] = p;
+  const [a, b, c] = p;
   if (a === 0) return true; // 0.0.0.0/8
   if (a === 127) return true; // 127.0.0.0/8
   if (a === 10) return true; // 10.0.0.0/8
@@ -53,41 +53,56 @@ export function isBlockedIPv4(ip) {
   if (a === 192 && b === 168) return true; // 192.168.0.0/16
   if (a === 169 && b === 254) return true; // 169.254.0.0/16 link-local + cloud metadata
   if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64.0.0/10 (treat as private)
+  if (a === 192 && b === 0 && c === 0) return true; // 192.0.0.0/24 IETF protocol assignments (0.51.1)
+  if (a === 198 && (b === 18 || b === 19)) return true; // 198.18.0.0/15 benchmarking (0.51.1)
+  if (a >= 224) return true; // 224.0.0.0/4 multicast, 240.0.0.0/4 reserved, 255.255.255.255 broadcast (0.51.1)
   return false;
 }
 
+// 0.51.1: full RFC 4291 parsing, including an embedded dotted IPv4 tail anywhere (::a.b.c.d, ::ffff:a.b.c.d,
+// 64:ff9b::a.b.c.d). WHATWG URL rewrites [::ffff:127.0.0.1] to [::ffff:7f00:1], so the hex form must be caught too.
 function expandIPv6(ip) {
   let s = String(ip).toLowerCase().trim();
   if (s.startsWith("[") && s.endsWith("]")) s = s.slice(1, -1);
-  // strip zone id
-  s = s.split("%")[0];
-  // IPv4-mapped
-  const v4map = s.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-  if (v4map) return { mapped4: v4map[1], parts: null };
+  s = s.split("%")[0]; // strip zone id
+  const dotted = s.match(/^(.*:)(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) {
+    const q = ipv4Parts(dotted[2]);
+    if (!q) return null;
+    s = dotted[1] + ((q[0] << 8) | q[1]).toString(16) + ":" + ((q[2] << 8) | q[3]).toString(16);
+  }
+  if (!/^[0-9a-f:]+$/.test(s)) return null;
   const halves = s.split("::");
-  let head = halves[0] ? halves[0].split(":") : [];
-  let tail = halves.length > 1 && halves[1] ? halves[1].split(":") : [];
   if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length > 1 && halves[1] ? halves[1].split(":") : [];
   const missing = 8 - (head.length + tail.length);
-  if (missing < 0) return null;
-  const full = [...head, ...Array(missing).fill("0"), ...tail].map((h) => parseInt(h || "0", 16));
+  if (missing < 0 || (halves.length === 1 && missing !== 0)) return null;
+  if ([...head, ...tail].some((h) => h.length < 1 || h.length > 4)) return null;
+  const full = [...head, ...Array(missing).fill("0"), ...tail].map((h) => parseInt(h, 16));
   if (full.length !== 8 || full.some((n) => !Number.isFinite(n) || n < 0 || n > 0xffff)) return null;
-  return { mapped4: null, parts: full };
+  return { parts: full };
 }
+const v4of = (hi, lo) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
 
 export function isBlockedIPv6(ip) {
   const ex = expandIPv6(ip);
   if (!ex) return true; // unparseable -> block
-  if (ex.mapped4) return isBlockedIPv4(ex.mapped4);
   const p = ex.parts;
-  // ::1
-  if (p.every((x, i) => (i === 7 ? x === 1 : x === 0))) return true;
-  // :: (unspecified)
-  if (p.every((x) => x === 0)) return true;
-  // fc00::/7 unique local
-  if ((p[0] & 0xfe00) === 0xfc00) return true;
-  // fe80::/10 link-local
-  if ((p[0] & 0xffc0) === 0xfe80) return true;
+  const zero = (from, to) => p.slice(from, to).every((x) => x === 0);
+  if (zero(0, 8)) return true; // :: unspecified
+  if (zero(0, 7) && p[7] === 1) return true; // ::1 loopback
+  if (zero(0, 5) && p[5] === 0xffff) return true; // ::ffff:0:0/96 IPv4-mapped (any embedded v4): never a legitimate v6 target
+  if (zero(0, 4) && p[4] === 0xffff && p[5] === 0) return true; // ::ffff:0:0:0/96 IPv4-translated
+  if (zero(0, 6)) return true; // ::/96 IPv4-compatible (deprecated)
+  if (p[0] === 0x64 && p[1] === 0xff9b && zero(2, 6)) return isBlockedIPv4(v4of(p[6], p[7])); // 64:ff9b::/96 NAT64
+  if (p[0] === 0x64 && p[1] === 0xff9b && p[2] === 1) return true; // 64:ff9b:1::/48 local-use NAT64
+  if (p[0] === 0x2002) return isBlockedIPv4(v4of(p[1], p[2])); // 2002::/16 6to4
+  if (p[0] === 0x0100 && zero(1, 4)) return true; // 100::/64 discard
+  if ((p[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
+  if ((p[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
+  if ((p[0] & 0xffc0) === 0xfec0) return true; // fec0::/10 site-local (deprecated)
+  if ((p[0] & 0xff00) === 0xff00) return true; // ff00::/8 multicast
   return false;
 }
 
@@ -245,7 +260,7 @@ export function parseX402Challenge({ status, headers, bodyText }) {
   };
 }
 
-async function readBodyCapped(resp, max = SPOT_MAX_BODY) {
+export async function readBodyCapped(resp, max = SPOT_MAX_BODY) {
   const reader = resp.body && typeof resp.body.getReader === "function" ? resp.body.getReader() : null;
   if (!reader) {
     const t = await resp.text();
