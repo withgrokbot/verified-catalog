@@ -15,12 +15,12 @@ import { RECEIPTS_META } from "../worker/src/receipts-data.js";
 import { VERSION, listingFor, pickPayment, termsSha256, applyPayment, paymentObject, _resetCache, isoWeek, ipPrefix, saltPeriod, QuotaCounter, takeFree, quotaKey, PAYMENT_POLICY } from "../worker/src/lib.js";
 import { LANDING_EXAMPLES } from "../worker/src/landing.js";
 
-const BASE = "https://data.test/vc/";
+const BASE = "https://data.fixture/vc/";
 const H = 3600000;
 const now = Date.now();
 const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 const svc = (id, price, tasks, extra = {}) => ({
-  id, name: id.toUpperCase(), endpoint: `https://${id}.test/api`, category: "web search", description: "synthetic",
+  id, name: id.toUpperCase(), endpoint: `https://${id}.fixture/api`, category: "web search", description: "synthetic",
   tasks, advertised_price: { amount_usd: price }, sample_request: { method: "GET" },
   latest: { checked_at: iso(now - H), reachable: true, x402_challenge: true, quoted_price_usd: price, price_matches_listing: true },
   page_url: `${BASE}services/${id}.html`, ...extra,
@@ -31,7 +31,7 @@ const rc = (ageH, quality, payTo = "0x00000000000000000000000000000000000000aa")
   raw_log_url: BASE + "results/raw/x.json",
 });
 const CATALOG = {
-  generated_at: iso(now), methodology_url: BASE + "methodology.html", contest_url: "https://issues.test/new",
+  generated_at: iso(now), methodology_url: BASE + "methodology.html", contest_url: "https://issues.fixture/new",
   services: [
     svc("alpha", "0.01", ["web-search"]),
     svc("beta", "0.005", ["web-search"]),
@@ -58,7 +58,7 @@ const RECEIPTS = {
 writeFileSync(CAT_FILE, JSON.stringify(CATALOG));
 let serveReceipts = true;
 let fetches = 0;
-const FAC = "https://facilitator.test";
+const FAC = "https://facilitator.fixture";
 const facCalls = [];
 let facMode = "ok"; // ok | invalid | settle-fail
 let facPayer = "0x" + "11".repeat(20);
@@ -83,8 +83,8 @@ globalThis.fetch = async (url, init = {}) => {
       return Response.json({ Answer: [{ type: type === "A" ? 1 : 28, data: name === "localhost" ? "127.0.0.1" : "169.254.169.254" }] });
     }
     // Realistic CNAME + A chain (must ignore type 5)
-    if (type === "A") return Response.json({ Answer: [{ type: 5, data: "cdn.example.test." }, { type: 1, data: "93.184.216.34" }] });
-    return Response.json({ Answer: [{ type: 5, data: "cdn.example.test." }] });
+    if (type === "A") return Response.json({ Answer: [{ type: 5, data: "cdn.example.fixture." }, { type: 1, data: "93.184.216.34" }] });
+    return Response.json({ Answer: [{ type: 5, data: "cdn.example.fixture." }] });
   }
   // Spot-check probe targets (never expect payment headers)
   if (u.startsWith("https://topagentx402.vercel.app/api/send-token")) {
@@ -92,7 +92,7 @@ globalThis.fetch = async (url, init = {}) => {
     const accepts = [{ scheme: "exact", network: "eip155:8453", amount: "1000", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: "0xb1f64fc8689a17014Cf0748e8EeaD58C5457Ec74" }];
     return new Response(JSON.stringify({ x402Version: 2, accepts }), { status: 402, headers: { "content-type": "application/json" } });
   }
-  if (u.startsWith("https://sol.target.test/")) {
+  if (u.startsWith("https://sol.target.fixture/")) {
     // 0.23.0 Solana fixtures (x402 v2 SVM shape: CAIP-2 network, mint as asset, extra.feePayer)
     const k = new URL(u).pathname.split("/")[1];
     const SOL = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", DEV = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
@@ -111,7 +111,7 @@ globalThis.fetch = async (url, init = {}) => {
     const body = { x402Version: 2, error: "Payment required", resource: { url: u }, accepts: acc || [one({})] };
     return new Response(JSON.stringify(body), { status: 402, headers: { "content-type": "application/json", "payment-required": btoa(JSON.stringify(body)) } });
   }
-  if (u.startsWith("https://spot.target.test/") || u.startsWith("https://x402.example.test/") || u.startsWith("https://api.realx402.dev/") || u.startsWith("https://other.realx402.dev/") || u.startsWith("https://example.com/") || u.startsWith("https://httpbin.org/")) {
+  if (u.startsWith("https://spot.target.fixture/") || u.startsWith("https://x402.example.fixture/") || u.startsWith("https://api.realx402.dev/") || u.startsWith("https://other.realx402.dev/") || u.startsWith("https://example.com/") || u.startsWith("https://httpbin.org/")) {
     lastSpotFetchInit = init || {};
     if (spotTargetMode === "timeout") {
       const err = new Error("timeout"); err.name = "AbortError"; throw err;
@@ -182,7 +182,7 @@ function mkEnv(opts = {}) {
 }
 async function call(path, { ua = "agent-x/1.0", ip = "203.0.113.7", envo, headers = {} } = {}) {
   const e = envo || mkEnv();
-  const req = new Request("https://lookup.test" + path, { headers: { "user-agent": ua, "cf-connecting-ip": ip, ...headers } });
+  const req = new Request("https://lookup.fixture" + path, { headers: { "user-agent": ua, "cf-connecting-ip": ip, ...headers } });
   const res = await worker.fetch(req, e.env, { waitUntil() {} });
   return { status: res.status, body: res.status === 204 ? null : await res.json(), points: e.points, headers: res.headers };
 }
@@ -214,7 +214,7 @@ test("n limits receipts per service and pass rate uses only those; ties sort by 
 test("endpoint lookup by id or URL, and unknown task falls back to text match", async () => {
   let r = await call("/v1/lookup?endpoint=alpha");
   assert.deepEqual(r.body.results.map((x) => x.id), ["alpha"]);
-  r = await call("/v1/lookup?endpoint=" + encodeURIComponent("https://beta.test/api"));
+  r = await call("/v1/lookup?endpoint=" + encodeURIComponent("https://beta.fixture/api"));
   assert.deepEqual(r.body.results.map((x) => x.id), ["beta"]);
   r = await call("/v1/lookup?task=web-search&max_price=1&limit=20");
   assert.ok(!r.body.results.some((x) => x.id === "weather1"), "known task names match exactly");
@@ -338,7 +338,7 @@ const meteredEnv = (o = {}) => mkEnv({ quota: fakeQuotaNamespace(o) });
 const LQ = "/v1/lookup?task=web-search&max_price=0.01";
 const v2Payment = (over = {}) => b64({
   x402Version: 2,
-  resource: { url: "https://lookup.test" + LQ },
+  resource: { url: "https://lookup.fixture" + LQ },
   accepted: { scheme: "exact", network: "eip155:8453", amount: "20000", asset: USDC, payTo: PAY_TO, maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" }, ...over },
   payload: { signature: "0x" + "ee".repeat(65), authorization: { from: "0x" + "11".repeat(20), to: PAY_TO, value: over.amount || "20000", validAfter: "0", validBefore: "9999999999", nonce: "0x" + "22".repeat(32) } },
 });
@@ -380,7 +380,7 @@ test("quota without a client value: keyed by a salted hash of the IP (not the Us
   assert.equal((await call(LQ, { envo: e, ip: "198.51.100.24" })).status, 200, "another IP has its own quota");
   assert.ok(ns.names.every((n) => /^ip:[0-9a-f]{24}$/.test(n)), ns.names.join(","));
   assert.ok(!JSON.stringify(ns.names).includes("198.51.100"));
-  const req = new Request("https://x.test/", { headers: { "cf-connecting-ip": "203.0.113.9" } });
+  const req = new Request("https://x.fixture/", { headers: { "cf-connecting-ip": "203.0.113.9" } });
   assert.equal(await quotaKey(req, { client: "bob" }, {}), "c:bob");
 });
 
@@ -393,7 +393,7 @@ test("402 shape: x402 v2 PAYMENT-REQUIRED header and body, $0.02 USDC on Base to
   assert.deepEqual(hdr, r.body, "header and body carry the same requirement");
   assert.equal(hdr.x402Version, 2);
   assert.match(hdr.error, /Free lookups used up/);
-  assert.equal(hdr.resource.url, "https://lookup.test" + LQ + "&client=shape");
+  assert.equal(hdr.resource.url, "https://lookup.fixture" + LQ + "&client=shape");
   assert.equal(hdr.resource.mimeType, "application/json");
   assert.deepEqual(hdr.accepts, [{ scheme: "exact", network: "eip155:8453", amount: "20000", asset: USDC, payTo: PAY_TO, maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" } }]);
   assert.equal(hdr.price_usd, "0.02");
@@ -414,7 +414,7 @@ test("402 shape: x402 v2 PAYMENT-REQUIRED header and body, $0.02 USDC on Base to
   const help = (await call("/", { envo: e })).body;
   assert.equal(help.pricing.free_per_day, 5);
   assert.equal(help.payment_policy, PAYMENT_POLICY);
-  const pre = await worker.fetch(new Request("https://lookup.test/v1/lookup", { method: "OPTIONS" }), e.env, {});
+  const pre = await worker.fetch(new Request("https://lookup.fixture/v1/lookup", { method: "OPTIONS" }), e.env, {});
   assert.equal(pre.status, 204);
   assert.match(pre.headers.get("access-control-allow-headers"), /PAYMENT-SIGNATURE/);
 });
@@ -510,7 +510,7 @@ test("free calls left: a payment header is ignored (nothing settled); counter ou
 const PQ = "/v1/lookup/paid?task=web-search&max_price=0.01";
 async function send(path, { method = "GET", body, headers = {}, envo, ua = "agent-x/1.0", ip = "203.0.113.7" } = {}) {
   const e = envo || meteredEnv();
-  const req = new Request("https://lookup.test" + path, { method, body, headers: { "user-agent": ua, "cf-connecting-ip": ip, ...headers } });
+  const req = new Request("https://lookup.fixture" + path, { method, body, headers: { "user-agent": ua, "cf-connecting-ip": ip, ...headers } });
   const res = await worker.fetch(req, e.env, { waitUntil() {} });
   const txt = await res.text();
   return { status: res.status, body: txt ? JSON.parse(txt) : null, headers: res.headers, points: e.points };
@@ -525,7 +525,7 @@ test("paid path: every unpaid call (no params, GET or POST, first call of the da
   }
   const b = (await send(PQ, { envo: e })).body;
   assert.equal(b.x402Version, 2);
-  assert.equal(b.resource.url, "https://lookup.test/v1/lookup/paid", "resource is the path without the query");
+  assert.equal(b.resource.url, "https://lookup.fixture/v1/lookup/paid", "resource is the path without the query");
   assert.equal(b.resource.serviceName, "Verified Catalog Lookup");
   assert.ok(b.resource.serviceName.length <= 32 && b.resource.tags.length <= 5);
   assert.deepEqual(b.accepts, [{ scheme: "exact", network: "eip155:8453", amount: "20000", asset: USDC, payTo: PAY_TO, maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" } }]);
@@ -639,7 +639,7 @@ test("MCP /mcp: initialize, tools/list (catalog tools + products), ping, notific
   assert.equal((await send("/mcp", { envo: e })).status, 405, "GET: no SSE stream on a stateless server");
   const batch = await rpc([{ jsonrpc: "2.0", id: 6, method: "ping" }, { jsonrpc: "2.0", method: "notifications/initialized" }], { envo: e });
   assert.deepEqual(batch.body, [{ jsonrpc: "2.0", id: 6, result: {} }]);
-  const pre = await worker.fetch(new Request("https://lookup.test/mcp", { method: "OPTIONS" }), e.env, {});
+  const pre = await worker.fetch(new Request("https://lookup.fixture/mcp", { method: "OPTIONS" }), e.env, {});
   assert.match(pre.headers.get("access-control-allow-methods"), /POST/);
 });
 
@@ -696,7 +696,7 @@ test("MCP /mcp lookup: same /v1/lookup result, client=vc-mcp with its 5 free cal
 const PACK = "/v1/products/overnight-cos-pack";
 const packPayment = (over = {}) => b64({
   x402Version: 2,
-  resource: { url: "https://lookup.test" + PACK },
+  resource: { url: "https://lookup.fixture" + PACK },
   accepted: { scheme: "exact", network: "eip155:8453", amount: "9000000", asset: USDC, payTo: PAY_TO, maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" }, ...over },
   payload: { signature: "0x" + "ee".repeat(65), authorization: { from: "0x" + "11".repeat(20), to: PAY_TO, value: over.amount || "9000000", validAfter: "0", validBefore: "9999999999", nonce: "0x" + "22".repeat(32) } },
 });
@@ -723,7 +723,7 @@ test("overnight-cos-pack: unpaid GET/POST return 402 with amount 9000000, payTo,
   }
   const b = (await send(PACK, { envo: e })).body;
   assert.equal(b.x402Version, 2);
-  assert.equal(b.resource.url, "https://lookup.test" + PACK);
+  assert.equal(b.resource.url, "https://lookup.fixture" + PACK);
   assert.equal(b.resource.serviceName, "Overnight CoS Setup Pack");
   assert.ok(b.resource.serviceName.length <= 32);
   assert.equal(b.resource.tags.length, 5);
@@ -811,7 +811,7 @@ test("MCP get_overnight_cos_pack: unpaid returns payment instructions; paid head
 const SPOT = "/v1/products/endpoint-spot-check";
 const spotPayment = (over = {}) => b64({
   x402Version: 2,
-  resource: { url: "https://lookup.test" + SPOT },
+  resource: { url: "https://lookup.fixture" + SPOT },
   accepted: { scheme: "exact", network: "eip155:8453", amount: "250000", asset: USDC, payTo: PAY_TO, maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" }, ...over },
   payload: { signature: "0x" + "ee".repeat(65), authorization: { from: "0x" + "11".repeat(20), to: PAY_TO, value: over.amount || "250000", validAfter: "0", validBefore: "9999999999", nonce: "0x" + "22".repeat(32) } },
 });
@@ -827,9 +827,12 @@ function spotEnv(extra = {}) {
 test("spot-check SSRF: localhost, 127.0.0.1, 169.254.169.254, 10.x → 400 skip/ssrf_blocked, no outbound fetch", async () => {
   const e = spotEnv();
   lastSpotFetchInit = null;
+  // 0.49.2: localhost and 127.0.0.1 are docs placeholders now: rejected (402 + input_error) before the SSRF gate, still no fetch
+  for (const u of ["http://localhost/admin", "http://127.0.0.1/"]) {
+    const r = await send(SPOT + "?url=" + encodeURIComponent(u) + "&client=ssrf-a", { envo: e });
+    assert.equal(r.status, 402, u); assert.equal(r.body.input_error.code, "placeholder_host", u);
+  }
   const blocked = [
-    "http://localhost/admin",
-    "http://127.0.0.1/",
     "http://169.254.169.254/latest/meta-data/",
     "http://10.0.0.5/secret",
     "http://192.168.1.1/",
@@ -850,7 +853,7 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   const e = spotEnv();
   spotTargetMode = "402";
   lastSpotFetchInit = null;
-  const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=spot-free-1", { envo: e });
+  const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price=0.001&client=spot-free-1", { envo: e });
   assert.equal(r.status, 200);
   assert.equal(r.body.access.tier, "free");
   assert.equal(r.body.verdict, "pay");
@@ -866,7 +869,7 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   const keys = Object.keys(hdrObj).map((k) => k.toLowerCase());
   assert.ok(!keys.includes("payment-signature") && !keys.includes("x-payment"), "never send payment headers outbound");
   // second call same day → 402 at the flat $0.02 (0.38.0)
-  const r2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-free-1", { envo: e });
+  const r2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=spot-free-1", { envo: e });
   assert.equal(r2.status, 402);
   assert.equal(r2.body.accepts[0].amount, "20000");
   assert.equal(r2.body.price_usd, "0.02");
@@ -878,26 +881,26 @@ test("spot-check unpaid after free exhausted → 402 amount 20000 (flat $0.02, 0
   facCalls.length = 0;
   facMode = "ok";
   spotTargetMode = "402";
-  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", { envo: e });
-  const unpaid = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", { envo: e });
+  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=spot-pay-1", { envo: e });
+  const unpaid = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=spot-pay-1", { envo: e });
   assert.equal(unpaid.status, 402);
   assert.equal(unpaid.body.accepts[0].amount, "20000");
   // 0.19.0 analytics: the free answer and the 402 carry client id, target URL, UA family, ref and product "spot"
   const sp = e.points.filter((x) => x.blobs[15] === "spot").slice(-2);
   assert.deepEqual(sp.map((x) => x.blobs[12]), ["free", "payment-required"]);
-  for (const x of sp) assert.deepEqual([x.blobs[0], x.blobs[3]], [sp[0].blobs[0], "https://spot.target.test/api"]);
+  for (const x of sp) assert.deepEqual([x.blobs[0], x.blobs[3]], [sp[0].blobs[0], "https://spot.target.fixture/api"]);
   assert.ok(sp[1].blobs[0] && "blob9 UA family" && typeof sp[1].blobs[8] === "string" && typeof sp[1].blobs[10] === "string");
   facMode = "invalid";
-  const failed = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
+  const failed = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=spot-pay-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
   assert.equal(failed.status, 402);
   const fp = e.points[e.points.length - 1];
-  assert.deepEqual([fp.blobs[12], fp.blobs[15], fp.blobs[3]], ["payment-failed", "spot", "https://spot.target.test/api"]);
+  assert.deepEqual([fp.blobs[12], fp.blobs[15], fp.blobs[3]], ["payment-failed", "spot", "https://spot.target.fixture/api"]);
   assert.match(fp.blobs[14], /^0x[0-9a-f]{40}$/, "signer recorded");
   assert.match(fp.blobs[16], /payment not valid/);
   facMode = "ok";
   facCalls.length = 0;
   lastSpotFetchInit = null;
-  const paid = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=spot-pay-1", {
+  const paid = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=spot-pay-1", {
     envo: e,
     headers: { "payment-signature": spotPayment({ amount: "20000" }) },
   });
@@ -912,7 +915,7 @@ test("spot-check unpaid after free exhausted → 402 amount 20000 (flat $0.02, 0
   assert.equal(paid.body.quoted_price_usd, 0.001);
   { // 0.40.1: the stored (signed) receipt of a paid check records the payment
     const db = fakeD1(), fc = facCalls.length;
-    const p2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api2") + "&client=spot-pay-1", { envo: { ...e, env: { ...e.env, RECEIPTS_DB: db } }, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
+    const p2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api2") + "&client=spot-pay-1", { envo: { ...e, env: { ...e.env, RECEIPTS_DB: db } }, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
     assert.equal(p2.body.access && p2.body.access.tier, "paid", JSON.stringify(p2.body).slice(0, 300));
     assert.ok(db.rows.length, "rows: " + JSON.stringify(Object.keys(p2.body)) + JSON.stringify(p2.body.receipt_id || null));
     const row = db.rows.find((x) => x.id === p2.body.receipt_id || x.id === (p2.body.receipt && p2.body.receipt.id)) || db.rows[db.rows.length - 1];
@@ -929,14 +932,14 @@ test("spot-check unpaid after free exhausted → 402 amount 20000 (flat $0.02, 0
 test("spot-check timeout and oversized body handled safely", async () => {
   const e = spotEnv();
   spotTargetMode = "timeout";
-  const t = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/slow") + "&client=withgrokbot-selftest", { envo: e });
+  const t = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/slow") + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(t.status, 200);
   assert.equal(t.body.access.tier, "exempt");
   assert.equal(t.body.verdict, "recheck"); // transient (0.14.0)
   assert.equal(t.body.reason, "timeout");
   assert.equal(t.body.quoted_price_usd, null);
   spotTargetMode = "huge";
-  const h = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/huge") + "&client=withgrokbot-selftest", { envo: e });
+  const h = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/huge") + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(h.status, 200);
   assert.equal(h.body.verdict, "skip"); // 200 with no terms, no trial headers (0.14.0)
   assert.equal(h.body.reason, "no_paywall");
@@ -945,7 +948,7 @@ test("spot-check timeout and oversized body handled safely", async () => {
 
 test("no 402 terms is skip/no_paywall; trial headers are recheck/free_trial_active (+remaining) (0.14.0)", async () => {
   const e = spotEnv();
-  const go = (path, q = "") => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test" + path) + "&client=withgrokbot-selftest" + q, { envo: e });
+  const go = (path, q = "") => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture" + path) + "&client=withgrokbot-selftest" + q, { envo: e });
   spotTargetMode = "ok200";
   let r = await go("/a", "&claimed_price=0.01");
   assert.deepEqual([r.body.verdict, r.body.reason, r.body.payment, r.body.payment_terms_sha256], ["skip", "no_paywall", null, null]);
@@ -961,7 +964,7 @@ test("no 402 terms is skip/no_paywall; trial headers are recheck/free_trial_acti
   assert.deepEqual([r.body.verdict, r.body.reason], ["skip", "no_paywall"]);
   // free tier words + the remaining count
   spotTargetMode = "trial";
-  const f = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/e") + "&claimed_price=0.05&client=trial-free-1", { envo: e });
+  const f = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/e") + "&claimed_price=0.05&client=trial-free-1", { envo: e });
   assert.equal(f.body.verdict, "recheck");
   assert.equal(f.body.reason, "listed $0.05, seller says a free trial is active, so there is no price to check yet, try again later (3 trial calls left)");
   spotTargetMode = "402";
@@ -1007,7 +1010,7 @@ test("MCP endpoint_spot_check listed; unpaid after free returns pay instructions
   assert.ok(tool);
   assert.match(tool.description, /verdict/);
   spotTargetMode = "402";
-  const call = { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: "https://spot.target.test/api", claimed_price: 0.001 } } };
+  const call = { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: "https://spot.target.fixture/api", claimed_price: 0.001 } } };
   const free = await rpc(call, { envo: e });
   assert.equal(free.body.result.isError, undefined);
   assert.equal(free.body.result.structuredContent.verdict, "pay");
@@ -1026,13 +1029,13 @@ test("MCP endpoint_spot_check listed; unpaid after free returns pay instructions
 test("spot-check price_mismatch → skip; no claimed → pay when challenge ok", async () => {
   const e = spotEnv();
   spotTargetMode = "402";
-  const mismatch = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.0001&client=withgrokbot-selftest", { envo: e });
+  const mismatch = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price=0.0001&client=withgrokbot-selftest", { envo: e });
   assert.equal(mismatch.status, 200);
   assert.equal(mismatch.body.verdict, "skip");
   assert.equal(mismatch.body.reason, "price_mismatch");
   assert.equal(mismatch.body.quoted_price_usd, 0.001);
   assert.equal(mismatch.body.claimed_price_usd, 0.0001);
-  const noclaim = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest", { envo: e });
+  const noclaim = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(noclaim.status, 200);
   assert.equal(noclaim.body.verdict, "pay");
   assert.equal(noclaim.body.reason, "price_ok");
@@ -1042,7 +1045,7 @@ test("spot-check price_mismatch → skip; no claimed → pay when challenge ok",
 test("spot-check aliases: endpoint= and claimed_price_usd= accepted (0.6.3); /v1/skips + /v1/receipts serve", async () => {
   const e = spotEnv();
   spotTargetMode = "402";
-  const a = await send(SPOT + "?endpoint=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price_usd=0.0001&client=withgrokbot-selftest", { envo: e });
+  const a = await send(SPOT + "?endpoint=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price_usd=0.0001&client=withgrokbot-selftest", { envo: e });
   assert.equal(a.status, 200);
   assert.equal(a.body.verdict, "skip");
   assert.equal(a.body.claimed_price_usd, 0.0001);
@@ -1051,7 +1054,7 @@ test("spot-check aliases: endpoint= and claimed_price_usd= accepted (0.6.3); /v1
   assert.deepEqual(Object.keys(none.body), ["error", "field", "example", "mistake", "hint", "fixed_example", "docs"]);
   assert.equal(none.body.field, "url");
   assert.ok(none.body.error.startsWith('Missing "url". Example: ') && !none.body.error.includes("\n"));
-  const wrong = await send(SPOT + "?link=https://a.test/x", { envo: e });
+  const wrong = await send(SPOT + "?link=https://a.fixture/x", { envo: e });
   assert.equal(wrong.status, 400);
   assert.ok(wrong.body.error.includes('unknown param "link"'));
   const bad = await send(SPOT + "?url=notaurl", { envo: e });
@@ -1076,7 +1079,7 @@ test("spot-check Bazaar/402 examples match the real paid and free response shape
   const e = spotEnv();
   spotTargetMode = "402";
   facMode = "ok";
-  const target = "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=shape-1";
+  const target = "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price=0.001&client=shape-1";
   const free = await send(target, { envo: e });
   const unpaid = await send(target, { envo: e });
   const paid = await send(target, { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
@@ -1105,7 +1108,7 @@ test("spot-check paid by our own wallet (payer = payTo) is recorded as self, not
   const e = spotEnv();
   spotTargetMode = "402";
   facMode = "ok";
-  const target = "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=selfpay-1";
+  const target = "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=selfpay-1";
   await send(target, { envo: e });
   facPayer = PAY_TO;
   try {
@@ -1129,7 +1132,7 @@ test("spot-check paid by our own wallet (payer = payTo) is recorded as self, not
 test("first-router pool: allowlisted client gets N free full checks (config-driven), then normal daily free + 402", async () => {
   const e = spotEnv({ SPOT_PARTNER_CLIENTS: "router-abc123:3, bad id:5, other.router:2" });
   spotTargetMode = "402";
-  const t = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=Router-ABC123";
+  const t = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price=0.001&client=Router-ABC123";
   for (let i = 1; i <= 3; i++) {
     const r = await send(t, { envo: e });
     assert.equal(r.status, 200);
@@ -1157,14 +1160,14 @@ test("spot-check method=POST probes the target with POST and an empty JSON body;
   const e = spotEnv();
   spotTargetMode = "402";
   lastSpotFetchInit = null;
-  const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&method=post&client=withgrokbot-selftest", { envo: e });
+  const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&method=post&client=withgrokbot-selftest", { envo: e });
   assert.equal(r.status, 200);
   assert.equal(lastSpotFetchInit.method, "POST");
   assert.equal(lastSpotFetchInit.body, "{}");
   assert.ok(!Object.keys(lastSpotFetchInit.headers).some((k) => /payment/i.test(k)));
-  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest", { envo: e });
+  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(lastSpotFetchInit.method, "GET");
-  const bad = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&method=DELETE", { envo: e });
+  const bad = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&method=DELETE", { envo: e });
   assert.equal(bad.status, 400);
   assert.equal(bad.body.field, "method");
 });
@@ -1172,7 +1175,7 @@ test("spot-check method=POST probes the target with POST and an empty JSON body;
 test("spot-check expected pay_to / network: mismatches are skip; our crawl's listing is the default expectation", async () => {
   const e = spotEnv();
   spotTargetMode = "402";
-  const base = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest";
+  const base = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=withgrokbot-selftest";
   const ok = await send(base + "&pay_to=" + PAY_TO.toLowerCase() + "&network=eip155:8453", { envo: e });
   assert.equal(ok.body.verdict, "pay");
   assert.equal(ok.body.expected_pay_to, PAY_TO.toLowerCase());
@@ -1202,7 +1205,7 @@ test("spot-check expected pay_to / network: mismatches are skip; our crawl's lis
 test("PAY STEP: paid pay verdict returns the exact signable payment; hash commits to it; skip approves nothing", async () => {
   const e = spotEnv();
   spotTargetMode = "402";
-  const ok = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=withgrokbot-selftest", { envo: e });
+  const ok = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price=0.001&client=withgrokbot-selftest", { envo: e });
   assert.equal(ok.body.verdict, "pay");
   const dl = new Date(Date.parse(ok.body.probe.probed_at) + 300000).toISOString().replace(/\.\d{3}Z$/, "Z");
   assert.deepEqual(ok.body.payment, { network: "eip155:8453", asset: USDC, amount: { atomic: "1000", usd: 0.001 }, pay_to: PAY_TO, deadline: dl, deadline_source: "maxTimeoutSeconds", scheme: "exact", amount_atomic: "1000", amount_usd: 0.001, asset_is_usdc: true });
@@ -1210,12 +1213,12 @@ test("PAY STEP: paid pay verdict returns the exact signable payment; hash commit
   const h = createHash("sha256").update(["eip155:8453", USDC.toLowerCase(), "1000", PAY_TO.toLowerCase()].join("|")).digest("hex");
   assert.equal(ok.body.payment_terms_sha256, h);
   assert.equal(await termsSha256(ok.body.payment), h);
-  const skip = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.0001&client=withgrokbot-selftest", { envo: e });
+  const skip = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price=0.0001&client=withgrokbot-selftest", { envo: e });
   assert.equal(skip.body.verdict, "skip");
   assert.equal(skip.body.payment, null);
   assert.equal(skip.body.payment_terms_sha256, null);
   // free tier carries the same hash, never the terms
-  const free = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=paystep-free", { envo: e });
+  const free = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=paystep-free", { envo: e });
   assert.equal(free.body.payment_terms_sha256, h);
   assert.equal(free.body.payment, undefined);
 });
@@ -1343,7 +1346,7 @@ test("public receipts: every delivered decision is stored; GET by id and by-url 
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db });
   spotTargetMode = "402";
-  const t = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=rcpt-client-1";
+  const t = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price=0.001&client=rcpt-client-1";
   const free = await send(t, { envo: e });
   assert.match(free.body.receipt_id, /^sc-[0-9a-f]{16}$/);
   assert.equal(free.body.receipt_url, "https://402xagent.com/v1/receipts/" + free.body.receipt_id);
@@ -1355,7 +1358,7 @@ test("public receipts: every delivered decision is stored; GET by id and by-url 
   const got = await send("/v1/receipts/" + free.body.receipt_id, { envo: e });
   assert.equal(got.status, 200);
   assert.ok(!("client" in got.body) && !JSON.stringify(got.body).includes("rcpt-client-1"), "receipts never expose the client id publicly");
-  assert.equal(got.body.url, "https://spot.target.test/api");
+  assert.equal(got.body.url, "https://spot.target.fixture/api");
   assert.equal(got.body.verdict, "pay");
   assert.equal(got.body.reason, "price_ok");
   assert.match(got.body.checked_at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
@@ -1368,8 +1371,8 @@ test("public receipts: every delivered decision is stored; GET by id and by-url 
   assert.equal(got.body.payment_terms_sha256, free.body.payment_terms_sha256);
   // a later decision for the same URL becomes the latest
   await new Promise((r) => setTimeout(r, 1100));
-  const later = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.0001&client=withgrokbot-selftest", { envo: e });
-  const by = await send("/v1/receipts/by-url?url=" + encodeURIComponent("https://spot.target.test/api"), { envo: e });
+  const later = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price=0.0001&client=withgrokbot-selftest", { envo: e });
+  const by = await send("/v1/receipts/by-url?url=" + encodeURIComponent("https://spot.target.fixture/api"), { envo: e });
   assert.equal(by.status, 200);
   assert.equal(by.body.latest_live.id, later.body.receipt_id);
   assert.equal(by.body.latest_live.verdict, "skip");
@@ -1379,7 +1382,7 @@ test("public receipts: every delivered decision is stored; GET by id and by-url 
   const crawl = await send("/v1/receipts/by-url?url=" + encodeURIComponent(sk.url), { envo: e });
   assert.equal(crawl.body.latest_live, null);
   assert.equal(crawl.body.latest_crawl.id, sk.id);
-  const none = await send("/v1/receipts/by-url?url=https%3A%2F%2Fnever.test%2Fx", { envo: e });
+  const none = await send("/v1/receipts/by-url?url=https%3A%2F%2Fnever.fixture%2Fx", { envo: e });
   assert.equal(none.status, 404);
   assert.match(none.body.check_now, /endpoint-spot-check\?url=/);
   assert.equal((await send("/v1/receipts/by-url", { envo: e })).status, 400);
@@ -1388,12 +1391,12 @@ test("public receipts: every delivered decision is stored; GET by id and by-url 
   assert.equal((await send("/v1/receipts/" + sk.id, { envo: e })).status, 200);
   // SSRF-blocked targets: 400, nothing fetched, nothing stored
   const n = db.rows.length;
-  assert.equal((await send(SPOT + "?url=" + encodeURIComponent("http://127.0.0.1/") + "&client=withgrokbot-selftest", { envo: e })).status, 400);
+  assert.equal((await send(SPOT + "?url=" + encodeURIComponent("http://10.0.0.1/") + "&client=withgrokbot-selftest", { envo: e })).status, 400);
   assert.equal(db.rows.length, n);
   // MCP get_receipt
   const m = await rpc({ jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "get_receipt", arguments: { id: free.body.receipt_id } } }, { envo: e });
   assert.equal(m.body.result.structuredContent.id, free.body.receipt_id);
-  const mu = await rpc({ jsonrpc: "2.0", id: 10, method: "tools/call", params: { name: "get_receipt", arguments: { url: "https://spot.target.test/api" } } }, { envo: e });
+  const mu = await rpc({ jsonrpc: "2.0", id: 10, method: "tools/call", params: { name: "get_receipt", arguments: { url: "https://spot.target.fixture/api" } } }, { envo: e });
   assert.equal(mu.body.result.structuredContent.latest_live.id, later.body.receipt_id);
   const oa = (await send("/openapi.json", { envo: e })).body;
   assert.ok(oa.paths["/v1/receipts/by-url"] && oa.paths["/v1/receipts/{id}"]);
@@ -1403,10 +1406,10 @@ test("public receipts: store outage never breaks an answer; no DB -> receipt fie
   const broken = { prepare() { return { bind() { return { run: async () => { throw new Error("D1 down"); }, first: async () => { throw new Error("D1 down"); } }; } }; } };
   const e = spotEnv({ RECEIPTS_DB: broken });
   spotTargetMode = "402";
-  const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest", { envo: e });
+  const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(r.status, 200);
   assert.equal((await send("/v1/receipts/sc-0000000000000000", { envo: e })).status, 503);
-  const n = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest", { envo: spotEnv() });
+  const n = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=withgrokbot-selftest", { envo: spotEnv() });
   assert.equal(n.body.receipt_url, null);
 });
 
@@ -1415,7 +1418,7 @@ test("router tier: allowlisted router pays $0.20 for a 10-check pack ($0.02/chec
   facCalls.length = 0;
   facMode = "ok";
   spotTargetMode = "402";
-  const T = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=router-test-1";
+  const T = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=router-test-1";
   assert.equal((await send(T, { envo: e })).body.access.tier, "partner", "partner pool first");
   assert.equal((await send(T, { envo: e })).body.access.tier, "free", "then the daily free check");
   const unpaid = await send(T, { envo: e });
@@ -1442,18 +1445,18 @@ test("router tier: allowlisted router pays $0.20 for a 10-check pack ($0.02/chec
   // a higher signed amount is not accepted on the router tier (exact pack price only)
   assert.equal((await send(T, { envo: e, headers: { "payment-signature": spotPayment({ amount: "250000" }) } })).status, 402);
   // non-router clients pay the flat $0.02
-  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=not-a-router", { envo: e });
-  const other = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=not-a-router", { envo: e });
+  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=not-a-router", { envo: e });
+  const other = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=not-a-router", { envo: e });
   assert.match(other.body.pricing, /flat \$0\.02/);
 });
 
 test("weekly crawl coverage (0.11.0): normUrl matches crawl_probe.py; KV-backed receipts, skip pages, by-url and spot-check listing", async () => {
-  const urls = ["HTTPS://Api.X.com:443/a/b/?z=1&a=2#f", "http://x.com", "https://x.com/", "https://u:p@x.com:8443/a//", "https://x.com/a?b", "https://h.test/p?x=%2F&&a=1", "not a url"];
+  const urls = ["HTTPS://Api.X.com:443/a/b/?z=1&a=2#f", "http://x.com", "https://x.com/", "https://u:p@x.com:8443/a//", "https://x.com/a?b", "https://h.fixture/p?x=%2F&&a=1", "not a url"];
   const py = spawnSync("python3", ["-c", "import sys,json;sys.path.insert(0,sys.argv[1]);from crawl_probe import norm_url;print(json.dumps([norm_url(u) for u in json.loads(sys.argv[2])]))", [new URL("../../receipts/scripts", import.meta.url).pathname, new URL("../scripts/weekly-crawl", import.meta.url).pathname].find((d) => existsSync(d + "/crawl_probe.py")), JSON.stringify(urls)], { encoding: "utf8" });
   assert.deepEqual(urls.map(normUrl), JSON.parse(py.stdout), "JS and Python normalizers agree");
-  const ext = "https://spot.target.test/kv-thing";
+  const ext = "https://spot.target.fixture/kv-thing";
   const id = await receiptIdFor(ext + "/");
-  assert.equal(id, await receiptIdFor("HTTPS://SPOT.target.test:443/kv-thing"));
+  assert.equal(id, await receiptIdFor("HTTPS://SPOT.target.fixture:443/kv-thing"));
   const rec = { id, url: ext, verdict: "skip", reason: "payTo differs from listing (0x" + "11".repeat(20) + " listed, 0x" + "22".repeat(20) + " in 402)", listed_pay_to: "0x" + "11".repeat(20), listed_network: "eip155:8453", claimed_price_usd: 0.002, source_list: "agent-tools-cloud", also_listed_in: ["payapi-market"], timestamp: "2026-10-09T20:00:00Z" };
   const store = new Map([["c:" + id.slice(0, 2), JSON.stringify({ [id]: rec })], ["s:2", JSON.stringify([rec])]]);
   const kv = { async get(k, o) { const v = store.get(k); return v == null ? null : o && o.type === "json" ? JSON.parse(v) : v; } };
@@ -1473,7 +1476,7 @@ test("weekly crawl coverage (0.11.0): normUrl matches crawl_probe.py; KV-backed 
     assert.equal(p2.body.page, 2);
     assert.equal(p2.body.skips[0].id, id);
   }
-  const hres = await worker.fetch(new Request("https://lookup.test/v1/skips", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} });
+  const hres = await worker.fetch(new Request("https://lookup.fixture/v1/skips", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} });
   const html = await hres.text();
   assert.match(html, /endpoints covered/);
   assert.match(html, /new this week/);
@@ -1490,7 +1493,7 @@ test("weekly crawl coverage (0.11.0): normUrl matches crawl_probe.py; KV-backed 
 test("bot tags (0.11.0): scanner, example-param, indexer on lookup + spot; views on pack/skips/receipts/docs are counted", async () => {
   const pts = async (path, o = {}) => {
     const e = spotEnv();
-    const req = new Request("https://lookup.test" + path, { method: o.method || "GET", headers: { "user-agent": o.ua || "node", "cf-connecting-ip": "203.0.113.9", ...(o.headers || {}) } });
+    const req = new Request("https://lookup.fixture" + path, { method: o.method || "GET", headers: { "user-agent": o.ua || "node", "cf-connecting-ip": "203.0.113.9", ...(o.headers || {}) } });
     const waits = [];
     const res = await worker.fetch(req, e.env, { waitUntil(p) { waits.push(p); } });
     await Promise.all(waits);
@@ -1504,9 +1507,9 @@ test("bot tags (0.11.0): scanner, example-param, indexer on lookup + spot; views
   assert.deepEqual(reason(await pts("/v1/lookup?task=web-search&max_price=0.01")), ["example-param"]);
   assert.deepEqual(reason(await pts("/v1/lookup?task=web-search&max_price=0.01&ref=via-cdp")), [""], "an attributed caller is never auto-tagged");
   assert.deepEqual(reason(await pts("/v1/lookup?task=web-search&max_price=0.02", { ua: "PayAI-Bazaar/1.0" })), ["indexer"]);
-  assert.deepEqual(reason(await pts(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api"), { ua: "x402-observer/2" })), ["indexer"]);
-  assert.deepEqual(reason(await pts(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api"), { ua: "Googlebot/2.1" })), ["crawler"], "spot route now runs the crawler filter");
-  const real = await pts(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&ref=via-x402-spotcheck");
+  assert.deepEqual(reason(await pts(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api"), { ua: "x402-observer/2" })), ["indexer"]);
+  assert.deepEqual(reason(await pts(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api"), { ua: "Googlebot/2.1" })), ["crawler"], "spot route now runs the crawler filter");
+  const real = await pts(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&ref=via-x402-spotcheck");
   assert.deepEqual(reason(real), [""]);
   assert.equal(real.points[0].blobs[10], "via-x402-spotcheck", "spot ref " + JSON.stringify(real.points[0].blobs));
   for (const [path, access] of [["/v1/skips", "view-skips"], ["/v1/skips.json?page=1", "view-skips"], ["/v1/receipts", "view-receipts"], ["/openapi.json", "view-docs-openapi"], ["/llms.txt", "view-docs-llms"], ["/.well-known/x402", "view-docs-wellknown"], ["/", "view-docs-home"], ["/v1/products/overnight-cos-pack", "view-pack-402"]]) {
@@ -1522,9 +1525,9 @@ test("bot tags (0.11.0): scanner, example-param, indexer on lookup + spot; views
 test("guessed Spot-Check paths 308 to /v1/products/endpoint-spot-check with the query; 404 names the spot-check route (0.12.1)", async () => {
   const e = spotEnv();
   for (const p of ["/endpoint-spot-check", "/v1/endpoint-spot-check", "/spot-check", "/v1/spot-check"]) {
-    const r = await send(p + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest", { envo: e });
+    const r = await send(p + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=withgrokbot-selftest", { envo: e });
     assert.equal(r.status, 308, p);
-    assert.equal(r.headers.get("location"), "https://lookup.test/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=withgrokbot-selftest", p);
+    assert.equal(r.headers.get("location"), "https://lookup.fixture/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=withgrokbot-selftest", p);
     assert.equal(r.body.moved_to, r.headers.get("location"));
   }
   const nf = await send("/nope", { envo: e });
@@ -1538,7 +1541,7 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   facCalls.length = 0;
   spotTargetMode = "402";
   lastSpotFetchInit = null;
-  const u = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001";
+  const u = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price=0.001";
   const r = await send(u + "&mode=dry-run&ref=via-agentkit&client=dry-client-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
   assert.equal(r.status, 200);
   assert.deepEqual(Object.keys(r.body).sort(), ["access", "check_type", "confidence", "history", "locked", "locked_commitments", "mode", "payment_terms_sha256", "prior_checks", "quality", "reason", "reason_code", "receipt_id", "receipt_url", "reputation", "verdict"]);
@@ -1558,7 +1561,7 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   assert.equal(db.rows[0].ref, "via-agentkit");
   const rec = (await send("/v1/receipts/" + r.body.receipt_id, { envo: e })).body;
   assert.equal(rec.check_type, "dry-run");
-  assert.equal(rec.url, "https://spot.target.test/api");
+  assert.equal(rec.url, "https://spot.target.fixture/api");
   assert.deepEqual(rec.listing, { source: "request" }); // 0.24.0: outside dry runs are redacted
   assert.deepEqual(rec.live_demand, { http_status: 402, x402_challenge: true, schemes: ["exact"] });
   assert.deepEqual([rec.verdict, rec.reason, rec.ref, rec.caller, rec.approved_payment, rec.payment_terms_sha256], ["pay", "price_ok", "via-agentkit", "via-agentkit", null, null]);
@@ -1567,7 +1570,7 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   // ref=dry-run-<caller> alias; a 200-with-trial target records what it returned
   await new Promise((res) => setTimeout(res, 1100)); // receipts sort by second-resolution checked_at
   spotTargetMode = "trial";
-  const a = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/t") + "&ref=dry-run-bot-a", { envo: e });
+  const a = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/t") + "&ref=dry-run-bot-a", { envo: e });
   assert.deepEqual([a.body.mode, a.body.verdict], ["dry-run", "recheck"]);
   const ra = (await send("/v1/receipts/" + a.body.receipt_id, { envo: e })).body;
   assert.deepEqual(ra.live_demand, { http_status: 200, x402_challenge: false, free_trial: { active: true, remaining: 3 }, error: null });
@@ -1614,10 +1617,10 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   for (const p of pts) { assert.equal(p.blobs[5], "dry-run"); assert.equal(p.doubles[0], 0); }
   assert.ok(e.points.some((p) => p.blobs[12] === "dry-run-capped"));
   // MCP: mode passes through
-  const m = await rpc({ jsonrpc: "2.0", id: 21, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: "https://spot.target.test/api", mode: "dry-run", ref: "dry-run-mcp-1" } } }, { envo: e, ip: "192.0.2.44" });
+  const m = await rpc({ jsonrpc: "2.0", id: 21, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: "https://spot.target.fixture/api", mode: "dry-run", ref: "dry-run-mcp-1" } } }, { envo: e, ip: "192.0.2.44" });
   assert.equal(m.body.result.structuredContent.mode, "dry-run");
   // pre-0.13.0 rows read as check_type live
-  db.rows.push({ id: "sc-00000000000000aa", url: "https://old.test/x", created_at: "2026-10-01T00:00:00Z", verdict: "pay", reason: "price_ok", check_type: "live", ref: null, body: JSON.stringify({ id: "sc-00000000000000aa", check_type: "live spot-check (unpaid probe of the target; never pays it)" }) });
+  db.rows.push({ id: "sc-00000000000000aa", url: "https://old.fixture/x", created_at: "2026-10-01T00:00:00Z", verdict: "pay", reason: "price_ok", check_type: "live", ref: null, body: JSON.stringify({ id: "sc-00000000000000aa", check_type: "live spot-check (unpaid probe of the target; never pays it)" }) });
   const old = (await send("/v1/receipts/sc-00000000000000aa", { envo: e })).body;
   assert.deepEqual([old.check_type, old.check_note], ["live", "live spot-check (unpaid probe of the target; never pays it)"]);
   const oa = (await send("/openapi.json", { envo: e })).body;
@@ -1629,10 +1632,10 @@ test("determinism (0.14.0): one probe per normalized URL + method for 5 min; con
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db });
   spotTargetMode = "402";
-  const t = "https://spot.target.test/det";
+  const t = "https://spot.target.fixture/det";
   const first = await send(SPOT + "?url=" + encodeURIComponent(t) + "&client=withgrokbot-selftest", { envo: e });
   spotTargetMode = "trial"; // the target flips (e.g. per-caller trial) ...
-  const second = await send(SPOT + "?url=" + encodeURIComponent("HTTPS://SPOT.target.test/det/") + "&client=withgrokbot-selftest", { envo: e });
+  const second = await send(SPOT + "?url=" + encodeURIComponent("HTTPS://SPOT.target.fixture/det/") + "&client=withgrokbot-selftest", { envo: e });
   assert.deepEqual([first.body.verdict, second.body.verdict], ["pay", "pay"], "... but the cached probe keeps the verdict");
   assert.deepEqual([first.body.probe.cached, second.body.probe.cached], [false, true]);
   assert.equal(second.body.probe.probed_at, first.body.probe.probed_at);
@@ -1665,7 +1668,7 @@ test("402xAgent rebrand (0.17.0): every host serves the same API; 402 resource f
     assert.equal(pack.status, 402, "POST still gets the 402 on " + h);
     const pr = JSON.parse(Buffer.from(pack.headers.get("payment-required"), "base64").toString());
     assert.equal(pr.resource.url, h + "/v1/products/overnight-cos-pack", "402 resource is the host the client called (signed requirements match there)");
-    const sp = await get("/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://seller.example/api/x") + "&client=rb-" + hosts.indexOf(h));
+    const sp = await get("/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://seller.fixture/api/x") + "&client=rb-" + hosts.indexOf(h));
     const spT = await sp.text();
     assert.equal(sp.status, 200, h);
     assert.match(String(JSON.parse(spT).receipt_url), /^https:\/\/402xagent\.com\/v1\/receipts\/sc-/, "receipt links are canonical: " + spT.slice(0, 300));
@@ -1699,7 +1702,7 @@ test("402xAgent rebrand (0.17.0): every host serves the same API; 402 resource f
 test("receipts stored under an earlier brand are served with the 402xAgent name and a canonical permalink", async () => {
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db });
-  const body = { service: "PayScout (formerly Spot-Check)", id: "sc-00000000000000aa", url: "https://x.test/a", check_type: "dry-run", verdict: "pay", reason: "price_ok", permalink: "https://payscout.dev/v1/receipts/sc-00000000000000aa" };
+  const body = { service: "PayScout (formerly Spot-Check)", id: "sc-00000000000000aa", url: "https://x.fixture/a", check_type: "dry-run", verdict: "pay", reason: "price_ok", permalink: "https://payscout.dev/v1/receipts/sc-00000000000000aa" };
   await db.prepare("INSERT INTO spot_receipts (id, url, created_at, verdict, reason, check_type, ref, norm_key, probed_at, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(body.id, body.url, "2026-10-10T18:00:00Z", "pay", "price_ok", "dry-run", null, null, null, JSON.stringify(body)).run();
   const r = await worker.fetch(new Request("https://api.402xagent.com/v1/receipts/sc-00000000000000aa"), e.env, { waitUntil() {} });
   const t = await r.text();
@@ -1725,7 +1728,7 @@ test("old hosts (0.17.0): browser page views 301 to 402xagent.com; API, x402, MC
     assert.equal((await go(h + "/llms.txt", { headers: { accept: "*/*" } })).status, 200);
     assert.equal((await go(h + "/v1/products/overnight-cos-pack", { headers: { accept: H } })).status, 402);
     assert.equal((await go(h + "/v1/lookup/paid?task=web-search", { headers: { accept: H } })).status, 402);
-    assert.equal((await go(h + "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://seller.example/api/x") + "&client=oh-" + h.length, { headers: { accept: H } })).status, 200);
+    assert.equal((await go(h + "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://seller.fixture/api/x") + "&client=oh-" + h.length, { headers: { accept: H } })).status, 200);
     assert.notEqual((await go(h + "/v1/skips", { headers: { accept: H, "x-payment": "e30=" } })).status, 301);
     const mcp = await go(h + "/mcp", { method: "POST", headers: { accept: "application/json, text/event-stream, text/html", "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
     assert.equal(mcp.status, 200);
@@ -1867,7 +1870,7 @@ test("0.22.0: 400s name the mistake + a copy-pasteable fixed free check; /v1/ski
   assert.equal(r.status, 200); assert.equal(r.body.mistake, "no_params"); ok(r.body); // 0.26.1: usage/health GET
   assert.deepEqual(r.body.fixed_example, { method: "GET", url: R + "?url=https://api.402rates.com/v1/ping" });
   assert.equal(r.points.at(-1).blobs[16], "no_params"); assert.equal(r.points.at(-1).blobs[17], "GET||");
-  assert.equal(r.points.at(-1).blobs[19], "lookup.test");
+  assert.equal(r.points.at(-1).blobs[19], "lookup.fixture");
   // cb= alone is not "an unknown param"
   r = await send(SPOT + "?cb=123", { envo: e, headers: { "x-payment": "x" } });
   assert.equal(r.body.mistake, "no_params"); assert.ok(!r.body.error.includes('"cb"'));
@@ -1893,20 +1896,20 @@ test("0.22.0: 400s name the mistake + a copy-pasteable fixed free check; /v1/ski
   assert.equal(r.body.mistake, "post_form_body"); assert.deepEqual(r.body.fixed_example.body, { url: "https://api.example.org/y" });
   r = await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/json", "x-payment": "x" }, body: "{}" });
   assert.equal(r.body.mistake, "no_params"); assert.equal(r.body.fixed_example.method, "POST");
-  r = await send(SPOT + "?url=https://a.test/x&claimed_price=abc", { envo: e });
-  assert.equal(r.body.mistake, "bad_claimed_price"); assert.equal(r.body.fixed_example.url, R + "?url=" + encodeURIComponent("https://a.test/x"));
+  r = await send(SPOT + "?url=https://a.fixture/x&claimed_price=abc", { envo: e });
+  assert.equal(r.body.mistake, "bad_claimed_price"); assert.equal(r.body.fixed_example.url, R + "?url=" + encodeURIComponent("https://a.fixture/x"));
   r = await send(SPOT, { envo: e, method: "PUT" });
   assert.equal(r.body.mistake, "http_method");
   // verdict mix + unencoded inner query logged on a 200 (answer unchanged)
   spotTargetMode = "402";
   const e2 = spotEnv({ RECEIPTS_DB: fakeD1() });
-  r = await send(SPOT + "?url=https://spot.target.test/api?a=1&b=2&client=withgrokbot-selftest", { envo: e2 });
+  r = await send(SPOT + "?url=https://spot.target.fixture/api?a=1&b=2&client=withgrokbot-selftest", { envo: e2 });
   assert.equal(r.status, 200);
   const p = r.points.at(-1);
   assert.equal(p.blobs[18], r.body.verdict); assert.ok(["pay", "skip", "recheck"].includes(p.blobs[18]));
   assert.equal(p.blobs[16], "url_query_unencoded"); assert.equal(p.blobs[17], "GET||b,client,url");
   // dry runs carry the verdict too
-  r = await send(SPOT + "?mode=dry-run&url=" + encodeURIComponent("https://spot.target.test/api") + "&client=someone", { envo: e2 });
+  r = await send(SPOT + "?mode=dry-run&url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=someone", { envo: e2 });
   assert.equal(r.status, 200); assert.equal(e2.points.at(-1).blobs[18], r.body.verdict);
   // host blob on views (funnel)
   const e3 = spotEnv();
@@ -1930,7 +1933,7 @@ test("0.23.0 Solana: SVM 402s read like Base (network, mint, pay_to, scheme, pri
   const SOL = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", DEV = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
   const MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", PT = "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin";
   const e = spotEnv({ RECEIPTS_DB: fakeD1() });
-  const chk = (k, extra = "", client = "withgrokbot-selftest") => send(SPOT + "?url=" + encodeURIComponent("https://sol.target.test/" + k) + "&client=" + client + extra, { envo: e });
+  const chk = (k, extra = "", client = "withgrokbot-selftest") => send(SPOT + "?url=" + encodeURIComponent("https://sol.target.fixture/" + k) + "&client=" + client + extra, { envo: e });
   // good: pay; payment object = network, mint, amount (6 decimals), pay_to, deadline; Solana extras only gained
   const g = await chk("good", "&claimed_price=0.01");
   assert.deepEqual([g.body.verdict, g.body.reason], ["pay", "price_ok"]);
@@ -1965,7 +1968,7 @@ test("0.23.0 Solana: SVM 402s read like Base (network, mint, pay_to, scheme, pri
   assert.equal(f.body.access.tier, "free"); assert.equal(f.body.payment, undefined); assert.equal(f.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.doesNotMatch(JSON.stringify(f.body), /9xQeWvG8|EPjFWdd5|feePayer|fee_payer/);
   // our own rail stays Base USDC
-  const pr = await send(SPOT + "?url=" + encodeURIComponent("https://sol.target.test/good") + "&client=sol-free-1", { envo: e });
+  const pr = await send(SPOT + "?url=" + encodeURIComponent("https://sol.target.fixture/good") + "&client=sol-free-1", { envo: e });
   assert.equal(pr.status, 402); assert.ok(pr.body.accepts.every((a) => a.network === "eip155:8453"));
   // constants match the published @x402/svm SDK when it is installed (SVM_SDK_DIR=<dir with node_modules/@x402/svm>)
   const L = await import("../worker/src/lib.js");
@@ -1983,7 +1986,7 @@ test("0.23.1: upto on Solana only (Base upto-only stays skip/bad_challenge); ter
   // Base/EVM regression: an upto-only 402 is exactly as before 0.23.0
   const e = spotEnv({ RECEIPTS_DB: fakeD1() });
   spotTargetMode = "upto";
-  const b = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/upto-only") + "&client=withgrokbot-selftest", { envo: e });
+  const b = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/upto-only") + "&client=withgrokbot-selftest", { envo: e });
   spotTargetMode = "402";
   assert.deepEqual([b.body.verdict, b.body.reason, b.body.payment, b.body.payment_terms_sha256], ["skip", "bad_challenge", null, null]);
   const br = (await send("/v1/receipts/" + b.body.receipt_id, { envo: e })).body.live_402.accepts[0];
@@ -2005,7 +2008,7 @@ test("0.23.1: upto on Solana only (Base upto-only stays skip/bad_challenge); ter
   assert.notEqual(await termsSha256({ ...sol, asset: sol.asset.toLowerCase() }), h);
   assert.notEqual(await termsSha256({ ...sol, pay_to: sol.pay_to.toLowerCase() }), h);
   // live path: the Solana fixture's free-tier hash is the case-kept one
-  const f = await send(SPOT + "?url=" + encodeURIComponent("https://sol.target.test/good") + "&client=sol-hash-1", { envo: e });
+  const f = await send(SPOT + "?url=" + encodeURIComponent("https://sol.target.fixture/good") + "&client=sol-hash-1", { envo: e });
   assert.equal(f.body.payment_terms_sha256, await termsSha256({ network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", amount_atomic: "10000", pay_to: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin" }));
 });
 
@@ -2013,17 +2016,17 @@ test("0.24.0: outside free/dry-run receipts redacted in every view; paid/exempt 
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db });
   spotTargetMode = "402";
-  const T = "https://spot.target.test/q?api_key=SECRET123&u=me#frag";
+  const T = "https://spot.target.fixture/q?api_key=SECRET123&u=me#frag";
   const free = await send(SPOT + "?url=" + encodeURIComponent(T) + "&claimed_price=0.001&client=outside-1", { envo: e });
   assert.equal(free.body.access.tier, "free");
   const row = db.rows.at(-1);
-  assert.equal(row.url, "https://spot.target.test/q");
+  assert.equal(row.url, "https://spot.target.fixture/q");
   assert.ok(!row.body.includes("SECRET123") && !row.body.includes("frag"), "no query/fragment stored anywhere");
   assert.match(row.norm_key, /^k:[0-9a-f]{64}$/);
   const hide = (o, why) => { const t = JSON.stringify(o); assert.ok(!t.includes(PAY_TO) && !/amount_atomic|probe_snapshot|norm_key|SECRET123/.test(t), why + ": " + t.slice(0, 300)); };
   const one = (await send("/v1/receipts/" + free.body.receipt_id, { envo: e })).body;
   hide(one, "by id");
-  assert.deepEqual([one.verdict, one.reason, one.reason_text, one.approved_payment, one.url], ["pay", "price_ok", "payment request matches the listed price", null, "https://spot.target.test/q"]);
+  assert.deepEqual([one.verdict, one.reason, one.reason_text, one.approved_payment, one.url], ["pay", "price_ok", "payment request matches the listed price", null, "https://spot.target.fixture/q"]);
   assert.match(one.redacted, /paid check/);
   hide((await send("/v1/receipts?type=dry-run", { envo: e })).body, "type list");
   const by = (await send("/v1/receipts/by-url?url=" + encodeURIComponent(T), { envo: e })).body;
@@ -2032,12 +2035,12 @@ test("0.24.0: outside free/dry-run receipts redacted in every view; paid/exempt 
   // the cache still works on the hashed key; another query is another key
   const ex = await send(SPOT + "?url=" + encodeURIComponent(T) + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(ex.body.probe.cached, true);
-  const ex2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/q?api_key=OTHER") + "&client=withgrokbot-selftest", { envo: e });
+  const ex2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/q?api_key=OTHER") + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(ex2.body.probe.cached, false);
   // exempt/self receipt stays full
   const full = (await send("/v1/receipts/" + ex.body.receipt_id, { envo: e })).body;
   assert.equal(full.live_402.accepts[0].pay_to, PAY_TO); assert.equal(full.approved_payment.pay_to, PAY_TO); assert.equal(full.redacted, undefined);
-  assert.equal(full.url, "https://spot.target.test/q");
+  assert.equal(full.url, "https://spot.target.fixture/q");
   // paid / router-prepaid full; legacy rows without a tier: full only when self
   const { redactReceipt } = await import("../worker/src/lib.js");
   const body = JSON.parse(db.rows.find((r) => r.id === free.body.receipt_id).body);
@@ -2224,20 +2227,20 @@ test("0.27.0: a GET that answers 405 is probed once with POST; the 402 from POST
   const e = spotEnv({ RECEIPTS_DB: fakeD1() });
   spotTargetMode = "postonly";
   try {
-    const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/postonly") + "&claimed_price=0.001&client=withgrokbot-selftest", { envo: e });
+    const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/postonly") + "&claimed_price=0.001&client=withgrokbot-selftest", { envo: e });
     assert.equal(r.body.verdict, "pay", JSON.stringify(r.body).slice(0, 300));
     assert.equal(r.body.probe.method_used, "POST");
-    const plain = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/postonly2") + "&claimed_price=0.001&client=withgrokbot-selftest&method=POST", { envo: e });
+    const plain = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/postonly2") + "&claimed_price=0.001&client=withgrokbot-selftest&method=POST", { envo: e });
     assert.equal(plain.body.probe.method_used, undefined, "explicit POST: no retry marker");
   } finally { spotTargetMode = "402"; }
-  const r2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/normal") + "&claimed_price=0.001&client=withgrokbot-selftest", { envo: e });
+  const r2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/normal") + "&claimed_price=0.001&client=withgrokbot-selftest", { envo: e });
   assert.equal(r2.body.probe.method_used, undefined);
 });
 
 test("0.39.1: no url + no payment header (GET/HEAD/POST) -> x402 v2 discovery 402 at 20000, same accepts/Bazaar as the paid challenge, Missing url hint, no free check used, nothing written; malformed/misnamed stay 400", async () => {
   const db = fakeD1(); const e = spotEnv({ RECEIPTS_DB: db });
   spotTargetMode = "402";
-  const paid = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/disc") + "&client=disc-a", { envo: e, headers: { "x-payment": "" } });
+  const paid = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/disc") + "&client=disc-a", { envo: e, headers: { "x-payment": "" } });
   const before = { rows: db.rows.length, kv: JSON.stringify([...(e.env.KV && e.env.KV.store ? e.env.KV.store : [])]) };
   const pts0 = e.points ? e.points.length : 0;
   for (const [method, init] of [["GET", {}], ["POST", { headers: { "content-type": "application/json" }, body: "{}" }], ["POST", {}]]) {
@@ -2251,32 +2254,32 @@ test("0.39.1: no url + no payment header (GET/HEAD/POST) -> x402 v2 discovery 40
     for (const k of Object.keys(acc)) if (k !== "resource" && k !== "extra") assert.deepEqual(acc[k], paid.body.accepts ? paid.body.accepts[0][k] : acc[k], "accepts." + k);
     if (paid.body.extensions) assert.deepEqual(Object.keys(r.body.extensions || {}), Object.keys(paid.body.extensions));
   }
-  const h = await worker.fetch(new Request("https://lookup.test" + SPOT, { method: "HEAD" }), e.env, { waitUntil() {} });
+  const h = await worker.fetch(new Request("https://lookup.fixture" + SPOT, { method: "HEAD" }), e.env, { waitUntil() {} });
   assert.equal(h.status, 402);
   assert.equal(db.rows.length, before.rows, "no D1 write");
   // free quota untouched: disc-b still gets its first free check
-  const f = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/disc2") + "&client=disc-b", { envo: e });
+  const f = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/disc2") + "&client=disc-b", { envo: e });
   assert.equal(f.status, 200); assert.equal(f.body.access.tier, "free"); assert.equal(f.body.access.free_used_today, 1);
   // with a payment header and no url: old usage answer
   assert.equal((await send(SPOT, { envo: e, headers: { "x-payment": "x" } })).status, 200);
   assert.equal((await send(SPOT + "?url=notaurl", { envo: e })).status, 400, "malformed url");
   assert.equal((await send(SPOT + "?url=api.example.org/v1/ping", { envo: e })).status, 400, "no scheme");
   assert.equal((await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ target_url: "https://a.dev/x" }) })).status, 400, "POST wrong field");
-  assert.equal((await send(SPOT + "?link=https://a.test/x", { envo: e })).status, 400, "misnamed url param stays 400");
+  assert.equal((await send(SPOT + "?link=https://a.fixture/x", { envo: e })).status, 400, "misnamed url param stays 400");
 });
 
 test("0.28.0: live price more than 1% BELOW the listing is pay/price_below_listing; above stays skip; stored receipts get a read-time note", async () => {
   const { markPriceRule } = await import("../worker/src/lib.js");
   const e = spotEnv({ RECEIPTS_DB: fakeD1() });
   spotTargetMode = "402";
-  const below = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/below") + "&claimed_price=9&client=withgrokbot-selftest", { envo: e });
+  const below = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/below") + "&claimed_price=9&client=withgrokbot-selftest", { envo: e });
   assert.deepEqual([below.body.verdict, below.body.reason], ["pay", "price_below_listing"]);
   assert.ok(below.body.payment && below.body.payment.pay_to, "pay approves the live terms");
-  const free = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/below2") + "&claimed_price=9&client=below-free", { envo: e });
+  const free = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/below2") + "&claimed_price=9&client=below-free", { envo: e });
   assert.equal(free.body.reason, "listed $9, live price lower than listed");
-  const above = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/above") + "&claimed_price=0.0001&client=withgrokbot-selftest", { envo: e });
+  const above = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/above") + "&claimed_price=0.0001&client=withgrokbot-selftest", { envo: e });
   assert.deepEqual([above.body.verdict, above.body.reason], ["skip", "price_mismatch"]);
-  const within = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/within") + "&claimed_price=" + String(above.body.quoted_price_usd * 1.005) + "&client=withgrokbot-selftest", { envo: e });
+  const within = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/within") + "&claimed_price=" + String(above.body.quoted_price_usd * 1.005) + "&client=withgrokbot-selftest", { envo: e });
   assert.deepEqual([within.body.verdict, within.body.reason], ["pay", "price_ok"]);
   const USDCb = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
   const old = { verdict: "skip", reason: "price_mismatch", expected: { claimed_price_usd: 0.7, network: "eip155:8453" }, live_402: { accepts: [{ network: "eip155:8453", asset: USDCb, amount_atomic: "54000" }] } };
@@ -2291,8 +2294,8 @@ test("0.28.1: bazaar cron fails open on KV write errors (quota) and skips the KV
   const now = new Date("2026-10-13T12:00:00Z");
   let reads = 0;
   const failing = { get: async () => { reads++; return null; }, put: async () => { throw new Error("KV put() limit exceeded for the day"); } };
-  const fakeFetch = async () => new Response(JSON.stringify({ items: [{ resource: "https://x.test/a", accepts: [] }] }), { headers: { "content-type": "application/json" } });
-  const r1 = await bazaarStep({ CRAWL_KV: failing }, { now, fetchImpl: fakeFetch, runCheck: async () => new Response("{}"), origin: "https://o.test" });
+  const fakeFetch = async () => new Response(JSON.stringify({ items: [{ resource: "https://x.fixture/a", accepts: [] }] }), { headers: { "content-type": "application/json" } });
+  const r1 = await bazaarStep({ CRAWL_KV: failing }, { now, fetchImpl: fakeFetch, runCheck: async () => new Response("{}"), origin: "https://o.fixture" });
   assert.ok(["kv-write-failed", "search-empty"].includes(r1.did), "no throw: " + r1.did);
   const live = { get: async () => { reads++; return { live: { day: "2026-10-13" }, build: null }; }, put: async () => {} };
   reads = 0;
@@ -2307,7 +2310,7 @@ test("0.29.0: endpoint history in D1: summary only (no price/wallet), fresh prob
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db, SPOT_PROBE_CACHE_S: "0" });
   spotTargetMode = "402";
-  const u = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/hist") + "&client=withgrokbot-selftest";
+  const u = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/hist") + "&client=withgrokbot-selftest";
   const a = await send(u, { envo: e });
   assert.equal(a.body.history.observations, 1);
   assert.equal(a.body.history.drift, null);
@@ -2316,15 +2319,15 @@ test("0.29.0: endpoint history in D1: summary only (no price/wallet), fresh prob
   assert.equal(b.body.history.drift, false);
   assert.equal(b.body.history.stable_for_days, 0);
   assert.equal(db.hist.length, 2);
-  const free = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/hist") + "&client=hist-free-1", { envo: e });
+  const free = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/hist") + "&client=hist-free-1", { envo: e });
   assert.deepEqual(Object.keys(free.body.history).sort(), ["drift", "last_changed", "observations", "stable_for_days", "stable_since"]);
   const rec = JSON.parse(db.rows.find((r) => r.id === free.body.receipt_id).body);
   assert.deepEqual(rec.history, free.body.history, "receipt carries the same summary");
   // cached probes are not new observations
   const e2 = spotEnv({ RECEIPTS_DB: db });
   const n0 = db.hist.length;
-  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/hist2") + "&client=withgrokbot-selftest", { envo: e2 });
-  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/hist2") + "&client=withgrokbot-selftest", { envo: e2 });
+  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/hist2") + "&client=withgrokbot-selftest", { envo: e2 });
+  await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/hist2") + "&client=withgrokbot-selftest", { envo: e2 });
   assert.equal(db.hist.length, n0 + 1);
   // rules
   const T = (d) => new Date(Date.UTC(2026, 9, d)).toISOString();
@@ -2343,7 +2346,7 @@ test("0.29.0: endpoint history in D1: summary only (no price/wallet), fresh prob
 
 test("0.30.0: reason_code + confidence on every verdict; /rules + /rules.json published and linked (llms, OpenAPI, well-known, MCP)", async () => {
   const { REASON_CODES, confidenceFor } = await import("../worker/src/rules.js");
-  const raw = async (path) => { const e = meteredEnv(); const r = await worker.fetch(new Request("https://lookup.test" + path, { headers: { "user-agent": "agent-x/1.0" } }), e.env, { waitUntil() {} }); return { status: r.status, text: await r.text(), ct: r.headers.get("content-type") }; };
+  const raw = async (path) => { const e = meteredEnv(); const r = await worker.fetch(new Request("https://lookup.fixture" + path, { headers: { "user-agent": "agent-x/1.0" } }), e.env, { waitUntil() {} }); return { status: r.status, text: await r.text(), ct: r.headers.get("content-type") }; };
   const rj = await send("/rules.json");
   assert.equal(rj.status, 200);
   const codes = rj.body.reason_codes.map((r) => r.code);
@@ -2371,7 +2374,7 @@ test("0.30.0: reason_code + confidence on every verdict; /rules + /rules.json pu
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db });
   spotTargetMode = "402";
-  const u = "?url=" + encodeURIComponent("https://spot.target.test/rc") + "&claimed_price=0.001";
+  const u = "?url=" + encodeURIComponent("https://spot.target.fixture/rc") + "&claimed_price=0.001";
   const free = await send(SPOT + u + "&client=rc-free-1", { envo: e });
   assert.equal(free.body.reason_code, "price_ok");
   assert.equal(free.body.confidence, "high");
@@ -2383,7 +2386,7 @@ test("0.30.0: reason_code + confidence on every verdict; /rules + /rules.json pu
   const rc = await send("/v1/receipts/" + free.body.receipt_id, { envo: e });
   assert.deepEqual([rc.body.reason_code, rc.body.confidence], ["price_ok", "high"]);
   // a pre-0.30 receipt gets the fields on read
-  db.rows.push({ id: "sc-00000000000000aa", url: "https://x.test/a", created_at: "2026-10-01T00:00:00Z", verdict: "skip", reason: "no_paywall", check_type: "dry-run", body: JSON.stringify({ id: "sc-00000000000000aa", url: "https://x.test/a", verdict: "skip", reason: "no_paywall", check_type: "dry-run" }) });
+  db.rows.push({ id: "sc-00000000000000aa", url: "https://x.fixture/a", created_at: "2026-10-01T00:00:00Z", verdict: "skip", reason: "no_paywall", check_type: "dry-run", body: JSON.stringify({ id: "sc-00000000000000aa", url: "https://x.fixture/a", verdict: "skip", reason: "no_paywall", check_type: "dry-run" }) });
   const old = await send("/v1/receipts/sc-00000000000000aa", { envo: e });
   assert.deepEqual([old.body.reason_code, old.body.confidence], ["no_paywall", "medium"]);
 });
@@ -2392,7 +2395,7 @@ test("0.31.0: default free tier is 5 live checks per caller per UTC day, then th
   const e = spotEnv({ RECEIPTS_DB: fakeD1() });
   delete e.env.SPOT_FREE_PER_DAY;
   spotTargetMode = "402";
-  const u = (i) => SPOT + "?url=" + encodeURIComponent("https://spot.target.test/f" + i) + "&client=five-free-1";
+  const u = (i) => SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/f" + i) + "&client=five-free-1";
   for (let i = 1; i <= 5; i++) {
     const r = await send(u(i), { envo: e });
     assert.equal(r.status, 200, "free #" + i);
@@ -2401,7 +2404,7 @@ test("0.31.0: default free tier is 5 live checks per caller per UTC day, then th
   const sixth = await send(u(6), { envo: e });
   assert.equal(sixth.status, 402);
   assert.match(sixth.body.error, /\(5 per UTC day\)/);
-  const other = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/f7") + "&client=five-free-2", { envo: e });
+  const other = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/f7") + "&client=five-free-2", { envo: e });
   assert.equal(other.status, 200, "per caller");
   const { spotCfg } = await import("../worker/src/lib.js");
   const c = spotCfg({});
@@ -2422,7 +2425,7 @@ test("0.32.0: /badge/<host>.svg shows only real current status (pay+fresh = gree
   add("sc-00000000000000b4", "https://mixed.example.com/a", "pay", 1);
   add("sc-00000000000000b5", "https://mixed.example.com/b", "skip", 2);
   add("sc-00000000000000b6", "https://req.example.com/a", "pay", 1, { expected: { source: "request" } });
-  const get = async (p) => { const r = await worker.fetch(new Request("https://lookup.test" + p, { redirect: "manual" }), e.env, { waitUntil() {} }); return { status: r.status, text: await r.text(), h: r.headers }; };
+  const get = async (p) => { const r = await worker.fetch(new Request("https://lookup.fixture" + p, { redirect: "manual" }), e.env, { waitUntil() {} }); return { status: r.status, text: await r.text(), h: r.headers }; };
   const g = await get("/badge/good.example.com.svg");
   assert.equal(g.status, 200);
   assert.match(g.h.get("content-type"), /image\/svg\+xml/);
@@ -2462,7 +2465,7 @@ test("0.33.0: free live checks capped at 25 per network per UTC day across clien
   e.env.SPOT_FREE_PER_DAY = "5";
   spotTargetMode = "402";
   const ip = "198.51.100.23";
-  const go = (cl, i, extra = "") => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/ip" + i) + "&client=" + cl + extra, { envo: e, ip });
+  const go = (cl, i, extra = "") => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/ip" + i) + "&client=" + cl + extra, { envo: e, ip });
   let n = 0;
   for (let c = 0; c < 5; c++) for (let i = 0; i < 5; i++) { const r = await go("rot-" + c, n++); assert.equal(r.status, 200, "free #" + n); assert.equal(r.body.access.tier, "free"); }
   const over = await go("rot-new", n++);
@@ -2474,7 +2477,7 @@ test("0.33.0: free live checks capped at 25 per network per UTC day across clien
   assert.ok(ra > 0 && ra <= 86400 && Math.abs(ra - secondsToUtcMidnight()) < 5);
   assert.ok(!JSON.stringify(over.body).includes(ip));
   // other network still fine; exempt + dry-run unaffected
-  assert.equal((await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/o") + "&client=rot-x", { envo: e, ip: "203.0.113.99" })).status, 200);
+  assert.equal((await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/o") + "&client=rot-x", { envo: e, ip: "203.0.113.99" })).status, 200);
   assert.equal((await go("withgrokbot-selftest", n++)).status, 200, "self-test exempt");
   assert.equal((await go("rot-dry", n++, "&mode=dry-run")).status, 200, "dry run has its own caps");
   // hash only
@@ -2489,7 +2492,7 @@ test("0.34.0: paid/exempt answers carry the full last-30 history_observations; f
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db, SPOT_PROBE_CACHE_S: "0" });
   spotTargetMode = "402";
-  const u = "?url=" + encodeURIComponent("https://spot.target.test/hs");
+  const u = "?url=" + encodeURIComponent("https://spot.target.fixture/hs");
   await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
   const full = await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(full.body.history_observations.length, 2);
@@ -2538,7 +2541,7 @@ test("0.35.0: /saves behind SAVES_PAGE (off = 404); real listing differences onl
   for (const s of r.body.saves.slice(0, 200)) { assert.ok(!/[?#]/.test(s.endpoint)); assert.ok(!/0x[0-9a-fA-F]{40}/.test(JSON.stringify(s)), "no wallet"); }
   const cr = r.body.saves.find((x) => x.source === "crawl");
   if (cr) assert.match(cr.receipt, /\?view=redacted$/);
-  const html = await worker.fetch(new Request("https://lookup.test/saves"), e.env, { waitUntil() {} });
+  const html = await worker.fetch(new Request("https://lookup.fixture/saves"), e.env, { waitUntil() {} });
   assert.match(html.headers.get("content-type"), /text\/html/);
 });
 
@@ -2548,19 +2551,19 @@ test("0.35.2: /saves.json splits live_count and crawl_count; HTML says showing X
   const now = new Date();
   const body = { verdict: "skip", reason: "pay_to_mismatch", checked_at: now.toISOString().replace(/\.\d{3}Z$/, "Z"), id: "sc-00000000000000d1", url: "https://live-only.example.com/api", expected: { source: "listing" }, live_402: { accepts: [] } };
   const db = { prepare: () => ({ bind: () => ({ all: async () => ({ results: [{ body: JSON.stringify(body) }] }) }) }) };
-  const j = await savesJson({ RECEIPTS_DB: db }, "https://o.test", now);
+  const j = await savesJson({ RECEIPTS_DB: db }, "https://o.fixture", now);
   assert.equal(j.live_count, 1);
   assert.equal(j.count, j.live_count + j.crawl_count, "count kept as the total");
   assert.equal(j.count, j.saves.length);
   assert.equal(j.crawl_count, j.saves.filter((x) => x.source === "crawl").length);
   assert.ok(j.crawl_count <= SAVES.length);
   assert.equal(j.crawl_total_before_cap, SAVES_META.total);
-  const res = await handleSaves(new Request("https://o.test/saves"), { SAVES_PAGE: "on", RECEIPTS_DB: db }, new URL("https://o.test/saves"), "https://o.test");
+  const res = await handleSaves(new Request("https://o.fixture/saves"), { SAVES_PAGE: "on", RECEIPTS_DB: db }, new URL("https://o.fixture/saves"), "https://o.fixture");
   const html = await res.text();
   const n = (x) => Number(x).toLocaleString("en-US");
   if (SAVES_META.total > j.crawl_count) assert.ok(html.includes(`showing ${n(j.crawl_count)} of ${n(SAVES_META.total)} crawl findings + 1 live check `), "capped wording");
   else assert.ok(html.includes(`${n(j.crawl_count)} crawl findings + 1 live check `));
-  const j0 = await savesJson({}, "https://o.test", now);
+  const j0 = await savesJson({}, "https://o.fixture", now);
   assert.equal(j0.live_count, 0);
   assert.equal(j0.count, j0.crawl_count);
 });
@@ -2651,13 +2654,13 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { savesJson, handleSaves } = await import("../worker/src/saves.js");
   const db = dailyDb(); db.runs.set("2026-10-14", { day: "2026-10-14", finished_at: "2026-10-14T10:40:00.000Z" });
   const sdb = { prepare: (sql) => /MAX\(finished_at\)/.test(sql) ? db.prepare(sql) : { bind: () => ({ all: async () => ({ results: [] }) }) } };
-  const j = await savesJson({ RECEIPTS_DB: sdb }, "https://o.test");
+  const j = await savesJson({ RECEIPTS_DB: sdb }, "https://o.fixture");
   assert.equal(j.last_checked, "2026-10-14T10:40:00.000Z");
-  assert.equal((await savesJson({}, "https://o.test")).last_checked, null);
-  const html = await (await handleSaves(new Request("https://o.test/saves"), { SAVES_PAGE: "on", RECEIPTS_DB: sdb }, new URL("https://o.test/saves"), "https://o.test")).text();
+  assert.equal((await savesJson({}, "https://o.fixture")).last_checked, null);
+  const html = await (await handleSaves(new Request("https://o.fixture/saves"), { SAVES_PAGE: "on", RECEIPTS_DB: sdb }, new URL("https://o.fixture/saves"), "https://o.fixture")).text();
   assert.ok(html.includes('<p class="last-checked">Last checked: 2026-10-14 10:40 UTC</p>'));
   const { bazaarJson, bazaarHtml } = await import("../worker/src/bazaar.js");
-  const bj = bazaarJson({ day: "2026-10-14", generated_at: "2026-10-14T01:40:00.000Z", queries: ["q"], counts: { pay: 0, skip: 0, recheck: 0 }, rows: [] }, "https://o.test");
+  const bj = bazaarJson({ day: "2026-10-14", generated_at: "2026-10-14T01:40:00.000Z", queries: ["q"], counts: { pay: 0, skip: 0, recheck: 0 }, rows: [] }, "https://o.fixture");
   assert.equal(bj.last_checked, "2026-10-14T01:40:00.000Z");
   assert.ok(bazaarHtml(bj).includes("Last checked: 2026-10-14 01:40 UTC"));
   assert.equal(bazaarJson(null, "o").last_checked, null);
@@ -2666,15 +2669,15 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const n = new Date("2026-10-14T12:00:00Z");
   const row = { id: "sc-1", url: "https://h.example.com/x", created_at: "2026-10-14T10:18:00Z", verdict: "pay", body: "{}" };
   const bdb = { prepare: () => ({ bind: () => ({ all: async () => ({ results: [row] }) }) }) };
-  const page = await (await handleBadge(new Request("https://o.test/badge/h.example.com"), { RECEIPTS_DB: bdb }, new URL("https://o.test/badge/h.example.com"), "https://o.test", n)).text();
+  const page = await (await handleBadge(new Request("https://o.fixture/badge/h.example.com"), { RECEIPTS_DB: bdb }, new URL("https://o.fixture/badge/h.example.com"), "https://o.fixture", n)).text();
   assert.ok(page.includes("Last checked: 2026-10-14 10:18 UTC"));
-  const svg = await handleBadge(new Request("https://o.test/badge/h.example.com.svg"), { RECEIPTS_DB: bdb }, new URL("https://o.test/badge/h.example.com.svg"), "https://o.test", n);
+  const svg = await handleBadge(new Request("https://o.fixture/badge/h.example.com.svg"), { RECEIPTS_DB: bdb }, new URL("https://o.fixture/badge/h.example.com.svg"), "https://o.fixture", n);
   assert.equal(svg.headers.get("x-402xagent-last-checked"), "2026-10-14T10:18:00Z");
   assert.equal(svg.headers.get("x-402xagent-badge"), "pay");
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.49.1");
+  assert.equal(VERSION, "0.49.2");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2711,7 +2714,7 @@ test("0.37.0 quality: codes from 402 metadata only; schema declared + validated 
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db, SPOT_PROBE_CACHE_S: "0" });
   spotTargetMode = "402";
-  const u = "?url=" + encodeURIComponent("https://spot.target.test/q?apikey=SECRET123") + "&claimed_price=0.001";
+  const u = "?url=" + encodeURIComponent("https://spot.target.fixture/q?apikey=SECRET123") + "&claimed_price=0.001";
   const full = await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(full.body.verdict, "pay");
   assert.equal(full.body.reason_code, "price_ok");
@@ -2720,7 +2723,7 @@ test("0.37.0 quality: codes from 402 metadata only; schema declared + validated 
   assert.equal(full.body.quality.checks.content_type, "application/json");
   assert.equal(db.qual.length, 1);
   assert.deepEqual(Object.keys(db.qual[0]).sort(), ["body_bytes", "code", "content_type", "hkey", "host", "http_status", "observed_at", "schema_declared", "schema_match"]);
-  assert.equal(db.qual[0].host, "spot.target.test");
+  assert.equal(db.qual[0].host, "spot.target.fixture");
   assert.ok(!JSON.stringify(db.qual).includes("SECRET123") && !JSON.stringify(db.qual).includes("/q"), "no URL path or query stored");
   const free = await send(SPOT + u + "&client=q-free-1", { envo: e });
   assert.equal(free.body.verdict, "pay");
@@ -2749,30 +2752,30 @@ test("0.37.0 reputation: documented weighted formula; new hosts are insufficient
   const at = (d) => new Date(now.getTime() - d * 86400000).toISOString().replace(/\.\d{3}Z$/, "Z");
   const ob = (d, pay_to = "0xa", amount = "1000") => ({ observed_at: at(d), amount_atomic: amount, network: "eip155:8453", asset: "0xusdc", pay_to, verdict: "pay" });
   // steady seller: 10 days of identical terms, all pay, fresh, quality_ok
-  const steady = computeReputation({ host: "s.test", now, firstSeen: at(10), receipts: Array.from({ length: 10 }, (_, i) => ({ url: "https://s.test/a", created_at: at(i), verdict: "pay" })), histories: { h1: Array.from({ length: 10 }, (_, i) => ob(i)) }, quality: [{ hkey: "h1", observed_at: at(0), code: "quality_ok" }] });
+  const steady = computeReputation({ host: "s.fixture", now, firstSeen: at(10), receipts: Array.from({ length: 10 }, (_, i) => ({ url: "https://s.fixture/a", created_at: at(i), verdict: "pay" })), histories: { h1: Array.from({ length: 10 }, (_, i) => ob(i)) }, quality: [{ hkey: "h1", observed_at: at(0), code: "quality_ok" }] });
   assert.equal(steady.score, 100);
   assert.equal(steady.band, "high");
   assert.equal(steady.confidence, "medium");
   assert.deepEqual(steady.breakdown.drift, { value: 1, weight: 20, points: 20 });
   // always-skip seller with perfectly stable (wrong) terms: capped to low
-  const sk = computeReputation({ host: "k.test", now, firstSeen: at(10), receipts: Array.from({ length: 10 }, (_, i) => ({ url: "https://k.test/a", created_at: at(i), verdict: "skip" })), histories: { h1: Array.from({ length: 10 }, (_, i) => ob(i)) } });
+  const sk = computeReputation({ host: "k.fixture", now, firstSeen: at(10), receipts: Array.from({ length: 10 }, (_, i) => ({ url: "https://k.fixture/a", created_at: at(i), verdict: "skip" })), histories: { h1: Array.from({ length: 10 }, (_, i) => ob(i)) } });
   assert.equal(sk.breakdown.verdicts.value, 0);
   assert.equal(sk.capped, true);
   assert.equal(sk.score, 49);
   assert.equal(sk.band, "low");
   // wallet hopper: pay_to flips every observation -> drift 0, stability low, skips
-  const hop = computeReputation({ host: "h.test", now, firstSeen: at(10), receipts: Array.from({ length: 10 }, (_, i) => ({ url: "https://h.test/a", created_at: at(i), verdict: i % 2 ? "pay" : "skip" })), histories: { h1: Array.from({ length: 10 }, (_, i) => ob(i, i % 2 ? "0xa" : "0xb")) }, quality: [] });
+  const hop = computeReputation({ host: "h.fixture", now, firstSeen: at(10), receipts: Array.from({ length: 10 }, (_, i) => ({ url: "https://h.fixture/a", created_at: at(i), verdict: i % 2 ? "pay" : "skip" })), histories: { h1: Array.from({ length: 10 }, (_, i) => ob(i, i % 2 ? "0xa" : "0xb")) }, quality: [] });
   assert.equal(hop.breakdown.drift.value, 0);
   assert.equal(hop.breakdown.quality.value, null, "no quality data: weight renormalized, not zero");
   assert.equal(hop.inputs.pay_to_changes, 9);
   assert.equal(hop.band, "low");
   assert.ok(hop.score < 50);
   // price-only change counts half
-  const pr = computeReputation({ host: "p.test", now, firstSeen: at(10), receipts: [], histories: { h1: [ob(0, "0xa", "2000"), ob(1), ob(2), ob(3), ob(4)] } });
+  const pr = computeReputation({ host: "p.fixture", now, firstSeen: at(10), receipts: [], histories: { h1: [ob(0, "0xa", "2000"), ob(1), ob(2), ob(3), ob(4)] } });
   assert.equal(pr.inputs.price_changes, 1);
   assert.equal(pr.breakdown.drift.value, 0.75); // 1 - 2*0.5/4
   // new host: 2 observations today -> insufficient_data, score null, provisional kept for paid
-  const fresh = computeReputation({ host: "n.test", now, firstSeen: at(0), receipts: [{ url: "https://n.test/a", created_at: at(0), verdict: "skip" }, { url: "https://n.test/a", created_at: at(0), verdict: "skip" }], histories: {} });
+  const fresh = computeReputation({ host: "n.fixture", now, firstSeen: at(0), receipts: [{ url: "https://n.fixture/a", created_at: at(0), verdict: "skip" }, { url: "https://n.fixture/a", created_at: at(0), verdict: "skip" }], histories: {} });
   assert.equal(fresh.band, "insufficient_data");
   assert.equal(fresh.score, null);
   assert.equal(fresh.low_data, true);
@@ -2784,7 +2787,7 @@ test("0.37.0 reputation: documented weighted formula; new hosts are insufficient
   assert.equal(rj.reason_codes.length, 16);
   assert.ok(rj.quality_codes.some((q) => q.code === "quality_schema_mismatch"));
   assert.ok(rj.fields.reputation && rj.fields.quality);
-  const html = await (await worker.fetch(new Request("https://lookup.test/rules", { headers: { "user-agent": "agent-x/1.0" } }), spotEnv().env, { waitUntil() {} })).text();
+  const html = await (await worker.fetch(new Request("https://lookup.fixture/rules", { headers: { "user-agent": "agent-x/1.0" } }), spotEnv().env, { waitUntil() {} })).text();
   assert.match(html, /Seller reputation/);
   assert.match(html, /quality_unreachable/);
   // live: paid/exempt full object; free + dry-run band only; KV never written
@@ -2793,9 +2796,9 @@ test("0.37.0 reputation: documented weighted formula; new hosts are insufficient
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db, SPOT_PROBE_CACHE_S: "0", CRAWL_KV: kv });
   spotTargetMode = "402";
-  const u = "?url=" + encodeURIComponent("https://spot.target.test/rep") + "&claimed_price=0.001";
+  const u = "?url=" + encodeURIComponent("https://spot.target.fixture/rep") + "&claimed_price=0.001";
   const first = await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
-  assert.equal(first.body.reputation.host, "spot.target.test");
+  assert.equal(first.body.reputation.host, "spot.target.fixture");
   assert.equal(first.body.reputation.band, "insufficient_data", "one observation: not scored");
   for (let i = 0; i < 5; i++) await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
   const full = await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
@@ -2814,7 +2817,7 @@ test("0.37.0 reputation: documented weighted formula; new hosts are insufficient
   const aged = await send(SPOT + u + "&client=withgrokbot-selftest", { envo: e });
   assert.equal(typeof aged.body.reputation.score, "number");
   assert.notEqual(aged.body.reputation.band, "insufficient_data");
-  const pg = await send("/reputation/spot.target.test.json", { envo: e });
+  const pg = await send("/reputation/spot.target.fixture.json", { envo: e });
   assert.equal(pg.status, 200);
   assert.equal(pg.body.band, aged.body.reputation.band);
   assert.equal(pg.body.score, undefined, "free page: band only");
@@ -2891,7 +2894,7 @@ test("0.37.3 signed receipts: ed25519 over JCS minus signature, key at /.well-kn
   assert.ok(pub.keys.length >= 1 && pub.keys.every((k) => k.kty === "OKP" && k.crv === "Ed25519" && /^[A-Za-z0-9_-]{43}$/.test(k.x) && k.kid && !("d" in k)), "public keys only");
   assert.deepEqual((await send("/.well-known/402xagent-receipt-key.json")).body, pub);
   assert.equal((await send("/.well-known/x402")).body.receipt_keys, "https://api.402xagent.com/.well-known/402xagent-keys.json");
-  const t = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001";
+  const t = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price=0.001";
   spotTargetMode = "402";
   // no secret: unsigned, same receipt as before
   const db0 = fakeD1(), e0 = spotEnv({ RECEIPTS_DB: db0 });
@@ -2999,7 +3002,7 @@ test("0.38.0 crawl schedule copy: 'Updated weekly (last crawl Oct 13, next crawl
 test("0.38.0: no served page, JSON, 402 or MCP text carries the old price copy (one tenth / 1/10 / $0.01-$0.25) or a free_per_day other than 5", async () => {
   const OLD = /one tenth|tenth of the (target|endpoint)|1\/10 of|\$0\.01 ?(to|-) ?\$0\.25|0\.01-0\.25|from \$0\.01|\$0\.01\+|\$0\.001\/check|\$0\.001 per check/i;
   const e = spotEnv({ SPOT_FREE_PER_DAY: "5", SAVES_PAGE: "on" });
-  const paths = ["/", "/llms.txt", "/openapi.json", "/.well-known/x402", "/.well-known/402xagent-keys.json", "/pricing", "/docs", "/blog", "/blog/meet-402xagent-check-before-your-agent-pays", "/blog/preflight-budget-then-check", "/blog/x402-retry-double-pay-check-before-you-resign", "/blog/x402-skips-report-what-agents-almost-paid-for", "/blog/x402-spotcheck-audit-layer-budgets-ledger", "/rules", "/rules.json", "/v1/skips", "/v1/skips.json", "/bazaar", "/bazaar.json", "/saves", "/saves.json", "/health", "/v1/tasks", "/v1/products/endpoint-spot-check", "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&client=old-copy", "/v1/lookup/paid", "/badge/api.402rates.com"];
+  const paths = ["/", "/llms.txt", "/openapi.json", "/.well-known/x402", "/.well-known/402xagent-keys.json", "/pricing", "/docs", "/blog", "/blog/meet-402xagent-check-before-your-agent-pays", "/blog/preflight-budget-then-check", "/blog/x402-retry-double-pay-check-before-you-resign", "/blog/x402-skips-report-what-agents-almost-paid-for", "/blog/x402-spotcheck-audit-layer-budgets-ledger", "/rules", "/rules.json", "/v1/skips", "/v1/skips.json", "/bazaar", "/bazaar.json", "/saves", "/saves.json", "/health", "/v1/tasks", "/v1/products/endpoint-spot-check", "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=old-copy", "/v1/lookup/paid", "/badge/api.402rates.com"];
   spotTargetMode = "402";
   for (const p of paths) for (const accept of ["application/json", "text/html"]) {
     const r = await worker.fetch(new Request("https://402xagent.com" + p, { headers: { accept, "user-agent": "agent-x/1.0", "cf-connecting-ip": "203.0.113.9" } }), e.env, { waitUntil() {} });
@@ -3014,7 +3017,7 @@ test("0.38.0: no served page, JSON, 402 or MCP text carries the old price copy (
   const tools = await rpc({ jsonrpc: "2.0", id: 1, method: "tools/list" });
   assert.match(tools, /endpoint_spot_check/);
   assert.ok(!OLD.test(tools), "MCP tools/list");
-  const call = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: "https://spot.target.test/api" } } });
+  const call = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: "https://spot.target.fixture/api" } } });
   assert.ok(!OLD.test(call), "MCP tool 402 text");
 });
 
@@ -3118,7 +3121,7 @@ test("0.39.0 blog: no personal identifiers in any post (terms from the local for
 test("0.42.3 receipt labels: check_type matches the real mode (live / dry-run / self-checked); client stored only when given (never served publicly); same single write", async () => {
   const db = fakeD1(); const e = spotEnv({ RECEIPTS_DB: db });
   spotTargetMode = "402";
-  const base = SPOT + "?url=" + encodeURIComponent("https://spot.target.test/lbl") + "&claimed_price=0.001";
+  const base = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/lbl") + "&claimed_price=0.001";
   await send(base + "&client=receipt-label-check", { envo: e });
   await send(base + "&client=receipt-label-dry&mode=dry-run", { envo: e });
   await send(base, { envo: e });
@@ -3155,11 +3158,11 @@ function d1Put(rows, key, obj, partSize = 50) {
 }
 test("0.44.0 crawl store: receipts and skip pages come from D1 (multi-part, sha-checked); KV only for keys not in D1", async () => {
   const { _clearCrawlStoreCache, crawlStoreGet } = await import("../worker/src/skips.js");
-  const ext = "https://spot.target.test/d1-thing", id = await receiptIdFor(ext);
+  const ext = "https://spot.target.fixture/d1-thing", id = await receiptIdFor(ext);
   const rec = { id, url: ext, verdict: "skip", reason: "price_mismatch", listed_pay_to: "0x" + "33".repeat(20), listed_network: "eip155:8453" };
   const rows = []; d1Put(rows, "c:" + id.slice(0, 2), { [id]: rec }); d1Put(rows, "s:2", [rec]);
   assert.ok(rows.filter((r) => r.key === "s:2").length > 1, "value is split into several parts");
-  const kvCalls = []; const kvRec = { ...rec, id: "ffffffffff", url: "https://kv.only.test/x" };
+  const kvCalls = []; const kvRec = { ...rec, id: "ffffffffff", url: "https://kv.only.fixture/x" };
   const kv = { async get(k, o) { kvCalls.push(k); return k === "c:ff" ? { ffffffffff: kvRec } : null; } };
   const db = crawlD1(rows);
   _clearCrawlStoreCache();
@@ -3222,7 +3225,7 @@ print(json.dumps(ok))`;
 
 
 // ---------------- 0.40.0 payment-status (after-payment check): mocked Base RPC, three sources ----------------
-const PSA = "https://alch.test/v2/SECRETKEY123", PSB = "https://rpc2.test/k/SECRET2", PSP = "https://pub.test/";
+const PSA = "https://alch.fixture/v2/SECRETKEY123", PSB = "https://rpc2.fixture/k/SECRET2", PSP = "https://pub.fixture/";
 const PS_FROM = "0x" + "a1".repeat(20), PS_NONCE = "0x" + "b2".repeat(32), PS_TX = "0x" + "c3".repeat(32), PS_SELLER = "0x" + "d4".repeat(20), PS_SUBMITTER = "0x" + "e5".repeat(20);
 const PS_VB = 1900000000;
 const psPad = (a) => "0x" + a.toLowerCase().replace(/^0x/, "").padStart(64, "0");
@@ -3308,7 +3311,7 @@ test("0.40.0 payment-status: bare GET/POST/HEAD -> x402 v2 discovery 402 at 2000
     assert.equal(r.body.extensions.bazaar.info.input.method, "POST");
     assert.deepEqual(unb64(r.headers.get("payment-required")), r.body);
   }
-  const h = await worker.fetch(new Request("https://lookup.test" + PS, { method: "HEAD" }), e.env, { waitUntil() {} });
+  const h = await worker.fetch(new Request("https://lookup.fixture" + PS, { method: "HEAD" }), e.env, { waitUntil() {} });
   assert.equal(h.status, 402);
   assert.equal(psCalls.length, 0, "no RPC"); assert.equal(e.env.RECEIPTS_DB.rows.length, 0, "no D1 write");
   const f = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e });
@@ -3323,7 +3326,7 @@ test("0.40.0 payment-status: landed (10+ confirmations) -> landed, safe_to_resig
   const e = psEnv({ RECEIPT_SIGNING_KEY: JSON.stringify(jwk) });
   const rc = psReceipt({ block: 4980 });
   psSet(psNode({ used: true, event: "used", receipt: rc }), psNode({ used: true, event: "used", receipt: rc }));
-  const r = await psSend({ payment_payload: PS_PAYLOAD(), seller_url: "https://spot.target.test/ps" }, { envo: e });
+  const r = await psSend({ payment_payload: PS_PAYLOAD(), seller_url: "https://spot.target.fixture/ps" }, { envo: e });
   assert.equal(r.status, 200);
   const b = r.body;
   assert.equal(b.status, "landed"); assert.equal(b.reason, "settled_onchain");
@@ -3332,13 +3335,13 @@ test("0.40.0 payment-status: landed (10+ confirmations) -> landed, safe_to_resig
   assert.deepEqual(b.tx.transfer, { from: PS_FROM, to: PS_SELLER, value: "10000" });
   assert.deepEqual(b.terms_match, { amount: "match", pay_to: "match", asset: "match", network: "match", source: "payment_payload", compared: "onchain_transfer" });
   assert.equal(b.claim.relevant, true); assert.ok(b.claim.contacts.some((c) => c.role === "facilitator" && c.submitter === PS_SUBMITTER && c.inferred));
-  assert.ok(b.claim.contacts.some((c) => c.role === "seller" && c.host === "spot.target.test"));
+  assert.ok(b.claim.contacts.some((c) => c.role === "seller" && c.host === "spot.target.fixture"));
   assert.equal(b.finality.reorg_safe, true); assert.equal(b.rpc.sources_agreed, 2);
   assert.ok(Array.isArray(b.cannot_know) && b.cannot_know.some((x) => /delivered/.test(x)));
   assert.equal(b.access.tier, "free"); assert.equal(b.access.shared_with, "402xAgent check");
   { const u = await psSend({ tx_hash: PS_TX }, { envo: psEnv() }); assert.equal(u.body.receipt, null); assert.match(u.body.signature_note, /unsigned/); }
   // RPC URLs (with keys) never leak
-  assert.doesNotMatch(JSON.stringify(b), /SECRETKEY123|SECRET2|alch\.test|rpc2\.test/);
+  assert.doesNotMatch(JSON.stringify(b), /SECRETKEY123|SECRET2|alch\.fixture|rpc2\.fixture/);
   assert.deepEqual(b.rpc.sources.map((s) => s.name), ["alchemy", "rpc2"]);
   // signed copy verifies (ed25519 over JCS minus signature)
   assert.equal(b.receipt.kid, "ps-test-key");
@@ -3357,7 +3360,7 @@ test("0.40.0 payment-status: landed (10+ confirmations) -> landed, safe_to_resig
     assert.ok(!JSON.stringify(got.body).toLowerCase().includes(String(v).toLowerCase()), "no buyer data in the public ps- view");
   // repeat: cached, no RPC
   psCalls.length = 0;
-  const r2 = await psSend({ payment_payload: PS_PAYLOAD(), seller_url: "https://spot.target.test/ps" }, { envo: e });
+  const r2 = await psSend({ payment_payload: PS_PAYLOAD(), seller_url: "https://spot.target.fixture/ps" }, { envo: e });
   assert.equal(r2.body.cached, true); assert.equal(psCalls.length, 0); assert.equal(r2.body.access.free_used_today, 2);
   assert.equal((await send("/v1/receipts/ps-0000000000000000", { envo: e })).status, 404);
   S._resetSigner();
@@ -3498,11 +3501,11 @@ test("0.40.1 payment-status: every PAID call writes a NEW signed receipt (new ps
 
 test("0.40.1 payment-status sources: RPC3_BASE_URL (keyed) sits after Alchemy and ahead of keyless; Alchemy nonce-only lookup uses alchemy_getAssetTransfers (full history) not 10-block getLogs; bounded calls; keyless keep 9,000 blocks", async () => {
   const P = await import("../worker/src/paystatus.js");
-  const names = P.rpcSources({ ALCHEMY_BASE_RPC_URL: "https://a.test/", RPC3_BASE_URL: "https://k3.test/", RPC2_BASE_URL: "https://k2.test/" }).map((x) => [x.name, x.kind, x.logWindow]);
+  const names = P.rpcSources({ ALCHEMY_BASE_RPC_URL: "https://a.fixture/", RPC3_BASE_URL: "https://k3.fixture/", RPC2_BASE_URL: "https://k2.fixture/" }).map((x) => [x.name, x.kind, x.logWindow]);
   assert.deepEqual(names.slice(0, 3), [["alchemy", "alchemy", 9000], ["rpc3", "keyed", 9000], ["rpc2", "keyless", 9000]]);
   assert.ok(names.slice(3).every(([, k, w]) => k === "keyless" && w === 9000));
-  assert.equal(P.rpcSources({ RPC3_BASE_URL: "http://insecure.test/" }).some((x) => x.name === "rpc3"), false, "https only");
-  assert.equal(P.rpcSources({ RPC3_BASE_URL: "https://k3.test/", PAYSTATUS_RPC3_LOG_WINDOW: "50000" }).find((x) => x.name === "rpc3").logWindow, 50000);
+  assert.equal(P.rpcSources({ RPC3_BASE_URL: "http://insecure.fixture/" }).some((x) => x.name === "rpc3"), false, "https only");
+  assert.equal(P.rpcSources({ RPC3_BASE_URL: "https://k3.fixture/", PAYSTATUS_RPC3_LOG_WINDOW: "50000" }).find((x) => x.name === "rpc3").logWindow, 50000);
   // nonce-only lookup of an OLD payment (event far outside 9,000 blocks): Alchemy finds it via transfers, the keyless one cross-reads the tx
   const old = psReceipt({ block: 100 });
   const others = Array.from({ length: 30 }, (_, i) => "0x" + (i + 1).toString(16).padStart(64, "0"));
@@ -3563,7 +3566,7 @@ test("0.41.0 hosted: calls WITHOUT a key are byte-for-byte unchanged (pepper + i
   spotTargetMode = "402";
   const run = async (extra, headers = {}) => {
     const e = spotEnv({ RECEIPTS_DB: hostedD1(fakeD1()), ...extra });
-    const a = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/nokey") + "&client=nokey", { envo: e, headers });
+    const a = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/nokey") + "&client=nokey", { envo: e, headers });
     psSet(psNode(), psNode());
     const b = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: { ...e, env: { ...e.env, ALCHEMY_BASE_RPC_URL: PSA, RPC2_BASE_URL: PSB, PAYSTATUS_PUBLIC_RPC: PSP, PAYSTATUS_PUBLIC_RPC2: "off" } }, client: "nokey", headers });
     return [a.status, norm(JSON.stringify(a.body)), [...a.headers.keys()].sort().join(","), b.status, norm(JSON.stringify(b.body)), [...b.headers.keys()].sort().join(",")];
@@ -3573,7 +3576,7 @@ test("0.41.0 hosted: calls WITHOUT a key are byte-for-byte unchanged (pepper + i
   assert.deepEqual(await run({ HOSTED_KEY_PEPPER: H_PEPPER }, { authorization: "Bearer some-other-token" }), base, "non-402x bearer is not a key");
   assert.ok(!base[1].includes("hosted") && !base[4].includes("\"hosted\""));
   const Hm = await import("../worker/src/hosted.js");
-  assert.equal(Hm.hostedKeyFrom(new Request("https://x.test/")), null);
+  assert.equal(Hm.hostedKeyFrom(new Request("https://x.fixture/")), null);
 });
 
 test("0.41.0 hosted spot-check: valid key -> tier hosted, full answer, no free counter, payment header ignored, usage metered, signed receipt with hosted block verifies; bad/revoked/no-pepper refused; /v1/integrators/me", async () => {
@@ -3587,7 +3590,7 @@ test("0.41.0 hosted spot-check: valid key -> tier hosted, full answer, no free c
   spotTargetMode = "402"; facCalls.length = 0;
   const W = await import("/workspace/products/x402-spotcheck/receipt.js");
   for (let i = 0; i < 2; i++) {
-    const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/h" + i) + "&client=hosted-agent", { envo: e, headers: { authorization: "Bearer " + key, "x-402xagent-end-user": "agent-42", "payment-signature": spotPayment({ amount: "20000" }) } });
+    const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/h" + i) + "&client=hosted-agent", { envo: e, headers: { authorization: "Bearer " + key, "x-402xagent-end-user": "agent-42", "payment-signature": spotPayment({ amount: "20000" }) } });
     assert.equal(r.status, 200);
     assert.equal(r.body.access.tier, "hosted"); assert.equal(r.body.access.integrator, "0a1b2c3d"); assert.equal(r.body.access.band, "free_allowance"); assert.equal(r.body.access.price_atomic, "0"); assert.equal(r.body.access.billed_on, "invoice");
     assert.match(r.body.access.end_user_hash, /^[0-9a-f]{24}$/); assert.ok(!JSON.stringify(r.body).includes("agent-42"));
@@ -3606,14 +3609,14 @@ test("0.41.0 hosted spot-check: valid key -> tier hosted, full answer, no free c
   assert.equal(me.status, 200); assert.equal(me.body.meter.total, 2); assert.equal(me.body.next_check.band, "free_allowance"); assert.equal(me.body.credit_limit_atomic, "20000000");
   // refusals never fall back to free
   for (const [hdrs, status, code] of [[{ authorization: "Bearer 402x_live_0a1b2c3d_" + "A".repeat(43) }, 401, "bad_key"], [{ "x-402xagent-key": "nope" }, 401, "bad_key"]]) {
-    const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/bad") + "&client=hosted-agent", { envo: e, headers: hdrs });
+    const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/bad") + "&client=hosted-agent", { envo: e, headers: hdrs });
     assert.deepEqual([r.status, r.body.code], [status, code]);
   }
   db.integ[0].status = "revoked";
-  let r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/rev") + "&client=hosted-agent", { envo: e, headers: { authorization: "Bearer " + key } });
+  let r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/rev") + "&client=hosted-agent", { envo: e, headers: { authorization: "Bearer " + key } });
   assert.deepEqual([r.status, r.body.code], [401, "key_revoked"]);
   const e0 = spotEnv({ RECEIPTS_DB: db });
-  r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/np") + "&client=hosted-agent", { envo: e0, headers: { authorization: "Bearer " + key } });
+  r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/np") + "&client=hosted-agent", { envo: e0, headers: { authorization: "Bearer " + key } });
   assert.deepEqual([r.status, r.body.code], [501, "hosted_not_enabled"]);
   assert.equal(db.usage.length, 2, "refused calls are not metered");
 });
@@ -3630,7 +3633,7 @@ test("0.41.0 hosted pricing: 1,000 free lifetime, then $0.02, then marginal $0.0
   const key = await hostedKey(db, { free_total: 1 });
   const e = spotEnv({ RECEIPTS_DB: db, HOSTED_KEY_PEPPER: H_PEPPER, SPOT_FREE_PER_DAY: "5" });
   spotTargetMode = "402";
-  const call = (p, extra = {}) => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/" + p) + "&client=hp", { envo: e, headers: { authorization: "Bearer " + key, ...extra } });
+  const call = (p, extra = {}) => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/" + p) + "&client=hp", { envo: e, headers: { authorization: "Bearer " + key, ...extra } });
   assert.equal((await call("a")).body.access.band, "free_allowance");
   let r = await call("a"); // same url again: cached probe answer, still billable
   assert.deepEqual([r.body.access.band, r.body.access.price_atomic], ["standard", "20000"]);
@@ -3649,7 +3652,7 @@ test("0.41.0 hosted pricing: 1,000 free lifetime, then $0.02, then marginal $0.0
   r = await call("d"); assert.equal(r.body.access.tier, "hosted", "limit is $100 after the first paid invoice");
   // rate limit per key per minute
   const e1 = spotEnv({ RECEIPTS_DB: db, HOSTED_KEY_PEPPER: H_PEPPER, HOSTED_PER_MIN: "1" });
-  const c1 = (p) => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/" + p) + "&client=hp", { envo: e1, headers: { "x-402xagent-key": key } });
+  const c1 = (p) => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/" + p) + "&client=hp", { envo: e1, headers: { "x-402xagent-key": key } });
   assert.equal((await c1("r1")).status, 200);
   r = await c1("r2"); assert.deepEqual([r.status, r.body.code], [429, "hosted_rate_limited"]);
 });
@@ -3684,21 +3687,21 @@ test("0.40.0 payment-status: chain outage -> 503 (nothing charged, no free check
   psSet(psNode({ fail: true }), psNode({ fail: true }), psNode({ fail: true }));
   let r = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e, client: "ps-shared" });
   assert.equal(r.status, 503); assert.equal(r.body.code, "chain_unavailable"); assert.equal(r.body.safe_to_resign, false); assert.equal(r.headers.get("retry-after"), "30");
-  assert.doesNotMatch(JSON.stringify(r.body), /SECRET|alch\.test/);
+  assert.doesNotMatch(JSON.stringify(r.body), /SECRET|alch\.fixture/);
   for (const [b, code] of [[{ nonce: "0x12" , from: PS_FROM }, "bad_nonce"], [{ tx_hash: PS_TX, network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" }, "unsupported_network"], [{ tx_hash: PS_TX, asset: "0x" + "00".repeat(20) }, "unsupported_asset"], [{ payment_payload: PS_PAYLOAD(), nonce: "0x" + "ff".repeat(32) }, "inconsistent"], [{ payment_payload: "not base64!" }, "bad_payload"], [{ from: PS_FROM }, "missing_reference"], [{ payment_payload: PS_PAYLOAD({ accepted: { network: "eip155:1" } }) }, "unsupported_network"]]) {
     r = await psSend(b, { envo: e, client: "ps-shared" });
     assert.equal(r.status, 400, code); assert.equal(r.body.code, code);
   }
   // shared counter: one free spot-check + one free payment-status = 2 free/day, then 402
   spotTargetMode = "402";
-  const sc = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/ps-shared") + "&client=ps-shared", { envo: e });
+  const sc = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/ps-shared") + "&client=ps-shared", { envo: e });
   assert.equal(sc.body.access.tier, "free"); assert.equal(sc.body.access.free_used_today, 1, "503 and 400s used nothing");
   psSet(psNode(), psNode());
   r = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e, client: "ps-shared" });
   assert.equal(r.body.access.free_used_today, 2);
   r = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e, client: "ps-shared" });
   assert.equal(r.status, 402); assert.equal(r.body.accepts[0].amount, "20000"); assert.match(r.body.error, /shared with the 402xAgent check/);
-  const sc2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/ps-shared2") + "&client=ps-shared", { envo: e });
+  const sc2 = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/ps-shared2") + "&client=ps-shared", { envo: e });
   assert.equal(sc2.status, 402, "the check sees the same counter");
   // paid via x402 (our own PAYMENT-SIGNATURE header; the subject payment is in the body)
   facMode = "ok";
@@ -3711,10 +3714,10 @@ test("0.40.0 payment-status: chain outage -> 503 (nothing charged, no free check
   const e3 = psEnv({ SPOT_FREE_PER_IP_DAY: "3" });
   psSet(psNode(), psNode());
   for (let i = 0; i < 2; i++) assert.equal((await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e3, client: "ps-ipcap-" + i })).body.access.tier, "free");
-  assert.equal((await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/ipcap") + "&client=ps-ipcap-x", { envo: e3 })).body.access.tier, "free", "3rd free on this network (a check)");
+  assert.equal((await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/ipcap") + "&client=ps-ipcap-x", { envo: e3 })).body.access.tier, "free", "3rd free on this network (a check)");
   r = await psSend({ payment_payload: PS_PAYLOAD() }, { envo: e3, client: "ps-ipcap-new" });
   assert.equal(r.status, 402); assert.match(r.body.error, /per UTC day from one network/);
-  assert.equal((await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/ipcap2") + "&client=ps-ipcap-y", { envo: e3 })).status, 429, "the check sees the same network cap");
+  assert.equal((await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/ipcap2") + "&client=ps-ipcap-y", { envo: e3 })).status, 429, "the check sees the same network cap");
   // MCP tool
   const orig = globalThis.fetch; globalThis.fetch = psFetch(orig);
   try {
@@ -3730,7 +3733,7 @@ test("0.40.0 payment-status: chain outage -> 503 (nothing charged, no free check
   assert.ok(wk.body.resourceCatalog.some((x) => x.url.endsWith("/v1/products/payment-status") && x.accepts[0].amount === "20000"));
   const oa = await send("/openapi.json", { envo: e });
   assert.ok(oa.body.paths["/v1/products/payment-status"].post);
-  const llms = await (await worker.fetch(new Request("https://lookup.test/llms.txt"), e.env, { waitUntil() {} })).text();
+  const llms = await (await worker.fetch(new Request("https://lookup.fixture/llms.txt"), e.env, { waitUntil() {} })).text();
   assert.match(llms, /payment-status/); assert.match(llms, /safe_to_resign/);
   const docs = await (await worker.fetch(new Request("https://402xagent.com/docs", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} })).text();
   assert.match(docs, /id="payment-status"/);
@@ -3756,7 +3759,7 @@ test("0.40.0 paystatus unit: payload decode (v1 + v2), selectors/topics, rpcSour
     if (method === "eth_getBlockByNumber") return Response.json({ result: { number: "0x" + (1000000).toString(16), timestamp: "0x" + (PS_VB + 86400).toString(16) } });
     if (method === "eth_call") return Response.json({ result: "0x" + "0".repeat(63) + "1" });
     return Response.json({ result: [] }); };
-  await P.readSource({ name: "t", url: "https://t.test" }, { from: PS_FROM, nonce: PS_NONCE, valid_before: PS_VB }, f);
+  await P.readSource({ name: "t", url: "https://t.fixture" }, { from: PS_FROM, nonce: PS_NONCE, valid_before: PS_VB }, f);
   const lg = seen.find((x) => x[0] === "eth_getLogs")[1][0];
   assert.equal(parseInt(lg.toBlock, 16), 1000000 - 43200 + 150); assert.equal(parseInt(lg.toBlock, 16) - parseInt(lg.fromBlock, 16), 9000);
   const v = (o) => ({ name: "x", ok: true, head: 10, head_time: PS_VB + 999, state: false, receipt: null, event: null, ...o });
@@ -3774,7 +3777,7 @@ test("0.42.0 opt-in check_expiry: expired 402 -> skip/challenge_expired; skew ca
   const run = async (mode, extra, client) => {
     spotTargetMode = mode;
     const e = spotEnv();
-    return send("/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.test/api") + "&claimed_price=0.001&client=" + client + extra, { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
+    return send("/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price=0.001&client=" + client + extra, { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
   };
   const exp = await run("expired", "&check_expiry=1", "exp-1");
   assert.equal(exp.status, 200);
@@ -3798,7 +3801,7 @@ test("0.42.0 opt-in check_expiry: expired 402 -> skip/challenge_expired; skew ca
   }
   spotTargetMode = "402";
   const e2 = spotEnv();
-  const html = await (await worker.fetch(new Request("https://lookup.test/docs", { headers: { "user-agent": "agent-x/1.0" } }), e2.env, { waitUntil() {} })).text();
+  const html = await (await worker.fetch(new Request("https://lookup.fixture/docs", { headers: { "user-agent": "agent-x/1.0" } }), e2.env, { waitUntil() {} })).text();
   assert.ok(html.includes('id="payment-status-example"') && html.includes("https://402xagent.com/v1/receipts/ps-65a4fdffae01d2b6") && html.includes('id="expiry-check"'));
   const rj = (await send("/rules.json", { envo: spotEnv() })).body;
   assert.ok(rj.reason_codes.some((r) => r.code === "challenge_expired"));
@@ -3807,7 +3810,7 @@ test("0.42.0 opt-in check_expiry: expired 402 -> skip/challenge_expired; skew ca
 test("0.42.1 self-check: own hosts are served in-process (same-zone fetch fails), others still use fetch; spot-check route never recursed", async () => {
   const L = await import("../worker/src/lib.js");
   assert.ok(L.isOwnHost("api.402xagent.com") && L.isOwnHost("402xagent.com") && L.isOwnHost("payscout.dev") && L.isOwnHost("verified-catalog-lookup.abc.workers.dev"));
-  assert.ok(!L.isOwnHost("evil402xagent.com") && !L.isOwnHost("402xagent.com.evil.test") && !L.isOwnHost("other.abc.workers.dev"));
+  assert.ok(!L.isOwnHost("evil402xagent.com") && !L.isOwnHost("402xagent.com.evil.fixture") && !L.isOwnHost("other.abc.workers.dev"));
   let outer = [];
   const base = async (u) => { outer.push(String(u)); return new Response("same-zone", { status: 522 }); };
   const e = spotEnv();
@@ -3815,7 +3818,7 @@ test("0.42.1 self-check: own hosts are served in-process (same-zone fetch fails)
   const r = await f("https://api.402xagent.com/v1/lookup/paid?task=web-search", { headers: { accept: "application/json" } });
   assert.equal(r.status, 402, "own host answered in-process");
   assert.equal(outer.length, 0);
-  await f("https://spot.target.test/api"); await f("https://api.402xagent.com/v1/products/endpoint-spot-check?url=x"); await f("http://api.402xagent.com/v1/lookup/paid");
+  await f("https://spot.target.fixture/api"); await f("https://api.402xagent.com/v1/products/endpoint-spot-check?url=x"); await f("http://api.402xagent.com/v1/lookup/paid");
   assert.equal(outer.length, 3, "external host, the spot-check route and non-https all go through normal fetch");
   const s = await send("/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://api.402xagent.com/v1/lookup/paid?task=web-search") + "&client=self-1", { envo: e });
   assert.equal(s.status, 200);
@@ -3876,7 +3879,7 @@ test("0.45.6 privacy sweep: no buyer wallet, settle tx, payment proof, nonce or 
   const clean = (label, body) => { const t = JSON.stringify(body).toLowerCase(); for (const x of SECRETS) assert.ok(!t.includes(x.toLowerCase()), label + " leaks " + x.slice(0, 10)); for (const k of ["settle_tx", "basescan_url", "submitter", "payment_payload", "payer\"", "client_ip"]) assert.ok(!t.includes('"' + k.replace('"', '')), label + " has " + k); };
   const env = spotEnv({ RECEIPT_SIGNING_KEY: JSON.stringify(jwk), RECEIPTS_DB: fakeD1() });
   const db = env.env.RECEIPTS_DB;
-  const U = "https://seller.privacy.test/api";
+  const U = "https://seller.privacy.fixture/api";
   const base = (id, at) => ({ id, url: U, access_tier: "paid", method: "GET", checked_at: at, check_type: "live", mode: "live", verdict: "pay", reason: "payment request matches the listed price",
     live_402: { http_status: 402, x402_challenge: true, accepts: [{ scheme: "exact", network: "eip155:8453", asset: USDC, amount_atomic: "10000", pay_to: SELLER }], error: null, free_trial: null },
     payment_received: { tier: "paid", payer: BUYER, amount_atomic: "20000", amount_usd: "0.02", asset: USDC, network: "eip155:8453", settle_tx: TXH, basescan_url: "https://basescan.org/tx/" + TXH },
@@ -3915,7 +3918,7 @@ test("0.45.6 privacy sweep: no buyer wallet, settle tx, payment proof, nonce or 
   // legacy ps- payment-status row (paid), signed with buyer data inside
   const pe = psEnv({ RECEIPT_SIGNING_KEY: JSON.stringify(jwk) });
   const ps = await S.signObject(pe.env, { id: "ps-00000000000000dd", type: "payment-status", status: "landed", checked_at: "2026-10-19T10:00:00Z",
-    query: { from: BUYER, nonce: NONCE, tx_hash: TXH, valid_before: null, seller_host: "seller.privacy.test" },
+    query: { from: BUYER, nonce: NONCE, tx_hash: TXH, valid_before: null, seller_host: "seller.privacy.fixture" },
     authorization: { from: BUYER, nonce: NONCE, used_onchain: true, event: "used" },
     tx: { hash: TXH, basescan_url: "https://basescan.org/tx/" + TXH, block: 5, status: "success", confirmations: 12, submitter: "0x" + "fa".repeat(20), transfer: { from: BUYER, to: SELLER, value: "10000" } },
     terms_match: { amount: "match", pay_to: "match" }, why: "nonce " + NONCE + " used", payment_received: { tier: "paid", payer: BUYER, settle_tx: TXH, basescan_url: "https://basescan.org/tx/" + TXH, amount_usd: "0.02" },
@@ -3924,7 +3927,7 @@ test("0.45.6 privacy sweep: no buyer wallet, settle tx, payment proof, nonce or 
   const gp = await send("/v1/receipts/ps-00000000000000dd", { envo: pe });
   assert.equal(gp.status, 200); assert.equal(gp.body.id, "ps-00000000000000dd"); assert.equal(gp.body.redacted_v2, true);
   clean("ps legacy", gp.body); assert.ok(!JSON.stringify(gp.body).includes("fa".repeat(20)), "no submitter");
-  assert.equal(gp.body.query.seller_host, "seller.privacy.test"); assert.equal(gp.body.tx.confirmations, 12);
+  assert.equal(gp.body.query.seller_host, "seller.privacy.fixture"); assert.equal(gp.body.tx.confirmations, 12);
   assert.notEqual(gp.body.signature, ps.signature); assert.equal((await W.verifyReceipt(gp.body, keys)).valid, true, "re-signed ps verifies");
   S._resetSigner();
 });
@@ -3977,10 +3980,10 @@ test("0.46.0 free answer: locked {drift, hygiene, unlock} + locked_commitments, 
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db, ENDPOINT_REPORT: "1", SPOT_FREE_PER_DAY: "5" });
   spotTargetMode = "402";
-  const U = "https://spot.target.test/locked-1";
+  const U = "https://spot.target.fixture/locked-1";
   const { changeTimes } = await seedHistory(db, U);
   const before = db.ops.length;
-  e.env.ALCHEMY_BASE_RPC_URL = "https://rpc.locked.test/k"; e.env.RPC2_BASE_URL = "https://rpc2.locked.test/";
+  e.env.ALCHEMY_BASE_RPC_URL = "https://rpc.locked.fixture/k"; e.env.RPC2_BASE_URL = "https://rpc2.locked.fixture/";
   const of = globalThis.fetch; const seen = []; globalThis.fetch = (u, i) => { seen.push(String(u)); return of(u, i); };
   let r;
   try { r = await send(SPOT + "?url=" + encodeURIComponent(U) + "&client=locked-a", { envo: e }); } finally { globalThis.fetch = of; }
@@ -4018,7 +4021,7 @@ test("0.46.0 dry run and MCP endpoint_spot_check carry the same locked block", a
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db, ENDPOINT_REPORT: "1" });
   spotTargetMode = "402";
-  const U = "https://spot.target.test/locked-dry";
+  const U = "https://spot.target.fixture/locked-dry";
   await seedHistory(db, U);
   const d = await send(SPOT + "?url=" + encodeURIComponent(U) + "&mode=dry-run&client=dry-locked", { envo: e });
   assert.equal(d.status, 200); assert.deepEqual(d.body.locked.drift, { teaser: "2 changes in 30d", count_30d: 2 }); assert.match(d.body.locked_commitments.ref, /^cm-/);
@@ -4032,7 +4035,7 @@ test("0.46.0 commitments: reveal verifies; tampered snapshot, wrong nonce and ne
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db, ENDPOINT_REPORT: "1" });
   spotTargetMode = "402";
-  const U = "https://spot.target.test/locked-2";
+  const U = "https://spot.target.fixture/locked-2";
   const { hk } = await seedHistory(db, U);
   const free = await send(SPOT + "?url=" + encodeURIComponent(U) + "&client=commit-a", { envo: e });
   const C = free.body.locked_commitments;
@@ -4065,7 +4068,7 @@ test("0.46.0 commitments: reveal verifies; tampered snapshot, wrong nonce and ne
   assert.equal(ex.status, 404); assert.equal(ex.body.code, "commitment_not_found"); assert.equal(facCalls.length, 0, "nothing settled");
   // mismatched endpoint
   db.comm[0].expires_at = iso(now + 10 * D46);
-  const mm = await erSend({ url: "https://spot.target.test/other", commitment_ref: C.ref }, { envo: e, headers: { "payment-signature": v2Payment({ amount: "50000" }) } });
+  const mm = await erSend({ url: "https://spot.target.fixture/other", commitment_ref: C.ref }, { envo: e, headers: { "payment-signature": v2Payment({ amount: "50000" }) } });
   assert.equal(mm.status, 400); assert.equal(mm.body.code, "commitment_mismatch");
   // no ref: commit and reveal in one step
   const one = await erSend({ url: U }, { envo: e, headers: { "payment-signature": v2Payment({ amount: "50000" }) } });
@@ -4075,20 +4078,20 @@ test("0.46.0 commitments: reveal verifies; tampered snapshot, wrong nonce and ne
 
 test("0.46.0 endpoint-report route: flag off 404; bare 402 discovery with nothing read; $0.05 accepts; wrong amount rejected; paid 200 signed + verifies; public er- view scrubbed and re-signed", async () => {
   const { W, keys, jwk, S } = await signingSetup("er-key-2");
-  const off = await erSend({ url: "https://spot.target.test/x" }, { envo: spotEnv({ RECEIPTS_DB: fakeD1() }) });
+  const off = await erSend({ url: "https://spot.target.fixture/x" }, { envo: spotEnv({ RECEIPTS_DB: fakeD1() }) });
   assert.equal(off.status, 404); assert.equal(off.body.code, "not_enabled");
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db, ENDPOINT_REPORT: "1", RECEIPT_SIGNING_KEY: JSON.stringify(jwk) });
   const bare = await erSend({}, { envo: e });
   assert.equal(bare.status, 402); assert.equal(bare.body.discovery, true); assert.equal(bare.body.accepts[0].amount, "50000"); assert.equal(db.ops.length, 0, "nothing read");
-  const nohdr = await erSend({ url: "https://spot.target.test/x" }, { envo: e });
+  const nohdr = await erSend({ url: "https://spot.target.fixture/x" }, { envo: e });
   assert.equal(nohdr.status, 402); assert.equal(nohdr.body.price_usd, "0.05"); assert.equal(db.ops.length, 0);
-  const wrong = await erSend({ url: "https://spot.target.test/x" }, { envo: e, headers: { "payment-signature": v2Payment() } });
+  const wrong = await erSend({ url: "https://spot.target.fixture/x" }, { envo: e, headers: { "payment-signature": v2Payment() } });
   assert.equal(wrong.status, 402); assert.match(wrong.body.error, /amount does not match/);
-  const badRef = await erSend({ url: "https://spot.target.test/x", commitment_ref: "{id}" }, { envo: e, headers: { "payment-signature": v2Payment({ amount: "50000" }) } });
+  const badRef = await erSend({ url: "https://spot.target.fixture/x", commitment_ref: "{id}" }, { envo: e, headers: { "payment-signature": v2Payment({ amount: "50000" }) } });
   assert.equal(badRef.status, 400);
   facMode = "ok";
-  const ok = await erSend({ url: "https://spot.target.test/x" }, { envo: e, headers: { "payment-signature": v2Payment({ amount: "50000" }) } });
+  const ok = await erSend({ url: "https://spot.target.fixture/x" }, { envo: e, headers: { "payment-signature": v2Payment({ amount: "50000" }) } });
   assert.equal(ok.status, 200); assert.ok(ok.headers.get("payment-response"));
   assert.equal((await W.verifyReceipt(ok.body, keys)).valid, true, "er- receipt verifies");
   assert.equal(ok.body.tier, "paid"); assert.equal(ok.body.payment_received.amount_atomic, "50000");
@@ -4108,7 +4111,7 @@ test("0.46.0 receipt v2: compact signed block (x402_version, valid_before, diff,
   const db = fakeD1();
   const e = spotEnv({ RECEIPTS_DB: db, SPOT_FREE_PER_DAY: "5" });
   spotTargetMode = "402";
-  const U = "https://spot.target.test/v2-1";
+  const U = "https://spot.target.fixture/v2-1";
   const a = await send(SPOT + "?url=" + encodeURIComponent(U) + "&claimed_price=0.0005&client=v2-a&policy_cap_usd=1.5&policy_remaining_usd=0.4", { envo: e });
   assert.equal(a.status, 200); assert.deepEqual(a.body.policy, { cap_usd: 1.5, remaining_usd: 0.4 });
   const b = await send(SPOT + "?url=" + encodeURIComponent(U) + "&claimed_price=0.0005&client=v2-b", { envo: e });
@@ -4159,21 +4162,21 @@ test("0.46.0 payment config: default (no env) accepts are byte-identical Base ma
   const MAIN = { scheme: "exact", network: "eip155:8453", amount: "20000", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: PAY_TO, maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" } };
   for (const env of [{}, { PAYMENT_PRESET: "base" }, { PAYMENT_PRESET: "nonsense", PAYMENT_NETWORK: "bad", PAYMENT_ASSET: "0x12" }]) {
     const c = L46.spotDynCfg(L46.spotCfg({ PAY_TO, ...env }), null);
-    assert.equal(JSON.stringify(L46.paymentRequirements(c, "https://x.test/r", 2)), JSON.stringify(MAIN), JSON.stringify(env));
+    assert.equal(JSON.stringify(L46.paymentRequirements(c, "https://x.fixture/r", 2)), JSON.stringify(MAIN), JSON.stringify(env));
     assert.equal(c.facilitator, "https://facilitator.payai.network");
-    const v1 = L46.paymentRequirements(c, "https://x.test/r", 1);
+    const v1 = L46.paymentRequirements(c, "https://x.fixture/r", 1);
     assert.equal(v1.network, "base"); assert.equal(v1.asset, MAIN.asset); assert.deepEqual(v1.extra, MAIN.extra);
   }
   // real routes with the test env (mainnet default): the 402 accepts are unchanged
-  const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.test/cfg") + "&client=cfg-a", { envo: spotEnv({ SPOT_FREE_PER_DAY: "0" }) });
+  const r = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/cfg") + "&client=cfg-a", { envo: spotEnv({ SPOT_FREE_PER_DAY: "0" }) });
   assert.equal(JSON.stringify(r.body.accepts[0]), JSON.stringify(MAIN));
   const wk = (await send("/.well-known/x402")).body;
   assert.equal(wk.payment.x402.asset, MAIN.asset); assert.deepEqual(wk.payment.x402.networks, ["eip155:8453"]);
   // testnet preset
   const sc = L46.erCfg({ PAY_TO, PAYMENT_PRESET: "base-sepolia" });
-  assert.deepEqual(L46.paymentRequirements(sc, "https://x.test/r", 2), { scheme: "exact", network: "eip155:84532", amount: "50000", asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", payTo: PAY_TO, maxTimeoutSeconds: 300, extra: { name: "USDC", version: "2" } });
+  assert.deepEqual(L46.paymentRequirements(sc, "https://x.fixture/r", 2), { scheme: "exact", network: "eip155:84532", amount: "50000", asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", payTo: PAY_TO, maxTimeoutSeconds: 300, extra: { name: "USDC", version: "2" } });
   assert.equal(sc.facilitator, "https://x402.org/facilitator");
-  assert.equal(L46.erCfg({ PAY_TO, PAYMENT_PRESET: "base-sepolia", FACILITATOR_URL: "https://fac.example.test/" }).facilitator, "https://fac.example.test", "FACILITATOR_URL wins");
+  assert.equal(L46.erCfg({ PAY_TO, PAYMENT_PRESET: "base-sepolia", FACILITATOR_URL: "https://fac.example.fixture/" }).facilitator, "https://fac.example.fixture", "FACILITATOR_URL wins");
   assert.equal(L46.checkPayload({ x402Version: 2, accepted: { scheme: "exact", network: "eip155:8453", amount: "50000", asset: MAIN.asset, payTo: PAY_TO } }, sc), "unsupported scheme or network (exact on eip155:84532 only)", "mainnet payment refused on the testnet preset");
   assert.equal(L46.checkPayload({ x402Version: 2, accepted: { scheme: "exact", network: "eip155:84532", amount: "50000", asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", payTo: PAY_TO } }, sc), "");
   const pr = L46.paymentReceived({ tier: "paid", charged_usd: "0.05", tx: TX, payer: "0x" + "11".repeat(20) }, "50000", sc);
@@ -4225,7 +4228,7 @@ test("0.46.1 production vars (wrangler.toml): bare POST /v1/products/endpoint-re
 });
 
 test("0.49.0 explain line (EXPLAIN_LINE): off by default; free = redacted closed-vocabulary line (MCP too); exempt/paid shape = values; er- report line signed", async () => {
-  const U = "https://spot.target.test/explain-1";
+  const U = "https://spot.target.fixture/explain-1";
   spotTargetMode = "402";
   const off = await send(SPOT + "?url=" + encodeURIComponent(U) + "&client=expl-off", { envo: spotEnv({ RECEIPTS_DB: fakeD1(), ENDPOINT_REPORT: "1", SPOT_FREE_PER_DAY: "5" }) });
   assert.equal(off.status, 200); assert.equal(off.body.explain, undefined, "off by default");

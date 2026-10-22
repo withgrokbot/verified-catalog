@@ -65,7 +65,7 @@ function setup(extra = {}) {
 }
 const pay = (amount) => ({ "payment-signature": btoa(JSON.stringify({ x402Version: 2, accepted: { scheme: "exact", network: "eip155:8453", amount, asset: USDC, payTo: PAY_TO }, payload: { signature: "0x" + "11".repeat(65), authorization: { from: PAYER, to: PAY_TO, value: amount, validAfter: "0", validBefore: "9999999999", nonce: "0x" + "22".repeat(32) } } })) });
 const ER = "/v1/products/endpoint-report";
-const U = "https://seller.example.test/api/x";
+const U = "https://seller.example.fixture/api/x";
 async function paidReport(t, url = U) { const r = await t.call("POST", ER, { body: { url }, headers: pay("50000") }); assert.equal(r.status, 200, r.text); return r; }
 const recheck = (t, id, secret, url = U, ip) => t.call("POST", ER, { body: { url, recheck_of: id }, headers: secret ? { "x-recheck-secret": secret } : {}, ip });
 const clearGap = (t, id) => t.env.RECEIPTS_DB.raw.prepare("UPDATE recheck_credits SET last_used_at = NULL WHERE receipt_id = ?").run(id);
@@ -122,7 +122,7 @@ test("recheck: wrong / missing secret and unknown id are the same 401; wrong end
   for (const x of [a, b, c]) { assert.equal(x.status, 401); assert.equal(x.j.code, "recheck_unauthorized"); assert.equal(x.j.field, "X-Recheck-Secret"); }
   assert.equal(a.j.error, c.j.error, "unknown id indistinguishable from wrong secret");
   assert.ok(!a.text.includes("rks_0000"), "secret never echoed");
-  const w = await recheck(t, id, secret, "https://other.example.test/y");
+  const w = await recheck(t, id, secret, "https://other.example.fixture/y");
   assert.equal(w.status, 409); assert.equal(w.j.code, "recheck_wrong_endpoint"); assert.equal(w.j.field, "url");
   assert.equal((await recheck(t, id, secret)).status, 200);
   const g = await recheck(t, id, secret);
@@ -157,7 +157,7 @@ test("recheck: atomic counter (parallel redeems at 9 used -> exactly one wins); 
 
 // ---------------------------------------------------------------- 3) bulk report
 const BULK = "/v1/products/endpoint-report/bulk";
-const urls = (n) => Array.from({ length: n }, (_, i) => `https://seller${i}.example.test/api/x`);
+const urls = (n) => Array.from({ length: n }, (_, i) => `https://seller${i}.example.fixture/api/x`);
 test("bulk: off -> 404; bare 402 discovery; price min(n x 50000, 200000); 6 URLs / bad URL / duplicate -> 400 with nothing verified or settled", async () => {
   assert.equal((await setup({ BULK_REPORT: undefined }).call("POST", BULK, { body: { urls: urls(2) } })).status, 404);
   const t = setup();

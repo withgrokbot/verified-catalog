@@ -45,9 +45,12 @@ export function segmentOf(payload, env, payTo) {
 }
 
 /** Counter rows for one request/response pair. `payload` = decoded payment header or null; `errText` = response error text. */
-export function funnelRows({ route, hasPayment, status, settled, errText, segment, inputError = false }) {
+export function funnelRows({ route, hasPayment, status, settled, errText, segment, inputError = false, placeholder = false }) {
   const rows = [];
   const seg = segment || "outside";
+  // 0.49.2: a placeholder-host request (example.com, localhost, *.test, ...) is counted only on its own event, so the
+  // 402 / attempt numbers stay real; /v1/ops/stats adds it back into the *_raw fields.
+  if (placeholder) return [[route, seg, "placeholder", hasPayment ? "paid" : "unpaid"]];
   if (status === 402) rows.push([route, seg, "402", !hasPayment && inputError ? "input_error" : ""]);
   if (hasPayment) {
     rows.push([route, seg, "attempt", ""]);
@@ -99,14 +102,36 @@ export async function opsStats(db, { days = 7, now = new Date() } = {}) {
   const since = day(new Date(new Date(now).getTime() - (n - 1) * 86400000));
   const f = ((await db.prepare("SELECT route, segment, event, reason, SUM(n) AS n FROM paywall_daily WHERE day >= ? GROUP BY route, segment, event, reason ORDER BY route, segment, event, reason").bind(since).all()) || {}).results || [];
   const funnel = {};
+  let placeholderTotal = 0;
   for (const r of f) {
-    const x = ((funnel[r.route] ||= {})[r.segment] ||= { "402": 0, "402_input_error": 0, attempt: 0, settled: 0, not_charged: 0, failed: 0, failed_by_reason: Object.fromEntries(FAIL_REASONS.map((k) => [k, 0])) });
-    if (r.event === "failed") { x.failed += r.n; x.failed_by_reason[r.reason in x.failed_by_reason ? r.reason : "other"] += r.n; }
+    const x = ((funnel[r.route] ||= {})[r.segment] ||= { "402": 0, "402_input_error": 0, attempt: 0, settled: 0, not_charged: 0, failed: 0, failed_by_reason: Object.fromEntries(FAIL_REASONS.map((k) => [k, 0])), placeholder: 0, "402_raw": 0, attempt_raw: 0 });
+    if (r.event === "placeholder") { x.placeholder += r.n; placeholderTotal += r.n; if (r.reason === "paid") x.attempt_raw += r.n; else x["402_raw"] += r.n; }
+    else if (r.event === "failed") { x.failed += r.n; x.failed_by_reason[r.reason in x.failed_by_reason ? r.reason : "other"] += r.n; }
     else if (r.event in x) { x[r.event] += r.n; if (r.event === "402" && r.reason === "input_error") x["402_input_error"] += r.n; }
+    if (r.event === "402") x["402_raw"] += r.n;
+    if (r.event === "attempt") x.attempt_raw += r.n;
   }
   const top = ((await db.prepare("SELECT method, path, SUM(n) AS n FROM notfound_daily WHERE day >= ? GROUP BY method, path ORDER BY n DESC, path LIMIT 20").bind(since).all()) || {}).results || [];
   const tot = (await db.prepare("SELECT SUM(n) AS n FROM notfound_daily WHERE day >= ?").bind(since).first()) || {};
-  return { since, until: day(now), days: n, paywall_funnel: funnel, not_found: { total: tot.n || 0, top20: top } };
+  const endpoints_checked = await endpointsChecked(db, since + "T00:00:00Z");
+  return { since, until: day(now), days: n, paywall_funnel: funnel, placeholder_hits: placeholderTotal, endpoints_checked, not_found: { total: tot.n || 0, top20: top } };
+}
+
+/** 0.49.2: endpoints checked + demand from spot_receipts since `sinceIso`, without placeholder hosts; raw counts next to them.
+ *  demand = checks that are not our own crons (check_type != 'self-checked'). null when the table is unavailable. */
+export async function endpointsChecked(db, sinceIso, untilIso = "9999") {
+  try {
+    const ph = placeholderSql("url");
+    const r = await db.prepare(`SELECT COUNT(DISTINCT CASE WHEN NOT ${ph} THEN url END) AS endpoints, COUNT(DISTINCT url) AS endpoints_raw,
+      SUM(CASE WHEN NOT ${ph} THEN 1 ELSE 0 END) AS checks, COUNT(*) AS checks_raw,
+      SUM(CASE WHEN check_type != 'self-checked' AND NOT ${ph} THEN 1 ELSE 0 END) AS demand, SUM(CASE WHEN check_type != 'self-checked' THEN 1 ELSE 0 END) AS demand_raw,
+      COUNT(DISTINCT CASE WHEN check_type != 'self-checked' AND NOT ${ph} THEN url END) AS demand_endpoints, COUNT(DISTINCT CASE WHEN check_type != 'self-checked' THEN url END) AS demand_endpoints_raw,
+      SUM(CASE WHEN ${ph} THEN 1 ELSE 0 END) AS placeholder_checks
+      FROM spot_receipts WHERE created_at >= ? AND created_at < ?`).bind(sinceIso, untilIso).first();
+    const o = {};
+    for (const k of ["endpoints", "endpoints_raw", "checks", "checks_raw", "demand", "demand_raw", "demand_endpoints", "demand_endpoints_raw", "placeholder_checks"]) o[k] = Number((r || {})[k] || 0);
+    return o;
+  } catch (_) { return null; }
 }
 
 // ------------------------------------------------------------------ 0.49.1 input_error on unpaid 402s
@@ -199,4 +224,48 @@ export function explain400(body, ctx) {
   let received = receivedFor(field, ctx);
   if (unknownParam) received = sanitizeReceived(field, ctx.url.searchParams.get(field));
   return { ...body, field, expected, received: body.received !== undefined ? body.received : (received === null ? "[not sent]" : received), openapi: body.openapi || OPENAPI_URL };
+}
+
+// ------------------------------------------------------------------ 0.49.2 placeholder hosts
+// Docs/test placeholder hosts (RFC 2606/6761 + the usual copy-paste ones). Rejected at the API before any probe and
+// before any free quota is used; counted on their own (paywall_daily event 'placeholder') and kept out of the
+// endpoints-checked / demand / funnel numbers (raw counts are reported next to them).
+export const PLACEHOLDER_MESSAGE = "This looks like the docs placeholder. Submit a real x402 endpoint URL.";
+export const PLACEHOLDER_HEADER = "x-402-placeholder";
+export const PLACEHOLDER_EXACT = ["example.com", "example.org", "example.net", "localhost", "127.0.0.1", "test.com"];
+export const PLACEHOLDER_SUFFIXES = [".example.com", ".example.org", ".example.net", ".localhost", ".test", ".invalid", ".example"];
+const PLACEHOLDER_TLDS = new Set(["test", "invalid", "example"]);
+/** true for a placeholder hostname (case-insensitive, trailing dot ignored). */
+export function isPlaceholderHost(host) {
+  const h = String(host || "").trim().toLowerCase().replace(/\.+$/, "").replace(/^\[|\]$/g, "");
+  if (!h) return false;
+  if (PLACEHOLDER_EXACT.includes(h) || PLACEHOLDER_TLDS.has(h)) return true;
+  return PLACEHOLDER_SUFFIXES.some((s) => h.endsWith(s));
+}
+/** true when the URL (string) parses and its host is a placeholder. Unparseable input is not a placeholder (normal 400). */
+export function isPlaceholderUrl(u) {
+  let s = String(u == null ? "" : u).trim();
+  if (!s) return false;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) s = "https://" + s; // "example.com/x" is still the placeholder
+  try { return isPlaceholderHost(new URL(s).hostname); } catch (_) { return false; }
+}
+/** SQL boolean: the URL in column `col` has a placeholder host (scheme://[userinfo@]host[:port][/?#...]). SQLite. */
+export function placeholderSql(col = "url") {
+  const s1 = `replace(replace(substr(${col}, instr(${col}, '://') + 3), '?', '/'), '#', '/')`;
+  const hpu = `substr(${s1}, 1, instr(${s1} || '/', '/') - 1)`; // [userinfo@]host[:port]
+  const hp = `substr(${hpu}, instr(${hpu}, '@') + 1)`;
+  const host = `rtrim(lower(substr(${hp}, 1, instr(${hp} || ':', ':') - 1)), '.')`;
+  const ex = PLACEHOLDER_EXACT.concat([...PLACEHOLDER_TLDS]).map((h) => `'${h}'`).join(", ");
+  return `(${host} IN (${ex}) OR ${PLACEHOLDER_SUFFIXES.map((x) => `${host} LIKE '%${x}'`).join(" OR ")})`;
+}
+export const PLACEHOLDER_EXPECTED = "a real x402 endpoint URL (not a docs placeholder such as example.com, localhost or *.test), e.g. https://api.402rates.com/v1/ping";
+/** input_error block for a placeholder URL (same shape as 0.49.1). */
+export function placeholderInputError(field, received) {
+  const ie = inputError({ code: "placeholder_host", field, expected: PLACEHOLDER_EXPECTED, received });
+  ie.input_error.message = PLACEHOLDER_MESSAGE;
+  return ie;
+}
+/** Strict 400 body for a placeholder URL when a payment header is present (nothing is verified or settled). */
+export function placeholder400(field, received) {
+  return { error: PLACEHOLDER_MESSAGE, code: "placeholder_host", field, expected: PLACEHOLDER_EXPECTED, received: received === undefined || received === null ? "[not sent]" : sanitizeReceived(field, received), note: "Nothing was charged." };
 }

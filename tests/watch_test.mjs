@@ -45,7 +45,7 @@ function world() {
       const st = w.hookStatus.length > 1 ? w.hookStatus.shift() : w.hookStatus[0];
       w.hooks.push({ url: u, body: init.body, headers: init.headers, status: st });
       if (st === "throw") throw new Error("network");
-      return new Response("ok", { status: st, headers: st === 302 ? { location: "https://hooks.example.com/elsewhere" } : {} });
+      return new Response("ok", { status: st, headers: st === 302 ? { location: "https://hooks.example-fixture.com/elsewhere" } : {} });
     }
     w.probes++;
     if (w.mode === "down") return new Response("oops", { status: 503 });
@@ -54,7 +54,7 @@ function world() {
     const ch = { x402Version: 2, accepts: [{ scheme: "exact", network: "eip155:8453", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", amount: w.terms.amount, payTo: w.terms.payTo, maxTimeoutSeconds: 60 + w.probes }] };
     return new Response(JSON.stringify(ch), { status: 402, headers: { "content-type": "application/json" } });
   };
-  w.resolveHostFn = async (h) => (h === "rebind.example.com" ? ["10.0.0.7"] : ["93.184.216.34"]);
+  w.resolveHostFn = async (h) => (h === "rebind.example-fixture.com" ? ["10.0.0.7"] : ["93.184.216.34"]);
   return w;
 }
 let clock = Date.parse("2026-10-21T12:00:00Z");
@@ -80,7 +80,7 @@ function setup(extraEnv = {}) {
   const events = (id, type) => env.RECEIPTS_DB.raw.prepare("SELECT * FROM watch_events WHERE watch_id = ?" + (type ? " AND type = ?" : "") + " ORDER BY created_at").all(...(type ? [id, type] : [id]));
   return { env, wd, call, payHdr, tick, row, events, settled, deps };
 }
-const EX = { url: "https://api.seller.example.com/v1/data", webhook_url: "https://hooks.buyer.example.com/402x" };
+const EX = { url: "https://api.seller.example-fixture.com/v1/data", webhook_url: "https://hooks.buyer.example-fixture.com/402x" };
 const H = 3600000;
 const advance = (ms) => { clock += ms; };
 
@@ -96,7 +96,7 @@ test("create: first watch for a webhook domain is a 7-day trial (201, no payment
   assert.ok(!JSON.stringify(row).includes(r.j.watch_secret));
   assert.equal(t.settled.length, 0);
   assert.equal(t.wd.hooks.length, 1); // the signed watch.verify ping
-  const r2 = await t.call("POST", "/v1/watch", { url: "https://api.seller.example.com/v1/other", webhook_url: "https://hooks.buyer.example.com/other-path" });
+  const r2 = await t.call("POST", "/v1/watch", { url: "https://api.seller.example-fixture.com/v1/other", webhook_url: "https://hooks.buyer.example-fixture.com/other-path" });
   assert.equal(r2.status, 402);
   assert.match(r2.j.error, /trial is used/);
   assert.equal(r2.j.accepts[0].amount, "1000000");
@@ -107,7 +107,7 @@ test("create: first watch for a webhook domain is a 7-day trial (201, no payment
 });
 
 test("(a) trial key: registrable domain (sub.hooks.example.co.uk -> example.co.uk); relay hosts (webhook.site, hooks.slack.com, discord, zapier, pipedream, *.app.n8n.cloud, *.ngrok-free.app, requestbin, hookdeck, make.com) key on host + path", async () => {
-  assert.equal(W.trialKey("https://a.b.example.com/x?q=1"), "domain:example.com");
+  assert.equal(W.trialKey("https://a.b.example-fixture.com/x?q=1"), "domain:example-fixture.com");
   assert.equal(W.trialKey("https://hooks.example.co.uk/x"), "domain:example.co.uk");
   for (const u of ["https://webhook.site/abc", "https://hooks.slack.com/services/T/B/C", "https://discord.com/api/webhooks/1/x", "https://discordapp.com/api/webhooks/1/x", "https://hooks.zapier.com/hooks/catch/1/x", "https://eo1.m.pipedream.net/", "https://x.pipedream.net/", "https://acme.app.n8n.cloud/webhook/1", "https://ab.ngrok.io/h", "https://ab.ngrok-free.app/h", "https://ab.ngrok.app/h", "https://x.requestbin.com/h", "https://events.hookdeck.com/e/src", "https://hook.eu1.make.com/abc"])
     assert.match(W.trialKey(u), /^relay:/, u);
@@ -115,9 +115,9 @@ test("(a) trial key: registrable domain (sub.hooks.example.co.uk -> example.co.u
   assert.equal(W.trialKey("https://webhook.site/aaa?x=1"), W.trialKey("https://webhook.site/aaa"));
   const t = setup();
   const a = await t.call("POST", "/v1/watch", { url: EX.url, webhook_url: "https://webhook.site/aaa" });
-  const b = await t.call("POST", "/v1/watch", { url: "https://api.seller.example.com/v2", webhook_url: "https://webhook.site/bbb" });
+  const b = await t.call("POST", "/v1/watch", { url: "https://api.seller.example-fixture.com/v2", webhook_url: "https://webhook.site/bbb" });
   assert.equal(a.status, 201); assert.equal(b.status, 201); assert.equal(b.j.trial, true);
-  const c = await t.call("POST", "/v1/watch", { url: "https://api.seller.example.com/v3", webhook_url: "https://webhook.site/aaa/" });
+  const c = await t.call("POST", "/v1/watch", { url: "https://api.seller.example-fixture.com/v3", webhook_url: "https://webhook.site/aaa/" });
   assert.equal(c.status, 402);
 });
 
@@ -127,30 +127,30 @@ test("(c) trial is per webhook domain, never per wallet: no wallet is stored, so
   const cols = t.env.RECEIPTS_DB.raw.prepare("SELECT name FROM pragma_table_info('trial_claims')").all().map((r) => r.name);
   assert.deepEqual(cols.sort(), ["claimed_at", "key_hash", "kind", "n"]);
   const dump = JSON.stringify(t.env.RECEIPTS_DB.raw.prepare("SELECT * FROM trial_claims").all());
-  assert.ok(!dump.includes("buyer.example.com") && !dump.includes("203.0.113"));
+  assert.ok(!dump.includes("buyer.example-fixture.com") && !dump.includes("203.0.113"));
   // same endpoint, a new webhook domain: URL already trialled within 90 d
-  const u = await t.call("POST", "/v1/watch", { url: EX.url, webhook_url: "https://hooks.other.example.org/x" });
+  const u = await t.call("POST", "/v1/watch", { url: EX.url, webhook_url: "https://hooks.other.example-fixture.org/x" });
   assert.equal(u.status, 402);
   // paid works and does not consume a trial
-  const p = await t.call("POST", "/v1/watch", { url: "https://api.seller.example.com/v9", webhook_url: "https://hooks.buyer.example.com/9" }, t.payHdr());
+  const p = await t.call("POST", "/v1/watch", { url: "https://api.seller.example-fixture.com/v9", webhook_url: "https://hooks.buyer.example-fixture.com/9" }, t.payHdr());
   assert.equal(p.status, 201); assert.equal(p.j.trial, false);
   // per network: 3 trials per IP prefix per day
   const t2 = setup();
-  for (let i = 0; i < 3; i++) assert.equal((await t2.call("POST", "/v1/watch", { url: "https://api.s" + i + ".example.com/x", webhook_url: `https://hooks.dom${i}.net/x` })).status, 201);
-  assert.equal((await t2.call("POST", "/v1/watch", { url: "https://api.s9.example.com/x", webhook_url: "https://hooks.dom9.net/x" })).status, 402);
+  for (let i = 0; i < 3; i++) assert.equal((await t2.call("POST", "/v1/watch", { url: "https://api.s" + i + ".example-fixture.com/x", webhook_url: `https://hooks.dom${i}.net/x` })).status, 201);
+  assert.equal((await t2.call("POST", "/v1/watch", { url: "https://api.s9.example-fixture.com/x", webhook_url: "https://hooks.dom9.net/x" })).status, 402);
 });
 
 test("create: unsafe URLs (private IP, DNS rebind, http/port webhook, credentials, our own host as webhook) give 400 and store/charge nothing; (d) our own routes are watchable as endpoints", async () => {
   const t = setup();
   for (const [body, code] of [
     [{ url: "http://10.0.0.1/x", webhook_url: EX.webhook_url }, "unsafe_url"],
-    [{ url: "https://rebind.example.com/x", webhook_url: EX.webhook_url }, "unsafe_url"],
-    [{ url: EX.url, webhook_url: "http://hooks.buyer.example.com/x" }, "unsafe_webhook_url"],
-    [{ url: EX.url, webhook_url: "https://hooks.buyer.example.com:8443/x" }, "unsafe_webhook_url"],
-    [{ url: EX.url, webhook_url: "https://u:p@hooks.buyer.example.com/x" }, "unsafe_webhook_url"],
-    [{ url: EX.url, webhook_url: "https://rebind.example.com/x" }, "unsafe_webhook_url"],
+    [{ url: "https://rebind.example-fixture.com/x", webhook_url: EX.webhook_url }, "unsafe_url"],
+    [{ url: EX.url, webhook_url: "http://hooks.buyer.example-fixture.com/x" }, "unsafe_webhook_url"],
+    [{ url: EX.url, webhook_url: "https://hooks.buyer.example-fixture.com:8443/x" }, "unsafe_webhook_url"],
+    [{ url: EX.url, webhook_url: "https://u:p@hooks.buyer.example-fixture.com/x" }, "unsafe_webhook_url"],
+    [{ url: EX.url, webhook_url: "https://rebind.example-fixture.com/x" }, "unsafe_webhook_url"],
     [{ url: EX.url, webhook_url: "https://api.402xagent.com/x" }, "unsafe_webhook_url"],
-    [{ url: "ftp://x.example.com/", webhook_url: EX.webhook_url }, "bad_url"],
+    [{ url: "ftp://x.example-fixture.com/", webhook_url: EX.webhook_url }, "bad_url"],
   ]) {
     const r = await t.call("POST", "/v1/watch", body, t.payHdr());
     assert.equal(r.status, 400, JSON.stringify(body)); assert.equal(r.j.code, code); assert.match(r.j.error, /Nothing was charged/);
@@ -215,7 +215,7 @@ test("GET / DELETE / verify need the Bearer secret (401 otherwise); counters inc
   advance(H); await t.tick(); advance(H); await t.tick();
   const g = await t.call("GET", `/v1/watch/${id}`, undefined, auth);
   assert.equal(g.status, 200); assert.equal(g.j.probes_total, 2); assert.equal(g.j.probes_this_period, 2); assert.equal(g.j.state, "up");
-  assert.equal(g.j.webhook.host, "hooks.buyer.example.com"); assert.equal(g.j.webhook_url, undefined);
+  assert.equal(g.j.webhook.host, "hooks.buyer.example-fixture.com"); assert.equal(g.j.webhook_url, undefined);
   const d = await t.call("DELETE", `/v1/watch/${id}`, undefined, auth);
   assert.equal(d.j.status, "deleted");
   assert.equal((await t.call("GET", `/v1/watch/${id}`, undefined, auth)).status, 401);
@@ -226,7 +226,7 @@ test("GET / DELETE / verify need the Bearer secret (401 otherwise); counters inc
 test("cron: each active watch is probed once per hour; batch cap holds; one shared probe per URL per tick; paused / expired watches are not probed; expiry pauses (never deletes) with a signed paused event", async () => {
   const t = setup({ WATCH_BATCH: "2" });
   const ids = [];
-  for (let i = 0; i < 3; i++) ids.push((await t.call("POST", "/v1/watch", { url: EX.url, webhook_url: `https://hooks.b${i}.example.com/x` }, t.payHdr())).j.watch_id);
+  for (let i = 0; i < 3; i++) ids.push((await t.call("POST", "/v1/watch", { url: EX.url, webhook_url: `https://hooks.b${i}.example-fixture.com/x` }, t.payHdr())).j.watch_id);
   t.wd.probes = 0;
   let r = await t.tick();
   assert.equal(r.probed, 0); // baseline just captured; next probe in an hour
@@ -325,7 +325,7 @@ test("webhook: Ed25519 signature over timestamp.body verifies against the keys d
   const t2 = setup();
   const c2 = await t2.call("POST", "/v1/watch", EX, t2.payHdr());
   const n = t2.wd.hooks.length;
-  const r = await W.postWebhook(t2.env, "https://rebind.example.com/x", { event_id: "evt-0000000000000000", type: "down" }, new Date(clock), t2.deps());
+  const r = await W.postWebhook(t2.env, "https://rebind.example-fixture.com/x", { event_id: "evt-0000000000000000", type: "down" }, new Date(clock), t2.deps());
   assert.equal(r.ok, false); assert.match(r.error, /blocked/); assert.equal(t2.wd.hooks.length, n);
   assert.ok(c2.j.watch_id);
 });
@@ -358,17 +358,17 @@ test("(e) auto-pause after 3 consecutive UTC days on which every delivery failed
 
 test("abuse limits: WATCH_MAX (503), 20 active per webhook domain, 10 creates per network per day", async () => {
   const t = setup({ WATCH_MAX: "2" });
-  for (let i = 0; i < 2; i++) assert.equal((await t.call("POST", "/v1/watch", { url: `https://api.s${i}.example.com/`, webhook_url: `https://hooks.d${i}.example.com/` }, t.payHdr())).status, 201);
-  const r = await t.call("POST", "/v1/watch", { url: "https://api.s9.example.com/", webhook_url: "https://hooks.d9.example.com/" }, t.payHdr());
+  for (let i = 0; i < 2; i++) assert.equal((await t.call("POST", "/v1/watch", { url: `https://api.s${i}.example-fixture.com/`, webhook_url: `https://hooks.d${i}.example-fixture.com/` }, t.payHdr())).status, 201);
+  const r = await t.call("POST", "/v1/watch", { url: "https://api.s9.example-fixture.com/", webhook_url: "https://hooks.d9.example-fixture.com/" }, t.payHdr());
   assert.equal(r.status, 503); assert.equal(r.j.code, "capacity"); assert.equal(t.settled.length, 2);
   const t2 = setup();
-  for (let i = 0; i < 10; i++) await t2.call("POST", "/v1/watch", { url: `https://api.s${i}.example.com/`, webhook_url: `https://hooks.d${i % 3}.example.com/${i}` }, t2.payHdr());
-  const r2 = await t2.call("POST", "/v1/watch", { url: "https://api.s99.example.com/", webhook_url: "https://hooks.dz.example.com/" }, t2.payHdr());
+  for (let i = 0; i < 10; i++) await t2.call("POST", "/v1/watch", { url: `https://api.s${i}.example-fixture.com/`, webhook_url: `https://hooks.d${i % 3}.example-fixture.com/${i}` }, t2.payHdr());
+  const r2 = await t2.call("POST", "/v1/watch", { url: "https://api.s99.example-fixture.com/", webhook_url: "https://hooks.dz.example-fixture.com/" }, t2.payHdr());
   assert.equal(r2.status, 429); assert.equal(r2.j.code, "rate_limited");
   const t3 = setup();
   for (let i = 0; i < 20; i++) {
     t3.env.RECEIPTS_DB.raw.prepare("INSERT INTO watches (id, secret_hash, url, hkey, webhook_url, webhook_hash, webhook_domain_hash, status, created_at, paid_until, period_start, next_probe_at, baseline_json, baseline_sig, baseline_at) VALUES (?, 'x', 'u', ?, 'w', 'h', ?, 'active', 'a', '2099', 'a', '2099', '{}', 's', 'a')")
-      .run("wt-" + String(i).padStart(16, "0"), "k" + i, await (async () => { const k = await crypto.subtle.importKey("raw", new TextEncoder().encode("test-pepper"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]); return [...new Uint8Array(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode("trial|domain:example.com")))].map((b) => b.toString(16).padStart(2, "0")).join(""); })());
+      .run("wt-" + String(i).padStart(16, "0"), "k" + i, await (async () => { const k = await crypto.subtle.importKey("raw", new TextEncoder().encode("test-pepper"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]); return [...new Uint8Array(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode("trial|domain:example-fixture.com")))].map((b) => b.toString(16).padStart(2, "0")).join(""); })());
   }
   const r3 = await t3.call("POST", "/v1/watch", EX, t3.payHdr());
   assert.equal(r3.status, 429); assert.equal(r3.j.code, "domain_limit");
@@ -438,16 +438,16 @@ const existsMig = () => existsSync(join(ROOT, "worker", "migrations", "0013_watc
 
 test("0.49.1: unpaid invalid create -> 402 with the normal accepts + input_error (+ x-402-input-error header); with a payment header -> strict 400, nothing settled", async () => {
   const t = setup();
-  assert.equal((await t.call("POST", "/v1/watch", { url: "https://api.example.com/x", webhook_url: "https://hooks.example.org/h" })).status, 201, "trial used");
-  const ok = await t.call("POST", "/v1/watch", { url: "https://api.example.com/y", webhook_url: "https://hooks.example.org/h" });
+  assert.equal((await t.call("POST", "/v1/watch", { url: "https://api.example-fixture.com/x", webhook_url: "https://hooks.example-fixture.org/h" })).status, 201, "trial used");
+  const ok = await t.call("POST", "/v1/watch", { url: "https://api.example-fixture.com/y", webhook_url: "https://hooks.example-fixture.org/h" });
   assert.equal(ok.status, 402);
-  const r = await t.call("POST", "/v1/watch", { url: "ftp://x", webhook_url: "https://hooks.example.org/h" });
+  const r = await t.call("POST", "/v1/watch", { url: "ftp://x", webhook_url: "https://hooks.example-fixture.org/h" });
   assert.equal(r.status, 402, r.text);
   assert.equal(r.j.input_error.field, "url");
   assert.equal(r.j.input_error.received, "ftp://x");
   assert.deepEqual(r.j.accepts, ok.j.accepts);
   assert.ok(r.headers.get("x-402-input-error"));
-  const h = await t.call("POST", "/v1/watch", { url: "ftp://x", webhook_url: "https://hooks.example.org/h" }, t.payHdr());
+  const h = await t.call("POST", "/v1/watch", { url: "ftp://x", webhook_url: "https://hooks.example-fixture.org/h" }, t.payHdr());
   assert.equal(h.status, 400, h.text);
   assert.equal(t.settled.length, 0);
 });

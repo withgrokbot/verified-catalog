@@ -1,3 +1,4 @@
+import { isPlaceholderUrl } from "./ops.js";
 // Shared short reason texts (no prices). 0.24.0: used by redacted receipts and the free answer's plain reason.
 export const REASON_TEXT = {
   // 0.27.0: plain words, one line; codes unchanged. Rechecks say "try again", skips say what we saw.
@@ -73,6 +74,7 @@ export function publishable({ tier, verdict, botTag, client, ref, url }) {
   if (botTag) return null; // scanner / crawler / indexer / uptime / self / example-param
   if (client && OWN_CLIENT_RE.test(client)) return null;
   if (ref && OWN_REF_RE.test(ref)) return null;
+  if (isPlaceholderUrl(url)) return null; // 0.49.2: docs placeholder hosts never land in public counts/lists
   return publicUrl(url);
 }
 // Marks the receipt as published (one per URL per UTC day; caps per day and per host). Never throws.

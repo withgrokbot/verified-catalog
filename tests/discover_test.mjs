@@ -14,7 +14,7 @@ const T = []; const test = (n, f) => T.push([n, f]);
 const NOW = Date.parse("2026-10-20T19:00:00Z");
 const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 const H = 3600000;
-const row = (id, verdict, ageH, extra = {}) => ({ id, url: `https://${id}.test/api`, verdict, reason: verdict + " reason", price_usd: 0.01, network: "eip155:8453", asset: "0xusdc", method: "GET", source_list: "cdp-bazaar", checked_at: iso(NOW - ageH * H), crawl_run: "receipts-test", ...extra });
+const row = (id, verdict, ageH, extra = {}) => ({ id, url: `https://${id}.fixture/api`, verdict, reason: verdict + " reason", price_usd: 0.01, network: "eip155:8453", asset: "0xusdc", method: "GET", source_list: "cdp-bazaar", checked_at: iso(NOW - ageH * H), crawl_run: "receipts-test", ...extra });
 
 // 0.45.0: build real d: blobs with the production builder (scripts/weekly-crawl/build_discover_blobs.py) from
 // synthetic crawl receipts, split them into parts like d1_upload.py, and serve them from a stub D1 crawl_store.
@@ -78,7 +78,7 @@ test("blobs: 48 shards + d:meta, deterministic (same input -> same sha), gzip+ba
 });
 
 test("in-memory search: all words must match url/source/also-listed; ordering newest first; limit", () => {
-  const rs = [{ ...row("a1", "pay", 1), also: ["agent-tools-cloud"] }, row("a2", "skip", 2, { url: "https://weather.test/x" }), row("a3", "recheck", 3)];
+  const rs = [{ ...row("a1", "pay", 1), also: ["agent-tools-cloud"] }, row("a2", "skip", 2, { url: "https://weather.fixture/x" }), row("a3", "recheck", 3)];
   const crawled = NOW - H;
   assert.deepEqual(searchRows(rs, parseDiscover({ q: "weather" }), crawled, NOW).map((r) => r.id), ["a2"]);
   assert.deepEqual(searchRows(rs, parseDiscover({ q: "agent-tools" }), crawled, NOW).map((r) => r.id), ["a1"]);
@@ -96,7 +96,7 @@ test("hash check: a torn shard (wrong sha or missing part) is never served; inde
   const st = env.RECEIPTS_DB.store;
   const i = st.findIndex((r) => r.key === "d:pay:a"); st[i] = { ...st[i], value: " " + st[i].value.slice(1) };
   const r = await discover(env, { verdict: "pay" }, "https://o", NOW);
-  assert.equal(r.status, 200); assert.deepEqual(r.body.results.map((x) => x.endpoint), ["https://b000000002.test/api"]);
+  assert.equal(r.status, 200); assert.deepEqual(r.body.results.map((x) => x.endpoint), ["https://b000000002.fixture/api"]);
   assert.equal(r.body.index_partial, true); assert.equal(r.body.missing_shards, 1);
   const env2 = await envFor([row("a000000001", "pay", 1)]);
   env2.RECEIPTS_DB.store.splice(env2.RECEIPTS_DB.store.findIndex((r) => r.key === "d:pay:a"), 1, ...[]);
@@ -150,7 +150,7 @@ test("0.45.2: merged index is presorted once and reused across queries; search s
   assert.equal(a.rows, b.rows); assert.equal(a.rows.sorted, true);
   assert.deepEqual(a.rows.map((r) => r.id), ["b000000002", "c000000003", "a000000001"]);
   const r = await discover(env, { limit: "2" }, "https://o", NOW);
-  assert.deepEqual(r.body.results.map((x) => x.endpoint), ["https://b000000002.test/api", "https://c000000003.test/api"]);
+  assert.deepEqual(r.body.results.map((x) => x.endpoint), ["https://b000000002.fixture/api", "https://c000000003.fixture/api"]);
   assert.ok(!("s" in r.body.results[0]) && !("also" in r.body.results[0]));
 });
 
@@ -173,7 +173,7 @@ test("discover(): skips shown by default and labeled, verdict filter, limit cap,
   assert.equal(all.status, 200); assert.equal(all.body.count, 3);
   const sk = all.body.results.find((r) => r.verdict === "skip"); assert.equal(sk.reason, "skip reason");
   assert.equal(all.body.index_stale, false); assert.equal(all.body.index_last_crawled, iso(NOW - H));
-  assert.deepEqual((await discover(env, { verdict: "pay" }, "https://o", NOW)).body.results.map((r) => r.endpoint), ["https://a000000001.test/api"]);
+  assert.deepEqual((await discover(env, { verdict: "pay" }, "https://o", NOW)).body.results.map((r) => r.endpoint), ["https://a000000001.fixture/api"]);
   assert.equal((await discover(env, { limit: "1" }, "https://o", NOW)).body.count, 1);
   assert.equal((await discover(env, { q: "!" }, "https://o", NOW)).status, 400);
   assert.equal((await discover({}, {}, "https://o", NOW)).status, 503);
@@ -192,7 +192,7 @@ test("route /v1/discover: 200, unknown param 400, rate limit 429 after DISCOVER_
   const QUOTA = { idFromName: (n) => n, get: (n) => ({ fetch: async (u) => { const q = new URL(u).searchParams; const k = n + q.get("day") + q.get("counter"); const used = (counts.get(k) || 0) + 1; counts.set(k, used); return Response.json({ free: used <= +q.get("limit"), used }); } }) };
   const env = await envFor([row("a000000001", "pay", 1), row("b000000002", "skip", 2)], iso(Date.now() - H), { QUOTA });
   const get = (p, h = {}) => worker.fetch(new Request("https://api.402xagent.com" + p, { headers: { "cf-connecting-ip": "203.0.113.9", ...h } }), env, { waitUntil() {} });
-  const r = await get("/v1/discover?q=test&limit=5"); assert.equal(r.status, 200);
+  const r = await get("/v1/discover?q=fixture&limit=5"); assert.equal(r.status, 200);
   const b = await r.json(); assert.equal(b.query.limit, 5); assert.ok(b.count >= 1);
   assert.equal((await get("/v1/discover?foo=1")).status, 400);
   let last; for (let i = 0; i < DISCOVER_PER_MIN + 2; i++) last = await get("/v1/discover", { "user-agent": "flood" });
