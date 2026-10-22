@@ -4,7 +4,7 @@
 // all trial / rate-limit keys are stored only as hashes. Plan: docs/plan-watchtower.md.
 import { assertSafeUrl, resolveHost, parseX402Challenge } from "./spotcheck.js";
 import { canonicalize, signObject, signBytes } from "./sign.js";
-import { methodNotAllowed, inputError, INPUT_ERROR_HEADER } from "./ops.js";
+import { methodNotAllowed, inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER } from "./ops.js";
 
 export const WATCH_PRICE_ATOMIC = "1000000";
 export const WATCH_PRICE_USD = "1.00";
@@ -407,6 +407,13 @@ export async function handleWatch(req, env, ctx, url, deps) {
     if (!b.url && !b.webhook_url && !deps.paymentHeader(req)) return paymentRequired(cd, deps, url.origin + "/v1/watch", "Missing url and webhook_url.", { discovery: true });
     const method = String(b.method || "GET").toUpperCase();
     if (!["GET", "POST"].includes(method)) return soft("bad_method", "method", '"method" is GET or POST', b.method);
+    // 0.49.2: placeholder endpoint host (example.com, localhost, *.test, ...): no probe; 402 + input_error unpaid, 400 with a header
+    if (isPlaceholderUrl(b.url)) {
+      if (deps.paymentHeader(req)) return jsonResp(placeholder400("url", b.url), 400, { [PLACEHOLDER_HEADER]: "1" });
+      const r = paymentRequired(cd, deps, url.origin + "/v1/watch", PLACEHOLDER_MESSAGE, placeholderInputError("url", b.url));
+      r.headers.set(PLACEHOLDER_HEADER, "1");
+      return r;
+    }
     let t;
     try { t = new URL(String(b.url || "")); } catch (_) {}
     if (!t || !/^https?:$/.test(t.protocol)) return soft("bad_url", "url", '"url" must be a full http(s) URL', b.url);

@@ -62,21 +62,21 @@ const funnel = (t) => Object.fromEntries(t.rows("paywall_daily").map((r) => [[r.
 test("funnel: 402 served, attempts, failures by reason, settled; self (payTo / drill wallet) split from outside; per route", async () => {
   const t = setup();
   assert.equal((await t.call("POST", ER, { body: {} })).status, 402);
-  assert.equal((await t.call("POST", ER, { body: { url: "https://spot.target.test/x" } })).status, 402);
+  assert.equal((await t.call("POST", ER, { body: { url: "https://spot.target.fixture/x" } })).status, 402);
   fac = { ...fac, throwVerify: false, verify: { isValid: true, payer: OUTSIDE } };
-  const ok = await t.call("POST", ER, { body: { url: "https://spot.target.test/x" }, headers: pay(OUTSIDE) });
+  const ok = await t.call("POST", ER, { body: { url: "https://spot.target.fixture/x" }, headers: pay(OUTSIDE) });
   assert.equal(ok.status, 200, ok.text); assert.ok(ok.headers.get("payment-response"));
   fac.verify = { isValid: false, invalidReason: "invalid_exact_evm_payload_signature" };
-  assert.equal((await t.call("POST", ER, { body: { url: "https://spot.target.test/x" }, headers: pay(OUTSIDE) })).status, 402);
+  assert.equal((await t.call("POST", ER, { body: { url: "https://spot.target.fixture/x" }, headers: pay(OUTSIDE) })).status, 402);
   fac.verify = { isValid: false, invalidReason: "insufficient_funds" };
-  await t.call("POST", ER, { body: { url: "https://spot.target.test/x" }, headers: pay(OUTSIDE) });
+  await t.call("POST", ER, { body: { url: "https://spot.target.fixture/x" }, headers: pay(OUTSIDE) });
   fac.verify = { isValid: false, invalidReason: "invalid_exact_evm_payload_authorization_valid_before" };
-  await t.call("POST", ER, { body: { url: "https://spot.target.test/x" }, headers: pay(DRILL) });
+  await t.call("POST", ER, { body: { url: "https://spot.target.fixture/x" }, headers: pay(DRILL) });
   fac.throwVerify = true;
-  await t.call("POST", ER, { body: { url: "https://spot.target.test/x" }, headers: pay(PAY_TO) });
+  await t.call("POST", ER, { body: { url: "https://spot.target.fixture/x" }, headers: pay(PAY_TO) });
   fac.throwVerify = false;
-  await t.call("POST", ER, { body: { url: "https://spot.target.test/x" }, headers: pay(OUTSIDE, { network: "eip155:1" }) });
-  await t.call("POST", ER, { body: { url: "https://spot.target.test/x" }, headers: { "x-payment": "not-base64-json" } });
+  await t.call("POST", ER, { body: { url: "https://spot.target.fixture/x" }, headers: pay(OUTSIDE, { network: "eip155:1" }) });
+  await t.call("POST", ER, { body: { url: "https://spot.target.fixture/x" }, headers: { "x-payment": "not-base64-json" } });
   const f = funnel(t);
   assert.deepEqual(f, {
     [`${ER}|outside|402|`]: 6, [`${ER}|outside|attempt|`]: 5, [`${ER}|outside|settled|`]: 1,
@@ -148,7 +148,7 @@ test("400: every 400 names field, expected, received (sanitized) and the openapi
     ["GET", "/v1/receipts/%7Bid%7D", undefined, "path", "/v1/receipts/{id}"],
     ["POST", ER, "{not json", "body", "[not a JSON object]"],
     ["POST", ER, { url: "ftp://x" }, "url", "ftp://x"],
-    ["POST", ER, { url: "https://a.test/x", commitment_ref: "0x" + "ab".repeat(32) }, "commitment_ref", "[66 chars, not echoed]"],
+    ["POST", ER, { url: "https://a.fixture/x", commitment_ref: "0x" + "ab".repeat(32) }, "commitment_ref", "[66 chars, not echoed]"],
   ];
   for (const [method, path, body, field, received] of cases) {
     // 0.49.1: paid POST routes give the strict 400 only when a payment header is present (unpaid -> 402 + input_error)
@@ -160,7 +160,7 @@ test("400: every 400 names field, expected, received (sanitized) and the openapi
   }
   // wallets and hashes in any field are never echoed
   assert.equal(O.sanitizeReceived("q", "0x" + "ab".repeat(20)), "[42 chars, not echoed]");
-  assert.equal(O.sanitizeReceived("url", "https://a.test/p?key=secret"), "https://a.test/p");
+  assert.equal(O.sanitizeReceived("url", "https://a.fixture/p?key=secret"), "https://a.fixture/p");
   // MCP parse errors keep JSON-RPC shape; details in error.data
   const m = await t.call("POST", "/mcp", { body: "{bad" });
   assert.equal(m.status, 400); assert.equal(m.j.jsonrpc, "2.0"); assert.equal(m.j.error.data.field, "body"); assert.equal(m.j.error.data.openapi, "https://api.402xagent.com/openapi.json");
@@ -169,12 +169,12 @@ test("400: every 400 names field, expected, received (sanitized) and the openapi
 test("0.49.1: unpaid invalid input on paid POSTs -> 402 with normal accepts + input_error; with a payment header -> strict 400, nothing verified; funnel tags input_error", async () => {
   const t = setup({ BULK_REPORT: "1", WATCHTOWER: "1", WATCH_PEPPER: "test-pepper" });
   const BULK = ER + "/bulk";
-  const okER = await t.call("POST", ER, { body: { url: "https://spot.target.test/x" } });
+  const okER = await t.call("POST", ER, { body: { url: "https://spot.target.fixture/x" } });
   assert.equal(okER.status, 402);
   const cases = [
     [ER, "{not json", "body", okER.j.accepts],
     [ER, { url: "ftp://x" }, "url", okER.j.accepts],
-    [BULK, { urls: ["https://a.test/1", "ftp://x"] }, "urls[1]", null],
+    [BULK, { urls: ["https://a.fixture/1", "ftp://x"] }, "urls[1]", null],
     [BULK, { urls: "nope" }, "urls", null],
   ];
   let verified = 0; const of = globalThis.fetch;
@@ -193,7 +193,7 @@ test("0.49.1: unpaid invalid input on paid POSTs -> 402 with normal accepts + in
       assert.equal(h.j.field, field, path);
     }
     // bulk price for invalid input: n = urls entries (2) -> 2 x $0.05; non-array -> 1-URL price
-    const b2 = await t.call("POST", BULK, { body: { urls: ["https://a.test/1", "ftp://x"] } });
+    const b2 = await t.call("POST", BULK, { body: { urls: ["https://a.fixture/1", "ftp://x"] } });
     assert.equal(b2.j.accepts[0].amount, "100000");
     const b1 = await t.call("POST", BULK, { body: { urls: "nope" } });
     assert.equal(b1.j.accepts[0].amount, "50000");
@@ -220,7 +220,7 @@ test("failReason buckets + privacy: counters hold no IP, wallet, payload, tx has
   assert.equal(O.failReason("payment rejected: settlement failed: HTTP 502"), "facilitator_error");
   assert.equal(O.failReason("payment rejected: payTo does not match"), "other");
   const t = setup();
-  await t.call("POST", ER, { body: { url: "https://spot.target.test/x" }, headers: pay(OUTSIDE) });
+  await t.call("POST", ER, { body: { url: "https://spot.target.fixture/x" }, headers: pay(OUTSIDE) });
   await t.call("GET", "/missing?wallet=" + OUTSIDE);
   const dump = JSON.stringify([t.rows("paywall_daily"), t.rows("notfound_daily")]);
   for (const s of [OUTSIDE, PAY_TO, DRILL, "abab", "203.0.113", "wallet=", "signature"]) assert.ok(!dump.toLowerCase().includes(s.toLowerCase()), s);

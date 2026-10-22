@@ -60,9 +60,9 @@ import { handleBadge, badgeSnippets } from "./badge.js";
 import { handleSaves } from "./saves.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
-import { inputError, INPUT_ERROR_HEADER, paywallRoute, segmentOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
+import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.49.1";
+export const VERSION = "0.49.2";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1826,6 +1826,15 @@ export function spotLossReason(d, claimed) {
   return `${listed}, ${what}`;
 }
 
+// 0.49.2: placeholder hosts (example.com, localhost, *.test, ...; ops.js) are rejected before any probe or free quota.
+// No payment header: the route's normal 402 (same accepts) + input_error. With a payment header: strict 400.
+// x-402-placeholder tells opsWrap to count it on its own funnel event.
+function placeholderReject(hdr, field, received, body402) {
+  const ph = { [PLACEHOLDER_HEADER]: "1", "cache-control": "no-store" };
+  if (hdr) return json(placeholder400(field, received), 400, ph);
+  const body = { ...body402, error: PLACEHOLDER_MESSAGE, ...placeholderInputError(field, received) };
+  return json(body, 402, { "payment-required": b64encode(body), [INPUT_ERROR_HEADER]: field, ...ph });
+}
 async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const c = spotCfg(env);
   const resourceUrl = url.origin + url.pathname.replace(/\/+$/, "");
@@ -1855,6 +1864,12 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     return json(spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem, fix), usage ? 200 : 400);
   }
 
+  if (isPlaceholderUrl(q.url)) {
+    writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: paymentHeader(req) ? 400 : 402, referer, access: "spot-placeholder", shape }));
+    const b402 = spotPaymentRequired(spotDynCfg(c, null), resourceUrl, PLACEHOLDER_MESSAGE, 0, "");
+    b402.pricing = "flat $0.02 USDC per check (any target price)";
+    return placeholderReject(paymentHeader(req), "url", q.url, b402);
+  }
   const listing = await listingForAsync(env, q.url);
   const exp = {
     claimed: q.claimed_price !== null ? q.claimed_price : listing && listing.claimed_price_usd != null ? Number(listing.claimed_price_usd) : null,
@@ -3381,11 +3396,12 @@ async function opsWrap(req, env, ctx, inner) {
         const settled = !!(res.headers.get("payment-response") || res.headers.get("x-payment-response")) && res.status < 400;
         const status = res.status;
         const inputErr = res.headers.get(INPUT_ERROR_HEADER);
+        const placeholder = !!res.headers.get(PLACEHOLDER_HEADER);
         const errClone = hasPayment && !settled && status === 402 ? res.clone() : null;
         later((async () => {
           let errText = "";
           if (errClone) { try { const j = await errClone.json(); errText = String(j.error || j.reason || ""); } catch (_) {} }
-          await writeFunnel(db, funnelRows({ route, hasPayment, status, settled, errText, segment, inputError: !!inputErr }));
+          await writeFunnel(db, funnelRows({ route, hasPayment, status, settled, errText, segment, inputError: !!inputErr, placeholder }));
         })());
       } else if (res.status === 404 && path !== "/v1/ops/stats" && path !== "/v1/watch/stats") {
         later(writeNotFound(db, req.method, path));
@@ -4019,6 +4035,7 @@ async function handleEndpointReport(req, env, ctx, url) {
     const body = erPaymentRequired(cd, resourceUrl, "Missing url. POST JSON {\"url\": ..., \"commitment_ref\": ...} (commitment_ref from the free check's locked_commitments) to buy the report.", { discovery: true });
     return json(body, 402, { "payment-required": b64encode(body) });
   }
+  if (isPlaceholderUrl(b.url)) return placeholderReject(hdr, "url", b.url, erPaymentRequired(cd, resourceUrl, PLACEHOLDER_MESSAGE));
   const p = erParseTarget(b, "url", bad);
   if (p.error) return p.error;
   const { target, ref, includeCurrent } = p;
@@ -4162,6 +4179,8 @@ async function handleBulkReport(req, env, ctx, url) {
   }
   if (!Array.isArray(b.urls) || b.urls.length < 1) return bad("bad_urls", "urls", `"urls" must be an array of 1-${BULK_MAX} endpoint URLs`);
   if (b.urls.length > BULK_MAX) return bad("too_many_urls", "urls", `at most ${BULK_MAX} URLs per call (got ${b.urls.length})`);
+  const phi = b.urls.findIndex((u) => isPlaceholderUrl(u));
+  if (phi >= 0) { const n0 = Math.min(b.urls.length, BULK_MAX); return placeholderReject(hdr, `urls[${phi}]`, b.urls[phi], bulkPaymentRequired(bulkCfg(env, n0), resourceUrl, PLACEHOLDER_MESSAGE, n0)); }
   const refs = b.commitment_refs && typeof b.commitment_refs === "object" && !Array.isArray(b.commitment_refs) ? b.commitment_refs : {};
   const items = [], seen = new Set();
   for (let i = 0; i < b.urls.length; i++) {
