@@ -9,19 +9,15 @@ const COPY = "Independently tracked by agenteconomy.report";
 
 test("0.49.3 version", () => assert.equal(VERSION, "0.49.3"));
 
-test("homepage badge: link, async img, fixed size, alt + visible text", () => {
+test("homepage badge: text link only until graded, no img", () => {
   const html = landingHtml("https://402xagent.com");
-  const m = html.match(/<a href="https:\/\/agenteconomy\.report\/s\/"[^>]*>(<img [^>]+>)\s*<span>([^<]+)<\/span><\/a>/);
-  assert.ok(m, "badge anchor present");
-  const img = m[1];
-  assert.match(img, /src="https:\/\/agenteconomy\.report\/s\/api\.402xagent\.com\.svg"/);
-  assert.match(img, /loading="lazy"/);
-  assert.match(img, /decoding="async"/);
-  assert.match(img, /width="\d+"/);
-  assert.match(img, /height="\d+"/);
-  assert.ok(img.includes(`alt="${COPY}"`));
-  assert.equal(m[2], COPY);
-  assert.ok(!/grade/i.test(html.slice(html.indexOf("aer-badge"), html.indexOf("</footer>"))), "no grade commentary");
+  const m = html.match(/<a href="https:\/\/agenteconomy\.report\/s\/"[^>]*><span>([^<]+)<\/span><\/a>/);
+  assert.ok(m, "text link present");
+  assert.equal(m[1], COPY);
+  const foot = html.slice(html.indexOf("aer-badge"), html.indexOf("</footer>"));
+  assert.ok(!/<img[^>]+agenteconomy/.test(html), "no badge img");
+  assert.match(foot, /re-enabled once/);
+  assert.ok(!/grade[ds]? [A-F]\b/.test(foot), "no grade commentary");
 });
 
 test("docs: Verified owner link next to our payTo", () => {
