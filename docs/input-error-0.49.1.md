@@ -2,7 +2,7 @@
 
 Paid POST routes: `/v1/products/endpoint-report`, `/v1/products/endpoint-report/bulk` and `POST /v1/watch`.
 
-- **No payment header and invalid input:** the route returns the normal 402 (same `accepts`, same `PAYMENT-REQUIRED` header). It adds an `input_error` block, `{code, field, expected, received, note}`, and the response header `x-402-input-error: <code>`. The block is informational only: it never changes the price or the accepts. `received` is sanitized the same way as the 0.48.0 400s: wallets and hashes are not echoed, and URL query strings are dropped.
+- **No payment header and invalid input:** the route returns the normal 402 (same `accepts`, same `PAYMENT-REQUIRED` header). It adds an `input_error` block, `{code, field, expected, received, note}`, and the response header `x-402-input-error: <field>`. The block is informational only: it never changes the price or the accepts. `received` is sanitized the same way as the 0.48.0 400s: wallets and hashes are not echoed, and URL query strings are dropped.
 - **Payment header present and invalid input:** the strict 400 is unchanged and is returned before verify or settle, so nothing is charged.
 - **Re-check requests** (`recheck_of`) keep their 400 and 401 responses.
 
