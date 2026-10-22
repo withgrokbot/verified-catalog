@@ -64,7 +64,7 @@ export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECK
 import { BRAND_ASSETS } from "./brand.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.51.0";
+export const VERSION = "0.51.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -413,6 +413,8 @@ export function cfg(env) {
     facilitator: String(env.FACILITATOR_URL || paymentPreset(env).facilitator || DEFAULTS.FACILITATOR_URL).replace(/\/+$/, ""),
     // 0.51.0: per-route facilitator order (function: never serialised; default [payai] = unchanged).
     facilitatorChain: (path) => facilitatorChain(env, path, String(env.FACILITATOR_URL || paymentPreset(env).facilitator || DEFAULTS.FACILITATOR_URL).replace(/\/+$/, "")),
+    // 0.51.1: settlement idempotency store (function: never serialised). null = no replay protection (old behaviour).
+    settleStore: () => (env && env.RECEIPTS_DB) || null,
   };
 }
 
@@ -2139,7 +2141,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       // 0.51.0: self_test = payer is our payTo or a DRILL_WALLETS address (never self-declared); excluded from revenue + demand
       const selfPaid = String(r.settle.payer || authFrom || "").toLowerCase() === c.payTo.toLowerCase() || selfTestOf(payload, env, c.payTo);
       if (selfPaid) access.self_test = true;
-      if (isRouter) {
+      if (isRouter && !r.replayed) { // 0.51.1: a replayed settlement never credits the pack twice
         const n = Math.floor(Number(cd.priceAtomic) / rcfg.perCheckAtomic) - 1;
         const cr = await routerCredits(env, q.client, "credit", n);
         access.tier = "router-pack";
@@ -2319,8 +2321,42 @@ async function facilitatorCall(c, path, body) {
 export function facilitatorLabel(u) {
   try { const h = new URL(u).hostname; return /(^|\.)payai\.network$/.test(h) ? "payai" : h === "api.cdp.coinbase.com" ? "cdp" : h; } catch (_) { return "unknown"; }
 }
-// verify, then settle. Returns {ok, settle?, reason, facilitator, fallback_from?}. Default chain [payai] = the 0.50.2 path.
+// 0.51.1: settlement idempotency. A retry after a lost response re-sends the SAME signed payload; its EIP-3009
+// nonce is already used, so the facilitator refuses it and the buyer used to get a 402 for a payment that settled,
+// which makes x402 clients sign a NEW payment (a second charge). Before verify/settle we look the payment up by
+// sha256(network|asset|from|nonce); a hit for the same resource and amount replays the stored settlement (no
+// facilitator call, no new charge), and a hit for another resource or amount is refused. Successful settles are
+// recorded. No store or missing table (migration 0017 not applied) = the 0.51.0 behaviour.
+export async function settlementKey(c, payload) {
+  const auth = (payload && payload.payload && payload.payload.authorization) || {};
+  const from = String(auth.from || "").toLowerCase(), nonce = String(auth.nonce || "").toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/.test(from) || !/^0x[0-9a-f]{64}$/.test(nonce)) return null;
+  const net = String((payload.accepted || {}).network || payload.network || c.network || "");
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode([net, String(c.asset || "").toLowerCase(), from, nonce].join("|")));
+  return "st-" + [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
+  const db = typeof c.settleStore === "function" ? c.settleStore() : null;
+  const key = db ? await settlementKey(c, payload) : null;
+  const resource = (() => { try { const u = new URL(url.toString()); return u.origin + u.pathname; } catch (_) { return String(url); } })();
+  if (key) {
+    let row = null;
+    try { row = await db.prepare("SELECT resource, amount, settle, facilitator FROM settled_payments WHERE key = ?").bind(key).first(); } catch (_) { row = null; }
+    if (row) {
+      if (row.resource !== resource || String(row.amount) !== String(c.priceAtomic)) return { ok: false, reason: "this payment already settled for another resource or amount", replay_refused: true };
+      let settle = null;
+      try { settle = JSON.parse(row.settle); } catch (_) { settle = null; }
+      if (settle && settle.transaction) return { ok: true, settle, facilitator: row.facilitator || null, replayed: true };
+    }
+  }
+  const r = await verifyAndSettleOnce(c, payload, url, paidPathOrOpts);
+  if (key && r.ok && r.settle && r.settle.transaction) {
+    try { await db.prepare("INSERT OR IGNORE INTO settled_payments (key, resource, amount, settle, facilitator, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(key, resource, String(c.priceAtomic), JSON.stringify(r.settle), r.facilitator || null, new Date().toISOString()).run(); } catch (_) { /* best effort: the on-chain nonce still prevents a re-settle */ }
+  }
+  return r;
+}
+// verify, then settle. Returns {ok, settle?, reason, facilitator, fallback_from?}. Default chain [payai] = the 0.50.2 path.
+async function verifyAndSettleOnce(c, payload, url, paidPathOrOpts = false) {
   const chain = typeof c.facilitatorChain === "function" ? c.facilitatorChain(new URL(url.toString()).pathname) : [];
   if (!chain.length || chain[0].name !== "cdp") return { ...(await verifyAndSettleLegacy(c, payload, url, paidPathOrOpts)), facilitator: facilitatorLabel(c.facilitator) };
   const cdp = chain[0];

@@ -2,7 +2,7 @@
 // baseline, Ed25519-signed webhooks on drift / down / recovery (plus flapping, paused, resumed). API only. Flag WATCHTOWER.
 // Privacy (0.45.6): no payer wallet, tx hash, payment payload or client IP is stored or returned. The watch secret and
 // all trial / rate-limit keys are stored only as hashes. Plan: docs/plan-watchtower.md.
-import { assertSafeUrl, resolveHost, parseX402Challenge } from "./spotcheck.js";
+import { assertSafeUrl, resolveHost, parseX402Challenge, readBodyCapped } from "./spotcheck.js";
 import { canonicalize, signObject, signBytes } from "./sign.js";
 import { methodNotAllowed, inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER } from "./ops.js";
 
@@ -109,7 +109,7 @@ export async function probe(url, method, env, deps = {}) {
     if (init.method === "POST") { init.headers["content-type"] = "application/json"; init.body = "{}"; }
     const resp = await fetchImpl(safe.url.toString(), init);
     let text = "";
-    try { text = (await resp.text()).slice(0, 65536); } catch (_) {}
+    try { text = (await readBodyCapped(resp, 65536)).text; } catch (_) {} // 0.51.1: stream-capped; the old text() read the whole body first
     const p = parseX402Challenge({ status: resp.status, headers: resp.headers, bodyText: text });
     const exact = (p.accepts || []).find((a) => a && a.scheme === "exact") || (p.accepts || [])[0] || null;
     const schemes = [...new Set((p.accepts || []).map((a) => a && a.scheme).filter(Boolean))].sort();
@@ -369,7 +369,7 @@ async function settle(req, cd, deps, resourceUrl) {
     const r = await deps.verifyAndSettle(cd, payload, resourceUrl, { paidPath: true, description: `402xAgent Watchtower: $1 USDC on ${cd.label || "Base"} per watch per 30 days.` });
     if (!r.ok) return { error: "payment rejected: " + r.reason };
     const enc = deps.b64encode(r.settle);
-    return { headers: { "payment-response": enc, "x-payment-response": enc }, facilitator: r.facilitator || null };
+    return { headers: { "payment-response": enc, "x-payment-response": enc }, facilitator: r.facilitator || null, replayed: !!r.replayed };
   } };
 }
 /** Signed `wr-` payment receipt: amount, network, asset, seller pay_to and the period only (never payer or tx). */
@@ -514,6 +514,8 @@ export async function handleWatch(req, env, ctx, url, deps) {
     if (pay.error) return paymentRequired(cd, deps, ru, pay.error);
     const r = await pay.go();
     if (r.error) return paymentRequired(cd, deps, ru, r.error);
+    // 0.51.1: a replayed settlement (retry of a renew whose response was lost) answers with the current state, no extra days
+    if (r.replayed) return jsonResp({ watch_id: id, status: w.status, resumed: false, paid_until: w.paid_until, replayed: true, note: "this payment was already applied; nothing was charged again" }, 200, r.headers);
     const from = Math.max(new Date(now).getTime(), new Date(w.paid_until).getTime());
     const paidUntil = iso(from + WATCH_PERIOD_DAYS * DAY);
     const resumed = w.status === "paused";
