@@ -202,3 +202,30 @@ With no secrets set there is only one source, so `safe_to_resign` is never true.
 
 ## Hosted mode (0.41.0, part one)
 Integrator keys for routers/wallets: `Authorization: Bearer 402x_live_<id>_<secret>` (or `x-402xagent-key`) on the check and payment status. 1,000 free hosted checks (lifetime), then $0.02, $0.01 for each billable check after the first 1,000 in a UTC month; cached answers count. Credit limit $20 until the first invoice is paid, then $100 (from `hosted_usage`); over it the call takes the normal free/x402 path. D1 only (migration 0009: `integrators` with the key hash only, `hosted_usage` one row per hosted receipt). Secret `HOSTED_KEY_PEPPER` (without it a keyed call gets 501; calls without a key are unchanged). `GET /v1/integrators/me` shows the meter. Owner tool: `node scripts/hosted_key.mjs pepper|issue <name>|revoke <id>|meter <id>`. Not yet: invoices and the invoice cron (part two).
+
+## Watchtower drift & liveness feed (0.52.0, off by default)
+
+Facts only: liveness, payment terms (seller `pay_to` is public) and drift/down/recovery events. No scores, grades,
+ratings or rankings. Migration `0018_feed.sql` (D1 only, no KV). Code: `src/feed.js`; tests: `tests/feed_test.mjs`.
+
+Flags (none set in wrangler.toml): `FEED=1` serves the routes, `FEED_OBSERVE=1` writes an hourly observation for each
+watch that opted in (same D1 batch as `stepWatch`), `FEED_MAINNET=1` takes paid tiers on the main preset. Default for paid
+tiers is **Base Sepolia** USDC through the existing `paymentRequirements` / `verifyAndSettle` (PayAI via FACILITATOR_URL).
+
+| Route | Free | Paid |
+|---|---|---|
+| `GET /v1/feed?category=&host=&since=&offset=` | daily snapshot >= 24 h old, 100 rows | `live=1` $0.01/call (1000 rows), or a key |
+| `GET /v1/feed/endpoint/{hkey}` | state as of 24 h ago + 7 days of observations | `live=1` $0.01/call: live + 400 days |
+| `GET /v1/feed/drift?from=&to=` | 7 days, 24 h delayed, 100 rows | `full=1` $0.05/call: full history |
+| `GET /v1/feed/snapshot.json` / `.csv` | daily signed snapshot >= 24 h old | firehose key: latest snapshot |
+| `GET /v1/feed/manifest` | schema, tiers, network, signing kid | |
+| `POST /v1/feed/subscribe {tier, scope}` | | endpoint $1, category $10, firehose $49 per 30 days; `fk_` key shown once, stored hashed |
+
+Categories (fixed): search/data, inference, crypto-market, content, infra, other (keyword map over the crawl's URL and
+source-list fields). Inclusion: crawl-known public URLs, plus watches created with `"feed_opt_in": true` or toggled with
+`POST /v1/watch/{id}/feed {"opt_in": true|false}` (Bearer). Opting out deletes watch-only rows. Free calls: 200 per UTC
+day per network (`feed_quota`, salted prefix hash). The daily cron prunes observations older than 400 days and builds the
+snapshot (`crawl_store`, source `feed`, newest 3 kept). `PAYMENT-RESPONSE` on feed routes is `{success, network}` only.
+
+Backfill (local or preview D1 only; `--remote` is refused): `node worker/scripts/feed-backfill.mjs --estimate ...` for
+the size estimate, `--local [--persist-to DIR] [--dry-run]` or `--preview` to write crawl + endpoint_history rows.

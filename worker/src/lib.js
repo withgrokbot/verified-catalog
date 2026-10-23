@@ -59,6 +59,7 @@ import { hostReputation, reputationPublic, hostOf, handleReputation } from "./re
 import { handleBadge, badgeSnippets } from "./badge.js";
 import { handleSaves } from "./saves.js";
 import { handleHygiene, reportHygiene } from "./hygiene.js";
+import { handleFeed, feedDaily, feedOn, feedObserveOn } from "./feed.js";
 import { facilitatorChain, callFacilitator } from "./facilitator.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
@@ -3577,6 +3578,8 @@ async function scheduledInner(event, env, ctx) {
     const now = new Date(event && event.scheduledTime ? event.scheduledTime : Date.now());
     // 0.36.0: the daily trigger (DAILY_CRON) seeds today's badge-host queue and checks one batch; nothing else.
     if (event && event.cron === DAILY_CRON) {
+      // 0.52.0 Watchtower feed: prune observations > 400 days + build the daily signed snapshot (D1 only; off unless FEED/FEED_OBSERVE)
+      if (feedOn(env) || feedObserveOn(env)) { try { await feedDaily(env, now); } catch (e) { console.log(JSON.stringify({ feed: "daily_error", error: String((e && e.message) || e).slice(0, 200) })); } }
       if (env.DAILY_RECHECK === "off") return;
       await dailySeed(env, { now });
       await dailyStep(env, { now, runCheck, origin: API_ORIGIN });
@@ -3709,6 +3712,7 @@ const routeInnerHolder = {
     if (path === ER_ROUTE_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointReport(req, env, ctx, url);
     if (path === BULK_ROUTE_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handleBulkReport(req, env, ctx, url); // 0.49.0
     if (path === "/v1/watch" || path.startsWith("/v1/watch/")) return handleWatch(req, env, ctx, url, watchDeps(env));
+    if (path === "/v1/feed" || path.startsWith("/v1/feed/")) return handleFeed(req, env, url, feedDeps(env)); // 0.52.0 (FEED=1)
     if (path === "/v1/integrators/me" && req.method === "GET") { const r = await integratorMe(env, req); return json(r.body, r.status, { "cache-control": "no-store", ...(r.headers || {}) }); }
     // 0.12.1: guessed short paths for Spot-Check get a 308 to the canonical route (query kept; method + body kept by 308).
     if (SPOT_ALIASES.has(path)) {
@@ -4106,6 +4110,7 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
 export const ER_EXAMPLE_REQUEST = { url: "https://api.402rates.com/v1/ping", commitment_ref: "cm-0123456789abcdef" };
 export const ER_VERIFY = "For each key k in locked_commitments (drift_history, hygiene_detail): \"sha256:\" + hex(sha256(RFC 8785 JCS of {snapshot: revealed[k].snapshot, nonce: revealed[k].nonce})) must equal locked_commitments[k] from your free check. Then verify this receipt's ed25519 signature (JCS of the receipt minus signature) with the kid in /.well-known/402xagent-keys.json.";
 // 0.47.1: probes of our own routes are served in-process (same-zone subrequests 522), like the spot-check.
+export const feedDeps = (env) => ({ cfgOf: (e) => cfg(e), paymentHeader, decodePaymentHeader, checkPayload, verifyAndSettle, paymentRequirements, b64encode, ipPrefix });
 export const watchDeps = (env) => ({ fetchImpl: selfFetch(env), cfg: spotCfg(env), paymentHeader, decodePaymentHeader, checkPayload, verifyAndSettle, paymentRequirements, b64encode, ipPrefix });
 export function erCfg(env) { return { ...spotCfg(env), priceAtomic: ER_PAID_ATOMIC, priceUsd: ER_PRICE_USD }; }
 export const erNet = (c) => (c && c.label) || "Base";
