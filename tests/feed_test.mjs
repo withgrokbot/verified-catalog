@@ -49,13 +49,16 @@ function setup(extra = {}) {
   let clock = T0 + 72 * H;
   const deps = () => ({ ...feedDeps(env), now: () => new Date(clock),
     verifyAndSettle: async (c, payload, url) => { settled.push({ amount: c.priceAtomic, network: c.network, url }); return { ok: true, settle: { success: true, transaction: TX, payer: BUYER, network: c.network } }; } });
-  const outputs = [];
+  const outputs = [], buyerHeaders = [];
   const call = async (path, init = {}) => {
     const url = new URL("https://api.402xagent.com" + path);
     const req = new Request(url, { method: init.method || "GET", headers: { "cf-connecting-ip": IP, ...(init.headers || {}) }, ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}) });
     const r = await F.handleFeed(req, env, url, deps());
     const text = await r.text();
-    outputs.push(text + "\n" + [...r.headers].map(([k, v]) => k + ": " + v).join("\n") + "\n" + [...r.headers].filter(([k]) => /payment/.test(k)).map(([, v]) => { try { return atob(v); } catch (_) { return v; } }).join("\n"));
+    // the x402 settlement headers go only to the paying buyer: kept apart from the public outputs that are leak-scanned
+    const buyerOnly = (k) => k === "payment-response" || k === "x-payment-response";
+    outputs.push(text + "\n" + [...r.headers].filter(([k]) => !buyerOnly(k)).map(([k, v]) => k + ": " + v).join("\n") + "\n" + [...r.headers].filter(([k]) => k === "payment-required").map(([, v]) => { try { return atob(v); } catch (_) { return v; } }).join("\n"));
+    if (r.headers.get("payment-response")) buyerHeaders.push(atob(r.headers.get("payment-response")));
     let j = null; try { j = JSON.parse(text); } catch (_) {}
     return { status: r.status, headers: r.headers, text, j };
   };
@@ -63,7 +66,7 @@ function setup(extra = {}) {
     const c = F.feedCfg(env, feedDeps(env), k);
     return { "payment-signature": btoa(JSON.stringify({ x402Version: 2, accepted: { scheme: "exact", network: c.network, amount: c.priceAtomic, asset: c.asset, payTo: c.payTo }, payload: { signature: "0x00", authorization: { from: BUYER, to: c.payTo, value: c.priceAtomic, nonce: TX } } })) };
   };
-  return { env, db: env.RECEIPTS_DB, call, payHdr, settled, outputs, setClock: (t) => { clock = t; }, now: () => clock };
+  return { env, db: env.RECEIPTS_DB, call, payHdr, settled, outputs, buyerHeaders, setClock: (t) => { clock = t; }, now: () => clock };
 }
 async function seedCrawl(db, n, at, extra = {}, tag = "") {
   for (let i = 0; i < n; i++) {
@@ -162,6 +165,36 @@ test("opt-in toggle: POST /v1/watch/{id}/feed (Bearer); opting out removes watch
   assert.equal(s.db.raw.prepare("SELECT COUNT(*) AS n FROM feed_observations").get().n, 0);
 });
 
+test("change-only writes: identical hourly probes write the first row + one heartbeat per UTC day; endpoint state still updates", async () => {
+  const s = setup();
+  await addWatch(s.db, "wt-000000000000000e", "https://steady.fixture-sellers.example/v1/search", true);
+  for (let h = 0; h < 48; h++) await W.stepWatch(s.env, watchRow(s.db, "wt-000000000000000e"), probeOf("10000"), new Date(T0 + h * H));
+  const obs = s.db.raw.prepare("SELECT observed_at FROM feed_observations ORDER BY observed_at").all().map((r) => r.observed_at);
+  assert.deepEqual(obs, [iso(T0), "2026-10-21T00:00:00Z", "2026-10-22T00:00:00Z"]);
+  assert.equal(s.db.raw.prepare("SELECT observed_at FROM feed_endpoints").get().observed_at, iso(T0 + 47 * H));
+  await W.stepWatch(s.env, watchRow(s.db, "wt-000000000000000e"), probeOf("10000", SELLER, 503), new Date(T0 + 48 * H)); // http status changed
+  assert.equal(s.db.raw.prepare("SELECT COUNT(*) AS n FROM feed_observations").get().n, 4);
+  assert.equal(F.needsObservation({ state: "up", http_status: 402, terms_sig: "a", last_obs: "2026-10-20T01:00:00Z" }, { state: "up", http_status: 402, terms_sig: "a", observed_at: "2026-10-20T05:00:00Z" }), null);
+  assert.equal(F.needsObservation({ state: "up", http_status: 402, terms_sig: "a", last_obs: "2026-10-20T01:00:00Z" }, { state: "up", http_status: 402, terms_sig: "b", observed_at: "2026-10-20T05:00:00Z" }), "change");
+});
+
+test("opt-in cap: at FEED_OPT_IN_MAX opted-in watches a new opt-in is refused (409) and the cap hit is logged", async () => {
+  const s = setup({ FEED_OPT_IN_MAX: "1" });
+  await addWatch(s.db, "wt-0000000000000001", "https://a.fixture-sellers.example/v1/search", true);
+  await addWatch(s.db, "wt-0000000000000002", "https://b.fixture-sellers.example/v1/search", false);
+  const logs = []; const orig = console.log; console.log = (m) => logs.push(String(m));
+  const url = new URL("https://api.402xagent.com/v1/watch/wt-0000000000000002/feed");
+  let r;
+  try { r = await W.handleWatch(new Request(url, { method: "POST", headers: { authorization: "Bearer wts_" + "1".repeat(48), "content-type": "application/json" }, body: JSON.stringify({ opt_in: true }) }), s.env, null, url, { ...feedDeps(s.env), cfg: {}, now: () => new Date(T0) }); }
+  finally { console.log = orig; }
+  assert.equal(r.status, 409);
+  assert.equal((await r.json()).code, "opt_in_cap");
+  assert.ok(logs.some((l) => /"feed":"opt_in_cap_hit","cap":1,"opted_in":1/.test(l)));
+  assert.ok(!logs.join().includes("wt-") && !logs.join().includes("fixture-sellers"));
+  assert.equal(s.db.raw.prepare("SELECT feed_opt_in FROM watches WHERE id = 'wt-0000000000000002'").get().feed_opt_in, 0);
+  assert.equal(F.optInMax({}), 100);
+});
+
 test("tier gating: free is 24 h delayed and capped at 100 rows; live=1 without payment is a 402 on Base Sepolia", async () => {
   const s = setup();
   await seedCrawl(s.db, 150, T0);
@@ -179,6 +212,11 @@ test("tier gating: free is 24 h delayed and capped at 100 rows; live=1 without p
   assert.equal((await s.call("/v1/feed?limit=500")).j.count, 100);
   assert.equal((await s.call("/v1/feed?category=crypto-market")).j.rows.every((r) => r.category === "crypto-market"), true);
   assert.equal((await s.call("/v1/feed?category=nope")).status, 400);
+  const cat = await s.call("/v1/feed?category=content&offset=5&limit=3");
+  assert.equal(cat.j.count, 3);
+  assert.ok(cat.j.rows.every((r) => r.category === "content"));
+  assert.equal(cat.j.total, (await s.call("/v1/feed?live=1&category=content", { headers: s.payHdr("call") })).j.rows.filter((r) => r.observed_at <= iso(T0 + H)).length);
+  assert.equal((await s.call("/v1/feed?host=api1.fixture-sellers.example")).status, 400); // host/since are real-time only
   const p = await s.call("/v1/feed?live=1");
   assert.equal(p.status, 402);
   assert.equal(p.j.x402Version, 2);
@@ -195,7 +233,7 @@ test("tier gating: free is 24 h delayed and capped at 100 rows; live=1 without p
   assert.equal((await m.call("/v1/feed?live=1")).j.accepts[0].network, "eip155:8453");
 });
 
-test("paid per call: $0.01 real-time feed (<= 1000 rows, includes fresh rows); PAYMENT-RESPONSE has no tx hash or payer", async () => {
+test("paid per call: $0.01 real-time feed (<= 1000 rows, includes fresh rows); standard PAYMENT-RESPONSE header to the buyer", async () => {
   const s = setup();
   await seedCrawl(s.db, 20, s.now() - H);
   const r = await s.call("/v1/feed?live=1", { headers: s.payHdr("call") });
@@ -203,8 +241,11 @@ test("paid per call: $0.01 real-time feed (<= 1000 rows, includes fresh rows); P
   assert.equal(r.j.access, "paid");
   assert.equal(r.j.count, 20);
   assert.deepEqual(s.settled.map((x) => [x.amount, x.network]), [["10000", "eip155:84532"]]);
-  const pr = JSON.parse(atob(r.headers.get("payment-response")));
-  assert.deepEqual(pr, { success: true, network: "eip155:84532" });
+  const pr = JSON.parse(atob(r.headers.get("payment-response"))); // standard x402 settlement, to the paying buyer only
+  assert.equal(pr.transaction, TX);
+  assert.equal(pr.payer, BUYER);
+  assert.equal(r.headers.get("x-payment-response"), r.headers.get("payment-response"));
+  assert.ok(!r.text.includes(TX) && !r.text.includes(BUYER), "settlement never in the body");
   const hk = r.j.rows[0].hkey;
   const one = await s.call("/v1/feed/endpoint/" + hk + "?live=1", { headers: s.payHdr("call") });
   assert.equal(one.status, 200);
@@ -269,38 +310,52 @@ test("subscriptions: $1 endpoint / $10 category / $49 firehose keys, shown once,
   assert.equal((await s.call("/v1/feed", { headers: auth })).status, 402); // expired key
 });
 
-test("snapshot: CSV/JSON parity and a verifiable Ed25519 signature over csv_sha256; firehose gets the latest", async () => {
+test("snapshot: chunked build, paginated CSV/JSON parity, verifiable signature over page hashes; firehose gets the latest", async () => {
   const s = setup();
-  await seedCrawl(s.db, 30, T0);
-  await F.buildSnapshot(s.env, new Date(T0 + H));
+  await seedCrawl(s.db, 1234, T0);
+  const steps = [];
+  for (;;) { const r = await F.snapshotStep(s.env, new Date(T0 + H), { rowsPerStep: 1000 }); steps.push(r.did); if (r.did === "done") break; }
+  assert.deepEqual(steps, ["step", "done"]);
+  assert.equal((await F.snapshotStep(s.env, new Date(T0 + 2 * H))).did, "idle"); // one snapshot per UTC day
   await seedCrawl(s.db, 2, s.now() - 2 * H, {}, "new");
   await F.buildSnapshot(s.env, new Date(s.now() - H));
-  const j = await s.call("/v1/feed/snapshot.json");
-  const c = await s.call("/v1/feed/snapshot.csv");
-  assert.equal(j.status, 200); assert.equal(c.status, 200);
-  assert.equal(j.j.rows.length, 30); // free: the snapshot at least 24 h old
-  assert.equal(c.headers.get("content-type"), "text/csv; charset=utf-8");
-  assert.equal(F.toCsv(j.j.rows), c.text);
-  const parsed = F.parseCsv(c.text);
-  assert.deepEqual(parsed[0], [...F.FEED_COLUMNS]);
-  assert.equal(parsed.length - 1, j.j.rows.length);
-  assert.deepEqual(parsed.slice(1).map((r) => r[0]), j.j.rows.map((r) => r.hkey));
-  const h = j.j.header;
-  assert.equal(h.csv_sha256, await F.sha256Hex(c.text));
-  assert.equal(c.headers.get("x-feed-csv-sha256"), h.csv_sha256);
+  const idx = await s.call("/v1/feed/snapshot.json");
+  assert.equal(idx.status, 200);
+  const h = idx.j.header;
+  assert.equal(h.count, 1234); // free: the snapshot at least 24 h old
+  assert.equal(h.pages, Math.ceil(1234 / F.PAGE_ROWS));
+  assert.equal(Object.values(h.categories).reduce((a, c) => a + c.count, 0), 1234);
+  const all = [];
+  for (let n = 0; n < h.pages; n++) {
+    const j = await s.call("/v1/feed/snapshot.json?page=" + n);
+    const c = await s.call("/v1/feed/snapshot.csv?page=" + n);
+    assert.equal(c.headers.get("content-type"), "text/csv; charset=utf-8");
+    assert.equal(F.toCsv(j.j.rows), c.text); // CSV/JSON parity
+    assert.deepEqual(F.parseCsv(c.text)[0], [...F.FEED_COLUMNS]);
+    assert.equal(await F.sha256Hex(c.text), h.page_csv_sha256[n]);
+    assert.equal(c.headers.get("x-feed-page-csv-sha256"), h.page_csv_sha256[n]);
+    all.push(...j.j.rows);
+  }
+  assert.equal(all.length, 1234);
+  assert.equal(new Set(all.map((r) => r.hkey)).size, 1234);
+  for (const [cat, c] of Object.entries(h.categories)) assert.ok(all.slice(c.start, c.start + c.count).every((r) => r.category === cat));
+  assert.equal(h.rows_root, await F.sha256Hex(h.page_csv_sha256.join("\n")));
   const k = S.receiptKeysDoc().keys.find((x) => x.kid === h.kid);
   const pub = await crypto.subtle.importKey("jwk", { kty: "OKP", crv: "Ed25519", x: k.x }, { name: "Ed25519" }, false, ["verify"]);
   const sig = Uint8Array.from(atob(h.signature.replace(/-/g, "+").replace(/_/g, "/")), (ch) => ch.charCodeAt(0));
   assert.ok(await crypto.subtle.verify({ name: "Ed25519" }, pub, sig, S.signingInput(h)));
-  assert.ok(!(await crypto.subtle.verify({ name: "Ed25519" }, pub, sig, S.signingInput({ ...h, count: 31 }))));
-  // firehose key: today's snapshot (32 rows)
+  assert.ok(!(await crypto.subtle.verify({ name: "Ed25519" }, pub, sig, S.signingInput({ ...h, rows_root: "0".repeat(64) }))));
+  assert.equal((await s.call("/v1/feed/snapshot.csv?page=999")).status, 404);
+  // firehose key: the latest snapshot (1236 rows)
   const sub = await s.call("/v1/feed/subscribe", { method: "POST", body: { tier: "firehose" }, headers: s.payHdr("firehose") });
   const fj = await s.call("/v1/feed/snapshot.json", { headers: { authorization: "Bearer " + sub.j.feed_key } });
-  assert.equal(fj.j.rows.length, 32);
+  assert.equal(fj.j.header.count, 1236);
   assert.equal(fj.j.delayed, false);
-  // keeps the newest 3 snapshots
+  // keeps the newest 3 complete snapshots (pages and heads)
   for (let d = 1; d <= 4; d++) await F.buildSnapshot(s.env, new Date(s.now() + d * 24 * H));
-  assert.equal(s.db.raw.prepare("SELECT COUNT(DISTINCT key) AS n FROM crawl_store WHERE source = 'feed'").get().n, 3);
+  const dates = s.db.raw.prepare("SELECT DISTINCT substr(key, 8, 10) AS d FROM crawl_store WHERE source = 'feed'").all();
+  assert.equal(dates.length, 3);
+  assert.equal(s.db.raw.prepare("SELECT COUNT(*) AS n FROM crawl_store WHERE key = 'f:build'").get().n, 0);
 });
 
 test("free quota: 200 calls per UTC day per network (hashed prefix, no raw IP stored), then 429", async () => {
@@ -323,7 +378,6 @@ test("pruning: observations older than 400 days are deleted on the daily cron; s
   assert.equal(r.pruned.observations, 1);
   assert.equal(s.db.raw.prepare("SELECT COUNT(*) AS n FROM feed_observations").get().n, 1);
   assert.equal(s.db.raw.prepare("SELECT COUNT(*) AS n FROM feed_quota").get().n, 0);
-  assert.equal(r.snapshot.count, 2);
   assert.deepEqual(await F.feedDaily({ RECEIPTS_DB: s.db }, new Date()), { did: "off" });
 });
 
@@ -336,6 +390,8 @@ test("manifest: schema, tiers ($0.01 / $0.05 / $1 / $10 / $49), Base Sepolia, si
   assert.equal(m.payment.network, "eip155:84532");
   assert.deepEqual(m.categories, [...F.FEED_CATEGORIES]);
   assert.ok(!/stable[ _-]?30/i.test(JSON.stringify(m)));
+  assert.ok(m.limitations.some((l) => /Crawl-sourced rows .*no pay_to or exact amount/.test(l)));
+  assert.equal(m.watched_opt_in_cap, 100);
 });
 
 test("routing: worker.fetch serves /v1/feed only when FEED=1", async () => {
@@ -345,6 +401,13 @@ test("routing: worker.fetch serves /v1/feed only when FEED=1", async () => {
   const on = await worker.fetch(new Request("https://api.402xagent.com/v1/feed/manifest"), s.env, { waitUntil() {} });
   assert.equal(on.status, 200);
   assert.equal((await on.json()).schema, "feed.v1");
+  const oa = async (env) => (await (await worker.fetch(new Request("https://api.402xagent.com/openapi.json"), env, { waitUntil() {} })).json()).paths;
+  const pOn = await oa(s.env), pOff = await oa({ RECEIPTS_DB: d1() });
+  for (const p of ["/v1/feed", "/v1/feed/endpoint/{hkey}", "/v1/feed/drift", "/v1/feed/snapshot.json", "/v1/feed/snapshot.csv", "/v1/feed/manifest", "/v1/feed/subscribe", "/v1/watch/{watch_id}/feed"]) assert.ok(pOn[p], p);
+  assert.ok(!pOff["/v1/feed"]);
+  const llms = async (env) => (await worker.fetch(new Request("https://api.402xagent.com/llms.txt"), env, { waitUntil() {} })).text();
+  assert.match(await llms(s.env), /Watchtower feed .*\/v1\/feed\/manifest/);
+  assert.ok(!/v1\/feed/.test(await llms({ RECEIPTS_DB: d1() })));
 });
 
 test("privacy leak scan: no buyer wallet, tx hash, proof, IP, webhook URL/hash, secret, receipt or score in any output", async () => {
@@ -358,14 +421,22 @@ test("privacy leak scan: no buyer wallet, tx hash, proof, IP, webhook URL/hash, 
   const sub = await s.call("/v1/feed/subscribe", { method: "POST", body: { tier: "firehose" }, headers: s.payHdr("firehose") });
   const auth = { authorization: "Bearer " + sub.j.feed_key };
   const hk = await F.feedKey("https://opted.leak-fixture.example/v1/data");
-  const paths = ["/v1/feed", "/v1/feed?live=1", "/v1/feed/endpoint/" + hk, "/v1/feed/endpoint/" + hk + "?live=1", "/v1/feed/drift", "/v1/feed/drift?full=1", "/v1/feed/snapshot.json", "/v1/feed/snapshot.csv", "/v1/feed/manifest", "/v1/feed/subscribe"];
+  const paths = ["/v1/feed", "/v1/feed?live=1", "/v1/feed/endpoint/" + hk, "/v1/feed/endpoint/" + hk + "?live=1", "/v1/feed/drift", "/v1/feed/drift?full=1", "/v1/feed/snapshot.json", "/v1/feed/snapshot.json?page=0", "/v1/feed/snapshot.csv?page=0", "/v1/feed/manifest", "/v1/feed/subscribe"];
   for (const p of paths) {
     await s.call(p);
     await s.call(p, { headers: auth });
     if (/live=1/.test(p)) await s.call(p, { headers: s.payHdr("call") });
     if (/full=1/.test(p)) await s.call(p, { headers: s.payHdr("drift") });
   }
-  const all = s.outputs.join("\n");
+  // public surfaces: every response body + non-settlement headers, every feed table and every stored snapshot page/header
+  const store = ["feed_endpoints", "feed_observations", "feed_keys", "feed_quota"].map((t) => JSON.stringify(s.db.raw.prepare("SELECT * FROM " + t).all())).join("\n");
+  const snaps = [];
+  for (const r of s.db.raw.prepare("SELECT key, value FROM crawl_store WHERE source = 'feed'").all()) {
+    if (r.key.includes(":p")) { const bin = Uint8Array.from(atob(r.value), (c) => c.charCodeAt(0)); snaps.push(await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream("gzip"))).text()); } else snaps.push(r.value);
+  }
+  const all = s.outputs.join("\n") + "\n" + store + "\n" + snaps.join("\n");
+  // the paying buyer did get the standard settlement back (tx hash + payer), and only there
+  assert.ok(s.buyerHeaders.length >= 3 && s.buyerHeaders.every((h) => JSON.parse(h).transaction === TX));
   assert.ok(all.includes("opted.leak-fixture.example/v1/data"), "the opted-in watch is in the feed");
   assert.ok(/"event": "drift"/.test(all), "drift events are present");
   const forbidden = [BUYER, TX, IP, HOOK, "hooks.leak-fixture.example", "not-opted.leak-fixture.example", "private-endpoint.leak-fixture", "QUERYSECRET", "token=", "secrethash-", "webhookhash-", "iphash-", "domhash-", "trial-666", "st-1111", "wr-00000000000000aa", "wt-00000000000000", "pk-hyg", "settled_payments", "webhook", "secret_hash", "ip_hash"];

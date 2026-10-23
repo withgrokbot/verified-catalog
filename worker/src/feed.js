@@ -157,12 +157,33 @@ export function observationStatements(db, ep, ob) {
   ];
 }
 /** Called from watch.js stepWatch: statements to append to its batch, or [] (feed off / watch not opted in). */
+// 0.52.0 (PR #7 review): an observation row is written only when something changed (state, HTTP status, terms, or a
+// drift/down/recovery event) plus one heartbeat row per endpoint per UTC day; feed_endpoints is still upserted every probe.
+export function needsObservation(prev, ob) {
+  if (!prev) return "first";
+  if (ob.event) return "event";
+  if (prev.state !== ob.state || (prev.http_status ?? null) !== (ob.http_status ?? null) || (prev.terms_sig ?? null) !== (ob.terms_sig ?? null)) return "change";
+  if (!prev.last_obs || prev.last_obs.slice(0, 10) < ob.observed_at.slice(0, 10)) return "heartbeat";
+  return null;
+}
 export async function feedStatementsForWatch(env, db, w, o, fired, now) {
   if (!feedObserveOn(env) || !Number(w.feed_opt_in)) return [];
   const pu = publicUrl(w.url);
   if (!pu) return [];
   const ep = { hkey: await feedKey(pu.url), ...pu, method: w.method || "GET", category: categoryOf({ url: pu.url }), crawl_known: 0, watch_opt_in: 1 };
-  return observationStatements(db, ep, await watchObservation(w, o, fired, now));
+  const ob = await watchObservation(w, o, fired, now);
+  const prev = await db.prepare("SELECT state, http_status, terms_sig, (SELECT MAX(observed_at) FROM feed_observations WHERE hkey = ?) AS last_obs FROM feed_endpoints WHERE hkey = ?").bind(ep.hkey, ep.hkey).first();
+  const st = observationStatements(db, ep, ob);
+  return needsObservation(prev, ob) ? st : [st[1]];
+}
+export const FEED_OPT_IN_MAX = 100;
+export const optInMax = (env) => { const n = parseInt((env && env.FEED_OPT_IN_MAX) ?? "", 10); return Number.isFinite(n) && n >= 0 ? n : FEED_OPT_IN_MAX; };
+/** true if one more watch may opt in; logs (no ids, no URLs) when the cap is hit. */
+export async function optInAllowed(env, db) {
+  const n = ((await db.prepare("SELECT COUNT(*) AS n FROM watches WHERE feed_opt_in = 1 AND status != 'deleted'").first()) || {}).n || 0;
+  if (n < optInMax(env)) return true;
+  console.log(JSON.stringify({ feed: "opt_in_cap_hit", cap: optInMax(env), opted_in: n }));
+  return false;
 }
 /** Opt-out: drop watch-sourced rows for an endpoint that no other opted-in watch covers (crawl rows stay: public). */
 export async function feedOptOut(db, url) {
@@ -175,7 +196,15 @@ export async function feedOptOut(db, url) {
 }
 
 // ------------------------------------------------------------------ snapshots (crawl_store, source = 'feed')
-const PART = 90000;
+// 0.52.0 (PR #7 review): built in chunks across cron ticks and stored as pages, so no single invocation holds the whole
+// snapshot (about 21 MB gzip+base64 for 123k endpoints) and free reads decode at most two ~60 KB pages.
+//   f:build              build state {date, started_at, after_cat, after_hkey, count, page, categories, page_csv_sha256}
+//   f:snap:<date>:p<n>   one page: base64(gzip(CSV rows)), PAGE_ROWS rows, rows ordered by (category, hkey)
+//   f:snap:<date>:head   signed header: count, pages, per-category {start, count}, page_csv_sha256[], rows_root
+// page CSV = FEED_COLUMNS header line + the page's rows (exactly what /v1/feed/snapshot.csv?page=n serves).
+// rows_root = sha256(page_csv_sha256 values joined by "\n"); the signature covers the header (incl. rows_root).
+export const PAGE_ROWS = 500;
+export const BUILD_ROWS_PER_STEP = 5000;
 async function gzipB64(text) {
   const buf = new Uint8Array(await new Response(new Blob([new TextEncoder().encode(text)]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer());
   let s = ""; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
@@ -186,59 +215,106 @@ async function gunzipB64(b64) {
   for (let i = 0; i < str.length; i++) bin[i] = str.charCodeAt(i);
   return new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
 }
-/** Builds the daily snapshot from feed_endpoints (allowlisted columns only) and stores it under f:snap:<date>. */
-export async function buildSnapshot(env, now = new Date()) {
+const pageKey = (date, n) => `f:snap:${date}:p${String(n).padStart(5, "0")}`;
+const headKey = (date) => `f:snap:${date}:head`;
+const putStmt = (db, key, value, sha, now) => db.prepare("INSERT OR REPLACE INTO crawl_store (key, part, parts, sha256, value, source, updated_at) VALUES (?, 0, 1, ?, ?, 'feed', ?)").bind(key, sha, value, iso(now));
+async function getOne(db, key) { const r = await db.prepare("SELECT sha256, value, updated_at FROM crawl_store WHERE key = ? AND part = 0").bind(key).first(); return r || null; }
+/** One build step (one cron tick): reads up to BUILD_ROWS_PER_STEP endpoints, writes their pages, finalizes when done. */
+export async function snapshotStep(env, now = new Date(), { rowsPerStep = BUILD_ROWS_PER_STEP } = {}) {
   const db = env.RECEIPTS_DB;
-  const date = iso(now).slice(0, 10);
-  const rows = [];
-  let after = "";
-  for (;;) {
-    const r = (await db.prepare(`SELECT ${FEED_COLUMNS.join(", ")} FROM feed_endpoints WHERE hkey > ? ORDER BY hkey LIMIT 5000`).bind(after).all()).results || [];
-    for (const x of r) rows.push(feedRow(x));
-    if (r.length < 5000) break;
-    after = r[r.length - 1].hkey;
+  const today = iso(now).slice(0, 10);
+  const sraw = await getOne(db, "f:build");
+  let st = sraw ? JSON.parse(sraw.value) : null;
+  if (!st) {
+    if (await getOne(db, headKey(today))) return { did: "idle" };
+    st = { date: today, started_at: iso(now), after_cat: "", after_hkey: "", count: 0, page: 0, categories: {}, page_csv_sha256: [] };
+    await db.prepare("DELETE FROM crawl_store WHERE source = 'feed' AND key >= ? AND key < ?").bind(`f:snap:${today}:`, `f:snap:${today};`).run();
   }
-  const csv = toCsv(rows);
-  const header = { type: "402xagent-feed-snapshot", schema: "feed.v1", date, built_at: iso(now), count: rows.length, columns: FEED_COLUMNS, csv_sha256: await sha256Hex(csv), issuer: "402xAgent Watchtower" };
+  const rows = ((await db.prepare(`SELECT ${FEED_COLUMNS.join(", ")} FROM feed_endpoints WHERE category > ? OR (category = ? AND hkey > ?) ORDER BY category, hkey LIMIT ?`)
+    .bind(st.after_cat, st.after_cat, st.after_hkey, rowsPerStep).all()).results || []).map(feedRow);
+  const stmts = [];
+  for (let i = 0; i < rows.length; i += PAGE_ROWS) {
+    const page = rows.slice(i, i + PAGE_ROWS);
+    for (const [j, r] of page.entries()) { const c = st.categories[r.category] || (st.categories[r.category] = { start: st.count + i + j, count: 0 }); c.count++; }
+    const csv = toCsv(page);
+    st.page_csv_sha256.push(await sha256Hex(csv));
+    const v = await gzipB64(csv.slice(csv.indexOf("\n") + 1));
+    stmts.push(putStmt(db, pageKey(st.date, st.page++), v, await sha256Hex(v), now));
+  }
+  st.count += rows.length;
+  if (rows.length) { st.after_cat = rows[rows.length - 1].category; st.after_hkey = rows[rows.length - 1].hkey; }
+  const done = rows.length < rowsPerStep;
+  if (!done) { const v = JSON.stringify(st); stmts.push(putStmt(db, "f:build", v, await sha256Hex(v), now)); await db.batch(stmts); return { did: "step", date: st.date, count: st.count, pages: st.page }; }
+  const header = { type: "402xagent-feed-snapshot", schema: "feed.v2", date: st.date, started_at: st.started_at, built_at: iso(now), count: st.count, page_rows: PAGE_ROWS, pages: st.page,
+    order: "category, hkey", columns: FEED_COLUMNS, categories: st.categories, page_csv_sha256: st.page_csv_sha256, rows_root: await sha256Hex(st.page_csv_sha256.join("\n")), issuer: "402xAgent Watchtower" };
   const signed = (await signObject(env, header)) || header;
-  const value = await gzipB64(JSON.stringify({ header: signed, rows: rows.map((x) => FEED_COLUMNS.map((c) => x[c])) }));
-  const sha = await sha256Hex(value);
-  const parts = Math.max(1, Math.ceil(value.length / PART));
-  const key = "f:snap:" + date;
-  const st = [db.prepare("DELETE FROM crawl_store WHERE key = ?").bind(key)];
-  for (let i = 0; i < parts; i++) st.push(db.prepare("INSERT INTO crawl_store (key, part, parts, sha256, value, source, updated_at) VALUES (?, ?, ?, ?, ?, 'feed', ?)").bind(key, i, parts, sha, value.slice(i * PART, (i + 1) * PART), iso(now)));
-  await db.batch(st);
-  const old = (await db.prepare("SELECT DISTINCT key FROM crawl_store WHERE source = 'feed' AND key LIKE 'f:snap:%' ORDER BY key DESC").all()).results || [];
-  for (const o of old.slice(SNAPSHOT_KEEP)) await db.prepare("DELETE FROM crawl_store WHERE key = ?").bind(o.key).run();
-  return { key, count: rows.length, parts, header: signed };
+  const hv = JSON.stringify(signed);
+  stmts.push(putStmt(db, headKey(st.date), hv, await sha256Hex(hv), now));
+  stmts.push(db.prepare("DELETE FROM crawl_store WHERE key = 'f:build'"));
+  await db.batch(stmts);
+  // keep the newest SNAPSHOT_KEEP complete snapshots; drop older dates (pages + heads)
+  const heads = ((await db.prepare("SELECT key FROM crawl_store WHERE source = 'feed' AND key LIKE 'f:snap:%:head' ORDER BY key DESC").all()).results || []).map((r) => r.key.slice(7, 17));
+  if (heads.length > SNAPSHOT_KEEP) await db.prepare("DELETE FROM crawl_store WHERE source = 'feed' AND key LIKE 'f:snap:%' AND key < ?").bind(`f:snap:${heads[SNAPSHOT_KEEP - 1]}:`).run();
+  return { did: "done", date: st.date, count: st.count, pages: st.page, header: signed };
 }
-const snapCache = new Map();
-export function _clearFeedCache() { snapCache.clear(); }
-/** Latest snapshot, or (delayed = true) the newest one built at least FEED_DELAY_H hours ago. */
-export async function loadSnapshot(db, now, delayed) {
+/** Runs steps until the snapshot is complete (tests, local tools). The Worker runs one step per cron tick. */
+export async function buildSnapshot(env, now = new Date(), opts = {}) {
+  for (let i = 0; i < 100000; i++) { const r = await snapshotStep(env, now, opts); if (r.did === "done") return { key: headKey(r.date), count: r.count, pages: r.pages, header: r.header }; if (r.did === "idle") return null; }
+  throw new Error("snapshot build did not finish");
+}
+const headCache = new Map(), pageCache = new Map();
+export function _clearFeedCache() { headCache.clear(); pageCache.clear(); }
+/** Latest complete snapshot header, or (delayed = true) the newest one completed at least FEED_DELAY_H hours ago. */
+export async function loadHead(db, now, delayed) {
   const cut = iso(new Date(now).getTime() - FEED_DELAY_H * 3600000);
-  const heads = (await db.prepare("SELECT key, sha256, updated_at FROM crawl_store WHERE source = 'feed' AND key LIKE 'f:snap:%' AND part = 0 ORDER BY key DESC").all()).results || [];
+  const heads = (await db.prepare("SELECT key, sha256, updated_at FROM crawl_store WHERE source = 'feed' AND key LIKE 'f:snap:%:head' ORDER BY key DESC").all()).results || [];
   const h = heads.find((x) => !delayed || x.updated_at <= cut);
   if (!h) return null;
-  if (snapCache.has(h.key) && snapCache.get(h.key).sha === h.sha256) return snapCache.get(h.key).v;
-  const parts = (await db.prepare("SELECT part, parts, sha256, value FROM crawl_store WHERE key = ? ORDER BY part").bind(h.key).all()).results || [];
-  if (!parts.length || parts.length !== parts[0].parts || parts.some((p, i) => p.part !== i || p.sha256 !== h.sha256)) return null;
-  const value = parts.map((p) => p.value).join("");
-  if ((await sha256Hex(value)) !== h.sha256) return null;
-  const j = JSON.parse(await gunzipB64(value));
-  const v = { header: j.header, rows: j.rows.map((a) => Object.fromEntries(FEED_COLUMNS.map((c, i) => [c, a[i] ?? null]))) };
-  if (snapCache.size > 4) snapCache.clear();
-  snapCache.set(h.key, { sha: h.sha256, v });
+  if (headCache.has(h.key) && headCache.get(h.key).sha === h.sha256) return headCache.get(h.key).v;
+  const r = await getOne(db, h.key);
+  if (!r || (await sha256Hex(r.value)) !== r.sha256) return null;
+  const v = JSON.parse(r.value);
+  if (headCache.size > 8) headCache.clear();
+  headCache.set(h.key, { sha: h.sha256, v });
   return v;
 }
+/** One page as CSV text (with the header line) and row objects; null if missing or torn. */
+export async function loadPage(db, head, n) {
+  const key = pageKey(head.date, n);
+  const r = await getOne(db, key);
+  if (!r) return null;
+  if (pageCache.has(key) && pageCache.get(key).sha === r.sha256) return pageCache.get(key).v;
+  if ((await sha256Hex(r.value)) !== r.sha256) return null;
+  const csv = FEED_COLUMNS.join(",") + "\n" + (await gunzipB64(r.value));
+  if (head.page_csv_sha256 && head.page_csv_sha256[n] !== (await sha256Hex(csv))) return null;
+  const rows = parseCsv(csv).slice(1).map(fromCsvRow);
+  const v = { csv, rows };
+  if (pageCache.size > 16) pageCache.clear();
+  pageCache.set(key, { sha: r.sha256, v });
+  return v;
+}
+const NUM_COLS = new Set(["http_status", "price_usd"]);
+export const fromCsvRow = (a) => Object.fromEntries(FEED_COLUMNS.map((c, i) => [c, a[i] === "" || a[i] === undefined ? null : NUM_COLS.has(c) ? Number(a[i]) : a[i]]));
+/** Rows [start, start + n) of a snapshot (global index), reading only the pages that cover them. */
+export async function snapshotRows(db, head, start, n) {
+  const out = [];
+  for (let p = Math.floor(start / PAGE_ROWS); out.length < n && p < head.pages; p++) {
+    const pg = await loadPage(db, head, p);
+    if (!pg) throw new Error("snapshot page missing");
+    const from = Math.max(0, start - p * PAGE_ROWS);
+    out.push(...pg.rows.slice(from, from + (n - out.length)));
+  }
+  return out;
+}
 
-// ------------------------------------------------------------------ cron: prune + daily snapshot
+// ------------------------------------------------------------------ cron: prune (daily) + one snapshot step (every tick)
 export async function feedDaily(env, now = new Date()) {
   if (!env.RECEIPTS_DB || !(feedOn(env) || feedObserveOn(env))) return { did: "off" };
-  const db = env.RECEIPTS_DB;
-  const pruned = await prune(db, now);
-  const snap = feedOn(env) ? await buildSnapshot(env, now) : null;
-  return { did: "daily", pruned, snapshot: snap ? { key: snap.key, count: snap.count, parts: snap.parts } : null };
+  return { did: "daily", pruned: await prune(env.RECEIPTS_DB, now) };
+}
+export async function feedTick(env, now = new Date()) {
+  if (!env.RECEIPTS_DB || !feedOn(env)) return { did: "off" };
+  return snapshotStep(env, now);
 }
 export async function prune(db, now = new Date()) {
   const cut = iso(new Date(now).getTime() - KEEP_DAYS * DAY);
@@ -265,7 +341,8 @@ function paymentRequired(c, deps, resourceUrl, k, error, extra = {}) {
     free_alternative: "Drop live=1 / full=1 for the free tier (data 24 h old, 100 rows, 7 days of drift).", manifest: "/v1/feed/manifest", ...extra };
   return J(body, 402, { "payment-required": deps.b64encode(body) });
 }
-/** Verifies and settles an x402 payment. The PAYMENT-RESPONSE header carries {success, network} only (no tx hash, no payer). */
+/** Verifies and settles an x402 payment. The standard x402 PAYMENT-RESPONSE header (settlement incl. tx hash and payer)
+ *  goes back to the paying buyer only; it is never written to feed tables, snapshots, logs or any response body. */
 async function pay(req, c, deps, resourceUrl, k) {
   const hdr = deps.paymentHeader(req);
   if (!hdr) return { none: true };
@@ -275,7 +352,7 @@ async function pay(req, c, deps, resourceUrl, k) {
   if (bad) return { error: "payment rejected: " + bad };
   const r = await deps.verifyAndSettle(c, payload, resourceUrl, { paidPath: true, description: describe(c, k) });
   if (!r.ok) return { error: "payment rejected: " + String(r.reason || "").replace(/0x[0-9a-fA-F]{40,}/g, "[redacted]") };
-  const enc = deps.b64encode({ success: true, network: c.network });
+  const enc = deps.b64encode(r.settle);
   return { ok: true, replayed: !!r.replayed, headers: { "payment-response": enc, "x-payment-response": enc } };
 }
 async function keyOf(req, env, now) {
@@ -314,13 +391,21 @@ export async function manifest(env, deps, origin) {
     columns: { endpoint: FEED_COLUMNS, observation: OBS_COLUMNS, event: EVENT_COLUMNS },
     endpoints: {
       feed: "GET /v1/feed?category=&host=&since=&offset=&limit=", endpoint: "GET /v1/feed/endpoint/{hkey}", drift: "GET /v1/feed/drift?from=&to=&category=&host=",
-      snapshot_json: "GET /v1/feed/snapshot.json", snapshot_csv: "GET /v1/feed/snapshot.csv", subscribe: "POST /v1/feed/subscribe {tier: endpoint|category|firehose, scope}", manifest: "GET /v1/feed/manifest",
+      snapshot_json: "GET /v1/feed/snapshot.json[?page=n]", snapshot_csv: "GET /v1/feed/snapshot.csv?page=n", subscribe: "POST /v1/feed/subscribe {tier: endpoint|category|firehose, scope}", manifest: "GET /v1/feed/manifest",
     },
-    free: { delay_hours: FEED_DELAY_H, max_rows: FREE_ROWS, drift_days: FREE_DRIFT_DAYS, calls_per_day_per_network: FEED_FREE_PER_DAY, snapshot: "daily, at least 24 h old" },
+    free: { delay_hours: FEED_DELAY_H, max_rows: FREE_ROWS, drift_days: FREE_DRIFT_DAYS, calls_per_day_per_network: FEED_FREE_PER_DAY, snapshot: "daily, at least 24 h old, paginated" },
     paid: Object.fromEntries(Object.entries(FEED_PRICES).map(([k, p]) => [k, { price_usd: p.usd, amount_atomic: p.atomic, what: p.what, ...(p.subscription ? { period_days: PERIOD_DAYS } : { per_call: true }) }])),
     payment: { protocol: "x402 v2 exact", network: c.network, asset: c.asset, pay_to: c.payTo, testnet: c.network !== "eip155:8453", rows_per_paid_call: PAID_ROWS,
       how: "live=1 on /v1/feed or /v1/feed/endpoint/{hkey} ($0.01), full=1 on /v1/feed/drift ($0.05), or Authorization: Bearer fk_<key> from /v1/feed/subscribe" },
-    retention_days: KEEP_DAYS, signing: { keys: "/.well-known/402xagent-keys.json", alg: "Ed25519", covers: "snapshot header (csv_sha256 over the CSV form of the rows)" },
+    writes: "an observation row per endpoint only when state, HTTP status or payment terms change (or a drift/down/recovery event), plus one heartbeat row per UTC day",
+    watched_opt_in_cap: optInMax(env),
+    snapshot: { page_rows: PAGE_ROWS, order: "category, hkey", built: "in chunks across cron ticks each UTC day; as_of = started_at", index: "GET /v1/feed/snapshot.json (signed header)", page: "GET /v1/feed/snapshot.csv?page=n or .json?page=n" },
+    free_filters: "category + offset on the free tier; host and since need live=1 or a key",
+    limitations: [
+      "Crawl-sourced rows (weekly crawl, src c) record only whether a 402 quote was present plus its network and asset; they carry no pay_to or exact amount. A field a source never recorded is not reported as drift, so pay_to/amount drift is only detected on endpoints with hourly watch probes (opted in) or endpoint_history rows.",
+      "Crawl rows are as fresh as the last weekly crawl; observed_at says when.",
+    ],
+    retention_days: KEEP_DAYS, signing: { keys: "/.well-known/402xagent-keys.json", alg: "Ed25519", covers: "snapshot header: page_csv_sha256[] per page and rows_root = sha256(page hashes joined by \\n)" },
   };
   const signed = await signObject(env, body);
   return signed || { ...body, kid: null };
@@ -362,6 +447,7 @@ export async function handleFeed(req, env, url, deps) {
     if (path === "/v1/feed/endpoint" || (one !== null && !HKEY_RE.test(one))) return J({ error: "hkey must be h:<64 hex> (the hkey field of /v1/feed rows)", code: "bad_hkey" }, 400);
     const f = filters(sp);
     if (f.error) return J({ error: f.error, code: "bad_input" }, 400);
+    if (!one && !key && !wantPaid && (f.host || f.since)) return J({ error: "host and since filters are real-time only (live=1, $0.01, or a feed key); the free tier pages the daily snapshot by category and offset", code: "filter_needs_paid" }, 400);
     let mode = "free", headers = {};
     if (key) mode = "key";
     else if (wantPaid) { const r = await perCall("call"); if (r.resp) return r.resp; mode = "paid"; headers = r.headers; }
@@ -384,13 +470,15 @@ export async function handleFeed(req, env, url, deps) {
       return J({ access: mode, delayed_hours: live ? 0 : FEED_DELAY_H, endpoint: current, observations: obs, count: obs.length }, 200, headers);
     }
     const offset = intParam(sp.get("offset"), 0, 1000000);
-    if (mode === "free") {
-      const snap = await loadSnapshot(db, now, true);
-      if (!snap) return J({ access: "free", delayed_hours: FEED_DELAY_H, rows: [], count: 0, total: 0, note: "no snapshot at least 24 h old yet" });
-      const all = snap.rows.filter(matches(f));
+    if (mode === "free") { // pages of the newest snapshot completed >= 24 h ago; at most two ~60 KB pages are decoded
+      const head = await loadHead(db, now, true);
+      if (!head) return J({ access: "free", delayed_hours: FEED_DELAY_H, rows: [], count: 0, total: 0, note: "no snapshot at least 24 h old yet" });
+      const cat = f.category ? head.categories[f.category] || { start: 0, count: 0 } : { start: 0, count: head.count };
       const lim = intParam(sp.get("limit"), FREE_ROWS, FREE_ROWS);
-      const rows = all.slice(offset, offset + lim);
-      return J({ access: "free", delayed_hours: FEED_DELAY_H, as_of: snap.header.built_at, rows, count: rows.length, total: all.length, offset, ...(offset + rows.length < all.length ? { next_offset: offset + rows.length } : {}) });
+      const n = Math.max(0, Math.min(lim, cat.count - offset));
+      let rows;
+      try { rows = n ? await snapshotRows(db, head, cat.start + offset, n) : []; } catch (_) { return J({ error: "snapshot unavailable, try again shortly" }, 503); }
+      return J({ access: "free", delayed_hours: FEED_DELAY_H, as_of: head.started_at, snapshot: head.date, rows, count: rows.length, total: cat.count, offset, ...(offset + rows.length < cat.count ? { next_offset: offset + rows.length } : {}) });
     }
     const w = [], b = [];
     if (mode === "key" && key.tier === "category") { w.push("category = ?"); b.push(key.scope); }
@@ -430,13 +518,23 @@ export async function handleFeed(req, env, url, deps) {
   }
 
   if (path === "/v1/feed/snapshot.json" || path === "/v1/feed/snapshot.csv") {
+    // paginated: no ?page -> the signed header (index); ?page=n -> one page (PAGE_ROWS rows) as CSV or JSON
     const fire = key && key.active && key.tier === "firehose";
+    const pg = sp.get("page");
+    if (pg !== null && !/^[0-9]{1,6}$/.test(pg)) return J({ error: "page must be an integer >= 0", code: "bad_input" }, 400);
     if (!fire) { const q = await free(); if (q) return q; }
-    const snap = await loadSnapshot(db, now, !fire);
-    if (!snap) return J({ error: "no snapshot available yet (built daily)", code: "no_snapshot" }, 404);
-    const sig = { "x-feed-snapshot-date": snap.header.date, "x-feed-csv-sha256": snap.header.csv_sha256, "x-feed-kid": String(snap.header.kid || "") };
-    if (path.endsWith(".csv")) return new Response(toCsv(snap.rows), { status: 200, headers: { "content-type": "text/csv; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "no-store", "content-disposition": `attachment; filename="402xagent-feed-${snap.header.date}.csv"`, ...sig } });
-    return J({ access: fire ? "key" : "free", delayed: !fire, header: snap.header, rows: snap.rows }, 200, sig);
+    const head = await loadHead(db, now, !fire);
+    if (!head) return J({ error: "no snapshot available yet (built daily, in chunks)", code: "no_snapshot" }, 404);
+    const sig = { "x-feed-snapshot-date": head.date, "x-feed-rows-root": head.rows_root, "x-feed-kid": String(head.kid || "") };
+    const base = url.origin + url.pathname;
+    if (pg === null) return J({ access: fire ? "key" : "free", delayed: !fire, header: head, pages: head.pages, page_url: base + "?page={n}", first_page: base + "?page=0" }, 200, sig);
+    const n = Number(pg);
+    if (n >= head.pages) return J({ error: "page out of range (0.." + (head.pages - 1) + ")", code: "bad_page" }, 404);
+    const page = await loadPage(db, head, n);
+    if (!page) return J({ error: "snapshot page unavailable, try again shortly" }, 503);
+    const ph = { ...sig, "x-feed-page": String(n), "x-feed-page-csv-sha256": head.page_csv_sha256[n] };
+    if (path.endsWith(".csv")) return new Response(page.csv, { status: 200, headers: { "content-type": "text/csv; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "no-store", "content-disposition": `attachment; filename="402xagent-feed-${head.date}-p${n}.csv"`, ...ph } });
+    return J({ access: fire ? "key" : "free", delayed: !fire, date: head.date, page: n, pages: head.pages, rows: page.rows, ...(n + 1 < head.pages ? { next_page: base + "?page=" + (n + 1) } : {}) }, 200, ph);
   }
   return J({ error: "not found", manifest: "/v1/feed/manifest" }, 404);
 }

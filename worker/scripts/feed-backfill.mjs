@@ -2,8 +2,10 @@
 // 0.52.0 Watchtower feed backfill + D1 size estimate. LOCAL OR PREVIEW D1 ONLY: this script refuses to touch production.
 //
 //   node worker/scripts/feed-backfill.mjs --estimate [--watches N] [--crawl-rows N] [--history-rows N] [--db-bytes N]
+//       [--changes-per-day X] [--snapshot-bytes N]
 //       Measures bytes per feed row on a scratch SQLite (node >= 22.5, migration 0018) and prints the growth estimate:
-//       hourly x watches x 400 days + backfill rows. Reads nothing remote.
+//       (1 daily heartbeat + changes) x opted-in watches x 400 days, at today's count and at the 100 cap, + backfill + snapshots.
+//       Reads nothing remote.
 //   node worker/scripts/feed-backfill.mjs --local   [--persist-to DIR] [--dry-run] [--out DIR]
 //   node worker/scripts/feed-backfill.mjs --preview [--dry-run] [--out DIR]
 //       Reads the discover shards (crawl_store d:*) and endpoint_history from that D1 with `wrangler d1 execute`, writes
@@ -58,20 +60,29 @@ async function measure() {
   return { obsBytes, epBytes: (size() - b2) / EP, snapBytes: (gz.length * 4 / 3) / EP };
 }
 async function estimate() {
+  // 0.52.0 (PR #7 review): observations are written only on change + one heartbeat per endpoint per UTC day, and at most
+  // FEED_OPT_IN_MAX (100) watches opt in. rows/day per endpoint = 1 + --changes-per-day (default 0.1; worst case 24 = every probe).
   const watches = Number(opt("--watches", "1")), crawl = Number(opt("--crawl-rows", "0")), hist = Number(opt("--history-rows", "0")), dbBytes = Number(opt("--db-bytes", "0"));
+  const cpd = Number(opt("--changes-per-day", "0.1"));
+  const snapMeasured = Number(opt("--snapshot-bytes", "0")); // e.g. measured under wrangler dev
   const { obsBytes, epBytes, snapBytes } = await measure();
-  const hourly = watches * 24 * F.KEEP_DAYS;
-  const backfillObs = crawl + hist;
   const mb = (b) => (b / 1e6).toFixed(2) + " MB";
+  const series = (n, c) => n * (1 + c) * F.KEEP_DAYS;
+  const snapOne = snapMeasured || crawl * snapBytes;
+  const backfillBytes = (crawl + hist) * obsBytes + crawl * epBytes;
   const out = {
     measured_bytes_per_row: { feed_observations: Math.round(obsBytes), feed_endpoints: Math.round(epBytes) },
+    model: `rows per opted-in endpoint per day = 1 heartbeat + ${cpd} changes; ${F.KEEP_DAYS} days`,
     current_db: dbBytes ? mb(dbBytes) : "pass --db-bytes",
-    hourly_rows_400d: { watches, rows: hourly, bytes: mb(hourly * obsBytes) },
-    backfill: { observation_rows: backfillObs, endpoint_rows: crawl, bytes: mb(backfillObs * obsBytes + crawl * epBytes) },
-    per_500_watches_400d: mb(500 * 24 * F.KEEP_DAYS * obsBytes),
-    snapshots: { per_snapshot: mb(crawl * snapBytes), kept: F.SNAPSHOT_KEEP, bytes: mb(crawl * snapBytes * F.SNAPSHOT_KEEP) },
+    series_400d: Object.fromEntries([[`${watches}_watch`, watches], ["cap_100", 100]].map(([k, n]) => [k, { rows: Math.round(series(n, cpd)), bytes: mb(series(n, cpd) * obsBytes), worst_case_hourly: mb(series(n, 23) * obsBytes) }])),
+    backfill: { observation_rows: crawl + hist, endpoint_rows: crawl, bytes: mb(backfillBytes) },
+    snapshots: { per_snapshot: mb(snapOne), kept: F.SNAPSHOT_KEEP, bytes: mb(snapOne * F.SNAPSHOT_KEEP) },
   };
-  out.total_after_400d = dbBytes ? mb(dbBytes + hourly * obsBytes + backfillObs * obsBytes + crawl * epBytes + crawl * snapBytes * F.SNAPSHOT_KEEP) : null;
+  if (dbBytes) {
+    out.total_after_400d_now = mb(dbBytes + backfillBytes + snapOne * F.SNAPSHOT_KEEP + series(watches, cpd) * obsBytes);
+    out.total_after_400d_at_cap = mb(dbBytes + backfillBytes + snapOne * F.SNAPSHOT_KEEP + series(100, cpd) * obsBytes);
+    out.total_at_cap_worst_case = mb(dbBytes + backfillBytes + snapOne * F.SNAPSHOT_KEEP + series(100, 23) * obsBytes);
+  }
   console.log(JSON.stringify(out, null, 2));
 }
 

@@ -214,10 +214,10 @@ tiers is **Base Sepolia** USDC through the existing `paymentRequirements` / `ver
 
 | Route | Free | Paid |
 |---|---|---|
-| `GET /v1/feed?category=&host=&since=&offset=` | daily snapshot >= 24 h old, 100 rows | `live=1` $0.01/call (1000 rows), or a key |
+| `GET /v1/feed?category=&host=&since=&offset=` | daily snapshot >= 24 h old, 100 rows, category + offset only | `live=1` $0.01/call (1000 rows, host/since), or a key |
 | `GET /v1/feed/endpoint/{hkey}` | state as of 24 h ago + 7 days of observations | `live=1` $0.01/call: live + 400 days |
 | `GET /v1/feed/drift?from=&to=` | 7 days, 24 h delayed, 100 rows | `full=1` $0.05/call: full history |
-| `GET /v1/feed/snapshot.json` / `.csv` | daily signed snapshot >= 24 h old | firehose key: latest snapshot |
+| `GET /v1/feed/snapshot.json` / `.csv?page=n` | signed header (index) + 500-row pages, >= 24 h old | firehose key: latest snapshot |
 | `GET /v1/feed/manifest` | schema, tiers, network, signing kid | |
 | `POST /v1/feed/subscribe {tier, scope}` | | endpoint $1, category $10, firehose $49 per 30 days; `fk_` key shown once, stored hashed |
 
@@ -225,7 +225,12 @@ Categories (fixed): search/data, inference, crypto-market, content, infra, other
 source-list fields). Inclusion: crawl-known public URLs, plus watches created with `"feed_opt_in": true` or toggled with
 `POST /v1/watch/{id}/feed {"opt_in": true|false}` (Bearer). Opting out deletes watch-only rows. Free calls: 200 per UTC
 day per network (`feed_quota`, salted prefix hash). The daily cron prunes observations older than 400 days and builds the
-snapshot (`crawl_store`, source `feed`, newest 3 kept). `PAYMENT-RESPONSE` on feed routes is `{success, network}` only.
+snapshot is built in chunks: one step of 5000 endpoints per `*/20` tick (about 25 ticks for 123k; 82-182 ms per step under
+wrangler dev), stored as 500-row gzip pages in `crawl_store` (source `feed`, newest 3 complete snapshots kept); the signed
+header lists `page_csv_sha256[]` and `rows_root`. Watch observations are written only on a change (state, HTTP status,
+terms, drift/down/recovery) plus one heartbeat per endpoint per UTC day; at most 100 watches may opt in (`FEED_OPT_IN_MAX`,
+cap hits are logged without ids). Feed routes return the standard x402 `PAYMENT-RESPONSE` to the paying buyer; settlement
+data never enters feed tables, snapshots or bodies.
 
 Backfill (local or preview D1 only; `--remote` is refused): `node worker/scripts/feed-backfill.mjs --estimate ...` for
 the size estimate, `--local [--persist-to DIR] [--dry-run]` or `--preview` to write crawl + endpoint_history rows.
