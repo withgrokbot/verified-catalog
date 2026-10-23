@@ -1524,6 +1524,17 @@ test("bot tags (0.11.0): scanner, example-param, indexer on lookup + spot; views
   const v = await pts("/v1/skips?ref=via-x402scan", { ua: "Mozilla/5.0" });
   assert.equal(v.points[0].blobs[10], "via-x402scan", JSON.stringify(v.points[0].blobs));
   assert.equal(v.points[0].blobs[5], "");
+  // 0.51.2: browser UA without Sec-Fetch-Mode / Sec-CH-UA / Accept-Language on a view = scripted client ("headless")
+  const sweep = await pts("/v1/receipts/0000000000", { ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36", headers: { referer: "https://www.google.com/" } });
+  assert.equal(sweep.points[0].blobs[5], "headless", JSON.stringify(sweep.points[0].blobs));
+  assert.equal(sweep.points[0].blobs[17], "sfm:-|al:0|chua:0");
+  const human = await pts("/v1/receipts/0000000000", { ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36", headers: { referer: "https://www.google.com/", "sec-fetch-mode": "navigate", "accept-language": "en-US,en;q=0.9", "sec-ch-ua": '"Chromium";v="130"' } });
+  assert.equal(human.points[0].blobs[5], "", "a real browser navigation stays untagged");
+  assert.equal(human.points[0].blobs[17], "sfm:navigate|al:1|chua:1");
+  const safari = await pts("/v1/receipts/0000000000", { ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Safari/604.1", headers: { "accept-language": "en-GB" } });
+  assert.equal(safari.points[0].blobs[5], "", "any one browser header is enough");
+  const gb = await pts("/v1/receipts/0000000000", { ua: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" });
+  assert.equal(gb.points[0].blobs[5], "crawler", "real Googlebot keeps its crawler tag");
 });
 
 test("guessed Spot-Check paths 308 to /v1/products/endpoint-spot-check with the query; 404 names the spot-check route (0.12.1)", async () => {
@@ -2681,7 +2692,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.51.1");
+  assert.equal(VERSION, "0.51.2");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)

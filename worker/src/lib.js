@@ -64,7 +64,7 @@ export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECK
 import { BRAND_ASSETS } from "./brand.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.51.1";
+export const VERSION = "0.51.2";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -3608,16 +3608,31 @@ export function viewName(path) {
   if (path === "/") return "docs-home";
   return "";
 }
+// 0.51.2: a page view with a browser UA (Mozilla/...) but none of the headers every current browser sends on a
+// navigation (Sec-Fetch-Mode, Sec-CH-UA, Accept-Language) is a scripted client. The 2026-10-22/23 receipt-page
+// sweep (86 Mozilla clients with a Google Referer, one distinct receipt each every few minutes, round the clock, all
+// starting within 15 minutes) fits that. Views only (analytics tag, never changes an answer).
+export function headlessBrowserShape(req) {
+  const h = (k) => req.headers.get(k) || "";
+  if (!/^Mozilla\//.test(h("user-agent"))) return false;
+  return !h("sec-fetch-mode") && !h("sec-ch-ua") && !h("accept-language");
+}
+// Header shape only (no values beyond the Sec-Fetch-Mode token), so the next report can confirm the tag.
+export function viewHeaderShape(req) {
+  const h = (k) => req.headers.get(k) || "";
+  return `sfm:${h("sec-fetch-mode").slice(0, 12) || "-"}|al:${h("accept-language") ? 1 : 0}|chua:${h("sec-ch-ua") ? 1 : 0}`;
+}
 async function viewPoint(req, env, url, view, status) {
   try {
     if (view === "pack" && status !== 402 && status !== 200) return; // the pack handler's own errors
     const q = parseQuery(url);
     const cid = await clientId(req, q, env);
     const ua = req.headers.get("user-agent") || "";
-    const excluded = exclusion(req, q, env, view === "pack" ? url : null);
+    let excluded = exclusion(req, q, env, view === "pack" ? url : null);
+    if (!excluded && !q.ref && !q.client && headlessBrowserShape(req)) excluded = "headless";
     const qv = { ...q, errors: [], endpoint: (url.pathname + (url.searchParams.get("page") ? "?page=" + url.searchParams.get("page") : "")).slice(0, 200) };
     const access = "view-" + view + (view === "pack" ? (status === 402 ? "-402" : "-paid") : "");
-    const dp = dataPoint({ product: view === "pack" ? "pack" : "view", cid, q: qv, excluded, candidates: 0, ua, returnedPayTo: [], status, referer: refererHost(req), access });
+    const dp = dataPoint({ product: view === "pack" ? "pack" : "view", cid, q: qv, excluded, candidates: 0, ua, returnedPayTo: [], status, referer: refererHost(req), access, shape: viewHeaderShape(req) });
     dp.blobs[5] = excluded || ""; // views: blob6 = bot tag only ("" = possibly real); never qualifying
     dp.doubles[0] = 0;
     writePoint(env, dp);
