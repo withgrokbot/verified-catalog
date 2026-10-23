@@ -1,0 +1,100 @@
+{
+  "service_id": "hypernatt-liq-radar",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://hypernatt.com/api/m2m/liq-radar",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 303,
+    "headers": {
+      "server": "nginx",
+      "date": "Fri, 23 Oct 2026 17:51:54 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "3770",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "X-PAYMENT header required. Pay $0.001 USDC exact via x402 on Base (eip155:8453, EIP-3009) OR Solana (SVM exact). Solana x402 is SVM exact, not an EVM signature. No @x402/svm -> pay accepts[0] Base. SVM tx expires in ~90s (blockhash); sign immediately. feePayer MUST equal extra.feePayer from this 402; amount MUST equal accepts[].amount.",
+          "resource": {
+            "url": "https://hypernatt.com/api/m2m/liq-radar",
+            "description": "Forced-order map. If cluster_grammar is present, read it before liq_radar. class=noise (<3%) is high-leverage bait - ignore. class=true (~7%+) is the low-leverage stack. Terrain, not a signal. Whitelist BTC ETH SOL BNB XRP HYPE ZEC (omit = BTC).",
+            "mimeType": "application/json",
+            "serviceName": "HyperNatt Terminal",
+            "tags": [
+              "bitcoin",
+              "hyperliquid",
+              "trading",
+              "market maker",
+              "liquidations"
+            ]
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "maxAmountRequired": "1000",
+              "amount": "1000",
+              "payTo": "0x5a78ace5dd133316c8aaf7e156fbfc57e1209cf9",
+              "maxTimeoutSeconds": 60,
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "decimals": 6
+              },
+              "resource": "https://hypernatt.com/api/m2m/liq-radar",
+              "description": "Pay $0.001 USDC to access: Forced-order map. If cluster_grammar is present, read it before liq_radar. class=noise (<3%) is high-leverage bait - ignore. class=true (~7%+) is the low-leverage stack. Terrain, not a signal. Whitelist BTC ETH SOL BNB XRP HYPE ZEC (omit = BTC).",
+              "mimeType": "application/json"
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "maxAmountRequired": "1000",
+              "amount": "1000",
+              "payTo": "2hAXt3sb2GZrtXx4ae4Ywc7enqrE191nktyL5k2nWSfg",
+              "maxTimeoutSeconds": 60,
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "extra": {
+                "feePayer": "D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM"
+              },
+              "resource": "https://hypernatt.com/api/m2m/liq-radar",
+              "description": "Pay $0.001 USDC to access: Forced-order map. If cluster_grammar is present, read it before liq_radar. class=noise (<3%) is high-leverage bait - ignore. class=true (~7%+) is the low-leverage stack. Terrain, not a signal. Whitelist BTC ETH SOL BNB XRP HYPE ZEC (omit = BTC).",
+              "mimeType": "application/json"
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 3770,
+    "body_sha256": "a118937f24d2543562d18894ca792a26b0d17cf101fefe77bbf5b41690e8ecb5",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"X-PAYMENT header required. Pay $0.001 USDC exact via x402 on Base (eip155:8453, EIP-3009) OR Solana (SVM exact). Solana x402 is SVM exact, not an EVM signature. No @x402/svm -> pay accepts[0] Base. SVM tx expires in ~90s (blockhash); sign immediately. feePayer MUST equal extra.feePayer from this 402; amount MUST equal accepts[].amount.\",\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"maxAmountRequired\":\"1000\",\"amount\":\"1000\",\"payTo\":\"0x5a78ace5dd133316c8aaf7e156fbfc57e1209cf9\",\"maxTimeoutSeconds\":60,\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"decimals\":6},\"resource\":\"https://hypernatt.com/api/m2m/liq-radar\",\"description\":\"Pay $0.001 USDC to access: Forced-order map. If cluster_grammar is present, read it before liq_radar. class=noise (<3%) is high-leverage bait - ignore. class=true (~7%+) is the low-leverage stack. Terrain, not a signal. Whitelist BTC ETH SOL BNB XRP HYPE ZEC (omit = BTC).\",\"mimeType\":\"application/json\"},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"maxAmountRequired\":\"1000\",\"amount\":\"1000\",\"payTo\":\"2hAXt3sb2GZrtXx4ae4Ywc7enqrE191nktyL5k2nWSfg\",\"maxTimeoutSeconds\":60,\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"extra\":{\"feePayer\":\"D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM\"},\"resource\":\"https://hypernatt.com/api/m2m/liq-radar\",\"description\":\"Pay $0.001 USDC to access: Forced-order map. If cluster_grammar is present, read it before liq_radar. class=noise (<3%) is high-leverage bait - ignore. class=true (~7%+) is the low-leverage stack. Terrain, not a signal. Whitelist BTC ETH SOL BNB XRP HYPE ZEC (omit = BTC).\",\"mimeType\":\"application/json\"}],\"resource\":{\"url\":\"https://hypernatt.com/api/m2m/liq-radar\",\"description\":\"Forced-order map. If cluster_grammar is present, read it before liq_radar. class=noise (<3%) is high-leverage bait - ignore. class=true (~7%+) is the low-leverage stack. Terrain, not a signal. Whitelist BTC ETH SOL BNB XRP HYPE ZEC (omit = BTC).\",\"mimeType\":\"application/json\",\"serviceName\":\"HyperNatt Terminal\",\"tags\":[\"bitcoin\",\"hyperliquid\",\"trading\",\"market maker\",\"liquidations\"]},\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"type\":\"http\",\"method\":\"GET\",\"queryParams\":{}},\"output\":{\"type\":\"json\",\"example\":{\"ok\":true,\"product\":\"hypernatt_liq_radar_v1\",\"payload_schema\":\"hypernatt_liq_radar_v2\",\"symbol\":\"BTC\",\"default_symbol\":\"BTC\",\"supported_symbols\":[\"BTC\",\"ETH\",\"SOL\",\"BNB\",\"XRP\",\"HYPE\",\"ZEC\"],\"liq_radar\":{\"magnet\":{\"score\":-60,\"bias\":\"BEARISH_MAGNET\"},\"ls_ratio\":{\"long_pct\":67,\"short_pct\":33},\"liq_density\":{\"asymmetry\":0.32,\"clusters_above\":[{\"price\":64100,\"size_btc\":60.8,\"distance_pct\":3.45}],\"clusters_below\":[{\"price\":59100,\"size_btc\":123.5,\"distance_pct\":4.62}]},\"real_liquidations\":{\"window_1h\":{\"count\":43,\"dominant\":\"short\"}}}}}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"GET\",\"HEAD\",\"DELETE\"]},\"queryParams\":{\"type\":\"object\",\"properties\":{}}},\"required\":[\"type\",\"method\"],\"additionalProperties\":false},\"output\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\"},\"example\":{\"type\":\"object\"}},\"required\":[\"type\"]}},\"required\":[\"input\"]}},\"builder-code\":{\"info\":{\"a\":\"bc_44pslzw2\"},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\",\"pattern\":\"^[a-z0-9_]{1,32}$\",\"description\":\"App builder code\"},\"w\":{\"type\":\"string\",\"pattern\":\"^[a-z0-9_]{1,32}$\",\"description\":\"Wallet builder code\"},\"s\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"pattern\":\"^[a-z0-9_]{1,32}$\"},\"description\":\"Service builder codes\"}},\"additionalProperties\":false}}}}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 2835,
+    "headers": {
+      "server": "nginx",
+      "date": "Fri, 23 Oct 2026 17:51:57 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "5847"
+    },
+    "body_bytes": 5847,
+    "body_sha256": "173df8ffd2530f5f091d571bac97567bd9e0c9a10e1be544358f5e19e414a094",
+    "body_excerpt": "{\"ok\":true,\"product\":\"hypernatt_liq_radar_v1\",\"payload_schema\":\"hypernatt_liq_radar_v2\",\"default_symbol\":\"BTC\",\"supported_symbols\":[\"BTC\",\"ETH\",\"SOL\",\"BNB\",\"XRP\",\"HYPE\",\"ZEC\"],\"assets_hint_en\":\"Pass symbol=ETH|SOL|BNB|XRP|HYPE|ZEC (or *USDT). Omit = BTC. Same $0.001/call. qty_unit is that coin; *_btc keys are a legacy alias of the same base quantity, not Bitcoin unless symbol=BTC.\",\"compatible_with\":[\"hypernatt_liq_radar_v1\"],\"symbol\":\"BTC\",\"binance_symbol\":\"BTCUSDT\",\"issued_at\":\"2026-10-23T17:51:57.477Z\",\"provenance\":{\"venue\":\"binance_oi_hist+hyperliquid_ctx\",\"hl_coin\":\"BTC\",\"binance_symbol\":\"BTCUSDT\",\"layer\":\"market-data.liq_radar\",\"note\":\"Clusters ranked by estimated size within +/-10% of mark; largest_* are size leaders (nearest_* is a temporary alias). Quantity keys ending _btc are a legacy alias of this coin's base size; read qty_unit / size / qty.\"},\"cluster_grammar\":{\"schema\":\"hypernatt_cluster_grammar_v1\",\"available\":true,\"rules\":{\"noise_lt_pct\":3,\"true_gte_pct\":7,\"window_pct\":10},\"true_short\":{\"price\":87400,\"size_btc\":27.1,\"distance_pct\":7.07,\"rank\":1,\"class\":\"true\"},\"true_long\":null,\"largest_short_is_noise\":false,\"largest_long_is_noise\":true,\"hold_if\":[\"largest_near_mark_is_noise\"],\"do_not\":[\"treat_largest_as_hunt_if_noise\",\"fade_magnet_score_alone\",\"equate_nearest_with_closest\",\"treat_class_true_as_entry_signal\"],\"not_a_signal\":true},\"liq_radar\":{\"available\":true,\"price_at_compute\":81632.01,\"hl_coin\":\"BTC\",\"binance_symbol\":\"BTCUSDT\",\"oi\":{\"current\":91976,\"delta_48h\":-7096,\"delta_48h_pct\":-7.16,\"new_positions_btc\":5601,\"building\":false},\"ls_ratio\":{\"long_pct\":67.4,\"short_pct\":32.6,\"ratio\":2.067,\"trend_24h\":0.6,\"shorts_dominant\":false,\"longs_dominant\":true},\"top_traders\":{\"long_pct\":62.7,\"short_pct\":37.3,\"ratio\":1.678},\"taker\":{\"buy_vol_24h\":53222,\"sell_vol_24h\":49560,\"ratio\":1.0739,\"buyers_aggressive\":true,\"sellers_aggressive\":false},\"funding_history\":{\"periods\":30,\"positive_count\":26,\"negative_count\":4,\"cumulative_pct\":0.1452,\"shorts_paying_dominant\":false,\"latest_rate_pct\":0.01},\"hl_btc\":{\"oi_btc\":44940,\"funding_rate\":0.0013,\"mark_price\":81629},\"liq_density\":{\"short_liq_above_btc\":114.2,\"long_liq_below_btc\":287.1,\"asymmetry\":0.4308,\"clusters_above\":[{\"price\":87400,\"size_btc\":27.1,\"distance_pct\":7.07,\"rank\":1,\"class\":\"true\",\"size\":27.1,\"qty_unit\":\"BTC\"},{\"price\":88300,\"size_btc\":27.1,\"distance_pct\":8.17,\"rank\":2,\"class\":\"true\",\"size\":27.1,\"qty_unit\":\"BTC\"},{\"price\":89400,\"size_btc\":20.5,\"distance_pct\":9.52,\"rank\":3,\"class\":\"true\",\"size\":20.5,\"qty_unit\":\"BTC\"},{\"price\":84500,\"size_btc\":19.9,\"distance_pct\":3.51,\"rank\":4,\"class\":\"mid\",\"size\":19.9,\"qty_unit\":\"BTC\"},{\"price\":85700,\"size_btc\":19.6,\"distance_pct\":4.98,\"rank\":5,\"class\":\"mid\",\"size\":19.6,\"qty_unit\":\"BTC\"}],\"clusters_below\":[{\"price\":80600,\"size_btc\":74.9,\"distance_pct\":1.26,\"rank\":1,\"class\":\"noise\",\"size\":74.9,\"qty_unit\":\"BTC\"},{\"price\":76300,\"size_btc\":57.7,\"distance_pct\":6.53,\"rank\":2,\"class\":\"mid\",\"size\":57.7,\"qty_unit\":\"BTC\"},{\"price\":80500,\"size_btc\":56,\"distance_pct\":1.39,\"rank\":3,\"class\":\"noise\",\"size\":56,\"qty_unit\":\"BTC\"},{\"price\":81300,\"size_btc\":56,\"distance_pct\":0.41,\"rank\":4,\"class\":\"noise\",\"size\":56,\"qty_unit\":\"BTC\"},{\"price\":77000,\"size_btc\":42.6,\"distance_pct\":5.67,\"rank\":5,\"class\":\"mid\",\"size\":42.6,\"qty_unit\":\"BTC\"}],\"largest_short_cluster\":{\"price\":87400,\"size_btc\":27.1,\"distance_pct\":7.07,\"rank\":1,\"class\":\"true\",\"size\":27.1,\"qty_unit\":\"BTC\"},\"largest_long_cluster\":{\"price\":80600,\"size_btc\":74.9,\"distance_pct\":1.26,\"rank\":1,\"class\":\"noise\",\"size\":74.9,\"qty_unit\":\"BTC\"},\"nearest_short_cluster\":{\"price\":87400,\"size_btc\":27.1,\"distance_pct\":7.07,\"rank\":1,\"class\":\"true\",\"size\":27.1,\"qty_unit\":\"BTC\"},\"nearest_long_cluster\":{\"price\":80600,\"size_btc\":74.9,\"distance_pct\":1.26,\"rank\":1,\"class\":\"noise\",\"size\":74.9,\"qty_unit\":\"BTC\"}},\"magnet\":{\"score\":-20,\"bias\":\"SLIGHT_BEARISH\",\"signals\":[\"longs_dominant_67pct\",\"longs_paying_funding\",\"smart_money_long_63pct\",\"taker_buyers_1.074\",\"liq_asym_long_heavy_+0.431\"]},\"real_liquidations\":{\"available\":true,\"stream_symbol\":\"BTCUSDT\",\"connected\":true,\"enabled\":true,\"observation_sec\":3144740,\"windows_partia"
+  },
+  "quality": {
+    "result": "not_graded",
+    "reason": "no known-answer test for this service",
+    "observed": {},
+    "expected": {},
+    "test": null,
+    "graded_at": "2026-10-23T17:51:57Z"
+  },
+  "run_id": "20261023T175124Z",
+  "checked_at": "2026-10-23T17:51:54Z"
+}

@@ -39,33 +39,38 @@
     "facts_only": true,
     "facts_only_reason": "On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made."
   },
-  "paid_receipts": 3,
+  "paid_receipts": 4,
   "latest": {
-    "checked_at": "2026-10-23T14:46:08Z",
-    "mode": "dry-run",
+    "checked_at": "2026-10-23T17:51:31Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 417,
+    "latency_ms": 301,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.003",
     "quoted_price_usd": "0.003",
     "price_matches_listing": true,
-    "paid": false,
-    "charged_price_usd": null,
-    "delivered_valid": null,
+    "paid": true,
+    "charged_price_usd": "0.003",
+    "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
-    "quality": null,
-    "raw_log": "results/raw/20261023T144607Z/apitoll-edgar-filings.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261023T144607Z/apitoll-edgar-filings.json"
+    "quality": {
+      "result": "not_graded",
+      "reason": "facts only: On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made.",
+      "facts_only": true,
+      "graded_at": "2026-10-23T17:51:33Z"
+    },
+    "raw_log": "results/raw/20261023T175124Z/apitoll-edgar-filings.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261023T175124Z/apitoll-edgar-filings.json"
   },
   "history_summary": {
-    "checks": 30,
-    "reachable": 26,
-    "x402_challenge_ok": 26,
-    "paid_checks": 3,
+    "checks": 31,
+    "reachable": 27,
+    "x402_challenge_ok": 27,
+    "paid_checks": 4,
     "first_checked": "2026-09-30T01:01:55Z",
-    "last_checked": "2026-10-23T14:46:08Z"
+    "last_checked": "2026-10-23T17:51:31Z"
   }
 }
