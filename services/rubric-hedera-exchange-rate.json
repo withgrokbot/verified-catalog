@@ -32,36 +32,31 @@
   "quality_test": null,
   "paid_receipts": 5,
   "latest": {
-    "checked_at": "2026-10-23T17:51:57Z",
-    "mode": "paid",
+    "checked_at": "2026-10-24T14:36:50Z",
+    "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 91,
+    "latency_ms": 75,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001",
     "quoted_price_usd": "0.001",
     "price_matches_listing": true,
-    "paid": true,
-    "charged_price_usd": "0.001",
-    "delivered_valid": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
     "payment_refused_reason": null,
     "error": null,
-    "quality": {
-      "result": "not_graded",
-      "reason": "no known-answer test for this service",
-      "facts_only": false,
-      "graded_at": "2026-10-23T17:51:58Z"
-    },
-    "raw_log": "results/raw/20261023T175124Z/rubric-hedera-exchange-rate.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261023T175124Z/rubric-hedera-exchange-rate.json"
+    "quality": null,
+    "raw_log": "results/raw/20261024T143649Z/rubric-hedera-exchange-rate.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261024T143649Z/rubric-hedera-exchange-rate.json"
   },
   "history_summary": {
-    "checks": 22,
-    "reachable": 22,
-    "x402_challenge_ok": 22,
+    "checks": 23,
+    "reachable": 23,
+    "x402_challenge_ok": 23,
     "paid_checks": 5,
     "first_checked": "2026-10-06T17:58:54Z",
-    "last_checked": "2026-10-23T17:51:57Z"
+    "last_checked": "2026-10-24T14:36:50Z"
   }
 }
