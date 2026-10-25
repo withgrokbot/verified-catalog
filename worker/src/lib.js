@@ -1898,7 +1898,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const shape = spotShape(q.ctx);
   if (q.errors.length) {
     const fix = spotFix(q);
-    writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-bad-params", failReason: fix.mistake, shape }));
+    // 0.51.4: the data point carries the status actually answered (402 discovery / 200 usage / 400), not always 400.
+    const spotPoint = (status, access) => writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status, referer, access, failReason: fix.mistake, shape }));
     // 0.26.1: a GET/HEAD with no url and no misnamed param is a usage/health request (directory health probes): same help body,
     // HTTP 200. A malformed url, or a POST with bad params, stays 400.
     // 0.39.1: no url, no misnamed param, no payment header -> an x402 v2 discovery 402 (same accepts/Bazaar metadata as the real
@@ -1908,9 +1909,11 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       const help = spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem, fix);
       const body = { ...spotPaymentRequired(spotDynCfg(c, null), resourceUrl, "Missing url. Add ?url=<x402 endpoint> (or POST JSON {\"url\": ...}) to run a check.", 0, ""), hint: help.error, field: help.field, example: help.example, discovery: true };
       body.pricing = "flat $0.02 USDC per check (any target price)";
+      spotPoint(402, "spot-discovery");
       return json402c(body, 402, { "payment-required": b64encode(body) });
     }
     const usage = q.errors[0].missing && !(q.ctx.unknown || []).length && (req.method === "GET" || req.method === "HEAD"); // a misnamed param (?link=) stays 400
+    spotPoint(usage ? 200 : 400, usage ? "spot-usage" : "spot-bad-params");
     return json(spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem, fix), usage ? 200 : 400);
   }
 
@@ -3204,6 +3207,12 @@ export const MCP_TOOLS = [
 ];
 
 class ToolInputError extends Error {}
+// 0.51.4: pay_to for endpoint_spot_check only when it is a real address: 0x + 40 hex (EVM) or a 32-44 char base58 key (Solana).
+export function mcpPayTo(v) {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return /^0x[0-9a-fA-F]{40}$/.test(s) || /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s) ? s : null;
+}
 const pyStr = (v) => (v === null ? "None" : v === true ? "True" : v === false ? "False" : String(v));
 const blank = (v) => v === undefined || v === null || v === "";
 function pyInt(v) {
@@ -3363,7 +3372,9 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         if (!args.url) return err("url is required");
         const qp = new URLSearchParams({ client: MCP_CLIENT, url: pyStr(args.url) });
         if (args.task) qp.set("task", pyStr(args.task));
-        for (const k of ["method", "pay_to", "network", "mode", "ref"]) if (args[k]) qp.set(k, pyStr(args[k]));
+        for (const k of ["method", "network", "mode", "ref"]) if (args[k]) qp.set(k, pyStr(args[k]));
+        const payTo = mcpPayTo(args.pay_to); // 0.51.4: a malformed pay_to is omitted instead of turning the check into a 400
+        if (payTo) qp.set("pay_to", payTo);
         if (!blank(args.claimed_price)) {
           const d = decStr(args.claimed_price);
           if (d === null) return err("claimed_price must be a number");

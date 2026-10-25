@@ -4335,6 +4335,31 @@ test("0.51.4: spot-check 400 body: template + filled example + free check link, 
   assert.equal(r.body.fixed_example.url, R + "?url=" + encodeURIComponent("https://api.example.org/v1/q?a=1"));
 });
 
+// 0.51.4: spot data points carry the status actually answered; MCP drops a malformed pay_to instead of a 400.
+test("0.51.4: bare spot call logs 402 spot-discovery (not 400); real 400 keeps spot-bad-params; MCP omits malformed pay_to", async () => {
+  const e = spotEnv();
+  const last = () => e.points.at(-1);
+  let r = await send(SPOT, { envo: e });
+  assert.equal(r.status, 402); assert.equal(last().doubles[2], 402); assert.equal(last().blobs[12], "spot-discovery"); assert.equal(last().blobs[16], "no_params");
+  r = await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+  assert.equal(r.status, 402); assert.equal(last().doubles[2], 402); assert.equal(last().blobs[12], "spot-discovery");
+  r = await send(SPOT, { envo: e, headers: { "x-payment": "x" } });
+  assert.equal(r.status, 200); assert.equal(last().doubles[2], 200); assert.equal(last().blobs[12], "spot-usage");
+  r = await send(SPOT + "?url=notaurl", { envo: e });
+  assert.equal(r.status, 400); assert.equal(last().doubles[2], 400); assert.equal(last().blobs[12], "spot-bad-params");
+  const { mcpPayTo } = await import("../worker/src/lib.js");
+  const evm = "0x" + "aB".repeat(20);
+  assert.equal(mcpPayTo(" " + evm + " "), evm);
+  assert.equal(mcpPayTo("So11111111111111111111111111111111111111112"), "So11111111111111111111111111111111111111112");
+  for (const bad of ["0x123", "0x" + "g".repeat(40), "0x" + "a".repeat(41), "", null, 42, { a: 1 }, "not a wallet"]) assert.equal(mcpPayTo(bad), null, String(bad));
+  spotTargetMode = "402";
+  const call = (pay_to) => rpc({ jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: "https://spot.target.fixture/api", mode: "dry-run", ref: "mcp-payto", pay_to } } }, { envo: spotEnv({ RECEIPTS_DB: fakeD1() }) });
+  const m = await call("0x123");
+  assert.equal(m.body.result.isError, undefined, JSON.stringify(m.body).slice(0, 300));
+  assert.ok(["pay", "skip", "recheck"].includes(m.body.result.structuredContent.verdict));
+  assert.ok(!m.points.some((p) => p.blobs[16] === "bad_pay_to"), "no bad_pay_to 400 from the MCP");
+});
+
 let passed = 0, skipped = 0;
 const SKIP = Symbol("skip");
 for (const [name, fn] of T) {
