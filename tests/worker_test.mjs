@@ -1051,7 +1051,7 @@ test("spot-check aliases: endpoint= and claimed_price_usd= accepted (0.6.3); /v1
   assert.equal(a.body.claimed_price_usd, 0.0001);
   const none = await send(SPOT + "?client=withgrokbot-selftest", { envo: e, headers: { "x-payment": "x" } });
   assert.equal(none.status, 200, "0.26.1: GET with no url (payment header present) = usage/help, HTTP 200");
-  assert.deepEqual(Object.keys(none.body), ["error", "field", "example", "mistake", "hint", "fixed_example", "docs"]);
+  assert.deepEqual(Object.keys(none.body), ["error", "field", "example", "example_filled", "free_check", "mistake", "hint", "fixed_example", "docs"]);
   assert.equal(none.body.field, "url");
   assert.ok(none.body.error.startsWith('Missing "url". Example: ') && !none.body.error.includes("\n"));
   const wrong = await send(SPOT + "?link=https://a.fixture/x", { envo: e });
@@ -2692,7 +2692,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.51.2");
+  assert.equal(VERSION, "0.51.4");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -4288,6 +4288,76 @@ test("0.49.0 explain templates: golden strings; payee shortened 6+4; free line m
     assert.match(s, R46.FREE_EXPLAIN_RE, s); assert.ok(!/\$|%|0x|:/.test(s), s);
   }
   assert.equal(P({ diff: [{ field: "price", listed: "0.02", observed: "0.05" }], compared: ["price"] }), P({ diff: [{ field: "price", listed: "0.02", observed: "0.05" }], compared: ["price"] }), "deterministic");
+});
+
+// 0.51.4: bad-params 400 stays JSON (same keys + error text shape) and adds a copyable template, a filled example and the free check.
+test("0.51.4: spot-check 400 body: template + filled example + free check link, under 1 KB, no raw echo of bad input", async () => {
+  const R = "https://api.402xagent.com/v1/products/endpoint-spot-check";
+  const e = spotEnv();
+  const cases = [
+    [SPOT + "?url=notaurl", "GET"],
+    [SPOT + "?url=ftp://files.fixture/x", "GET"],
+    [SPOT + "?link=https://a.fixture/x", "GET"],
+    [SPOT + "?url=https://a.fixture/x&claimed_price=abc", "GET"],
+    [SPOT, "POST", "nope"],
+    [SPOT, "POST", JSON.stringify({ target_url: "https://api.example.org/x" })],
+  ];
+  for (const [path, method, body] of cases) {
+    const r = await send(path, { envo: e, method, body, headers: body ? { "content-type": "application/json" } : {} });
+    assert.equal(r.status, 400, path);
+    assert.match(r.headers.get("content-type") || "", /application\/json/);
+    for (const k of ["error", "field", "example", "example_filled", "free_check", "mistake", "hint", "fixed_example", "docs"]) assert.ok(k in r.body, k + " " + path);
+    assert.equal(r.body.example, R + "?url=<endpoint>");
+    assert.equal(r.body.example_filled, R + "?url=https://api.402rates.com/v1/ping");
+    assert.deepEqual(r.body.free_check, { url: R + "?url=<endpoint>", free_per_day: 5 });
+    assert.ok(r.body.error.includes("Example: " + R + "?url=https://api.402rates.com/v1/ping"), r.body.error);
+    assert.ok(!r.body.error.includes("example.com"), "placeholder sample gone");
+    assert.ok(JSON.stringify(r.body).length < (method === "GET" ? 1024 : 1100), path + " " + JSON.stringify(r.body).length);
+  }
+  // hostile / oversized input: never echoed raw, body stays small
+  const evil = "https://a.fixture/" + "A".repeat(1800) + "?k=<script>alert(1)</script>";
+  let r = await send(SPOT + "?link=" + encodeURIComponent(evil), { envo: e });
+  assert.equal(r.status, 400); assert.equal(r.body.mistake, "wrong_param_name");
+  assert.deepEqual(r.body.fixed_example, { method: "GET", url: R + "?url=https://api.402rates.com/v1/ping" }, "long value -> real example");
+  let txt = JSON.stringify(r.body); assert.ok(txt.length < 1024, String(txt.length));
+  r = await send(SPOT + "?url=" + encodeURIComponent("ftp://" + "abc.".repeat(400)), { envo: e });
+  assert.equal(r.status, 400); assert.ok(JSON.stringify(r.body).length < 1100, "worst case: received is capped at ~100 chars"); assert.ok(!txt.includes("<script>") && !txt.includes("AAAAAAAAAA"));
+  const wallet = "https://a.fixture/pay?to=0x" + "ab".repeat(20);
+  r = await send(SPOT + "?endpoint_link=" + encodeURIComponent(wallet), { envo: e });
+  assert.ok(!JSON.stringify(r.body).includes("ab".repeat(20)), "wallet-like value not echoed");
+  r = await send(SPOT + "?" + encodeURIComponent('li"nk<b>') + "=" + encodeURIComponent("https://a.fixture/x"), { envo: e });
+  assert.equal(r.status, 400); txt = JSON.stringify(r.body); assert.ok(!txt.includes("<b>") && !txt.includes('li\\"nk'), txt);
+  r = await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "url=" + encodeURIComponent("https://a.fixture/\u0000x" + "B".repeat(500)) });
+  assert.equal(r.body.mistake, "post_form_body"); assert.deepEqual(r.body.fixed_example.body, { url: "https://api.402rates.com/v1/ping" });
+  assert.ok(JSON.stringify(r.body).length < 1100);
+  // a short, clean value is still moved to url= (0.22.0 behaviour kept)
+  r = await send(SPOT + "?link=" + encodeURIComponent("https://api.example.org/v1/q?a=1"), { envo: e });
+  assert.equal(r.body.fixed_example.url, R + "?url=" + encodeURIComponent("https://api.example.org/v1/q?a=1"));
+});
+
+// 0.51.4: spot data points carry the status actually answered; MCP drops a malformed pay_to instead of a 400.
+test("0.51.4: bare spot call logs 402 spot-discovery (not 400); real 400 keeps spot-bad-params; MCP omits malformed pay_to", async () => {
+  const e = spotEnv();
+  const last = () => e.points.at(-1);
+  let r = await send(SPOT, { envo: e });
+  assert.equal(r.status, 402); assert.equal(last().doubles[2], 402); assert.equal(last().blobs[12], "spot-discovery"); assert.equal(last().blobs[16], "no_params");
+  r = await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+  assert.equal(r.status, 402); assert.equal(last().doubles[2], 402); assert.equal(last().blobs[12], "spot-discovery");
+  r = await send(SPOT, { envo: e, headers: { "x-payment": "x" } });
+  assert.equal(r.status, 200); assert.equal(last().doubles[2], 200); assert.equal(last().blobs[12], "spot-usage");
+  r = await send(SPOT + "?url=notaurl", { envo: e });
+  assert.equal(r.status, 400); assert.equal(last().doubles[2], 400); assert.equal(last().blobs[12], "spot-bad-params");
+  const { mcpPayTo } = await import("../worker/src/lib.js");
+  const evm = "0x" + "aB".repeat(20);
+  assert.equal(mcpPayTo(" " + evm + " "), evm);
+  assert.equal(mcpPayTo("So11111111111111111111111111111111111111112"), "So11111111111111111111111111111111111111112");
+  for (const bad of ["0x123", "0x" + "g".repeat(40), "0x" + "a".repeat(41), "", null, 42, { a: 1 }, "not a wallet"]) assert.equal(mcpPayTo(bad), null, String(bad));
+  spotTargetMode = "402";
+  const call = (pay_to) => rpc({ jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: "https://spot.target.fixture/api", mode: "dry-run", ref: "mcp-payto", pay_to } } }, { envo: spotEnv({ RECEIPTS_DB: fakeD1() }) });
+  const m = await call("0x123");
+  assert.equal(m.body.result.isError, undefined, JSON.stringify(m.body).slice(0, 300));
+  assert.ok(["pay", "skip", "recheck"].includes(m.body.result.structuredContent.verdict));
+  assert.ok(!m.points.some((p) => p.blobs[16] === "bad_pay_to"), "no bad_pay_to 400 from the MCP");
 });
 
 let passed = 0, skipped = 0;
