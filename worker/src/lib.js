@@ -64,7 +64,7 @@ export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECK
 import { BRAND_ASSETS } from "./brand.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.51.2";
+export const VERSION = "0.51.4";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1185,15 +1185,30 @@ export function spotExample(origin) {
   return origin + "/v1/products/endpoint-spot-check?url=" + SPOT_EXAMPLE_TARGET;
 }
 // One-line 400 message: exact field name + a full working sample request (GET URL, and the one-line POST JSON).
+// 0.51.4: still JSON with the same keys (error, field, example, mistake, hint, fixed_example, docs); example is now the
+// copyable template (?url=<endpoint>), example_filled a real public endpoint from the docs (the old example.com sample is a
+// placeholder host that 0.49.2 rejects), free_check links the free check (5/day). GET 400s stay under 1 KB, POST ones about 1.05 KB.
+export const SPOT_400_FREE_CHECK = { url: FREE_CHECK_URL, free_per_day: 5 };
 export function spotBadRequest(origin, field, problem, fix = null) {
-  const example = spotExample(origin);
   return {
-    error: `${problem}. Example: ${example} (or POST JSON {"url":"${SPOT_EXAMPLE_TARGET}"} to ${origin}/v1/products/endpoint-spot-check)`,
-    field,
-    example,
+    error: `${problem}. Example: ${FREE_CHECK_EXAMPLE_URL}`,
+    field: String(field || "").replace(/[^A-Za-z0-9_.\-]/g, "").slice(0, 40),
+    example: FREE_CHECK_URL,
+    example_filled: FREE_CHECK_EXAMPLE_URL,
+    free_check: SPOT_400_FREE_CHECK,
     ...(fix ? { mistake: fix.mistake, hint: fix.hint, fixed_example: fix.fixed_example, docs: API_ORIGIN + "/openapi.json" } : {}),
   };
 }
+// 0.51.4: a caller value is only reused in fixed_example when it is short, printable and carries nothing that looks like a
+// secret, wallet or email (same tests as ops.js sanitizeReceived); otherwise the real example is used. Never echoed raw.
+const SPOT_FIX_MAX = 300;
+function safeFixValue(v) {
+  const s = String(v == null ? "" : v).trim();
+  if (!s || s.length > SPOT_FIX_MAX || /[^\x21-\x7e]/.test(s)) return null;
+  if (/0x[0-9a-f]{16,}/i.test(s) || /[A-Za-z0-9+\/=_\-]{40,}/.test(s) || /@/.test(s)) return null;
+  return s;
+}
+const safeParamName = (k) => String(k || "").replace(/[^A-Za-z0-9_.:\-]/g, "").slice(0, 40) || "?";
 const SPOT_KNOWN_PARAMS = new Set([...SPOT_URL_ALIASES, ...SPOT_PRICE_ALIASES, "task", "client", "ref", "format", "method", "pay_to", "network", "mode", "cb", "policy_cap_usd", "policy_remaining_usd"]);
 const SPOT_ROUTE = API_ORIGIN + "/v1/products/endpoint-spot-check";
 const looksLikeUrl = (v) => typeof v === "string" && /^https?:\/\/[^\s/]+\.[^\s]+/i.test(v.trim());
@@ -1212,21 +1227,21 @@ export function spotFix(q) {
   const get = (v) => ({ method: "GET", url: SPOT_ROUTE + "?url=" + encodeURIComponent(v) });
   const post = (v) => ({ method: "POST", url: SPOT_ROUTE, headers: { "content-type": "application/json" }, body: { url: v } });
   const asPost = ctx.method === "POST";
-  const fixFor = (v) => (asPost ? post(v) : get(v));
   const real = asPost ? post(FREE_CHECK_EXAMPLE_TARGET) : { method: "GET", url: FREE_CHECK_EXAMPLE_URL };
+  const fixFor = (v) => { const sv = safeFixValue(v); return sv ? (asPost ? post(sv) : get(sv)) : real; }; // 0.51.4: no raw echo
   const unknown = (ctx.unknown || []).filter((k) => k !== "cb");
   const val = (k) => (ctx.values || {})[k];
   if (e.field === "body") {
     const form = ctx.form || {};
     const fv = SPOT_URL_ALIASES.map((k) => form[k]).find(Boolean) || Object.values(form).find(looksLikeUrl);
-    if (fv) return { mistake: "post_form_body", hint: 'Send JSON with content-type application/json: {"url":"<endpoint>"} (form bodies are not read).', fixed_example: post(fv) };
+    if (fv) return { mistake: "post_form_body", hint: 'Send JSON with content-type application/json: {"url":"<endpoint>"} (form bodies are not read).', fixed_example: fixFor(fv) };
     return { mistake: "post_invalid_json", hint: 'POST a JSON object {"url":"<endpoint>"} with content-type application/json, or use GET ?url=<endpoint>.', fixed_example: real };
   }
   if (e.field === "url" && !q.url) {
     const k = unknown.find((n) => looksLikeUrl(val(n)) || looksLikeHost(val(n)));
     if (k) {
       const v = String(val(k)).trim();
-      return { mistake: asPost ? "post_wrong_field" : "wrong_param_name", hint: `Use "url" instead of "${String(k).slice(0, 40)}"${asPost ? " in the JSON body" : ""}.`, fixed_example: fixFor(looksLikeUrl(v) ? v : "https://" + v) };
+      return { mistake: asPost ? "post_wrong_field" : "wrong_param_name", hint: `Use "url" instead of "${safeParamName(k)}"${asPost ? " in the JSON body" : ""}.`, fixed_example: fixFor(looksLikeUrl(v) ? v : "https://" + v) };
     }
     if (!ctx.keys || !ctx.keys.filter((n) => n !== "cb").length) return { mistake: "no_params", hint: "Add ?url=<the x402 endpoint you are about to pay>, URL-encoded.", fixed_example: real };
     return { mistake: asPost ? "post_missing_url" : "missing_url", hint: asPost ? 'Put the endpoint in the JSON body as {"url":"<endpoint>"}.' : "Add url=<the x402 endpoint>, URL-encoded.", fixed_example: real };
@@ -1237,7 +1252,7 @@ export function spotFix(q) {
     return { mistake: "url_not_http", hint: "url must be a full http(s) URL of the x402 endpoint, URL-encoded.", fixed_example: real };
   }
   const t = q.url && looksLikeUrl(q.url) ? q.url : FREE_CHECK_EXAMPLE_TARGET;
-  return { mistake: "bad_" + String(e.field || "param").replace(/[^a-z_]/gi, "").slice(0, 20), hint: `Fix or drop "${e.field}"; the check only needs url.`, fixed_example: fixFor(t) };
+  return { mistake: "bad_" + String(e.field || "param").replace(/[^a-z_]/gi, "").slice(0, 20), hint: `Fix or drop "${safeParamName(e.field)}"; the check only needs url.`, fixed_example: fixFor(t) };
 }
 
 // Listing facts from our self-checked crawl (/v1/receipts), by exact URL. Used as the expected pay_to / network / price
@@ -1796,7 +1811,7 @@ async function parseSpotQuery(req, url) {
   ctx.unknown = [...new Set([...p.keys(), ...Object.keys(body)])].filter((k) => !SPOT_KNOWN_PARAMS.has(k));
   if (!target) {
     const unknown = ctx.unknown;
-    errors.push({ missing: true, field: "url", problem: unknown.length ? `Missing "url" (unknown param "${String(unknown[0]).slice(0, 40).replace(/[^\x20-\x7e]/g, "")}"; use "url")` : 'Missing "url"' });
+    errors.push({ missing: true, field: "url", problem: unknown.length ? `Missing "url" (unknown param "${String(unknown[0]).replace(/[^A-Za-z0-9_.:\-]/g, "").slice(0, 40)}"; use "url")` : 'Missing "url"' });
   } else {
     let u = null;
     try { u = new URL(target); } catch (_) { u = null; }
