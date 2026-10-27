@@ -4,8 +4,10 @@
 // Why: a backtest of our tracked set found about 0.53% of live "pay" verdicts were already wrong within about an hour,
 // mostly because the one probe behind them caught a flaky one-off answer. So a live, uncached check whose first probe
 // would end in "pay" re-reads the same target once more (a "confirm probe") before it answers pay:
-//   - the 402 terms (scheme, network, asset, amount, payTo of every offer) match  -> pay exactly as before
-//   - the terms differ                                                             -> recheck/terms_unstable
+//   - the 402 terms match (scheme, network, asset, payTo of every offer exactly; amount within the existing 1%
+//     PRICE_TOLERANCE of spotcheck.js, the same rule a listed price gets)        -> pay exactly as before
+//   - the terms differ                                                             -> recheck/terms_unstable, with
+//     multiprobe.diff_fields naming WHICH fields differed (field names only, never values or addresses)
 //   - the confirm probe fails (5xx, timeout, connection error) or answers another
 //     "not now" (429, WAF 403, DNS, our own concurrency cap, free trial)            -> that probe's own existing recheck
 //     reason (server_error, timeout, unreachable, rate_limited, ...); it is recorded with the per-host breaker like any
@@ -17,7 +19,8 @@
 // Anything else (A, B, A or A, B, C) is terms_unstable.
 //
 // Not re-probed: the 5-minute probe cache (a cached probe is reused as before), crawl/catalog answers, any first probe
-// that would not be pay (skip and recheck answers cost no extra request), and our own hosts (served in-process). Dry
+// that would not be pay (skip and recheck answers cost no extra request), cron self-checks (bazaar / stale / daily),
+// requests that never get access (unpaid over-quota 402, rejected payment), and our own hosts (in-process). Dry
 // runs and live checks share getProbe, so a cached probe that once said pay was always confirmed.
 //
 // Budget: the whole multi-probe shares the existing PROBE_TIMEOUT_MS budget (default 8000 ms), measured from the start of
@@ -26,14 +29,23 @@
 // Worst case is therefore PROBE_TIMEOUT_MS + (MULTIPROBE_COUNT - 1) * (MULTIPROBE_GAP_MS + 1500) ms
 // (defaults: 8000 + 250 + 1500 = 9750 ms); the usual case adds one probe round trip + 250 ms.
 //
-// Charging: unchanged. The probes all run before any quota, router credit, hosted meter or payment step, and a check is
-// still one free check or one $0.02 payment however many probes it took.
+// When (0.57.0 review): the confirm probe runs only after access is granted (a free check taken, a payment verified and
+// settled, prepaid router credit spent, a hosted key accepted, partner pool or exempt), right before the answer is
+// built. An unpaid over-quota request (402) therefore makes exactly one outbound probe. Charging and settlement are the
+// same as for any other recheck today: the access step already happened, so a confirm that turns pay into a recheck
+// is answered like a first-probe recheck (free check used / payment settled and charged $0.02). Cron self-checks
+// (bazaar, stale, daily) never confirm.
+
+import { priceMatchesClaimed } from "./spotcheck.js"; // the existing 1% PRICE_TOLERANCE rule (no new constant)
 
 export const MULTIPROBE_COUNT_DEFAULT = 2; // 1 = off (one probe, as before 0.57.0)
 export const MULTIPROBE_COUNT_MAX = 3;
 export const MULTIPROBE_GAP_MS_DEFAULT = 250;
 export const MULTIPROBE_GAP_MS_MAX = 2000;
 export const MULTIPROBE_MIN_CONFIRM_MS = 1500;
+// 0.57.0 review: diff_fields names (stable; stored in receipts at probe.multiprobe.diff_fields)
+export const DIFF_FIELDS = Object.freeze(["scheme", "network", "asset", "amount", "payTo", "accepts"]);
+
 
 const num = (raw) => (raw === undefined || raw === null || String(raw).trim() === "" ? NaN : Number(String(raw).trim()));
 
@@ -52,19 +64,50 @@ export function multiprobeWorstCaseMs(timeoutMs, cfg) {
 }
 
 const isSol = (n) => /^solana/i.test(String(n || ""));
-/**
- * Canonical fingerprint of a probe's 402 terms: every offer's scheme, network, asset, amount and payTo, sorted, so a
- * reordered accepts list is the same terms. EVM values are lowercased; Solana (base58, case-sensitive) kept as-is.
- * null when the probe carries no readable offer.
- */
-export function termsFingerprint(probe) {
+const FIELDS = ["scheme", "network", "asset", "amount", "payTo"];
+/** A probe's offers as normalized rows {scheme, network, asset, amount, payTo}. EVM values lowercased; Solana as-is. */
+export function termsRows(probe) {
   const acc = Array.isArray(probe && probe.accepts) ? probe.accepts : [];
-  const rows = acc.filter((a) => a && !a.raw && (a.network || a.payTo || a.amount != null)).map((a) => {
+  return acc.filter((a) => a && !a.raw && (a.network || a.payTo || a.amount != null)).map((a) => {
     const v = (x) => (x == null ? "" : isSol(a.network) ? String(x) : String(x).toLowerCase());
-    return [String(a.scheme || "").toLowerCase(), String(a.network || "").toLowerCase(), v(a.asset), String(a.amount ?? ""), v(a.payTo)].join("|");
+    return { scheme: String(a.scheme || "").toLowerCase(), network: String(a.network || "").toLowerCase(), asset: v(a.asset), amount: String(a.amount ?? ""), payTo: v(a.payTo) };
   });
+}
+const keyOf = (r) => [r.scheme, r.network, r.asset, r.payTo].join("|");
+const sortRows = (rows) => [...rows].sort((x, y) => (keyOf(x) < keyOf(y) ? -1 : keyOf(x) > keyOf(y) ? 1 : Number(x.amount) - Number(y.amount)));
+/** Amounts agree when equal, or within the existing 1% tolerance (priceMatchesClaimed, base = the earlier probe). */
+export function amountsMatch(earlier, later) {
+  if (String(earlier) === String(later)) return true;
+  return priceMatchesClaimed(later, earlier) === true;
+}
+/** Canonical exact fingerprint (all five fields, amount exact), kept for logging/tests; null when no offers. */
+export function termsFingerprint(probe) {
+  const rows = termsRows(probe);
   if (!rows.length) return null;
-  return [...new Set(rows)].sort().join("\n");
+  return [...new Set(rows.map((r) => FIELDS.map((f) => r[f]).join("|")))].sort().join("\n");
+}
+/**
+ * Compare two probes' 402 terms. Returns { match, diff_fields }. diff_fields lists the field NAMES that differ
+ * (scheme, network, asset, amount, payTo), or "accepts" when one side has no readable offer or the number of offers
+ * differs. Never values. Amounts use the 1% tolerance; everything else is exact (EVM case-insensitive).
+ */
+export function compareTerms(a, b) {
+  const ra = sortRows(termsRows(a)), rb = sortRows(termsRows(b));
+  if (!ra.length || !rb.length || ra.length !== rb.length) {
+    return { match: false, diff_fields: ["accepts"] };
+  }
+  const diff = new Set();
+  // per-field: compare the sorted value lists of each field (amount with tolerance) so the names are order-independent
+  for (const f of ["scheme", "network", "asset", "payTo"]) {
+    const x = ra.map((r) => r[f]).sort(), y = rb.map((r) => r[f]).sort();
+    if (x.some((v, i) => v !== y[i])) diff.add(f);
+  }
+  const ax = ra.map((r) => Number(r.amount)).sort((p, q) => p - q), ay = rb.map((r) => Number(r.amount)).sort((p, q) => p - q);
+  if (ax.some((v, i) => !amountsMatch(v, ay[i]))) diff.add("amount");
+  // pairwise (same offer, same key, amount within tolerance)
+  const pairOk = ra.every((r, i) => keyOf(r) === keyOf(rb[i]) && amountsMatch(r.amount, rb[i].amount));
+  if (!diff.size && !pairOk) diff.add("accepts"); // same values, recombined into different offers
+  return { match: diff.size === 0 && pairOk, diff_fields: FIELDS.concat("accepts").filter((f) => diff.has(f)) };
 }
 
 /**
@@ -88,8 +131,9 @@ const brief = (p) => ({ http_status: p && p.http_status != null ? p.http_status 
  */
 export async function confirmBeforePay({ first, probeFn, decide, cfg, timeoutMs, startedAt, now = Date.now, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
   const probes = [first];
-  const fps = [termsFingerprint(first)];
+  const diffs = new Set();
   const summary = (outcome, extra = {}) => ({ count: cfg.count, probes: probes.length, gap_ms: cfg.gapMs, budget_ms: timeoutMs, elapsed_ms: Math.max(0, now() - startedAt), outcome, results: probes.map(brief), ...extra });
+  const withMethod = (p) => ({ ...p, ...(first.method_used && !p.method_used ? { method_used: first.method_used } : {}) });
   for (let i = 1; i < cfg.count; i++) {
     if (cfg.gapMs > 0) await sleep(cfg.gapMs);
     const left = timeoutMs - (now() - startedAt);
@@ -98,18 +142,18 @@ export async function confirmBeforePay({ first, probeFn, decide, cfg, timeoutMs,
     try { p = await probeFn({ timeoutMs: budget }); } catch (_) { p = null; }
     if (!p) p = { reachable: false, http_status: null, latency_ms: null, ssrf_blocked: false, error: "fetch failed", x402_challenge: false, accepts: [], quoted_price_usd: null, known_answer: null, body_truncated: false };
     probes.push(p);
-    if (confirmClass(p, decide) === "adopt") {
-      return { ...p, ...(first.method_used && !p.method_used ? { method_used: first.method_used } : {}), multiprobe: summary("confirm_failed", { confirm_budget_ms: budget }) };
+    if (confirmClass(p, decide) === "adopt") return { ...withMethod(p), multiprobe: summary("confirm_failed", { confirm_budget_ms: budget }) };
+    const c = compareTerms(probes[i - 1], p);
+    if (c.match) {
+      if (i === 1) return { ...first, multiprobe: summary("match") };
+      return { ...withMethod(p), multiprobe: summary("match_after_change", { diff_fields: [...diffs] }) }; // tie-break: 2nd == 3rd
     }
-    fps.push(termsFingerprint(p));
-    if (i === 1) {
-      if (fps[1] !== null && fps[1] === fps[0]) return { ...first, multiprobe: summary("match") };
-      if (cfg.count < 3) break;
-      continue; // tie-break
+    for (const f of c.diff_fields) diffs.add(f);
+    if (i === 1 && cfg.count < 3) break;
+    if (i === 2) { // A, B, A or A, B, C: also note how the 3rd differs from the 1st (union of differences)
+      for (const f of compareTerms(first, p).diff_fields) diffs.add(f);
     }
-    // i === 2 (tie-break): only "changed once, now stable" may still pay, decided on the newer terms
-    if (fps[2] !== null && fps[2] === fps[1]) return { ...p, ...(first.method_used && !p.method_used ? { method_used: first.method_used } : {}), multiprobe: summary("match_after_change") };
-    break;
   }
-  return { ...first, terms_unstable: true, multiprobe: summary("terms_unstable") };
+  const diff_fields = FIELDS.concat("accepts").filter((f) => diffs.has(f));
+  return { ...first, terms_unstable: true, multiprobe: summary("terms_unstable", { diff_fields }) };
 }

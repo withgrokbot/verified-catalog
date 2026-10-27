@@ -50,6 +50,11 @@ const A = {
   payTwoOffers: () => r402([offer({ payTo: PAY_TO }), offer({ network: "eip155:84532", asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" })]),
   payNewNonce: () => r402([offer({ maxTimeoutSeconds: 60, extra: { name: "USD Coin", version: "2", nonce: String(Math.random()) } })]),
   pay2000: () => r402([offer({ amount: "2000" })]),
+  pay1009: () => r402([offer({ amount: "1009" })]), // +0.9%: inside the existing 1% PRICE_TOLERANCE
+  pay1011: () => r402([offer({ amount: "1011" })]), // +1.1%: outside it
+  pay991: () => r402([offer({ amount: "991" })]), // -0.9%
+  solPay: () => r402([{ scheme: "exact", network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", amount: "1000", asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", payTo: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", maxTimeoutSeconds: 60, extra: { feePayer: "2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4" } }]),
+  solPayLowerPayTo: () => r402([{ scheme: "exact", network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", amount: "1000", asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", payTo: "9xqewvg816bux9epjhmat23yvvm2zwbrrpzb9pusvfin", maxTimeoutSeconds: 60 }]),
   payOtherWallet: () => r402([offer({ payTo: OTHER_PAY_TO })]),
   payOtherNet: () => r402([offer({ network: "eip155:1" })]),
   payOtherScheme: () => r402([offer({ scheme: "upto" })]),
@@ -168,6 +173,7 @@ test("live match: pay as before, probed twice, one free check, receipt carries p
 test("live mismatch: amount, payTo, network, asset or scheme differing on the confirm probe is recheck/terms_unstable (free shape names it; receipt keeps the first terms + both results)", async () => {
   B._resetBreakers();
   const db = d1(); const env = envFor(db);
+  const want = { pay2000: ["amount"], payOtherWallet: ["payTo"], payOtherNet: ["network"], payOtherAsset: ["asset"], payOtherScheme: ["scheme"], noTerms: ["accepts"] };
   for (const [i, second] of ["pay2000", "payOtherWallet", "payOtherNet", "payOtherAsset", "payOtherScheme", "noTerms"].entries()) {
     const h = "api.flip" + i + ".dev";
     setScript(h, "pay", second); sellerHits.length = 0;
@@ -179,6 +185,7 @@ test("live mismatch: amount, payTo, network, asset or scheme differing on the co
     const rec = stored(db, r.body.receipt_id);
     assert.equal(rec.reason, "terms_unstable"); assert.equal(rec.approved_payment, null);
     assert.equal(rec.probe.multiprobe.outcome, "terms_unstable"); assert.equal(rec.probe_snapshot.terms_unstable, true);
+    assert.deepEqual(rec.probe.multiprobe.diff_fields, want[second], second);
   }
 });
 
@@ -355,8 +362,10 @@ test("price and free tier unchanged ($0.02 = 20000 atomic, 5 free a day; the ove
   setScript("api.quota.dev", "pay");
   const ip = "198.18.41.1";
   for (let i = 0; i < 5; i++) assert.equal((await callAs(env, spot("https://api.quota.dev/v1/q" + i), ip)).body.access.free_used_today, i + 1);
+  const hitsBefore = hitsOf("api.quota.dev");
   const over = await callAs(env, spot("https://api.quota.dev/v1/q9"), ip);
   assert.equal(over.status, 402);
+  assert.equal(hitsOf("api.quota.dev") - hitsBefore, 1, "0.57.0 review: an unpaid over-quota request makes only one outbound probe");
   assert.equal(over.body.accepts[0].amount, "20000");
   // an old receipt (0.56.0, single probe) is served unchanged
   db.raw.prepare("INSERT INTO spot_receipts (id, url, created_at, verdict, reason, check_type, ref, norm_key, probed_at, body) VALUES ('sc-00000000000000bb', 'https://api.old.dev/v1/x', '2026-10-01T00:00:00Z', 'pay', 'price_ok', 'live', NULL, 'k:x', '2026-10-01T00:00:00Z', ?)")
@@ -368,4 +377,70 @@ test("price and free tier unchanged ($0.02 = 20000 atomic, 5 free a day; the ove
   assert.equal(rc.verdict, "recheck"); assert.equal(rc.confidence, "low"); assert.ok(REASON_TEXT.terms_unstable);
   assert.match(RULES_VERSION, /^2026-/);
   assert.equal(MIG_FILES[MIG_FILES.length - 1], "0021_breaker_events.sql", "0.57.0 adds no migration");
+});
+
+test("review 1: amounts use the existing 1% tolerance (priceMatchesClaimed / PRICE_TOLERANCE): +0.9% and -0.9% match, +1.1% is terms_unstable (diff_fields amount)", async () => {
+  const SC = await import("../worker/src/spotcheck.js");
+  assert.equal(SC.PRICE_TOLERANCE, 0.01);
+  assert.equal(M.amountsMatch("1000", "1009"), true); assert.equal(M.amountsMatch("1000", "991"), true);
+  assert.equal(M.amountsMatch("1000", "1011"), false); assert.equal(M.amountsMatch("1000", "989"), false);
+  assert.ok(!/PRICE_TOLERANCE\s*=|0\.01/.test(readFileSync(join(ROOT, "worker", "src", "multiprobe.js"), "utf8")), "no new tolerance constant in multiprobe.js");
+  B._resetBreakers();
+  const db = d1(); const env = envFor(db);
+  for (const [h, second, verdict] of [["api.tol1.dev", "pay1009", "pay"], ["api.tol2.dev", "pay991", "pay"], ["api.tol3.dev", "pay1011", "recheck"]]) {
+    setScript(h, "pay", second);
+    const r = await callAs(env, spot("https://" + h + "/v1/a"));
+    assert.equal(r.body.verdict, verdict, second); assert.equal(hitsOf(h), 2);
+    const rec = stored(db, r.body.receipt_id);
+    if (verdict === "pay") { assert.equal(rec.probe.multiprobe.outcome, "match"); assert.equal(rec.approved_payment.amount_atomic, "1000", "the first probe's terms are approved"); }
+    else { assert.equal(r.body.reason_code, "terms_unstable"); assert.deepEqual(rec.probe.multiprobe.diff_fields, ["amount"]); }
+  }
+});
+
+test("review 2: diff_fields holds field names only (never values or addresses) and is countable with one D1 query (payTo-only cases)", async () => {
+  const c = M.compareTerms({ accepts: [offer()] }, { accepts: [offer({ payTo: OTHER_PAY_TO, amount: "5000" })] });
+  assert.deepEqual(c, { match: false, diff_fields: ["amount", "payTo"] });
+  assert.deepEqual(M.compareTerms({ accepts: [offer()] }, { accepts: [offer(), offer({ network: "eip155:84532" })] }).diff_fields, ["accepts"]);
+  assert.deepEqual(M.compareTerms({ accepts: [offer()] }, { accepts: [offer({ payTo: PAY_TO.toUpperCase().replace("0X", "0x") })] }), { match: true, diff_fields: [] });
+  B._resetBreakers();
+  const db = d1(); const env = envFor(db);
+  const ids = [];
+  for (const [h, second] of [["api.dpt1.dev", "payOtherWallet"], ["api.dpt2.dev", "payOtherWallet"], ["api.dam.dev", "pay2000"], ["api.dnone.dev", "noTerms"]]) {
+    setScript(h, "pay", second);
+    const r = await callAs(env, spot("https://" + h + "/v1/a"));
+    assert.equal(r.body.reason_code, "terms_unstable"); ids.push(r.body.receipt_id);
+    const mp = JSON.stringify(stored(db, r.body.receipt_id).probe.multiprobe);
+    assert.ok(!/0x[0-9a-f]{40}|cccc|bbbb|"amount":/i.test(mp), "no values in multiprobe: " + mp);
+  }
+  setScript("api.dok.dev", "pay"); await callAs(env, spot("https://api.dok.dev/v1/a"));
+  // the query documented in the PR body (D1 = SQLite JSON1); probed_at is an ISO-8601 UTC string
+  const Q = "SELECT COUNT(*) AS n FROM spot_receipts WHERE reason = 'terms_unstable' AND probed_at >= ?1 AND json_extract(body, '$.probe.multiprobe.diff_fields') = '[\"payTo\"]'";
+  assert.equal(db.raw.prepare(Q).get("2026-01-01T00:00:00Z").n, 2);
+  const QB = "SELECT json_extract(body, '$.probe.multiprobe.diff_fields') AS diff_fields, COUNT(*) AS n FROM spot_receipts WHERE reason = 'terms_unstable' AND probed_at >= ?1 GROUP BY diff_fields ORDER BY n DESC";
+  assert.deepEqual(Object.fromEntries(db.raw.prepare(QB).all("2026-01-01T00:00:00Z").map((r) => [r.diff_fields, r.n])), { '["payTo"]': 2, '["accepts"]': 1, '["amount"]': 1 });
+});
+
+test("review 4: cron self-checks (bazaar-daily, stale-recheck, daily-recheck) skip the confirm; the same exempt client without a cron ref still confirms", async () => {
+  B._resetBreakers();
+  const db = d1(); const env = envFor(db, { SELF_CLIENTS: "cron-selftest" });
+  for (const ref of ["bazaar-daily", "stale-recheck", "daily-recheck"]) {
+    const h = "api.cron-" + ref + ".dev";
+    setScript(h, "pay", "pay2000");
+    const r = await callAs(env, spot("https://" + h + "/v1/a", "&client=cron-selftest&ref=" + ref));
+    assert.equal(r.body.verdict, "pay", ref); assert.equal(hitsOf(h), 1, ref + ": no confirm probe");
+  }
+  setScript("api.cron-none.dev", "pay", "pay2000");
+  const r = await callAs(env, spot("https://api.cron-none.dev/v1/a", "&client=cron-selftest"));
+  assert.equal(r.body.reason_code, "terms_unstable"); assert.equal(hitsOf("api.cron-none.dev"), 2);
+});
+
+test("Solana (solana:*) 402s are confirmed too: same terms pay, a case-changed base58 payTo is terms_unstable (payTo)", async () => {
+  B._resetBreakers();
+  const db = d1(); const env = envFor(db);
+  setScript("api.solok.dev", "solPay");
+  let r = await callAs(env, spot("https://api.solok.dev/v1/a"));
+  assert.equal(r.body.verdict, "pay"); assert.equal(hitsOf("api.solok.dev"), 2);
+  setScript("api.solcase.dev", "solPay", "solPayLowerPayTo");
+  r = await callAs(env, spot("https://api.solcase.dev/v1/a"));
+  assert.equal(r.body.reason_code, "terms_unstable"); assert.deepEqual(stored(db, r.body.receipt_id).probe.multiprobe.diff_fields, ["payTo"]);
 });

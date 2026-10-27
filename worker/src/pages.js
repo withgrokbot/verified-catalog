@@ -52,6 +52,7 @@ export function docsHtml(origin, apiOrigin, opts = {}) {
   ];
   return page("Docs · 402xAgent", "402xAgent API docs: OpenAPI, rules, llms.txt, MCP and the x402-spotcheck client guard.", origin, "/docs", `<h1>Docs</h1>
 <p>402xAgent checks an x402 endpoint right before your agent pays: pay, skip or recheck.</p>
+<p>Checks read target terms on Base and Solana; paying 402xAgent itself is USDC on Base only.</p>
 <ul>${links.map(([h, t, d]) => `<li><a href="${h}">${t}</a>: ${esc(d)}</li>`).join("")}
 <li>MCP: <code>POST ${esc(apiOrigin)}/mcp</code> (JSON-RPC, tools listed by <code>tools/list</code>)</li>
 <li>Client guard for @x402/fetch and @x402/axios: <a href="https://github.com/withgrokbot/x402-spotcheck">github.com/withgrokbot/x402-spotcheck</a></li></ul>

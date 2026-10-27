@@ -345,7 +345,10 @@ D1 table. Code: `src/multiprobe.js` (+ `getProbe` / `wouldPayFor` in `src/lib.js
 `src/spotcheck.js`); tests: `tests/multiprobe_test.mjs`.
 
 - **When.** Only a live, uncached probe of an outside host whose answer would be `pay` (same decision chain as the
-  answer itself) is confirmed. A probe reused from the 5-minute probe cache, crawl/catalog answers (discover, lookup,
+  answer itself) is confirmed, and only once access is granted (a free check taken, a payment verified and settled,
+  router credit spent, a hosted key, partner pool or exempt): the confirm runs right before the answer is built. An
+  unpaid over-quota request (402), a rejected payment and the free-IP 429 make exactly one outbound probe. Cron
+  self-checks (`bazaar-daily`, `stale-recheck`, `daily-recheck`) never confirm. A probe reused from the 5-minute probe cache, crawl/catalog answers (discover, lookup,
   by-url, skips), any first probe that would be `skip` or `recheck`, and our own hosts are unchanged and cost no extra
   request. Live checks and dry runs share `getProbe`, so a cached probe that once said `pay` was always confirmed.
 - **How.** After `MULTIPROBE_GAP_MS` (default 250 ms) the same URL is probed again with the same method (the POST
@@ -353,10 +356,13 @@ D1 table. Code: `src/multiprobe.js` (+ `getProbe` / `wouldPayFor` in `src/lib.js
   every redirect hop re-validated), counts against the same concurrency cap (`SPOT_MAX_CONCURRENT`, probes of one
   check run one after another), and is recorded with the per-host breaker like any other probe.
 - **Outcomes.**
-  - The 402 terms match (every offer's `scheme`, `network`, `asset`, `amount`, `payTo`; order-insensitive; EVM values
-    case-insensitive, Solana base58 as-is; `validBefore`/`maxTimeoutSeconds`/`extra` are not compared): `pay` exactly as
-    before, decided on the first probe.
-  - The terms differ (including a confirm that answers with no terms at all): `recheck` / `terms_unstable`.
+  - The 402 terms match (every offer's `scheme`, `network`, `asset`, `payTo` exactly, and `amount` within the existing
+    1% `PRICE_TOLERANCE` (`priceMatchesClaimed`, the rule a listed price gets; base = the earlier probe);
+    order-insensitive; EVM values case-insensitive, Solana base58 as-is; `validBefore`/`maxTimeoutSeconds`/`extra` are
+    not compared): `pay` exactly as before, decided on (and approving) the first probe's terms.
+  - The terms differ (including a confirm that answers with no terms at all): `recheck` / `terms_unstable`. The
+    receipt records which fields differed in `probe.multiprobe.diff_fields` (names only: `scheme`, `network`, `asset`,
+    `amount`, `payTo`, or `accepts` when an offer is missing/added); never the values or addresses.
   - The confirm probe fails (5xx, timeout, connection error): `recheck` with the existing reason (`server_error`,
     `timeout`, `unreachable`), and the breaker counts it as a normal failure. Any other "not now" answer of the confirm
     probe (429, WAF 403, DNS after one retry, our own concurrency cap, a free trial) likewise keeps its own existing
@@ -369,18 +375,23 @@ D1 table. Code: `src/multiprobe.js` (+ `getProbe` / `wouldPayFor` in `src/lib.js
   a slow-but-working first probe is not turned into a timeout for lack of time. Worst case per check:
   `PROBE_TIMEOUT_MS + (MULTIPROBE_COUNT - 1) * (MULTIPROBE_GAP_MS + 1500)` = 9750 ms with the defaults. The usual
   case adds one probe round trip + 250 ms, and only to checks that end in `pay`.
-- **Charging.** Unchanged: every probe runs before any quota, router credit, hosted meter or payment step, and one
-  check is still one free check or one $0.02 payment however many probes it took. A `terms_unstable` recheck is
-  charged like every other recheck today.
+- **Charging.** Unchanged: one check is still one free check or one $0.02 payment however many probes it took. The
+  confirm runs after the access step, so a confirm that turns `pay` into a recheck (`terms_unstable`, or a failed
+  confirm's `server_error` / `timeout` / `unreachable`) is answered exactly like a first-probe recheck today: the free
+  check stays used; a paid check has already been verified and settled once ($0.02, `payment-response` header,
+  `access.tier` `paid`), with no `payment` object and a null `payment_terms_sha256`. No refund, no second settle.
 - **Receipts and answers.** New receipts (and the paid / exempt answer's `probe` object) carry an additive
   `probe.multiprobe` summary: `count`, `probes`, `gap_ms`, `budget_ms`, `elapsed_ms`, `outcome`
   (`match` | `terms_unstable` | `confirm_failed` | `match_after_change`) and per-probe `http_status` / `latency_ms`.
   The probe snapshot keeps `terms_unstable` and `multiprobe`, so a 5-minute cache hit repeats the same verdict.
   `terms_unstable` is an ordinary recheck for the 0.55.0 transient fallback (not one of its three codes, so it ends a
   streak like any other answer).
+- **Counting payTo-only cases** (D1, SQLite JSON1):
+  `SELECT COUNT(*) AS n FROM spot_receipts WHERE reason = 'terms_unstable' AND probed_at >= '2026-10-28T00:00:00Z' AND json_extract(body, '$.probe.multiprobe.diff_fields') = '["payTo"]';`
+  Breakdown: `SELECT json_extract(body, '$.probe.multiprobe.diff_fields') AS diff_fields, COUNT(*) AS n FROM spot_receipts WHERE reason = 'terms_unstable' AND probed_at >= '2026-10-28T00:00:00Z' GROUP BY diff_fields ORDER BY n DESC;`
 - **Extra outbound load.** One extra request to the seller (plus its own DNS-over-HTTPS A/AAAA lookups) per live,
   uncached check that would be `pay`; two at most with `MULTIPROBE_COUNT=3` and only when the first two differ. Skips,
-  rechecks and cache hits add nothing. `MULTIPROBE_COUNT=1` turns it off (one probe, exactly as 0.56.0).
+  rechecks, cache hits, unpaid over-quota requests and cron self-checks add nothing. `MULTIPROBE_COUNT=1` turns it off (one probe, exactly as 0.56.0).
 
 | Variable | Default | Valid |
 | --- | --- | --- |

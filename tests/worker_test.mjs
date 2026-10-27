@@ -64,6 +64,7 @@ let facMode = "ok"; // ok | invalid | settle-fail
 let facPayer = "0x" + "11".repeat(20);
 const TX = "0x" + "cd".repeat(32);
 let spotTargetMode = "402"; // 402 | timeout | huge | echo-init
+let spotHits = 0, spotFlipN = 0; // 0.57.0: target fetches; per-mode hit counter for the confirm-probe modes
 let lastSpotFetchInit = null;
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url);
@@ -113,6 +114,10 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (u.startsWith("https://spot.target.fixture/") || u.startsWith("https://x402.example.fixture/") || u.startsWith("https://api.realx402.dev/") || u.startsWith("https://other.realx402.dev/") || u.startsWith("https://example.com/") || u.startsWith("https://httpbin.org/")) {
     lastSpotFetchInit = init || {};
+    spotHits++;
+    if (spotTargetMode === "s503") return new Response("upstream down", { status: 503 }); // 0.57.0
+    const flip = ["flipwallet", "confirm503"].includes(spotTargetMode) && ++spotFlipN % 2 === 0; // 0.57.0: every 2nd hit differs
+    if (flip && spotTargetMode === "confirm503") return new Response("upstream down", { status: 503 });
     if (spotTargetMode === "timeout") {
       const err = new Error("timeout"); err.name = "AbortError"; throw err;
     }
@@ -129,6 +134,7 @@ globalThis.fetch = async (url, init = {}) => {
       error: "Payment required",
       accepts: [{ scheme: "exact", network: "eip155:8453", amount: "1000", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", maxTimeoutSeconds: 300 }],
     };
+    if (flip && spotTargetMode === "flipwallet") challenge.accepts[0].payTo = "0x" + "cc".repeat(20); // 0.57.0
     if (spotTargetMode === "upto") challenge.accepts[0].scheme = "upto"; // 0.23.1 Base regression fixture
     if (spotTargetMode === "expired") challenge.accepts[0].extra = { validBefore: Math.floor(Date.now() / 1000) - 600 }; // 0.42.0
     if (spotTargetMode === "expiring") challenge.accepts[0].extra = { validBefore: Math.floor(Date.now() / 1000) + 120 }; // 0.42.0
@@ -4551,7 +4557,7 @@ test("0.57.0 multi-probe before pay: rules.json lists terms_unstable (recheck, l
   delete e.env.MULTIPROBE_GAP_MS; // the harness sets 0; render the production default here
   const d200 = (o) => o.paths["/v1/products/endpoint-spot-check"].get.responses[200].description;
   let oa = (await send("/openapi.json", { envo: e })).body;
-  assert.match(d200(oa), /confirmed by a second probe of the same target 250 ms later within the same budget \(a confirm probe gets at least 1500 ms; worst case 9750 ms\): different 402 terms \(scheme, network, asset, amount, payTo\) are recheck\/terms_unstable/);
+  assert.match(d200(oa), /confirmed by a second probe of the same target 250 ms later within the same budget \(a confirm probe gets at least 1500 ms; worst case 9750 ms\): different 402 terms \(scheme, network, asset or payTo, or an amount more than 1% apart\) are recheck\/terms_unstable \(receipt probe\.multiprobe\.diff_fields names the fields\)/);
   assert.match(d200(oa), /a failed confirm probe \(5xx, timeout, connection error\) is its own recheck \(server_error, timeout, unreachable\), still one free check or one \$0\.02 payment \(MULTIPROBE_COUNT, MULTIPROBE_GAP_MS\)/);
   assert.ok(JSON.stringify(oa).includes('"terms_unstable"'), "paid reason enum");
   const e3 = meteredEnv(); Object.assign(e3.env, { MULTIPROBE_COUNT: "3", MULTIPROBE_GAP_MS: "100", PROBE_TIMEOUT_MS: "5000" });
@@ -4575,6 +4581,52 @@ test("0.57.0 multi-probe before pay: rules.json lists terms_unstable (recheck, l
   const fs = await import("node:fs");
   const readme = fs.readFileSync(new URL("../worker/README.md", import.meta.url), "utf8");
   assert.match(readme, /## Multi-probe before pay \(0\.57\.0\)/); assert.match(readme, /`MULTIPROBE_COUNT` \| 2 \| integer 1-3 \(1 = off\)/);
+});
+
+test("0.57.0 review: the confirm probe runs only after access is granted: an unpaid over-quota 402 makes ONE probe; a paid check whose confirm turns pay into recheck is verified, settled and charged exactly like a first-probe recheck", async () => {
+  const e = spotEnv(); // 1 free check per day
+  facMode = "ok"; facCalls.length = 0;
+  const U = (k) => SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/mp-" + k) + "&client=spot-mp-1";
+  spotTargetMode = "402"; spotHits = 0;
+  const free = await send(U("free"), { envo: e });
+  assert.equal(free.body.verdict, "pay"); assert.equal(free.body.access.tier, "free"); assert.equal(spotHits, 2, "free check taken -> probe + confirm");
+  // over quota, no payment header: the 402 goes out after ONE probe (no confirm)
+  spotHits = 0;
+  const unpaid = await send(U("over"), { envo: e });
+  assert.equal(unpaid.status, 402); assert.equal(unpaid.body.accepts[0].amount, "20000"); assert.equal(spotHits, 1, "unpaid over-quota: one outbound probe");
+  assert.equal(facCalls.length, 0);
+  // a rejected payment is also answered before any confirm
+  facMode = "invalid"; spotHits = 0;
+  assert.equal((await send(U("bad"), { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } })).status, 402);
+  assert.equal(spotHits, 1); facMode = "ok";
+  const paidShape = (r) => [r.status, r.body.verdict, r.body.access.tier, r.body.access.charged_usd, !!r.headers.get("payment-response"), r.body.payment, r.body.payment_terms_sha256];
+  // today's recheck path (first probe 5xx, never confirmed): verify + settle, charged $0.02, recheck answer
+  spotTargetMode = "s503"; facCalls.length = 0; spotHits = 0;
+  const base = await send(U("s503"), { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
+  assert.deepEqual(paidShape(base), [200, "recheck", "paid", "0.02", true, null, null]);
+  assert.equal(base.body.reason, "server_error"); assert.deepEqual(facCalls.map((x) => x[0]), ["/verify", "/settle"]); assert.equal(spotHits, 1);
+  // confirm turns pay into recheck/terms_unstable AFTER the payment: identical settle + charge
+  spotTargetMode = "flipwallet"; spotFlipN = 0; facCalls.length = 0; spotHits = 0;
+  const flip = await send(U("flip"), { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
+  assert.deepEqual(paidShape(flip), paidShape(base)); assert.equal(flip.body.reason, "terms_unstable");
+  assert.deepEqual(facCalls.map((x) => x[0]), ["/verify", "/settle"], "settled once, before the confirm"); assert.equal(spotHits, 2);
+  assert.deepEqual(flip.body.probe.multiprobe.diff_fields, ["payTo"]);
+  // confirm fails (5xx) after the payment: same as today's server_error recheck
+  spotTargetMode = "confirm503"; spotFlipN = 0; facCalls.length = 0; spotHits = 0;
+  const c5 = await send(U("c503"), { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
+  assert.deepEqual(paidShape(c5), paidShape(base)); assert.equal(c5.body.reason, "server_error");
+  assert.deepEqual(facCalls.map((x) => x[0]), ["/verify", "/settle"]); assert.equal(spotHits, 2);
+  // confirm matches after payment: pay as before, charged once
+  spotTargetMode = "402"; facCalls.length = 0; spotHits = 0;
+  const ok = await send(U("ok"), { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
+  assert.equal(ok.body.verdict, "pay"); assert.equal(ok.body.access.charged_usd, "0.02"); assert.ok(ok.body.payment); assert.equal(spotHits, 2);
+  assert.deepEqual(facCalls.map((x) => x[0]), ["/verify", "/settle"]);
+  spotTargetMode = "402";
+});
+
+test("0.57.0 /docs says checks read Base and Solana terms, and paying 402xAgent is USDC on Base only", async () => {
+  const { docsHtml } = await import("../worker/src/pages.js");
+  assert.match(docsHtml("https://402xagent.com", "https://api.402xagent.com"), /<p>Checks read target terms on Base and Solana; paying 402xAgent itself is USDC on Base only\.<\/p>/);
 });
 
 let passed = 0, skipped = 0;
