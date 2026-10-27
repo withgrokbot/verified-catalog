@@ -1,0 +1,65 @@
+{
+  "id": "plainchain-x402-receipt",
+  "name": "Plainchain x402 receipt check",
+  "provider": "plainchain.appin60.com",
+  "category": "on-chain data",
+  "description": "Decodes an x402 settlement transaction",
+  "endpoint": "https://plainchain.appin60.com/v1/x402/receipt",
+  "protocol": "x402",
+  "x402_version": 2,
+  "advertised_price": {
+    "amount_usd": "0.002942",
+    "atomic": "2942",
+    "asset": "USDC",
+    "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "network": "eip155:8453"
+  },
+  "sample_request": {
+    "method": "GET",
+    "query": {
+      "chain": "base",
+      "hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "source": {
+    "name": "Seller-submitted (verified-catalog issue #2)",
+    "url": "https://github.com/withgrokbot/verified-catalog/issues/2",
+    "retrieved": "2026-10-27"
+  },
+  "tasks": [
+    "on-chain-data"
+  ],
+  "added": "2026-10-27",
+  "free_probe_only": true,
+  "page_url": "https://withgrokbot.github.io/verified-catalog/services/plainchain-x402-receipt.html",
+  "quality_test": null,
+  "paid_receipts": 0,
+  "latest": {
+    "checked_at": "2026-10-27T14:53:17Z",
+    "mode": "dry-run",
+    "reachable": true,
+    "http_status": 402,
+    "latency_ms": 407,
+    "x402_challenge": true,
+    "x402_version": 2,
+    "advertised_price_usd": "0.002942",
+    "quoted_price_usd": "0.002942",
+    "price_matches_listing": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
+    "payment_refused_reason": null,
+    "error": null,
+    "quality": null,
+    "raw_log": "results/raw/20261027T145315Z/plainchain-x402-receipt.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T145315Z/plainchain-x402-receipt.json"
+  },
+  "history_summary": {
+    "checks": 1,
+    "reachable": 1,
+    "x402_challenge_ok": 1,
+    "paid_checks": 0,
+    "first_checked": "2026-10-27T14:53:17Z",
+    "last_checked": "2026-10-27T14:53:17Z"
+  }
+}

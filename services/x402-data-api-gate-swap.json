@@ -1,0 +1,66 @@
+{
+  "id": "x402-data-api-gate-swap",
+  "name": "x402-data-api swap gate",
+  "provider": "x402-data-api.sigrunner.workers.dev",
+  "category": "token safety",
+  "description": "Pre-trade go/hold/block token gate",
+  "endpoint": "https://x402-data-api.sigrunner.workers.dev/gate/swap",
+  "protocol": "x402",
+  "x402_version": 2,
+  "advertised_price": {
+    "amount_usd": "0.008",
+    "atomic": "8000",
+    "asset": "USDC",
+    "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "network": "eip155:8453"
+  },
+  "sample_request": {
+    "method": "GET",
+    "query": {
+      "token": "0x4200000000000000000000000000000000000006",
+      "side": "buy",
+      "notional_usd": "100"
+    }
+  },
+  "source": {
+    "name": "Seller-submitted (verified-catalog issue #5)",
+    "url": "https://github.com/withgrokbot/verified-catalog/issues/5",
+    "retrieved": "2026-10-27"
+  },
+  "tasks": [
+    "token-safety"
+  ],
+  "added": "2026-10-27",
+  "free_probe_only": true,
+  "page_url": "https://withgrokbot.github.io/verified-catalog/services/x402-data-api-gate-swap.html",
+  "quality_test": null,
+  "paid_receipts": 0,
+  "latest": {
+    "checked_at": "2026-10-27T14:53:18Z",
+    "mode": "dry-run",
+    "reachable": true,
+    "http_status": 402,
+    "latency_ms": 487,
+    "x402_challenge": true,
+    "x402_version": 2,
+    "advertised_price_usd": "0.008",
+    "quoted_price_usd": "0.008",
+    "price_matches_listing": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
+    "payment_refused_reason": null,
+    "error": null,
+    "quality": null,
+    "raw_log": "results/raw/20261027T145315Z/x402-data-api-gate-swap.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T145315Z/x402-data-api-gate-swap.json"
+  },
+  "history_summary": {
+    "checks": 1,
+    "reachable": 1,
+    "x402_challenge_ok": 1,
+    "paid_checks": 0,
+    "first_checked": "2026-10-27T14:53:18Z",
+    "last_checked": "2026-10-27T14:53:18Z"
+  }
+}

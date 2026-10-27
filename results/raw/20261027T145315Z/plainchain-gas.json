@@ -1,0 +1,50 @@
+{
+  "service_id": "plainchain-gas",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://plainchain.appin60.com/v1/gas?chain=base",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 749,
+    "headers": {
+      "date": "Tue, 27 Oct 2026 14:53:17 GMT",
+      "content-type": "application/json",
+      "content-length": "1687",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://plainchain.appin60.com/v1/gas?chain=base",
+            "description": "Current gas price on Base, Arbitrum, Ethereum or Optimism, with the USD cost right now of an ETH transfer, ERC-20 transfer, DEX swap and NFT mint. Use before sending a transaction to pick a chain or decide whether to wait.",
+            "mimeType": "application/json"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1042",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0xB442daCAE60C07bb5dB8f33C8a6c1572d8F24e83",
+              "maxTimeoutSeconds": 120,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 1687,
+    "body_sha256": "a4174948055655972b89e51d55474c651e50960c9b5fbb58738ed79c96e66b45",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{\"url\":\"https://plainchain.appin60.com/v1/gas?chain=base\",\"description\":\"Current gas price on Base, Arbitrum, Ethereum or Optimism, with the USD cost right now of an ETH transfer, ERC-20 transfer, DEX swap and NFT mint. Use before sending a transaction to pick a chain or decide whether to wait.\",\"mimeType\":\"application/json\"},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1042\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0xB442daCAE60C07bb5dB8f33C8a6c1572d8F24e83\",\"maxTimeoutSeconds\":120,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}],\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"type\":\"http\",\"queryParams\":{\"chain\":\"base\"},\"method\":\"GET\"},\"output\":{\"type\":\"json\",\"example\":{\"chain\":\"Base\",\"chainId\":8453,\"block\":36581662,\"gasPriceGwei\":0.006,\"baseFeeGwei\":0.005,\"priorityFeeGwei\":0.001,\"ethUsd\":2527.2,\"estimates\":{\"ethTransfer\":{\"gas\":21000,\"eth\":1.26e-7,\"usd\":0.000318},\"erc20Transfer\":{\"gas\":65000,\"eth\":3.9e-7,\"usd\":0.000986},\"dexSwap\":{\"gas\":180000,\"eth\":0.00000108,\"usd\":0.00273}}}}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"GET\"]},\"queryParams\":{\"type\":\"object\",\"properties\":{\"chain\":{\"type\":\"string\",\"description\":\"base (default), arbitrum, ethereum or optimism; chain ids 8453, 42161, 1, 10 also work\"}},\"required\":[]}},\"required\":[\"type\",\"method\"],\"additionalProperties\":false},\"output\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\"},\"example\":{\"type\":\"object\"}},\"required\":[\"type\"]}},\"required\":[\"input\"]}}}}"
+  },
+  "run_id": "20261027T145315Z",
+  "checked_at": "2026-10-27T14:53:17Z"
+}

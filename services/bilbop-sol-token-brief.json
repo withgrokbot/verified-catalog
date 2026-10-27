@@ -1,0 +1,62 @@
+{
+  "id": "bilbop-sol-token-brief",
+  "name": "bilbop Solana token brief",
+  "provider": "bilbop.org",
+  "category": "on-chain data",
+  "description": "Solana token brief",
+  "endpoint": "https://api.bilbop.org/v1/sol-token-brief",
+  "protocol": "x402",
+  "x402_version": 2,
+  "advertised_price": {
+    "amount_usd": "0.01",
+    "atomic": "10000",
+    "asset": "USDC",
+    "asset_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+  },
+  "sample_request": {
+    "method": "POST",
+    "json_body": {}
+  },
+  "source": {
+    "name": "Seller-submitted (verified-catalog issue #1)",
+    "url": "https://github.com/withgrokbot/verified-catalog/issues/1",
+    "retrieved": "2026-10-27"
+  },
+  "tasks": [
+    "on-chain-data"
+  ],
+  "added": "2026-10-27",
+  "free_probe_only": true,
+  "page_url": "https://withgrokbot.github.io/verified-catalog/services/bilbop-sol-token-brief.html",
+  "quality_test": null,
+  "paid_receipts": 0,
+  "latest": {
+    "checked_at": "2026-10-27T14:53:16Z",
+    "mode": "dry-run",
+    "reachable": false,
+    "http_status": null,
+    "latency_ms": 109,
+    "x402_challenge": false,
+    "x402_version": null,
+    "advertised_price_usd": "0.01",
+    "quoted_price_usd": null,
+    "price_matches_listing": null,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
+    "payment_refused_reason": null,
+    "error": "URLError: [Errno -2] Name or service not known",
+    "quality": null,
+    "raw_log": "results/raw/20261027T145315Z/bilbop-sol-token-brief.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T145315Z/bilbop-sol-token-brief.json"
+  },
+  "history_summary": {
+    "checks": 1,
+    "reachable": 0,
+    "x402_challenge_ok": 0,
+    "paid_checks": 0,
+    "first_checked": "2026-10-27T14:53:16Z",
+    "last_checked": "2026-10-27T14:53:16Z"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "id": "bilbop-tts",
+  "name": "bilbop text to speech",
+  "provider": "bilbop.org",
+  "category": "media",
+  "description": "Text to speech",
+  "endpoint": "https://api.bilbop.org/v1/tts",
+  "protocol": "x402",
+  "x402_version": 2,
+  "advertised_price": {
+    "amount_usd": "0.025",
+    "atomic": "25000",
+    "asset": "USDC",
+    "asset_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+  },
+  "sample_request": {
+    "method": "POST",
+    "json_body": {}
+  },
+  "source": {
+    "name": "Seller-submitted (verified-catalog issue #1)",
+    "url": "https://github.com/withgrokbot/verified-catalog/issues/1",
+    "retrieved": "2026-10-27"
+  },
+  "tasks": [
+    "tts"
+  ],
+  "added": "2026-10-27",
+  "free_probe_only": true,
+  "page_url": "https://withgrokbot.github.io/verified-catalog/services/bilbop-tts.html",
+  "quality_test": null,
+  "paid_receipts": 0,
+  "latest": {
+    "checked_at": "2026-10-27T14:53:17Z",
+    "mode": "dry-run",
+    "reachable": false,
+    "http_status": null,
+    "latency_ms": 147,
+    "x402_challenge": false,
+    "x402_version": null,
+    "advertised_price_usd": "0.025",
+    "quoted_price_usd": null,
+    "price_matches_listing": null,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
+    "payment_refused_reason": null,
+    "error": "URLError: [Errno -2] Name or service not known",
+    "quality": null,
+    "raw_log": "results/raw/20261027T145315Z/bilbop-tts.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T145315Z/bilbop-tts.json"
+  },
+  "history_summary": {
+    "checks": 1,
+    "reachable": 0,
+    "x402_challenge_ok": 0,
+    "paid_checks": 0,
+    "first_checked": "2026-10-27T14:53:17Z",
+    "last_checked": "2026-10-27T14:53:17Z"
+  }
+}
