@@ -2,6 +2,7 @@
 // 0.11.0: the weekly crawl covers every listed endpoint. Page 1 of skips is bundled (receipts-data.js); every receipt
 // and every other skip page lives in D1 crawl_store (0.44.0; KV CRAWL_KV fallback) as c:<id[0:2]> shards, s:<n> pages.
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
+import { freshnessFor, termsMaxAgeHours } from "./freshness.js"; // 0.54.0
 import { recentChecks, RECENT_MAX } from "./recent.js";
 import { CANON_ORIGIN, API_ORIGIN, SPOT_SERVICE_NAME, FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE } from "./spotcheck.js";
 
@@ -102,12 +103,15 @@ export function coverage() {
   return { endpoints_covered: m.endpoints_covered ?? m.total, new_this_week: m.new_this_week ?? null, previous_run: m.previous_run ?? null, crawled_at: m.crawled_at };
 }
 
-export function skipsSummary(origin) {
+export function skipsSummary(origin, env = {}, now = Date.now()) {
   const m = RECEIPTS_META;
+  // 0.54.0: the crawl's pay counts carry the age of their terms; stale past TERMS_MAX_AGE_HOURS (production 168 h = 7 days)
+  const f = freshnessFor("pay", m.crawled_at, termsMaxAgeHours(env), now);
   return {
     free_check: { url: FREE_CHECK_URL, example: FREE_CHECK_EXAMPLE_URL, example_response: FREE_CHECK_EXAMPLE, then: "the paid check (HTTP 402) for the full payment terms" },
     ...coverage(),
     total_receipts: m.total, skip: m.skip, pay: m.pay, recheck: m.recheck, check_type: m.check_type,
+    terms_freshness: { terms_checked_at: f.terms_checked_at, terms_age_hours: f.terms_age_hours, terms_max_age_hours: f.terms_max_age_hours, terms_stale: f.terms_stale, pay_effective_verdict: f.effective_verdict, note: "crawl pays older than terms_max_age_hours are recheck until the live check re-reads the 402" },
     lists: m.lists, listed_in: m.listed_in, sources: m.sources, dedupe: m.dedupe, method: m.method, spot_check: spotHowTo(origin),
     featured_mismatch: origin + "/v1/receipts/" + m.featured_id,
     skip_pages: m.skip_pages || 1, page_size: m.page_size || RECEIPTS.length,
@@ -135,7 +139,7 @@ export async function handleSkips(req, url, env = {}) {
   const wantsHtml = /text\/html/i.test(accept) && url.searchParams.get("format") !== "json" && path !== "/v1/skips.json";
   if (!wantsHtml)
     return j({
-      ...skipsSummary(origin),
+      ...skipsSummary(origin, env),
       page, pages, next: page < pages ? nav(page + 1) : null, prev: page > 1 ? nav(page - 1) : null,
       skips: skips.map((r) => ({ ...r, permalink: origin + "/v1/receipts/" + r.id })),
       // 0.25.0: latest outside free checks, newest first: url (scheme://host/path only), verdict, short reason (no
@@ -176,7 +180,7 @@ ${rows}
 export async function handleReceipts(url, env = {}) {
   const path = url.pathname.replace(/\/+$/, "");
   const id = path.slice("/v1/receipts".length).replace(/^\//, "");
-  if (!id) return j({ ...skipsSummary(CANON_ORIGIN), note: "Every receipt: /v1/receipts/<id> or /v1/receipts/by-url?url=. Skips page by page: /v1/skips.json?page=N. Page 1:", receipts: RECEIPTS });
+  if (!id) return j({ ...skipsSummary(CANON_ORIGIN, env), note: "Every receipt: /v1/receipts/<id> or /v1/receipts/by-url?url=. Skips page by page: /v1/skips.json?page=N. Page 1:", receipts: RECEIPTS });
   let r = await crawlReceipt(env, id);
   if (!r) return j({ error: "receipt not found", receipts: CANON_ORIGIN + "/v1/receipts" }, 404);
   // 0.35.0: ?view=redacted (used by /saves): no wallets, and the reason without the wallets it quotes. Default unchanged.
@@ -184,5 +188,6 @@ export async function handleReceipts(url, env = {}) {
     const { pay_to, listed_pay_to, ...rest } = r;
     r = { ...rest, reason: String(r.reason || "").replace(/0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44}/g, "<wallet>"), redacted: "wallets removed; the full crawl receipt is at the same URL without ?view=redacted" };
   }
-  return j({ service: SPOT_SERVICE_NAME, ...r, permalink: CANON_ORIGIN + "/v1/receipts/" + r.id, on_page: r.verdict === "skip" ? CANON_ORIGIN + "/v1/skips" : null, spot_check: spotHowTo(CANON_ORIGIN) });
+  // 0.54.0: read-time freshness next to the stored receipt (the receipt fields themselves are unchanged)
+  return j({ service: SPOT_SERVICE_NAME, ...r, permalink: CANON_ORIGIN + "/v1/receipts/" + r.id, on_page: r.verdict === "skip" ? CANON_ORIGIN + "/v1/skips" : null, spot_check: spotHowTo(CANON_ORIGIN), freshness: freshnessFor(r.verdict, r.timestamp, termsMaxAgeHours(env)) });
 }

@@ -42,7 +42,7 @@ import { signObject, receiptKeysDoc } from "./sign.js";
 import { handleWatch, watchTick, watchOn, EXAMPLE_CREATE as WATCH_EXAMPLE, WATCH_PRICE_ATOMIC, WATCH_PRICE_USD, EXAMPLE_WATCH_ID } from "./watch.js";
 import { PS_ID, PS_NETWORK, USDC_BASE_LC, parseRequest, readChain, decide, termsMatch, claimPointer, buildBody, newPsId, cacheKey, cacheGet, cachePut, receiptById } from "./paystatus.js";
 import { discover, DISCOVER_PER_MIN, DISCOVER_MAX } from "./discover.js";
-import { handleSkips, handleReceipts, crawlReceiptForUrl, normUrl } from "./skips.js";
+import { handleSkips, handleReceipts, crawlReceiptForUrl, crawlReceipt, normUrl } from "./skips.js";
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
 import { resolveHosted, hostedAccess, recordHosted, integratorMe } from "./hosted.js";
@@ -63,12 +63,13 @@ import { handleFeed, feedDaily, feedTick, feedOn, feedObserveOn, FEED_PRICES } f
 import { facilitatorChain, callFacilitator } from "./facilitator.js";
 import { handleFacilitatorCheck, FACIL_CHECK_PATH, FACIL_CHECK_PER_MIN, FACIL_HOST_PER_MIN, FACIL_EXAMPLE } from "./facilcheck.js";
 import { latestDelivery, applyDelivery } from "./delivery.js";
+import { termsWindowText, QUOTE_ID_RE, quoteTerms, applyQuote, quoteChangedText, freshnessFor, termsMaxAgeHours, ageHours } from "./freshness.js"; // 0.54.0
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.53.4";
+export const VERSION = "0.54.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -188,7 +189,7 @@ function matchesEndpoint(s, ep) {
 }
 
 // ------------------------------------------------------------------ one service record
-export function summarize(s, rec, n, now, staleH) {
+export function summarize(s, rec, n, now, staleH, maxTermsH = 24) {
   const all = (rec && rec.receipts) || [];
   const last = all.slice(0, n);
   const graded = last.filter((r) => r.quality === "pass" || r.quality === "fail");
@@ -216,6 +217,10 @@ export function summarize(s, rec, n, now, staleH) {
       x402_challenge: latest.x402_challenge ?? null,
       quoted_price_usd: latest.quoted_price_usd ?? null,
       price_matches_listing: latest.price_matches_listing ?? null,
+      // 0.54.0: age of the quoted terms; stale past TERMS_MAX_AGE_HOURS (run the live check before paying)
+      terms_age_hours: ageHours(latest.checked_at, now),
+      terms_max_age_hours: maxTermsH,
+      terms_stale: (() => { const a = ageHours(latest.checked_at, now); return a === null || a > maxTermsH; })(),
     },
     newest_receipt_at: all.length ? all[0].time : null,
     stale: ageH === null || ageH > staleH,
@@ -239,7 +244,7 @@ function isFactsOnly(s, rec) {
   return qt && qt.facts_only ? qt.facts_only_reason || "broken on the seller's side" : null;
 }
 
-export function lookup(data, q, now = Date.now()) {
+export function lookup(data, q, now = Date.now(), maxTermsH = 24) {
   const { catalog, receipts } = data;
   const staleH = Number(receipts.stale_after_hours) || STALE_AFTER_H_DEFAULT;
   const n = q.n;
@@ -254,7 +259,7 @@ export function lookup(data, q, now = Date.now()) {
   const factsOnly = [];
   for (const s of cands) {
     const rec = (receipts.services || {})[s.id];
-    const sum = summarize(s, rec, n, now, staleH);
+    const sum = summarize(s, rec, n, now, staleH, maxTermsH);
     const why = isFactsOnly(s, rec);
     if (why) {
       delete sum.pass_rate;
@@ -1039,7 +1044,7 @@ export const SPOT_PAID_SCHEMA = {
   description: "paid response: decision plus the facts behind it",
   properties: {
     verdict: SPOT_VERDICT_SCHEMA,
-    reason: { type: "string", enum: ["price_ok", "price_below_listing", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "network_unsupported", "no_paywall", "free_trial_active", "timeout", "unreachable", "server_error", "bad_challenge", "ssrf_blocked", "delivery_failed"] },
+    reason: { type: "string", enum: ["price_ok", "price_below_listing", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "network_unsupported", "no_paywall", "free_trial_active", "timeout", "unreachable", "server_error", "bad_challenge", "ssrf_blocked", "delivery_failed", "terms_changed_since_quote"] },
     free_trial_remaining: { type: ["integer", "null"], description: "reason free_trial_active only: the seller's x-free-trial-remaining, when parseable" },
     quoted_price_usd: { type: ["number", "null"], description: "price in the target's live 402 challenge" },
     claimed_price_usd: { type: ["number", "null"], description: "the claimed_price you sent" },
@@ -1225,7 +1230,7 @@ function safeFixValue(v) {
   return s;
 }
 const safeParamName = (k) => String(k || "").replace(/[^A-Za-z0-9_.:\-]/g, "").slice(0, 40) || "?";
-const SPOT_KNOWN_PARAMS = new Set([...SPOT_URL_ALIASES, ...SPOT_PRICE_ALIASES, "task", "client", "ref", "format", "method", "pay_to", "network", "mode", "cb", "policy_cap_usd", "policy_remaining_usd"]);
+const SPOT_KNOWN_PARAMS = new Set([...SPOT_URL_ALIASES, ...SPOT_PRICE_ALIASES, "task", "client", "ref", "format", "method", "pay_to", "network", "mode", "cb", "policy_cap_usd", "policy_remaining_usd", "quote"]);
 const SPOT_ROUTE = API_ORIGIN + "/v1/products/endpoint-spot-check";
 const looksLikeUrl = (v) => typeof v === "string" && /^https?:\/\/[^\s/]+\.[^\s]+/i.test(v.trim());
 const looksLikeHost = (v) => typeof v === "string" && /^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?(?:[/?#][^\s]*)?$/i.test(v.trim());
@@ -1732,6 +1737,11 @@ async function handleLiveReceipts(req, env, url, path) {
       url: target,
       latest_live: live,
       latest_crawl: crawl ? { ...crawl, permalink: CANON_ORIGIN + "/v1/receipts/" + crawl.id } : null,
+      // 0.54.0: read-time age of the terms each stored receipt shows (receipts themselves unchanged; a stale pay -> effective_verdict recheck)
+      freshness: {
+        latest_live: live ? freshnessFor(live.verdict, (live.probe && live.probe.probed_at) || live.checked_at, termsMaxAgeHours(env)) : null,
+        latest_crawl: crawl && crawl.timestamp ? freshnessFor(crawl.verdict, crawl.timestamp, termsMaxAgeHours(env)) : null,
+      },
       note: "Stored receipts are free to read. A fresh live check is a paid 402xAgent check (5 free per client per UTC day, 25 per network).",
       check_now: API_ORIGIN + "/v1/products/endpoint-spot-check?url=" + encodeURIComponent(target),
     });
@@ -1785,6 +1795,32 @@ export function spotPartners(env) {
     if (id && /^[A-Za-z0-9._\-]{1,64}$/.test(id) && Number.isFinite(lim) && lim > 0) out.set(id.toLowerCase(), lim);
   }
   return out;
+}
+
+// 0.54.0: the quote (&quote=<id>) a live check compares against. Reads only (bundled crawl page / crawl store / D1 row);
+// never writes. status: ok | not_found | other_endpoint | no_terms | unavailable. Only status ok can change a verdict.
+export async function loadQuote(env, id, target) {
+  if (!id) return null;
+  const same = (u) => { try { return normUrl(u) === normUrl(target); } catch (_) { return false; } };
+  try {
+    if (LIVE_RECEIPT_RE.test(id)) {
+      const row = env.RECEIPTS_DB ? await env.RECEIPTS_DB.prepare("SELECT body FROM spot_receipts WHERE id = ?").bind(id).first() : null;
+      if (!row) return { id, kind: "live", status: env.RECEIPTS_DB ? "not_found" : "unavailable" };
+      const b = JSON.parse(row.body);
+      const base = { id, kind: "live", quoted_at: (b.probe && b.probe.probed_at) || b.checked_at || null };
+      if (!same(b.url)) return { ...base, status: "other_endpoint" };
+      const terms = quoteTerms(b, "live");
+      return terms ? { ...base, status: "ok", terms } : { ...base, status: "no_terms" };
+    }
+    const r = await crawlReceipt(env, id);
+    if (!r) return { id, kind: "crawl", status: "not_found" };
+    const base = { id, kind: "crawl", quoted_at: r.timestamp || null };
+    if (!same(r.norm_url || r.url)) return { ...base, status: "other_endpoint" };
+    const terms = quoteTerms(r, "crawl");
+    return terms ? { ...base, status: "ok", terms } : { ...base, status: "no_terms" };
+  } catch (_) {
+    return { id, kind: LIVE_RECEIPT_RE.test(id) ? "live" : "crawl", status: "unavailable" };
+  }
 }
 
 async function parseSpotQuery(req, url) {
@@ -1871,7 +1907,11 @@ async function parseSpotQuery(req, url) {
     if (!Number.isFinite(n) || n < 0) { errors.push({ field: k, problem: `Invalid "${k}": a non-negative USD number like 1.5` }); continue; }
     (policy = policy || {})[k.slice("policy_".length)] = n;
   }
-  return { url: target, task: taskSlug, claimed_price, client, ref, method, pay_to, network, mode, dry_caller, errors, ctx, ...(expiry ? { expiry } : {}), ...(policy ? { policy } : {}) };
+  // 0.54.0 opt-in: &quote=<receipt id> = the quote the buyer was shown (crawl receipt id or sc- live receipt id)
+  const quoteRaw = p.get("quote") ?? body.quote ?? null;
+  const quote = quoteRaw === null || quoteRaw === "" ? null : String(quoteRaw).trim().toLowerCase();
+  if (quote && !QUOTE_ID_RE.test(quote)) errors.push({ field: "quote", problem: 'Invalid "quote": a receipt id you were quoted, 10 hex characters (crawl) or sc-<16 hex> (live check)' });
+  return { url: target, task: taskSlug, claimed_price, client, ref, method, pay_to, network, mode, dry_caller, errors, ctx, ...(expiry ? { expiry } : {}), ...(policy ? { policy } : {}), ...(quote ? { quote } : {}) };
 }
 
 // 0.38.0: the paid check is a flat $0.02 (20000 atomic USDC), whatever the target quotes. (0.37.x: one tenth of the quote,
@@ -1886,6 +1926,7 @@ export function spotDynCfg(c, _quotedUsd) {
 // Free-tier reason: names the loss in plain words; quoted price, claimed-vs-quoted detail and pay-to stay behind the 402.
 export function spotLossReason(d, claimed) {
   const listed = claimed !== null && claimed !== undefined && claimed !== "" ? `listed $${Number(claimed)}` : "price unlisted";
+  if (d.reason === "terms_changed_since_quote" && Array.isArray(d.quote_fields_changed)) return quoteChangedText(d.quote_fields_changed); // 0.54.0
   const what = REASON_TEXT[d.reason] || d.reason;
   if (d.reason === "free_trial_active" && d.free_trial_remaining != null) return `${listed}, ${what} (${d.free_trial_remaining} trial calls left)`;
   if (d.reason === "price_ok" && listed === "price unlisted") return "payment request found (pass claimed_price to compare the price)";
@@ -1946,6 +1987,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     network: q.network || (listing && listing.listed_network) || null,
     source: q.pay_to || q.network || q.claimed_price !== null ? "request" : listing ? "listing" : null,
   };
+  const quote = q.quote && q.mode !== "dry-run" ? await loadQuote(env, q.quote, q.url) : null; // 0.54.0 opt-in
   const selfChecked = isExempt(qLike, env);
   const checkType = selfChecked ? "self-checked" : "live"; // 0.42.3: a live check is "live", never "dry-run"
   const buildResult = async (probe, access) => {
@@ -1956,6 +1998,9 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     // 0.53.3 (DELIVERY_CHECK=1): a pay becomes recheck/delivery_failed if our latest paid call to this endpoint (<= 14 d)
     // settled but did not deliver; new checks only, no effect without delivery data (delivery.js)
     if (d.verdict === "pay") ({ d } = applyDelivery(d, await latestDelivery(env, await historyKey(q.url), new Date())));
+    // 0.54.0 (&quote=<id> only): a pay whose live terms differ from the quote the buyer was shown -> recheck/terms_changed_since_quote
+    let quoteCheck = null;
+    ({ d, quote_check: quoteCheck } = applyQuote(d, quote, pm0, { caip, sameAddr }));
     const pm = d.verdict === "pay" ? pm0 : null; // only a "pay" verdict approves terms
     const termsHash = await termsSha256(pm);
     const payment = paymentObject(pm, pr.probedAt);
@@ -1965,6 +2010,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const history = await recordHistory(env, hk, observation(probe, pm0, d.verdict, pr.probedAt), !pr.cached);
     const rf = reasonFields(d, exp.claimed, history);
     if (expiryCheck) rf.expiry_check = expiryCheck;
+    if (quoteCheck) rf.quote_check = quoteCheck;
     // 0.37.0 (additive): quality of the unpaid 402 response + seller reputation; neither changes verdict/reason_code
     const quality = qualityFor(probe);
     await recordQuality(env, hk, hostOf(q.url), quality, pr.probedAt, !pr.cached);
@@ -2642,6 +2688,7 @@ export function openapi(origin, env = {}) {
             { name: "client", in: "query", schema: { type: "string" } },
             { name: "ref", in: "query", schema: { type: "string" }, description: "attribution tag, stored on the receipt; ref=dry-run-<caller> sets mode=dry-run" },
             { name: "mode", in: "query", schema: { type: "string", enum: ["live", "dry-run"], default: "live" }, description: "free dry run: one unpaid probe, nothing signed or paid, always stored as a public receipt (check_type dry-run). Returns the free-tier shape with payment_terms_sha256 null (never an approval). 50 per caller (ref, else client, else IP) per UTC day. ref=dry-run-<caller> also sets it" },
+            { name: "quote", in: "query", schema: { type: "string", pattern: "^([0-9a-f]{10}|sc-[0-9a-f]{16})$" }, description: "0.54.0 optional: the receipt id you were quoted (a /v1/discover or crawl receipt id, or a live sc- id). If the live 402 terms (price, pay_to, network, asset) differ from that quote, a would-be pay is answered recheck / terms_changed_since_quote, with quote_check {status, fields_changed}. Without quote nothing changes" },
           ],
           "x-payment-info": {
             price: { mode: "fixed", currency: "USD", amount: "0.02", amount_atomic: "20000" },
@@ -2780,7 +2827,7 @@ export function openapi(origin, env = {}) {
       },
       "/v1/tasks": { get: { operationId: "tasks", security: [], summary: "Task names", responses: { 200: { description: "task -> service ids" } } } },
       // 0.37.2: free routes that were live but not listed here (additive; no behaviour change)
-      "/v1/discover": { get: { operationId: "discover", security: [], summary: "Free discovery: up to 20 crawled x402 endpoints with verified price, last_checked, stale flag, verdict pay|skip|recheck + reason and a receipt. Skips included by default. 60/min per client.", parameters: [{ name: "q", in: "query", schema: { type: "string", minLength: 2, maxLength: 100 } }, { name: "verdict", in: "query", schema: { type: "string", enum: ["pay", "skip", "recheck"] } }, { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 20, default: 10 } }], responses: { 200: { description: "results" }, 400: { description: "invalid input" }, 429: { description: "rate limited" }, 503: { description: "index unavailable" } } } },
+      "/v1/discover": { get: { operationId: "discover", security: [], summary: `Free discovery: up to 20 crawled x402 endpoints with verified price, last_checked, stale flag, verdict pay|skip|recheck + reason and a receipt. Skips included by default. A pay whose terms are older than ${termsWindowText(termsMaxAgeHours(env))} (TERMS_MAX_AGE_HOURS) is returned as recheck (reason_code terms_stale). 60/min per client.`, parameters: [{ name: "q", in: "query", schema: { type: "string", minLength: 2, maxLength: 100 } }, { name: "verdict", in: "query", schema: { type: "string", enum: ["pay", "skip", "recheck"] } }, { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 20, default: 10 } }], responses: { 200: { description: "results" }, 400: { description: "invalid input" }, 429: { description: "rate limited" }, 503: { description: "index unavailable" } } } },
       // 0.53.0: free, rate-limited; for a facilitator's onBeforeSettle hook
       [FACIL_CHECK_PATH]: { post: { operationId: "facilitatorCheck", security: [], summary: `Free pre-settle check for facilitators (${FACIL_CHECK_PER_MIN}/min per caller IP and ${FACIL_HOST_PER_MIN} probes/min per seller host; does not use the check's 5 free per day). Re-reads the seller's live x402 402 terms for the resource (unpaid probe, SSRF guards, timeout, size cap; never pays) and compares scheme, network (CAIP-2), amount, asset and payTo (EVM case-insensitive) with the paymentRequirements about to be settled. Send only the requirements; a paymentPayload is ignored and never stored.`,
         requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["paymentRequirements"], properties: { paymentRequirements: { type: "object", required: ["scheme", "network", "amount", "asset", "payTo"], properties: { scheme: { type: "string" }, network: { type: "string", description: "CAIP-2, e.g. eip155:8453 (x402 v1 names like base are accepted)" }, amount: { type: "string", description: "atomic units (maxAmountRequired accepted)" }, asset: { type: "string" }, payTo: { type: "string" }, resource: { description: "resource URL (string or {url})" } } }, url: { type: "string", description: "resource URL; else resource / paymentRequirements.resource(.url)" }, method: { type: "string", enum: ["GET", "POST"] } } }, example: FACIL_EXAMPLE } } },
@@ -2885,7 +2932,7 @@ async function handleLookup(req, env, ctx, url) {
     return json({ error: q.errors.join("; "), tasks: Object.keys(taskIndex(data.catalog)).sort(), docs: CANON_ORIGIN + "/openapi.json", ...hintFields(CANON_ORIGIN) }, 400);
   }
   // The answer is computed before (and independently of) the access decision: payment never changes it.
-  const out = lookup(data, q);
+  const out = lookup(data, q, Date.now(), termsMaxAgeHours(env));
   const candidates = out.results.length + out.facts_only.length;
   const payTo = [...new Set(out.results.concat(out.facts_only).flatMap((r) => r.pay_to))];
   const point = (extra) => writePoint(env, dataPoint({ product: "lookup", cid, q, excluded, candidates, ua, returnedPayTo: payTo, referer, ...extra }));
@@ -2971,7 +3018,7 @@ async function handlePaidLookup(req, env, ctx, url) {
     point({ status: 400 });
     return json({ error: q.errors.join("; ") + " (nothing was charged)", tasks: Object.keys(taskIndex(data.catalog)).sort(), docs: CANON_ORIGIN + "/openapi.json", ...hintFields(CANON_ORIGIN) }, 400);
   }
-  const out = lookup(data, q);
+  const out = lookup(data, q, Date.now(), termsMaxAgeHours(env));
   candidates = out.results.length + out.facts_only.length;
   payTo = [...new Set(out.results.concat(out.facts_only).flatMap((r) => r.pay_to))];
   const payload = decodePaymentHeader(hdr);
@@ -3201,6 +3248,7 @@ export const MCP_TOOLS = [
         network: { type: "string", description: "optional: the CAIP-2 network you expect, e.g. eip155:8453" },
         mode: { type: "string", enum: ["live", "dry-run"], description: "optional: dry-run = free dry run: one unpaid probe, nothing signed or paid, always stored as a public receipt (check_type dry-run). Returns the free-tier shape with payment_terms_sha256 null (never an approval). 50 per caller (ref, else client, else IP) per UTC day. ref=dry-run-<caller> also sets it" },
         ref: { type: "string", description: "optional attribution tag stored on the receipt (dry-run-<caller> sets mode=dry-run)" },
+        quote: { type: "string", description: "optional (0.54.0): the receipt id you were quoted (a discover/crawl id, 10 hex, or a live sc- id). If the live terms (price, pay_to, network, asset) differ from it, the answer is recheck/terms_changed_since_quote instead of pay" },
       },
       required: ["url"],
     },
@@ -3235,8 +3283,8 @@ export const MCP_TOOLS = [
       "Free discovery of x402 pay-per-call endpoints from 402xAgent's weekly crawl. Returns up to 20 endpoints matching " +
       "the words in q (URL or source list), each with the verified (quoted) price, network, last_checked, stale flag, " +
       "verdict pay|skip|recheck with its reason, and a receipt. Skips are included by default; pass verdict to filter. " +
-      "A result older than 36 h is stale; a pay older than 7 days is returned as recheck. Run endpoint_spot_check " +
-      "right before paying. Read-only, no auth, 60 calls per minute.",
+      "A result older than 36 h is stale; a pay whose terms are older than 7 days (TERMS_MAX_AGE_HOURS) is returned as recheck (reason_code terms_stale). " +
+      "Run endpoint_spot_check right before paying (pass quote=<result receipt_id> to be told if the live terms moved). Read-only, no auth, 60 calls per minute.",
     inputSchema: {
       type: "object",
       properties: {
@@ -3353,7 +3401,12 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
   if (method === "initialize")
     return { protocolVersion: params.protocolVersion || MCP_PROTOCOL, capabilities: { tools: { listChanged: false } }, serverInfo: MCP_SERVER_INFO };
   if (method === "ping") return {};
-  if (method === "tools/list") return { tools: endpointReportOn(env) ? MCP_TOOLS.concat([ER_MCP_TOOL]) : MCP_TOOLS };
+  if (method === "tools/list") {
+    // 0.54.0: the discover description states the live terms threshold (TERMS_MAX_AGE_HOURS from env)
+    const win = termsWindowText(termsMaxAgeHours(env));
+    const tools = MCP_TOOLS.map((t) => (t.name === "discover" ? { ...t, description: t.description.replace("older than 7 days (TERMS_MAX_AGE_HOURS)", `older than ${win} (TERMS_MAX_AGE_HOURS)`) } : t));
+    return { tools: endpointReportOn(env) ? tools.concat([ER_MCP_TOOL]) : tools };
+  }
   if (method === "tools/call") {
     const name = params.name;
     const args = params.arguments || {};
@@ -3416,7 +3469,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         if (!args.url) return err("url is required");
         const qp = new URLSearchParams({ client: MCP_CLIENT, url: pyStr(args.url) });
         if (args.task) qp.set("task", pyStr(args.task));
-        for (const k of ["method", "network", "mode", "ref"]) if (args[k]) qp.set(k, pyStr(args[k]));
+        for (const k of ["method", "network", "mode", "ref", "quote"]) if (args[k]) qp.set(k, pyStr(args[k]));
         const payTo = mcpPayTo(args.pay_to); // 0.51.4: a malformed pay_to is omitted instead of turning the check into a 400
         if (payTo) qp.set("pay_to", payTo);
         if (!blank(args.claimed_price)) {
@@ -3868,7 +3921,7 @@ const routeInnerHolder = {
     }
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${CANON_ORIGIN}/sitemap.xml\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
     if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/v1/skips", "/v1/skips.json", "/v1/receipts", "/", "/openapi.json", "/llms.txt", "/pricing", "/docs", "/blog", ...BLOG_POSTS.map((p) => "/blog/" + p.slug), "/rules", "/rules.json", "/bazaar", "/bazaar.json", ...(env.SAVES_PAGE === "on" ? ["/saves", "/saves.json"] : [])].map((u) => `<url><loc>${CANON_ORIGIN}${u}</loc><changefreq>daily</changefreq></url>`).join("")}</urlset>\n`, { headers: { "content-type": "application/xml; charset=utf-8", "access-control-allow-origin": "*" } });
-    if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\nStart with the free check: GET ${FREE_CHECK_URL}\nReal example: GET ${FREE_CHECK_EXAMPLE_URL}\n  -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}\n5 free checks per client per UTC day (at most 25 per network), free dry runs with &mode=dry-run, prior checks at ${PRIOR_CHECKS}. After that, the paid check (HTTP 402, $0.02 USDC on Base via x402) adds the full payment terms.\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n**Discover (verdict-filtered index).** \`GET https://api.402xagent.com/v1/discover?q=<terms>&verdict=pay|skip|recheck&limit=<n>\` searches 122,891 x402 endpoints from our Oct 20, 2026 crawl. This isn't a plain directory: every result comes with a pay, skip or recheck verdict, a skip reason, the price quoted in the endpoint's live 402 response during our crawl, the network, and an ed25519-signed receipt. Results are facts from an unpaid crawl probe, not endorsements. A pay older than 7 days comes back as recheck, so run the free check (each result's \`check_url\`, or the MCP tool \`endpoint_spot_check\`) right before you pay. Also available as the MCP tool \`discover\` at https://api.402xagent.com/mcp. — withgrokbot\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). ${COVERED()} self-checked x402 endpoints (weekly crawl); the skip list shows which ones disagree with their listing.\n- x402 hygiene (free, 20/day per network, cached 24 h): GET ${API_ORIGIN}/v1/hygiene?url=<endpoint> -> {score, grade, deductions[{code, points, fix}]}. Scores your own 402 (version consistency, atomic amount, timeout, parseability, size, 402-vs-400, p50 latency) from normal unpaid requests; grades go only to the caller, never to a public list.
+    if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\nStart with the free check: GET ${FREE_CHECK_URL}\nReal example: GET ${FREE_CHECK_EXAMPLE_URL}\n  -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}\n5 free checks per client per UTC day (at most 25 per network), free dry runs with &mode=dry-run, prior checks at ${PRIOR_CHECKS}. After that, the paid check (HTTP 402, $0.02 USDC on Base via x402) adds the full payment terms.\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n**Discover (verdict-filtered index).** \`GET https://api.402xagent.com/v1/discover?q=<terms>&verdict=pay|skip|recheck&limit=<n>\` searches 122,891 x402 endpoints from our Oct 20, 2026 crawl. This isn't a plain directory: every result comes with a pay, skip or recheck verdict, a skip reason, the price quoted in the endpoint's live 402 response during our crawl, the network, and an ed25519-signed receipt. Results are facts from an unpaid crawl probe, not endorsements. A pay whose terms are older than ${termsWindowText(termsMaxAgeHours(env))} comes back as recheck (reason_code terms_stale), so run the free check (each result's \`check_url\`, or the MCP tool \`endpoint_spot_check\`) right before you pay. Also available as the MCP tool \`discover\` at https://api.402xagent.com/mcp. — withgrokbot\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). ${COVERED()} self-checked x402 endpoints (weekly crawl); the skip list shows which ones disagree with their listing.\n- x402 hygiene (free, 20/day per network, cached 24 h): GET ${API_ORIGIN}/v1/hygiene?url=<endpoint> -> {score, grade, deductions[{code, points, fix}]}. Scores your own 402 (version consistency, atomic amount, timeout, parseability, size, 402-vs-400, p50 latency) from normal unpaid requests; grades go only to the caller, never to a public list.
 - Bazaar check (free): ${CANON_ORIGIN}/bazaar (JSON: ${CANON_ORIGIN}/bazaar.json). Our daily check of the top CDP Bazaar search results.\n- Facilitator pre-settle check (free, ${FACIL_CHECK_PER_MIN}/min per IP, ${FACIL_HOST_PER_MIN}/min per seller host): POST ${API_ORIGIN}${FACIL_CHECK_PATH} JSON {"paymentRequirements":{scheme, network, amount, asset, payTo},"url":"<resource>"} -> {match, mismatches[{field, expected, live}], live_terms_sha256, checked_at, recommendation: settle|hold}. Re-reads the seller's live 402 terms (never pays); for an onBeforeSettle hook. Send only the requirements, never the payment payload.\n- Status badge (free): ${CANON_ORIGIN}/badge/api.402rates.com.svg (any host in place of api.402rates.com; optional ?path=/exact/path). Green "pay · stable N days" only when the latest check is pay and under 72 h old; otherwise grey "stale" or "not verified". Embed: [![402xAgent status](${CANON_ORIGIN}/badge/api.402rates.com.svg)](${CANON_ORIGIN}/badge/api.402rates.com). Every receipt carries its own badge snippet (Markdown + HTML).\n- Saves (free): ${CANON_ORIGIN}/saves (JSON: ${CANON_ORIGIN}/saves.json). Endpoints from the last 30 days whose live 402 differed from the listing (asked more, paid a different wallet, or another network), with redacted receipts.\n- Rules (free): ${CANON_ORIGIN}/rules (JSON: ${CANON_ORIGIN}/rules.json). Every verdict carries a stable reason_code and a confidence (high|medium|low); the codes and confidence rules are listed there.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (one receipt by id, e.g. ${CANON_ORIGIN}/v1/receipts/006776f7b6; live receipt ids start with sc-; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 5 free/day (25 per network), then $0.02 USDC a check on Base via x402.\n${endpointReportOn(env) ? `- Endpoint report ($0.05, no free tier): POST ${API_ORIGIN}${ER_ROUTE_PATH} with JSON {"url":"https://api.402rates.com/v1/ping","commitment_ref":"cm-0123456789abcdef"} (commitment_ref = locked_commitments.ref of a free check). Reveals exactly the committed drift history and hygiene detail behind the free answer's locked teasers; verify the sha256 digests: ${CANON_ORIGIN}/docs#endpoint-report\n` : ""}${watchOn(env) ? `- Watchtower ($1 per 30 days, 7-day free trial on the first watch per webhook domain): POST ${API_ORIGIN}/v1/watch with JSON ${JSON.stringify(WATCH_EXAMPLE)}. Hourly re-probe; Ed25519-signed webhooks on drift, down and recovery (verify with ${API_ORIGIN}/.well-known/402xagent-keys.json). Renew: POST ${API_ORIGIN}/v1/watch/${EXAMPLE_WATCH_ID}/renew. Docs: ${CANON_ORIGIN}/docs#watchtower\n` : ""}${feedOn(env) ? `- Watchtower feed (facts only: liveness, payment terms, drift events; no scores): GET ${API_ORIGIN}/v1/feed?category=<search/data|inference|crypto-market|content|infra|other> (free: daily snapshot >= 24 h old, 100 rows, 200 calls/day per network; live=1 = $${FEED_PRICES.call.usd} per call real-time), GET ${API_ORIGIN}/v1/feed/endpoint/{hkey}, GET ${API_ORIGIN}/v1/feed/drift?from=&to= (free 7 days; full=1 = $${FEED_PRICES.drift.usd}), signed paginated snapshot ${API_ORIGIN}/v1/feed/snapshot.json (?page=n; .csv?page=n), keys via POST ${API_ORIGIN}/v1/feed/subscribe ($${FEED_PRICES.endpoint.usd} endpoint / $${FEED_PRICES.category.usd} category / $${FEED_PRICES.firehose.usd} firehose per 30 days). Schema, tiers and limitations: ${API_ORIGIN}/v1/feed/manifest\n` : ""}- After you pay (did it land? safe to sign again?): POST ${API_ORIGIN}/v1/products/payment-status with JSON {"payment_payload":"<base64 PAYMENT-SIGNATURE you sent>","seller_url":"<url>"} (or tx_hash, or from + nonce). Base USDC (EIP-3009) only. Returns status landed|not_landed|pending|canceled|unknown, safe_to_retry_same_payload (always true), safe_to_resign (true only when two independent RPC sources agree the nonce is unused and validBefore has passed), tx details, terms match, a claim pointer, and a signed receipt. Same price and the same 5 free/day as the check. Docs: ${CANON_ORIGIN}/docs#payment-status\n- Hosted mode for routers/wallets (integrator key, Authorization: Bearer 402x_live_...): 1,000 free hosted checks, then $0.02, $0.01 after 1,000 a month, monthly USDC invoice: ${CANON_ORIGIN}/docs#hosted\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n- Pricing: ${CANON_ORIGIN}/pricing  Docs: ${CANON_ORIGIN}/docs (quick start: ${CANON_ORIGIN}/docs#quick-start)\n- Blog: ${CANON_ORIGIN}/blog${BLOG_POSTS.map((p) => `\n  - ${p.title}: ${CANON_ORIGIN}/blog/${p.slug}`).join("")}\n- Signed receipts: new receipts carry kid + signature (ed25519 over RFC 8785 JCS of the receipt minus signature). Public keys: ${API_ORIGIN}/.well-known/402xagent-keys.json. Verify offline: ${CANON_ORIGIN}/docs#receipt-signatures or x402-spotcheck 1.1.0 verifyReceipt().\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
     if (path === "/" && url.hostname === "402xagent.com" && /text\/html/.test(req.headers.get("accept") || ""))
       return new Response(landingHtml(CANON_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", vary: "accept", "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "access-control-allow-origin": "*" } });
