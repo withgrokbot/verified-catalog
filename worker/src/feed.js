@@ -4,7 +4,7 @@
 // PRIVACY: every response is built from the explicit FEED_COLUMNS / EVENT_COLUMNS allowlists over feed_* tables only.
 // This module never reads watches.webhook_url / webhook_hash / ip_hash / secret_hash, watch_events, spot_receipts,
 // settled_payments, hygiene tables or trial_claims. pay_to is the public seller address. No query strings.
-// Flags (0.52.1, explicit modes, see feedMode): FEED unset/0 = off (routes 404, no writes). FEED=observe (or the older
+// Flags (0.53.1, explicit modes, see feedMode): FEED unset/0 = off (routes 404, no writes). FEED=observe (or the older
 // FEED_OBSERVE=1 with FEED unset) = observe-only: opt-ins are accepted and opted-in watch observations are recorded and
 // pruned, but nothing is served (routes 404, no snapshot build, nothing in openapi/llms.txt). FEED=1 = serve the routes.
 // FEED=1 records observations only when FEED_OBSERVE=1 is also set (unchanged from 0.52.0).
@@ -190,7 +190,7 @@ export async function optInAllowed(env, db) {
   console.log(JSON.stringify({ feed: "opt_in_cap_hit", cap: optInMax(env), opted_in: n }));
   return false;
 }
-// 0.52.1: opt-in lives in its own table (migration 0018 is CREATE ... IF NOT EXISTS only; watches is not altered).
+// 0.53.1: opt-in lives in its own table (migration 0018 is CREATE ... IF NOT EXISTS only; watches is not altered).
 export async function isOptedIn(db, watchId) { return !!(await db.prepare("SELECT 1 AS x FROM feed_opt_ins WHERE watch_id = ?").bind(watchId).first()); }
 export async function setOptIn(db, watchId, optIn, now = new Date()) {
   if (optIn) await db.prepare("INSERT INTO feed_opt_ins (watch_id, opted_in_at) VALUES (?, ?) ON CONFLICT(watch_id) DO NOTHING").bind(watchId, iso(now)).run();

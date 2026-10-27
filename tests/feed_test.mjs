@@ -412,7 +412,7 @@ test("routing: worker.fetch serves /v1/feed only when FEED=1", async () => {
   assert.ok(!/v1\/feed/.test(await llms({ RECEIPTS_DB: d1() })));
 });
 
-test("0.52.1 migration 0018 is additive + idempotent: re-applying is a no-op, data kept, 0.52.0-era watches rows untouched", async () => {
+test("0.53.1 migration 0018 is additive + idempotent: re-applying is a no-op, data kept, 0.52.0-era watches rows untouched", async () => {
   const sql = mig("0018_feed.sql");
   assert.ok(!/\b(ALTER|DROP|UPDATE|DELETE|INSERT|REPLACE)\b/i.test(sql.replace(/--.*$/gm, "")), "0018 only creates");
   for (const m of sql.replace(/--.*$/gm, "").split(";").map((x) => x.trim()).filter(Boolean)) assert.match(m, /^CREATE (TABLE|INDEX) IF NOT EXISTS /);
@@ -425,7 +425,7 @@ test("0.52.1 migration 0018 is additive + idempotent: re-applying is a no-op, da
   assert.deepEqual(db.prepare("PRAGMA table_info(watches)").all(), before);
 });
 
-test("0.52.1 flag modes: off / observe (records, serves nothing) / serve", async () => {
+test("0.53.1 flag modes: off / observe (records, serves nothing) / serve", async () => {
   assert.equal(F.feedMode({}), "off");
   assert.equal(F.feedMode({ FEED: "0" }), "off");
   assert.equal(F.feedMode({ FEED: "observe" }), "observe");

@@ -244,7 +244,7 @@ export async function deliverDue(env, now, deps = {}, limit = 50) {
 
 // ------------------------------------------------------------------ one probe step for one watch
 const W_COLS = "id, url, method, webhook_url, status, paused_reason, state, fail_streak, ok_streak, pending_sig, pending_count, was_paused, quiet_until, baseline_json, baseline_sig, last_event_id, fail_days, fail_day, ok_day, consecutive_failed, paid_until";
-// 0.52.0/0.52.1: feed_opt_in (table feed_opt_ins, migration 0018) is selected only when FEED_OBSERVE / FEED=observe is
+// 0.52.0/0.53.1: feed_opt_in (table feed_opt_ins, migration 0018) is selected only when FEED_OBSERVE / FEED=observe is
 // on, so ticks keep working before 0018 is applied and the watches table itself is never altered.
 const wCols = (env) => (feedObserveOn(env) ? W_COLS + ", EXISTS (SELECT 1 FROM feed_opt_ins f WHERE f.watch_id = watches.id) AS feed_opt_in" : W_COLS);
 export async function stepWatch(env, w, o, now, deps = {}) {
