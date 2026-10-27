@@ -1,0 +1,120 @@
+{
+  "service_id": "otto-crypto-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://x402.ottoai.services/crypto-news",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 704,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 27 Oct 2026 17:52:11 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://x402.ottoai.services/crypto-news",
+            "description": "Importance-ranked crypto headlines with per-article source links and publish times, plus a sentiment-scored market brief. Regenerated hourly; meta carries the snapshot's age and a fresh/stale verdict.",
+            "mimeType": "application/json",
+            "serviceName": "Otto AI",
+            "tags": [
+              "crypto news",
+              "market news",
+              "sentiment analysis",
+              "breaking headlines"
+            ],
+            "iconUrl": "https://x402.ottoai.services/assets/otto-icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "assetTransferMethod": "permit2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "1000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM"
+              }
+            }
+          ]
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "1517"
+    },
+    "body_bytes": 1517,
+    "body_sha256": "70f7aea3967721656bf2204d11f5b14ebfdde648dda001ea49b70bcc984f4a38",
+    "body_excerpt": "{\"error\":\"payment_required\",\"hint\":\"This is a pay-per-call x402 endpoint. The payment terms are the accepts[] array in this body -- mirrored verbatim from the base64 PAYMENT-REQUIRED response header, which remains the x402 v2 protocol contract. Pay one of them with an x402 client, then retry to receive the data.\",\"price\":\"$0.001\",\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"assetTransferMethod\":\"permit2\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"amount\":\"1000\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"payTo\":\"6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5\",\"maxTimeoutSeconds\":300,\"extra\":{\"feePayer\":\"D6ZhtNQ5nT9ZnTHUbqXZsTx5MH2rPFiBBggX4hY1WePM\"}}],\"docs\":\"https://docs.useotto.xyz/getting-started/agent-quickstart\",\"contact\":{\"email\":\"[email redacted]\",\"telegram\":\"https://t.me/DeFAI_Capital\",\"twitter\":\"https://twitter.com/useOttoAI\",\"feedback\":\"POST https://x402.ottoai.services/feedback ($0.001) -- money-back guarantee on Otto-recommended services and Full Auto; feature requests welcome (email/Telegram are free).\"},\"x402Version\":2}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1794,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 27 Oct 2026 17:52:13 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0xcde059ec78999155d3e3f6e6ed5c410b3c7d581cb9dd764d6d40cf0fe511df40",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "7238"
+    },
+    "body_bytes": 7238,
+    "body_sha256": "7016f865c767215ba4561b17d146bd01176da679ff260c1ca0eaf6a3476fe086",
+    "body_excerpt": "{\"status\":\"success\",\"data\":{\"report\":\"_Report generated 2026-10-27 17:00 UTC_\\n\\n## MARKET BRIEF\\n\\nOverview: Bitcoin's drop below the psychologically important $80,000 level dominated today's crypto landscape, with the asset decoupling from an Asian tech rally as the Federal Reserve meeting got underway.\\n\\nMarket Sentiment:\\nOverall Bull/Bear Score: 45\\n\\n---\\n\\n## KEY STORIES\\n\\n1. **Bitcoin drops below $80,000 as crypto ignores Asian tech rally, Fed meeting begins** - Bitcoin falling below the psychologically important $80,000 level while decoupling from a tech stock rally and heading into a Fed meeting is a key macro signal for traders' positioning and risk sentiment.\\n\\n2. **USDC overtakes USDT in euro stablecoin trading as EU rules reshape market: Kaiko** - A structural shift in the stablecoin market driven by MiCA, with USDC now at 56% of euro trading and EBA \\\"significant e-money token\\\" designation, makes this highly relevant for stablecoin and European market participants.\\n\\n3. **Janus Henderson, Centrifuge launch tokenized Nasdaq-100 fund on Stellar** - A licensed, issuer-sponsored tokenized Nasdaq-100 fund from a major asset manager is a significant step for real-world asset tokenization and institutional onchain adoption.\\n\\n4. **Ripple, BNY explore using the XRP Ledger to finance approved invoices** - BNY adding XRP and RLUSD to custody plus invoice-settlement testing signals major institutional adoption and real-world payment use cases for XRP.\\n\\n5. **Hidden Code in Udesk Chat Script Swaps Crypto Deposit Addresses, SlowMist Says** - A malware campaign silently swapping deposit addresses across multiple chains poses a direct, actionable security threat to exchange users and funds.\\n\\n---\\n\\n## QUICK HITS\\n\\n- Galaxy Books $323 Million Q3 Profit as Its Own Investments Rebound\\n- Bitcoin price analysis sees 'strong rally' as old coins become dormant\\n- Keystone to destroy almost 19,000 devices after security breach\\n- Bitcoin miners' move into AI is creating a new market for trading computing power\\n- CF Benchmarks brings Wall Street pricing infrastructure onchain, including data used by BlackRock\\n\\nInformational only -- not investment advice.\\n\\n[Powered by $OTTO AI | @useOttoAI]\",\"headlines\":[{\"rank\":1,\"title\":\"Bitcoin drops below $80,000 as crypto ignores Asian tech rally, Fed meeting begins\",\"whyItMatters\":\"Bitcoin falling below the psychologically important $80,000 level while decoupling from a tech stock rally and heading into a Fed meeting is a key macro signal for traders' positioning and risk sentiment.\",\"url\":\"https://www.coindesk.com/markets/2026/10/27/bitcoin-drops-below-usd80-000-as-crypto-ignores-asian-tech-rally-fed-meeting-begins\",\"publishedAt\":\"2026-10-27T11:32:45.000Z\",\"source\":\"Coindesk\",\"match\":\"exact\"},{\"rank\":2,\"title\":\"USDC overtakes USDT in euro stablecoin trading as EU rules reshape market: Kaiko\",\"whyItMatters\":\"A structural shift in the stablecoin market driven by MiCA, with USDC now at 56% of euro trading and EBA \\\"significant e-money token\\\" designation, makes this highly relevant for stablecoin and European market participants.\",\"url\":\"https://cointelegraph.com/news/usdc-overtakes-usdt-euro-stablecoin-trading-mica-kaiko\",\"publishedAt\":\"2026-10-27T15:59:58.000Z\",\"source\":\"Cointelegraph\",\"match\":\"exact\"},{\"rank\":3,\"title\":\"Janus Henderson, Centrifuge launch tokenized Nasdaq-100 fund on Stellar\",\"whyItMatters\":\"A licensed, issuer-sponsored tokenized Nasdaq-100 fund from a major asset manager is a significant step for real-world asset tokenization and institutional onchain adoption.\",\"url\":\"https://cointelegraph.com/news/janus-henderson-centrifuge-launch-tokenized-nasdaq-100-fund-on-stellar\",\"publishedAt\":\"2026-10-27T16:37:15.000Z\",\"source\":\"Cointelegraph\",\"match\":\"exact\"},{\"rank\":4,\"title\":\"Ripple, BNY explore using the XRP Ledger to finance approved invoices\",\"whyItMatters\":\"BNY adding XRP and RLUSD to custody plus invoice-settlement testing signals major institutional adoption and real-world payment use cases for XRP.\",\"url\":\"https://www.theblock.co/news/business/2026-10-27-ri"
+  },
+  "quality": {
+    "result": "fail",
+    "reason": "1 item(s) without a source URL",
+    "observed": {
+      "items": 10,
+      "items_with_url": 9,
+      "newest": "2026-10-27T16:37:15Z",
+      "newest_age_hours": 1.25
+    },
+    "expected": {},
+    "test": {
+      "input": "none",
+      "pass_if": "at least 5 items, each with a source URL; newest item under 3 h old (the listing says hourly)"
+    },
+    "graded_at": "2026-10-27T17:52:12Z"
+  },
+  "run_id": "20261027T175205Z",
+  "checked_at": "2026-10-27T17:52:11Z"
+}

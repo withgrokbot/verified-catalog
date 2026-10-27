@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-30 (listing last updated 2026-09-30 09:19:00 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-27 14:53:16 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-27 17:52:54 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>290 ms</td></tr>
+<tr><th scope="row">Latency</th><td>680 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.001 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.001</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.001</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>no pass/fail (no known-answer test for this service)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.001, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 1000 units of EPjFWdd5Aufq.</p>
-<p>Evidence: <a href="../results/raw/20261027T145315Z/hypernatt-liq-radar.json">raw log for this check</a>. Machine-readable: <a href="hypernatt-liq-radar.json">hypernatt-liq-radar.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261027T175205Z/hypernatt-liq-radar.json">raw log for this check</a>. Machine-readable: <a href="hypernatt-liq-radar.json">hypernatt-liq-radar.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>No known-answer test for this service.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-10-27 17:52:54 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td>none</td></tr>
 <tr><td>2026-10-23 17:51:54 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td>none</td></tr>
 <tr><td>2026-10-20 17:46:36 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td>none</td></tr>
 <tr><td>2026-10-16 17:49:23 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td>none</td></tr>
@@ -53,6 +54,7 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-27 17:52:54 UTC</td><td>paid</td><td>yes</td><td>402</td><td>680 ms</td><td>$0.001</td><td>yes</td><td><a href="../results/raw/20261027T175205Z/hypernatt-liq-radar.json">raw log</a></td></tr>
 <tr><td>2026-10-27 14:53:16 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>290 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261027T145315Z/hypernatt-liq-radar.json">raw log</a></td></tr>
 <tr><td>2026-10-26 15:39:12 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>419 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261026T153911Z/hypernatt-liq-radar.json">raw log</a></td></tr>
 <tr><td>2026-10-25 14:36:32 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>308 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261025T143631Z/hypernatt-liq-radar.json">raw log</a></td></tr>
@@ -62,7 +64,6 @@
 <tr><td>2026-10-22 14:42:17 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>380 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261022T144216Z/hypernatt-liq-radar.json">raw log</a></td></tr>
 <tr><td>2026-10-21 14:41:56 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>352 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261021T144155Z/hypernatt-liq-radar.json">raw log</a></td></tr>
 <tr><td>2026-10-20 17:46:36 UTC</td><td>paid</td><td>yes</td><td>402</td><td>484 ms</td><td>$0.001</td><td>yes</td><td><a href="../results/raw/20261020T174555Z/hypernatt-liq-radar.json">raw log</a></td></tr>
-<tr><td>2026-10-20 14:41:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>432 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261020T144156Z/hypernatt-liq-radar.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

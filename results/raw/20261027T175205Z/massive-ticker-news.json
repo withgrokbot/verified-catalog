@@ -1,0 +1,93 @@
+{
+  "service_id": "massive-ticker-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://agent.massive.com/v2/reference/news?limit=10&order=desc&sort=published_utc&ticker=AAPL",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 590,
+    "headers": {
+      "content-type": "application/json",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://agent.massive.com/v2/reference/news?limit=10&order=desc&sort=published_utc&ticker=AAPL",
+            "description": "Get the most recent news articles relating to a stock ticker symbol, including a summary of the article and a link to the original source. Can't find what you're looking for? POST feedback to /feedback, no charge.",
+            "mimeType": "application/json",
+            "serviceName": "Massive",
+            "tags": [
+              "news",
+              "articles",
+              "stocks"
+            ],
+            "iconUrl": "https://agent.massive.com/icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "10000",
+              "payTo": "0x525f6dDcE9aF7a7179D7696aaBfCd5FCd15a21e6",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "date": "Tue, 27 Oct 2026 17:52:37 GMT",
+      "content-length": "96"
+    },
+    "body_bytes": 96,
+    "body_sha256": "0a32141aa8c76c645d9ddb3d0fd78adc0e2076ce57832aef40013d4d41c33d5c",
+    "body_excerpt": "{\"message\":\"See the PAYMENT-REQUIRED header for the payment terms.\",\"status\":\"PAYMENT_REQUIRED\"}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1572,
+    "headers": {
+      "content-length": "29257",
+      "content-type": "application/json",
+      "date": "Tue, 27 Oct 2026 17:52:38 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0xaaa24df303ff2b496c8c7ce9c36394aac4e6a3bcce366fb8dc0f376500594302",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 29257,
+    "body_sha256": "99818968c0f709b1bb63ca762be65b413b87c9cf74763be588ce0af980d88e30",
+    "body_excerpt": "{\"results\":[{\"id\":\"27736107c89448a5ceff5c8ca99e494852d6c52717efce2b494064aee8b466ed\",\"publisher\":{\"name\":\"The Motley Fool\",\"homepage_url\":\"https://www.fool.com/\",\"logo_url\":\"https://s3.massive.com/public/assets/news/logos/themotleyfool.svg\",\"favicon_url\":\"https://s3.massive.com/public/assets/news/favicons/themotleyfool.ico\"},\"title\":\"Alibaba vs. Target: Which Consumer Stock Is a Better Buy in 2026?\",\"author\":\"Jake Lerch\",\"published_utc\":\"2026-10-27T13:30:02Z\",\"article_url\":\"https://www.fool.com/coverage/better-buy/2026/10/27/alibaba-vs-target-which-consumer-stock-is-a-better-buy-in-2026/?source=iedfolrf0000001\",\"tickers\":[\"BABA\",\"TGT\",\"AAPL\",\"SBUX\",\"ULTA\"],\"image_url\":\"https://g.foolcdn.com/image/?url=https%3A%2F%2Fcdn.content.foolcdn.com%2Fimages%2F1umn9qeh%2Fproduction%2Ff849be6e7c7251e5063eddee88ac0b7b6c094d1c-5760x3840.jpg&w=1200&op=resize\",\"description\":\"The article compares Alibaba Group and Target as investment options for 2026. Alibaba offers higher growth (4% average) and better profitability (11.4% operating margin) but faces regulatory risks and a higher valuation (P/E 23.6x). Target provides lower valuation (P/E 15.4x), steadier profitability (5.5-5.7% operating margin), and domestic stability but slower growth (1.5% average). The analysis suggests Target may be the better choice for many investors due to its more attractive valuation despite Alibaba's stronger growth profile.\",\"keywords\":[\"e-commerce\",\"cloud computing\",\"retail\",\"valuation\",\"growth\",\"profitability\",\"P/E ratio\",\"operating margin\",\"geopolitical risk\",\"consumer spending\"],\"insights\":[{\"ticker\":\"BABA\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Alibaba demonstrates stronger growth (4% average YoY) and higher profitability (11.4% operating margin historically), but faces concerning recent margin collapse to 4.1%, regulatory risks, geopolitical tensions, and higher valuation (P/E 23.6x). The company's cloud pivot shows promise but introduces uncertainty.\"},{\"ticker\":\"TGT\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Target is recommended as the better buy due to lower valuation (P/E 15.4x, P/S 0.7x), steadier profitability (5.5-5.7% operating margin), strong brand partnerships (Apple, Starbucks, Ulta Beauty), and domestic stability. However, slower growth (1.5% average) and tariff sensitivity present headwinds.\"},{\"ticker\":\"AAPL\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Apple is mentioned as a strategic shop-in-shop partner within Target stores, contributing to Target's retail strategy but not directly analyzed in the article.\"},{\"ticker\":\"SBUX\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Starbucks is mentioned as a shop-in-shop partner within Target stores, part of Target's brand partnership strategy but not directly evaluated.\"},{\"ticker\":\"ULTA\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Ulta Beauty is mentioned as a significant brand partner with Target, contributing to Target's retail ecosystem but not independently analyzed.\"}]},{\"id\":\"d89b2f3e70d329020b29231c742cca5b8f2dd6a3cf4962b475af29ec4f31e95b\",\"publisher\":{\"name\":\"The Motley Fool\",\"homepage_url\":\"https://www.fool.com/\",\"logo_url\":\"https://s3.massive.com/public/assets/news/logos/themotleyfool.svg\",\"favicon_url\":\"https://s3.massive.com/public/assets/news/favicons/themotleyfool.ico\"},\"title\":\"If I Were in My 20s, I'd Buy This Magnificent Vanguard ETF and Hold It Until Retirement\",\"author\":\"Anthony Di Pizio\",\"published_utc\":\"2026-10-27T13:29:00Z\",\"article_url\":\"https://www.fool.com/investing/2026/10/27/if-i-were-my-20s-buy-vanguard-etf-hold-retirement/?source=iedfolrf0000001\",\"tickers\":[\"VUG\",\"NVDA\",\"AVGO\",\"AAPL\",\"MSFT\",\"GOOG\",\"GOOGL\",\"GOOGM\",\"GOOGN\",\"AMZN\",\"META\",\"AMD\",\"PLTR\"],\"image_url\":\"https://g.foolcdn.com/image/?url=https%3A%2F%2Fg.foolcdn.com%2Feditorial%2Fimages%2F892263%2Fan-investor-intently-focused-on-their-computer-screens-which-are-displaying-stock-charts.jpg&w=1200&op=resize\",\"description\":\"The Vanguard Morningstar Growth ETF (VUG) is recommended for young investors seeking higher returns than the S&P 500. With 72% in technology stocks and a 12.1% compound annual ret"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "all 10 items tag AAPL; newest 0.2 days old",
+    "observed": {
+      "items": 10,
+      "items_without_ticker": 0,
+      "newest": "2026-10-27T13:30:02Z",
+      "newest_age_days": 0.18
+    },
+    "expected": {},
+    "test": {
+      "input": "ticker=AAPL, newest first",
+      "pass_if": "every item tags AAPL; newest item at most 7 days old"
+    },
+    "graded_at": "2026-10-27T17:52:38Z"
+  },
+  "run_id": "20261027T175205Z",
+  "checked_at": "2026-10-27T17:52:37Z"
+}

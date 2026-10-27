@@ -42,11 +42,11 @@
   },
   "paid_receipts": 7,
   "latest": {
-    "checked_at": "2026-10-27T14:53:16Z",
-    "mode": "dry-run",
+    "checked_at": "2026-10-27T17:52:21Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 117,
+    "latency_ms": 95,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.01",
@@ -55,18 +55,18 @@
     "paid": false,
     "charged_price_usd": null,
     "delivered_valid": null,
-    "payment_refused_reason": null,
+    "payment_refused_reason": "price in the 402 challenge $0.005 does not match the listed price $0.01; paid checks only pay the exact listed price",
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261027T145315Z/coingecko-onchain-pool-search.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T145315Z/coingecko-onchain-pool-search.json"
+    "raw_log": "results/raw/20261027T175205Z/coingecko-onchain-pool-search.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/coingecko-onchain-pool-search.json"
   },
   "history_summary": {
-    "checks": 37,
-    "reachable": 37,
-    "x402_challenge_ok": 37,
+    "checks": 38,
+    "reachable": 38,
+    "x402_challenge_ok": 38,
     "paid_checks": 7,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-10-27T14:53:16Z"
+    "last_checked": "2026-10-27T17:52:21Z"
   }
 }

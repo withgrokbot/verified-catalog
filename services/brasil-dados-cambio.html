@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 10:19:46.81 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-27 14:53:16 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-27 17:52:43 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>195 ms</td></tr>
+<tr><th scope="row">Latency</th><td>187 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.002 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.002</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.002</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>no pass/fail (facts only: On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported).)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.002, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 2000 units of EPjFWdd5Aufq.</p>
-<p>Evidence: <a href="../results/raw/20261027T145315Z/brasil-dados-cambio.json">raw log for this check</a>. Machine-readable: <a href="brasil-dados-cambio.json">brasil-dados-cambio.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261027T175205Z/brasil-dados-cambio.json">raw log for this check</a>. Machine-readable: <a href="brasil-dados-cambio.json">brasil-dados-cambio.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: none. Passes if: USD/BRL equals the free BCB PTAX API for that date.</p><p class="notice">Facts only (no pass/fail result is given): On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported).</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-10-27 17:52:43 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported).)</td><td><a href="https://basescan.org/tx/0x0470f377c1e89b4f266eb6a4181f5945e7a64a4d9d0b8c201ebfd2efa7e424eb">0x0470f377...</a></td></tr>
 <tr><td>2026-10-23 17:51:47 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported).)</td><td><a href="https://basescan.org/tx/0x1aa652b7105160d9934c6c036fe2ffd39f21b26b0a8131c7ece740f09c155e4c">0x1aa652b7...</a></td></tr>
 <tr><td>2026-10-20 17:46:27 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported).)</td><td><a href="https://basescan.org/tx/0xc8df626db59d189f0108af3d735d82941775f3ee47af43cd376fa9290d05f37f">0xc8df626d...</a></td></tr>
 <tr><td>2026-10-16 17:49:15 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported).)</td><td><a href="https://basescan.org/tx/0x2ff34b69c5d9f55ae266da1fb2d7a28020cf9226d3d182b06bc9549743ab74b5">0x2ff34b69...</a></td></tr>
@@ -56,6 +57,7 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-27 17:52:43 UTC</td><td>paid</td><td>yes</td><td>402</td><td>187 ms</td><td>$0.002</td><td>yes</td><td><a href="../results/raw/20261027T175205Z/brasil-dados-cambio.json">raw log</a></td></tr>
 <tr><td>2026-10-27 14:53:16 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>195 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261027T145315Z/brasil-dados-cambio.json">raw log</a></td></tr>
 <tr><td>2026-10-26 15:39:12 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>344 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261026T153911Z/brasil-dados-cambio.json">raw log</a></td></tr>
 <tr><td>2026-10-25 14:36:31 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>205 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261025T143631Z/brasil-dados-cambio.json">raw log</a></td></tr>
@@ -65,7 +67,6 @@
 <tr><td>2026-10-22 14:42:17 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>280 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261022T144216Z/brasil-dados-cambio.json">raw log</a></td></tr>
 <tr><td>2026-10-21 14:41:56 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>122 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261021T144155Z/brasil-dados-cambio.json">raw log</a></td></tr>
 <tr><td>2026-10-20 17:46:27 UTC</td><td>paid</td><td>yes</td><td>402</td><td>94 ms</td><td>$0.002</td><td>yes</td><td><a href="../results/raw/20261020T174555Z/brasil-dados-cambio.json">raw log</a></td></tr>
-<tr><td>2026-10-20 14:41:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>111 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261020T144156Z/brasil-dados-cambio.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

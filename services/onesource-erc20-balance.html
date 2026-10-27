@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-28 09:34:55.243 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-27 14:53:16 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-27 17:52:06 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>144 ms</td></tr>
+<tr><th scope="row">Latency</th><td>631 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.003 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.003</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.003</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>passed (balance equals public-RPC balanceOf at block 26285661)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.003, batch-settlement on eip155:8453: $0.003.</p>
-<p>Evidence: <a href="../results/raw/20261027T145315Z/onesource-erc20-balance.json">raw log for this check</a>. Machine-readable: <a href="onesource-erc20-balance.json">onesource-erc20-balance.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261027T175205Z/onesource-erc20-balance.json">raw log for this check</a>. Machine-readable: <a href="onesource-erc20-balance.json">onesource-erc20-balance.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: USDT balance of vitalik.eth (0xd8da...6045) on Ethereum. Passes if: balance equals balanceOf from a free public Ethereum RPC at one of the 6 newest blocks when we check.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-10-27 17:52:06 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>passed (balance equals public-RPC balanceOf at block 26285661)</td><td><a href="https://basescan.org/tx/0x1322cca37c0c39e19e535c6e8a713c201c42ece1663f49a7a3959a1182072042">0x1322cca3...</a></td></tr>
 <tr><td>2026-10-23 17:51:24 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>passed (balance equals public-RPC balanceOf at block 26256935)</td><td><a href="https://basescan.org/tx/0xce8de523c043b01bac6a9c864deeb49fd47ec269b9f92f2c037454debbc0b42f">0xce8de523...</a></td></tr>
 <tr><td>2026-10-20 17:45:56 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>passed (balance equals public-RPC balanceOf at block 26235376)</td><td><a href="https://basescan.org/tx/0x4815392879eefb211fb839fbed5f7fadc027a876a723eb4524656bec53885787">0x48153928...</a></td></tr>
 <tr><td>2026-10-16 17:48:43 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>passed (balance equals public-RPC balanceOf at block 26206694)</td><td><a href="https://basescan.org/tx/0x6e0542976b345ad814ac490e2d2c34346c01a0b01b94e0a1ca480e70a03a683f">0x6e054297...</a></td></tr>
@@ -56,6 +57,7 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-27 17:52:06 UTC</td><td>paid</td><td>yes</td><td>402</td><td>631 ms</td><td>$0.003</td><td>yes</td><td><a href="../results/raw/20261027T175205Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-10-27 14:53:16 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>144 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261027T145315Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-10-26 15:39:11 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>207 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261026T153911Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-10-25 14:36:31 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>163 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261025T143631Z/onesource-erc20-balance.json">raw log</a></td></tr>
@@ -65,7 +67,6 @@
 <tr><td>2026-10-22 14:42:16 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>300 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261022T144216Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-10-21 14:41:55 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>126 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261021T144155Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-10-20 17:45:56 UTC</td><td>paid</td><td>yes</td><td>402</td><td>296 ms</td><td>$0.003</td><td>yes</td><td><a href="../results/raw/20261020T174555Z/onesource-erc20-balance.json">raw log</a></td></tr>
-<tr><td>2026-10-20 14:41:56 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>87 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261020T144156Z/onesource-erc20-balance.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

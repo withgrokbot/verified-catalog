@@ -1,0 +1,107 @@
+{
+  "service_id": "apitoll-edgar-filings",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://edgar.apitoll.cloud/v1/edgar/filings?form=10-K&limit=5&ticker=AAPL",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 975,
+    "headers": {
+      "server": "nginx/1.24.0 (Ubuntu)",
+      "date": "Tue, 27 Oct 2026 17:52:17 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "217",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://edgar.apitoll.cloud/v1/edgar/filings",
+            "description": "Latest SEC EDGAR filings for any US-listed company by stock ticker or CIK: 10-K annual reports, 10-Q quarterly reports, and 8-K material events. Resolves ticker to CIK via SEC's official index and returns the parsed filing (company, form type, dated items). Sourced live from data.sec.gov.",
+            "mimeType": "application/json",
+            "serviceName": "ApiToll SEC Filings",
+            "tags": [
+              "sec",
+              "edgar",
+              "filings",
+              "10-K",
+              "10-Q",
+              "8-K",
+              "annual-report",
+              "finance",
+              "apitoll"
+            ]
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "3000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x58BdAD5e654691aC5eD4631758f3d8DA00666B6c",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "3000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "7kPWiEbDXu33FomKG6mGa7R8HGSfUGFsAoKFZeBERJaH",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "Hc3sdEAsCGQcpgfivywog9uwtk8gUBUZgsxdME1EJy88"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 217,
+    "body_sha256": "f5da3d8f44f42b0a8590ebefa237c078dc3f56a1a19b25e0eb59895e9dfe65f9",
+    "body_excerpt": "{\"error\":\"payment_required\",\"message\":\"This endpoint requires an x402 micropayment (USDC on Base or Solana). $0.003 per call.\",\"pricing\":{\"4\":\"$0.003\",\"10-K\":\"$0.003\",\"10-Q\":\"$0.003\",\"8-K\":\"$0.003\",\"13F-HR\":\"$0.003\"}}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1794,
+    "headers": {
+      "server": "nginx/1.24.0 (Ubuntu)",
+      "date": "Tue, 27 Oct 2026 17:52:19 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "content-length": "4084",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x2c5de58b8282f06317a69046f8647b194fa945edaf55c4a9fae2a7a519ac0e37",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 4084,
+    "body_sha256": "3237530cf5962d25a88345a1028d4d4682e2b9881d628581d58a416d0ed2521d",
+    "body_excerpt": "{\"resolved\":{\"cik\":\"0000320193\",\"cikInt\":320193,\"ticker\":\"AAPL\",\"companyName\":\"Apple Inc.\",\"entityType\":\"operating\",\"sic\":\"3571\",\"tickerSnapshotDate\":\"2026-10-27\",\"mappingAgeSeconds\":9933},\"form\":\"10-K\",\"appliedSince\":null,\"count\":5,\"items\":[{\"cik\":\"0000320193\",\"accessionNumber\":\"0000320193-25-000079\",\"accessionStripped\":\"000032019325000079\",\"form\":\"10-K\",\"isAmendment\":false,\"filerName\":\"Apple Inc.\",\"filingDate\":\"2025-10-31\",\"reportDate\":\"2025-09-27\",\"acceptanceDateTime\":\"2025-10-31T14:01:26.000Z\",\"fileNumber\":\"001-36743\",\"primaryDocument\":\"aapl-20250927.htm\",\"primaryDocDescription\":\"10-K\",\"isXBRL\":true,\"isInlineXBRL\":true,\"size\":9392337,\"filingUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm\",\"filingIndexUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/0000320193-25-000079-index.htm\",\"filingDirUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/\",\"immutable\":true},{\"cik\":\"0000320193\",\"accessionNumber\":\"0000320193-24-000123\",\"accessionStripped\":\"000032019324000123\",\"form\":\"10-K\",\"isAmendment\":false,\"filerName\":\"Apple Inc.\",\"filingDate\":\"2024-11-01\",\"reportDate\":\"2024-09-28\",\"acceptanceDateTime\":\"2024-11-01T14:01:36.000Z\",\"fileNumber\":\"001-36743\",\"primaryDocument\":\"aapl-20240928.htm\",\"primaryDocDescription\":\"10-K\",\"isXBRL\":true,\"isInlineXBRL\":true,\"size\":9759333,\"filingUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/aapl-20240928.htm\",\"filingIndexUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/0000320193-24-000123-index.htm\",\"filingDirUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/\",\"immutable\":true},{\"cik\":\"0000320193\",\"accessionNumber\":\"0000320193-23-000106\",\"accessionStripped\":\"000032019323000106\",\"form\":\"10-K\",\"isAmendment\":false,\"filerName\":\"Apple Inc.\",\"filingDate\":\"2023-11-03\",\"reportDate\":\"2023-09-30\",\"acceptanceDateTime\":\"2023-11-03T02:08:27.000Z\",\"fileNumber\":\"001-36743\",\"primaryDocument\":\"aapl-20230930.htm\",\"primaryDocDescription\":\"10-K\",\"isXBRL\":true,\"isInlineXBRL\":true,\"size\":9569569,\"filingUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019323000106/aapl-20230930.htm\",\"filingIndexUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019323000106/0000320193-23-000106-index.htm\",\"filingDirUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019323000106/\",\"immutable\":true},{\"cik\":\"0000320193\",\"accessionNumber\":\"0000320193-22-000108\",\"accessionStripped\":\"000032019322000108\",\"form\":\"10-K\",\"isAmendment\":false,\"filerName\":\"Apple Inc.\",\"filingDate\":\"2022-10-28\",\"reportDate\":\"2022-09-24\",\"acceptanceDateTime\":\"2022-10-28T02:01:14.000Z\",\"fileNumber\":\"001-36743\",\"primaryDocument\":\"aapl-20220924.htm\",\"primaryDocDescription\":\"10-K\",\"isXBRL\":true,\"isInlineXBRL\":true,\"size\":10332356,\"filingUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019322000108/aapl-20220924.htm\",\"filingIndexUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019322000108/0000320193-22-000108-index.htm\",\"filingDirUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019322000108/\",\"immutable\":true},{\"cik\":\"0000320193\",\"accessionNumber\":\"0000320193-21-000105\",\"accessionStripped\":\"000032019321000105\",\"form\":\"10-K\",\"isAmendment\":false,\"filerName\":\"Apple Inc.\",\"filingDate\":\"2021-10-29\",\"reportDate\":\"2021-09-25\",\"acceptanceDateTime\":\"2021-10-29T02:04:28.000Z\",\"fileNumber\":\"001-36743\",\"primaryDocument\":\"aapl-20210925.htm\",\"primaryDocDescription\":\"10-K\",\"isXBRL\":true,\"isInlineXBRL\":true,\"size\":10502096,\"filingUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019321000105/aapl-20210925.htm\",\"filingIndexUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019321000105/0000320193-21-000105-index.htm\",\"filingDirUrl\":\"https://www.sec.gov/Archives/edgar/data/320193/000032019321000105/\",\"immutable\":true}],\"truncation\":{\"reason\":\"limit-clamp\",\"nextSince\":\"2021-10-29\"},\"source\":{\"name\":\"data.sec.gov\",\"fetchedAt\":\"2026-10-27T17:52:19.101Z\",\"servedFromCache\":false,\"sourceLastFetchedAt\":\"2026-10-27T17:52:19.098Z\"},\"meta\":{\"relatedEndpoints\":[]}}"
+  },
+  "quality": {
+    "result": "not_graded",
+    "reason": "facts only: On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made.",
+    "observed": {},
+    "expected": {},
+    "test": {
+      "input": "AAPL, form 10-K",
+      "pass_if": "CIK 0000320193 and the latest 10-K filing date match SEC's free submissions API"
+    },
+    "facts_only": true,
+    "graded_at": "2026-10-27T17:52:19Z"
+  },
+  "run_id": "20261027T175205Z",
+  "checked_at": "2026-10-27T17:52:17Z"
+}

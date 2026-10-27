@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-10-23T17:51:24Z",
+  "generated_at": "2026-10-27T17:52:05Z",
   "stale_after_hours": 36,
   "notes": "Paid calls we made, newest first. quality is the known-answer test result: pass, fail, not_graded, or null for calls made before the tests existed. Services with facts_only are not graded.",
   "services": {
@@ -12,6 +12,18 @@
         "facts_only_reason": null
       },
       "receipts": [
+        {
+          "time": "2026-10-27T17:52:06Z",
+          "tx": "0x1322cca37c0c39e19e535c6e8a713c201c42ece1663f49a7a3959a1182072042",
+          "basescan_url": "https://basescan.org/tx/0x1322cca37c0c39e19e535c6e8a713c201c42ece1663f49a7a3959a1182072042",
+          "charged_usd": "0.003",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "pass",
+          "quality_reason": "balance equals public-RPC balanceOf at block 26285661",
+          "pay_to": "0x52E29e0d2Aa49bfBfC548C0A9F2196F4aa51f3ea",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/onesource-erc20-balance.json"
+        },
         {
           "time": "2026-10-23T17:51:24Z",
           "tx": "0xce8de523c043b01bac6a9c864deeb49fd47ec269b9f92f2c037454debbc0b42f",
@@ -119,6 +131,18 @@
       },
       "receipts": [
         {
+          "time": "2026-10-27T17:52:08Z",
+          "tx": "0x5c56acd0a750d12ed027b6628376823c194a48fa4a93130099914f8a2526c5ac",
+          "basescan_url": "https://basescan.org/tx/0x5c56acd0a750d12ed027b6628376823c194a48fa4a93130099914f8a2526c5ac",
+          "charged_usd": "0.007",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "pass",
+          "quality_reason": "3 result URL(s) on x402.org or github.com/coinbase/x402",
+          "pay_to": "0x6d6E695b09861467c7d462f5AAF31cF3540B9192",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/exa-search.json"
+        },
+        {
           "time": "2026-10-23T17:51:26Z",
           "tx": "0x69ec2025a915c11d39bff5b034711811af444129ac4c95bc4622831280430c01",
           "basescan_url": "https://basescan.org/tx/0x69ec2025a915c11d39bff5b034711811af444129ac4c95bc4622831280430c01",
@@ -224,6 +248,18 @@
         "facts_only_reason": null
       },
       "receipts": [
+        {
+          "time": "2026-10-27T17:52:11Z",
+          "tx": "0xcde059ec78999155d3e3f6e6ed5c410b3c7d581cb9dd764d6d40cf0fe511df40",
+          "basescan_url": "https://basescan.org/tx/0xcde059ec78999155d3e3f6e6ed5c410b3c7d581cb9dd764d6d40cf0fe511df40",
+          "charged_usd": "0.001",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "fail",
+          "quality_reason": "1 item(s) without a source URL",
+          "pay_to": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/otto-crypto-news.json"
+        },
         {
           "time": "2026-10-23T17:51:28Z",
           "tx": null,
@@ -331,6 +367,18 @@
       },
       "receipts": [
         {
+          "time": "2026-10-27T17:52:13Z",
+          "tx": "0xf38a7abcc7b2aa20dcee54430c0337c570a2f082ccd46c5e3c1ace0c5fe6590e",
+          "basescan_url": "https://basescan.org/tx/0xf38a7abcc7b2aa20dcee54430c0337c570a2f082ccd46c5e3c1ace0c5fe6590e",
+          "charged_usd": "0.002",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "pass",
+          "quality_reason": "result named 'Amazon.com USA'",
+          "pay_to": "0x480CD46E6faDe651a0437DeaddA53D5c8e7D846A",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/bitrefill-gift-card-search.json"
+        },
+        {
           "time": "2026-10-23T17:51:28Z",
           "tx": "0x231105227dd270f4f949502779cd82467ac41b67e6803011781cc71dadbedd42",
           "basescan_url": "https://basescan.org/tx/0x231105227dd270f4f949502779cd82467ac41b67e6803011781cc71dadbedd42",
@@ -436,6 +484,18 @@
         "facts_only_reason": null
       },
       "receipts": [
+        {
+          "time": "2026-10-27T17:52:14Z",
+          "tx": "0x58788c6926eba1a3e9caccc4bb1a8ac7eaf98e0edf991d03807b1be951907c73",
+          "basescan_url": "https://basescan.org/tx/0x58788c6926eba1a3e9caccc4bb1a8ac7eaf98e0edf991d03807b1be951907c73",
+          "charged_usd": "0.01",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "fail",
+          "quality_reason": "none of 10 result URLs is on x402.org or github.com/coinbase/x402",
+          "pay_to": "0xF752eEB75d3Bea24AA867ad93bfd8EF5a2F431B9",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/x402atlas-web-search.json"
+        },
         {
           "time": "2026-10-23T17:51:29Z",
           "tx": "0x8621a29490156010be3c5f85b55175d44699f1f41ec3d586b145d6fd6aa34a16",
@@ -543,6 +603,18 @@
       },
       "receipts": [
         {
+          "time": "2026-10-27T17:52:17Z",
+          "tx": "0x2c5de58b8282f06317a69046f8647b194fa945edaf55c4a9fae2a7a519ac0e37",
+          "basescan_url": "https://basescan.org/tx/0x2c5de58b8282f06317a69046f8647b194fa945edaf55c4a9fae2a7a519ac0e37",
+          "charged_usd": "0.003",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "not_graded",
+          "quality_reason": "facts only: On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made.",
+          "pay_to": "0x58BdAD5e654691aC5eD4631758f3d8DA00666B6c",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/apitoll-edgar-filings.json"
+        },
+        {
           "time": "2026-10-23T17:51:31Z",
           "tx": "0x246517355a5aff398e484bb3e864ba3f5f852ad1334f0abc4014105482a50803",
           "basescan_url": "https://basescan.org/tx/0x246517355a5aff398e484bb3e864ba3f5f852ad1334f0abc4014105482a50803",
@@ -600,6 +672,18 @@
         "facts_only_reason": null
       },
       "receipts": [
+        {
+          "time": "2026-10-27T17:52:20Z",
+          "tx": "0x7763466371f3b1760b86e232ca0a6011f4f153484b51eceda6105e1173c1890d",
+          "basescan_url": "https://basescan.org/tx/0x7763466371f3b1760b86e232ca0a6011f4f153484b51eceda6105e1173c1890d",
+          "charged_usd": "0.01",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "pass",
+          "quality_reason": "epoch within 5 s of our clock; ISO and epoch agree",
+          "pay_to": "0x970007590aCC5C938cd51345B17AF51B1B40D3Ab",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/oblique-paid-time.json"
+        },
         {
           "time": "2026-10-23T17:51:34Z",
           "tx": "0x505e244f6e4d123a22d9ce6b0f97e45308ec6fdda09bab262471846f66a898fa",
@@ -801,6 +885,18 @@
       },
       "receipts": [
         {
+          "time": "2026-10-27T17:52:21Z",
+          "tx": "0xa448672c7a796c422d439f2a7e07f24f89317dbcd67e9cae12e5c9a4204f8465",
+          "basescan_url": "https://basescan.org/tx/0xa448672c7a796c422d439f2a7e07f24f89317dbcd67e9cae12e5c9a4204f8465",
+          "charged_usd": "0.005",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "not_graded",
+          "quality_reason": "facts only: On 2026-09-30 the endpoint answered our x402 payment with a second HTTP 402 asking to pay again by another method (Tempo), so nothing was delivered.",
+          "pay_to": "0xc327D0aEb5f65B514b193b5e5A95cC6F4060815f",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/you-search.json"
+        },
+        {
           "time": "2026-10-23T17:51:35Z",
           "tx": "0x3eb812ee24096ccc9ead13ba12eedf3fc4dc4c3bebe468e66a34aad6f24d002c",
           "basescan_url": "https://basescan.org/tx/0x3eb812ee24096ccc9ead13ba12eedf3fc4dc4c3bebe468e66a34aad6f24d002c",
@@ -870,6 +966,18 @@
         "facts_only_reason": "On 2026-09-30 the payment settled but the sample request was rejected (HTTP 422). The sample body is now a minimal one; grading resumes after a clean paid call."
       },
       "receipts": [
+        {
+          "time": "2026-10-27T17:52:30Z",
+          "tx": null,
+          "basescan_url": null,
+          "charged_usd": null,
+          "delivered": false,
+          "http_status": 402,
+          "quality": "not_graded",
+          "quality_reason": "facts only: On 2026-09-30 the payment settled but the sample request was rejected (HTTP 422). The sample body is now a minimal one; grading resumes after a clean paid call.",
+          "pay_to": "0xd5a4c8a94d4b1df862cc92599029c92aaf57a2da",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/tavily-search.json"
+        },
         {
           "time": "2026-10-23T17:51:38Z",
           "tx": null,
@@ -977,6 +1085,18 @@
       },
       "receipts": [
         {
+          "time": "2026-10-27T17:52:32Z",
+          "tx": "0xd3f30d67b34a9efaa5ea4c233e76caf171f081b74eca5f1b8d8d1a6d28e70219",
+          "basescan_url": "https://basescan.org/tx/0xd3f30d67b34a9efaa5ea4c233e76caf171f081b74eca5f1b8d8d1a6d28e70219",
+          "charged_usd": "0.05",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "pass",
+          "quality_reason": "newest point 41.9 h old, value 1.479",
+          "pay_to": "0x1f81da453901D15296c1710af83e0Bc0371D39f1",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/glassnode-mvrv.json"
+        },
+        {
           "time": "2026-10-23T17:51:39Z",
           "tx": "0x029015a447ff7887d4f0907e95b99e1f926fe710a1df730634e49bdb59131a05",
           "basescan_url": "https://basescan.org/tx/0x029015a447ff7887d4f0907e95b99e1f926fe710a1df730634e49bdb59131a05",
@@ -1082,6 +1202,18 @@
         "facts_only_reason": null
       },
       "receipts": [
+        {
+          "time": "2026-10-27T17:52:34Z",
+          "tx": "0xbe1764979a5d26aef4d427f0f03608e6e775db66c8e5a505b2a1e8a4166d059b",
+          "basescan_url": "https://basescan.org/tx/0xbe1764979a5d26aef4d427f0f03608e6e775db66c8e5a505b2a1e8a4166d059b",
+          "charged_usd": "0.001",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "pass",
+          "quality_reason": "allowed = true",
+          "pay_to": "0xffA9155A0e4B3d8d42351Da226cC1feEe449686f",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/minifetch-url-check.json"
+        },
         {
           "time": "2026-10-23T17:51:41Z",
           "tx": "0x16b92db948513293d07409fdc3bf92434b42d2a2d3ee1aa39aa8128610e80d97",
@@ -1247,6 +1379,18 @@
       },
       "receipts": [
         {
+          "time": "2026-10-27T17:52:37Z",
+          "tx": "0xaaa24df303ff2b496c8c7ce9c36394aac4e6a3bcce366fb8dc0f376500594302",
+          "basescan_url": "https://basescan.org/tx/0xaaa24df303ff2b496c8c7ce9c36394aac4e6a3bcce366fb8dc0f376500594302",
+          "charged_usd": "0.01",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "pass",
+          "quality_reason": "all 10 items tag AAPL; newest 0.2 days old",
+          "pay_to": "0x525f6dDcE9aF7a7179D7696aaBfCd5FCd15a21e6",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/massive-ticker-news.json"
+        },
+        {
           "time": "2026-10-23T17:51:43Z",
           "tx": "0x95da06f23afbab9c8b80ebbbac0c1b1d2f65a059c54a49c66b82c27b9e6e47a5",
           "basescan_url": "https://basescan.org/tx/0x95da06f23afbab9c8b80ebbbac0c1b1d2f65a059c54a49c66b82c27b9e6e47a5",
@@ -1352,6 +1496,18 @@
         "facts_only_reason": null
       },
       "receipts": [
+        {
+          "time": "2026-10-27T17:52:39Z",
+          "tx": "0x4ed2c970911248f3ed36b4696fe094c373059bc618d8a8c30fe177edae29cf7c",
+          "basescan_url": "https://basescan.org/tx/0x4ed2c970911248f3ed36b4696fe094c373059bc618d8a8c30fe177edae29cf7c",
+          "charged_usd": "0.01",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "pass",
+          "quality_reason": "10 entries, sorted by volume, each with an address",
+          "pay_to": "0x2EC4545f96A24876764bF2B04D54E66A1351bE71",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/x402scan-merchants.json"
+        },
         {
           "time": "2026-10-23T17:51:44Z",
           "tx": "0xcc741a384eda525b0e9e7d2641001399efd039e300a4a3e4a8cb0980bce4794c",
@@ -1505,6 +1661,18 @@
       },
       "receipts": [
         {
+          "time": "2026-10-27T17:52:42Z",
+          "tx": "0xfe62aee0138cdd2e0292aa0061ce659bc99b20a2220dc7c52edd6d73eceac0f9",
+          "basescan_url": "https://basescan.org/tx/0xfe62aee0138cdd2e0292aa0061ce659bc99b20a2220dc7c52edd6d73eceac0f9",
+          "charged_usd": "0.01",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "pass",
+          "quality_reason": "hostname matches; expiry equals our own TLS handshake",
+          "pay_to": "0xD7FE185ddaa9664c9211EC1ccDAc073Ef79215bf",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/x402atlas-ssl-check.json"
+        },
+        {
           "time": "2026-10-23T17:51:46Z",
           "tx": "0xf219dbe28c8ed13eb576f866c5781b4b82919331a85734e0ed392b0bf911c39a",
           "basescan_url": "https://basescan.org/tx/0xf219dbe28c8ed13eb576f866c5781b4b82919331a85734e0ed392b0bf911c39a",
@@ -1611,6 +1779,18 @@
       },
       "receipts": [
         {
+          "time": "2026-10-27T17:52:43Z",
+          "tx": "0x0470f377c1e89b4f266eb6a4181f5945e7a64a4d9d0b8c201ebfd2efa7e424eb",
+          "basescan_url": "https://basescan.org/tx/0x0470f377c1e89b4f266eb6a4181f5945e7a64a4d9d0b8c201ebfd2efa7e424eb",
+          "charged_usd": "0.002",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "not_graded",
+          "quality_reason": "facts only: On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported).",
+          "pay_to": "0x649006bC937E7a60F98e49455D0fE3425321A3b0",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/brasil-dados-cambio.json"
+        },
+        {
           "time": "2026-10-23T17:51:47Z",
           "tx": "0x1aa652b7105160d9934c6c036fe2ffd39f21b26b0a8131c7ece740f09c155e4c",
           "basescan_url": "https://basescan.org/tx/0x1aa652b7105160d9934c6c036fe2ffd39f21b26b0a8131c7ece740f09c155e4c",
@@ -1712,6 +1892,18 @@
       "quality_test": null,
       "receipts": [
         {
+          "time": "2026-10-27T17:52:46Z",
+          "tx": "0x03bccba93ef2470a310caadf294c8e68269ea6d8c23bbb09726d3f2715c168f7",
+          "basescan_url": "https://basescan.org/tx/0x03bccba93ef2470a310caadf294c8e68269ea6d8c23bbb09726d3f2715c168f7",
+          "charged_usd": "0.02",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "not_graded",
+          "quality_reason": "no known-answer test for this service",
+          "pay_to": "0x36038e1d712c5e39f35952164ec58ec2b96caee7",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/kronos-btc-liquidations.json"
+        },
+        {
           "time": "2026-10-23T17:51:50Z",
           "tx": "0x69dbc5d2de7380eeb8602bf2d1fcba02020f2051a1c49299c1005fb5c18e9b16",
           "basescan_url": "https://basescan.org/tx/0x69dbc5d2de7380eeb8602bf2d1fcba02020f2051a1c49299c1005fb5c18e9b16",
@@ -1776,6 +1968,18 @@
     "hyperextend-btc-candles": {
       "quality_test": null,
       "receipts": [
+        {
+          "time": "2026-10-27T17:52:50Z",
+          "tx": "0x34a37165235e333cc0cb8f5edeaf592b13956ee785f825aa7f3abf8301b0c39a",
+          "basescan_url": "https://basescan.org/tx/0x34a37165235e333cc0cb8f5edeaf592b13956ee785f825aa7f3abf8301b0c39a",
+          "charged_usd": "0.002",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "not_graded",
+          "quality_reason": "no known-answer test for this service",
+          "pay_to": "0x548fC289526ab2F0391D562a723cdA64Bbf1abc4",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/hyperextend-btc-candles.json"
+        },
         {
           "time": "2026-10-23T17:51:52Z",
           "tx": "0xfdc18a291311df9ebcd70516bfb878dabc6d5f012ff9feca57ff953d7ea6daf6",
@@ -1842,6 +2046,18 @@
       "quality_test": null,
       "receipts": [
         {
+          "time": "2026-10-27T17:52:54Z",
+          "tx": null,
+          "basescan_url": null,
+          "charged_usd": "0.001",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "not_graded",
+          "quality_reason": "no known-answer test for this service",
+          "pay_to": "0x5a78ace5dd133316c8aaf7e156fbfc57e1209cf9",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/hypernatt-liq-radar.json"
+        },
+        {
           "time": "2026-10-23T17:51:54Z",
           "tx": null,
           "basescan_url": null,
@@ -1906,6 +2122,18 @@
     "rubric-hedera-exchange-rate": {
       "quality_test": null,
       "receipts": [
+        {
+          "time": "2026-10-27T17:52:58Z",
+          "tx": "0xba886205ee11393dbb1ea9ddf35e4bc806a89a48a13a77c83dc6e9669cf5882d",
+          "basescan_url": "https://basescan.org/tx/0xba886205ee11393dbb1ea9ddf35e4bc806a89a48a13a77c83dc6e9669cf5882d",
+          "charged_usd": "0.001",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "not_graded",
+          "quality_reason": "no known-answer test for this service",
+          "pay_to": "0xaB6731A0BcDf511c2842C768a03448075aB654ca",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/rubric-hedera-exchange-rate.json"
+        },
         {
           "time": "2026-10-23T17:51:57Z",
           "tx": "0x16ae51f559ede98221c4c804eebb8240d0a2ec1588acfbb40e08211c73d546cc",
@@ -1972,6 +2200,18 @@
       "quality_test": null,
       "receipts": [
         {
+          "time": "2026-10-27T17:53:00Z",
+          "tx": "0xc3e6eada45345efa78257171d15ca0c4f87310e1f20814dc8c743011680eb580",
+          "basescan_url": "https://basescan.org/tx/0xc3e6eada45345efa78257171d15ca0c4f87310e1f20814dc8c743011680eb580",
+          "charged_usd": "0.001",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "not_graded",
+          "quality_reason": "no known-answer test for this service",
+          "pay_to": "0xf567Cfe0FDb87A1D6Ca330e3f30f0D3DA0F7cb98",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/402rates-ping.json"
+        },
+        {
           "time": "2026-10-23T17:51:58Z",
           "tx": "0xaf284458f3ccf815a197d18578559684bbd33af0b97ac75e111b8d985818fd61",
           "basescan_url": "https://basescan.org/tx/0xaf284458f3ccf815a197d18578559684bbd33af0b97ac75e111b8d985818fd61",
@@ -2037,6 +2277,18 @@
       "quality_test": null,
       "receipts": [
         {
+          "time": "2026-10-27T17:53:03Z",
+          "tx": "0xf97100b285296e479d0c645eee1567266d3c8ea3d8ce18910addc73a38016044",
+          "basescan_url": "https://basescan.org/tx/0xf97100b285296e479d0c645eee1567266d3c8ea3d8ce18910addc73a38016044",
+          "charged_usd": "0.001",
+          "delivered": true,
+          "http_status": 200,
+          "quality": "not_graded",
+          "quality_reason": "no known-answer test for this service",
+          "pay_to": "0x5253666c40432f009ebd99908b9cd2a7fd1019cb",
+          "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/quartermaster-base-gas.json"
+        },
+        {
           "time": "2026-10-23T17:52:01Z",
           "tx": "0x3ce05b1a9a10411234e9ce6bf66cf528fe2b33f83f6745c55138c9553bd4350f",
           "basescan_url": "https://basescan.org/tx/0x3ce05b1a9a10411234e9ce6bf66cf528fe2b33f83f6745c55138c9553bd4350f",
@@ -2097,6 +2349,58 @@
           "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261006T175814Z/quartermaster-base-gas.json"
         }
       ]
+    },
+    "bilbop-summarize": {
+      "quality_test": null,
+      "receipts": []
+    },
+    "bilbop-sol-token-brief": {
+      "quality_test": null,
+      "receipts": []
+    },
+    "bilbop-sol-mint-info": {
+      "quality_test": null,
+      "receipts": []
+    },
+    "bilbop-brand-feedback": {
+      "quality_test": null,
+      "receipts": []
+    },
+    "bilbop-tts": {
+      "quality_test": null,
+      "receipts": []
+    },
+    "plainchain-balances": {
+      "quality_test": null,
+      "receipts": []
+    },
+    "plainchain-gas": {
+      "quality_test": null,
+      "receipts": []
+    },
+    "plainchain-address": {
+      "quality_test": null,
+      "receipts": []
+    },
+    "plainchain-x402-receipt": {
+      "quality_test": null,
+      "receipts": []
+    },
+    "greyridge-is-contract": {
+      "quality_test": null,
+      "receipts": []
+    },
+    "greyridge-total-supply": {
+      "quality_test": null,
+      "receipts": []
+    },
+    "greyridge-token-report": {
+      "quality_test": null,
+      "receipts": []
+    },
+    "x402-data-api-gate-swap": {
+      "quality_test": null,
+      "receipts": []
     }
   }
 }
