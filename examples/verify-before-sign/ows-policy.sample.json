@@ -1,0 +1,10 @@
+{
+  "id": "402xagent-verify-before-sign",
+  "name": "402xAgent verify-before-sign (x402 on Base)",
+  "version": 1,
+  "created_at": "2026-10-27T00:00:00Z",
+  "rules": [{ "type": "allowed_chains", "chain_ids": ["eip155:8453"] }],
+  "executable": "/ABSOLUTE/PATH/TO/examples/verify-before-sign/ows-policy.mjs",
+  "config": { "approvals_dir": "/ABSOLUTE/PATH/TO/approvals", "allow_request_types": [] },
+  "action": "deny"
+}
