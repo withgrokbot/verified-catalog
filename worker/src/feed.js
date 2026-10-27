@@ -1,4 +1,4 @@
-// 0.52.0 Watchtower drift & liveness data feed. GET /v1/feed, /v1/feed/endpoint/{hkey}, /v1/feed/drift,
+// 0.52.0 Watchtower data feed (drift & liveness facts; separate from the Watchtower monitor in watch.js). GET /v1/feed, /v1/feed/endpoint/{hkey}, /v1/feed/drift,
 // /v1/feed/snapshot.json|.csv, /v1/feed/manifest; POST /v1/feed/subscribe. D1 only (migration 0018); no KV.
 // FACTS ONLY: liveness, payment terms and drift events. No scores, grades, quality ratings or rankings.
 // PRIVACY: every response is built from the explicit FEED_COLUMNS / EVENT_COLUMNS allowlists over feed_* tables only.
@@ -260,7 +260,7 @@ export async function snapshotStep(env, now = new Date(), { rowsPerStep = BUILD_
   const done = rows.length < rowsPerStep;
   if (!done) { const v = JSON.stringify(st); stmts.push(putStmt(db, "f:build", v, await sha256Hex(v), now)); await db.batch(stmts); return { did: "step", date: st.date, count: st.count, pages: st.page }; }
   const header = { type: "402xagent-feed-snapshot", schema: "feed.v2", date: st.date, started_at: st.started_at, built_at: iso(now), count: st.count, page_rows: PAGE_ROWS, pages: st.page,
-    order: "category, hkey", columns: FEED_COLUMNS, categories: st.categories, page_csv_sha256: st.page_csv_sha256, rows_root: await sha256Hex(st.page_csv_sha256.join("\n")), issuer: "402xAgent Watchtower" };
+    order: "category, hkey", columns: FEED_COLUMNS, categories: st.categories, page_csv_sha256: st.page_csv_sha256, rows_root: await sha256Hex(st.page_csv_sha256.join("\n")), issuer: "402xAgent Watchtower data feed" };
   const signed = (await signObject(env, header)) || header;
   const hv = JSON.stringify(signed);
   stmts.push(putStmt(db, headKey(st.date), hv, await sha256Hex(hv), now));
@@ -346,7 +346,7 @@ export function feedCfg(env, deps, priceKey) {
   const p = FEED_PRICES[priceKey];
   return { ...c, priceAtomic: p.atomic, priceUsd: p.usd };
 }
-const describe = (c, k) => `402xAgent Watchtower feed: $${FEED_PRICES[k].usd} USDC on ${c.label || "Base"} for ${FEED_PRICES[k].what}. Facts only (liveness, payment terms, drift events); payment never changes the data.`;
+const describe = (c, k) => `402xAgent Watchtower data feed: $${FEED_PRICES[k].usd} USDC on ${c.label || "Base"} for ${FEED_PRICES[k].what}. Facts only (liveness, payment terms, drift events); payment never changes the data.`;
 function paymentRequired(c, deps, resourceUrl, k, error, extra = {}) {
   const desc = describe(c, k);
   const body = { x402Version: 2, error, resource: { url: resourceUrl, description: desc, mimeType: "application/json" },
@@ -399,10 +399,10 @@ const matches = (f) => (r) => (!f.category || r.category === f.category) && (!f.
 export async function manifest(env, deps, origin) {
   const c = feedCfg(env, deps, "call");
   const body = {
-    type: "402xagent-feed-manifest", schema: "feed.v1", issuer: "402xAgent Watchtower",
+    type: "402xagent-feed-manifest", schema: "feed.v1", issuer: "402xAgent Watchtower data feed",
     facts_only: "Liveness, payment terms and drift events as observed. No scores, grades, ratings or rankings.",
     categories: FEED_CATEGORIES, category_source: "fixed keyword map over the crawl's URL and source-list fields",
-    inclusion: "crawl-known public x402 URLs, plus Watchtower watches whose owner opted in (feed_opt_ins). Query strings are never stored.",
+    inclusion: "crawl-known public x402 URLs, plus Watchtower monitor watches whose owner opted in (feed_opt_ins). Query strings are never stored.",
     columns: { endpoint: FEED_COLUMNS, observation: OBS_COLUMNS, event: EVENT_COLUMNS },
     endpoints: {
       feed: "GET /v1/feed?category=&host=&since=&offset=&limit=", endpoint: "GET /v1/feed/endpoint/{hkey}", drift: "GET /v1/feed/drift?from=&to=&category=&host=",
@@ -429,7 +429,7 @@ export async function manifest(env, deps, origin) {
 
 // ------------------------------------------------------------------ HTTP
 export async function handleFeed(req, env, url, deps) {
-  if (!feedOn(env)) return J({ error: "the Watchtower feed is not enabled yet", code: "not_enabled" }, 404);
+  if (!feedOn(env)) return J({ error: "the Watchtower data feed is not enabled yet", code: "not_enabled" }, 404);
   if (!env.RECEIPTS_DB) return J({ error: "feed store unavailable", code: "store_unavailable" }, 503);
   const db = env.RECEIPTS_DB;
   const now = deps.now ? deps.now() : new Date();
