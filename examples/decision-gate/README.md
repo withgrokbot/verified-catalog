@@ -13,6 +13,7 @@ it as "unavailable" and, by default, do not proceed.
 | --- | --- |
 | `gate.mjs` | `decide({url, method, requirement})`: call the check, allow only on `pay` for the exact terms (sha256 of `network\|asset\|amount\|payTo`, same formula as the service). Fail closed by default. |
 | `check-before-sign.mjs` | Agent gets a 402, runs the gate, signs only on `pay`. Signing is a stub. `--live <url>` uses the real check. |
+| `facilitator-gate.mjs` | `decideFacilitator({url, method, requirement})`: same shape as `decide()`, but calls `POST /v1/facilitator/check` (live terms vs the requirement). Allows only a 200 `match` with `recommendation: "settle"` and the same terms hash; fails closed on timeouts (8 s default), non-200 and malformed bodies. Used by `../verify-before-sign/`. |
 | `ap2.mjs` | AP2 payment mandate: `risk_data["com.402xagent.check"]` = `{v, verdict, reason_code, checked_at, endpoint, terms_sha256, terms_match, receipt_url, source}`. |
 | `mastercard-check-before-voucher.mjs` | Mastercard Agent Pay style flow: the check runs before the agent requests a voucher / agentic token. **All Mastercard calls are stubs**; no Mastercard API, no credentials. |
 | `verifiable-intent.mjs` | Verifiable Intent custom constraint `com.402xagent.counterparty_check` (`allowed_verdicts`, `max_age_s`). |
