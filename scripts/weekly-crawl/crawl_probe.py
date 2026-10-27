@@ -21,6 +21,10 @@ SANE_MAX_USD = 10.0
 
 def net(n): return NET_ALIAS.get(str(n or "").lower(), str(n or ""))
 def amt(a): return a.get("amount", a.get("maxAmountRequired"))
+def atomic(a):
+    """0.52.x term history: the quoted amount in the asset's smallest unit, as a decimal string (None if not an integer)."""
+    try: return str(int(str(amt(a)).strip()))
+    except Exception: return None
 def usd(a):
     """USD for a USDC accept (6 decimals); None for other assets. 0.27.0: every supported mainnet's canonical USDC
     counts (before, only Base/Base Sepolia/Solana did, so valid Polygon/Arbitrum/... prices read as unparseable)."""
@@ -264,12 +268,12 @@ def judge(r, rec, lead, claimed, done):
             main = [a for a in accs if net(a.get("network")).lower() in USDC_MAINNET and str(a.get("asset") or "").lower() == USDC_MAINNET[net(a.get("network")).lower()]]
             if main: same_net = main + [a for a in accs if a not in main]
         if not same_net:
-            a = accs[0]; rec.update(network=net(a.get("network")), asset=a.get("asset"), pay_to=a.get("payTo"), quoted_price_usd=usd(a))
+            a = accs[0]; rec.update(network=net(a.get("network")), asset=a.get("asset"), pay_to=a.get("payTo"), quoted_price_usd=usd(a), amount_atomic=atomic(a))
             return done("skip", f"asks for payment on a different network than listed (listed {want_net}, offers {', '.join(sorted({net(x.get('network')) for x in accs}))})")
         same_asset = [a for a in same_net if str(a.get("asset") or "").lower() == str(lead.get("asset") or "").lower()] if lead.get("asset") else same_net
         a = (same_asset or same_net)[0]
         q = usd(a)
-        rec.update(network=net(a.get("network")), asset=a.get("asset"), pay_to=a.get("payTo"), quoted_price_usd=q)
+        rec.update(network=net(a.get("network")), asset=a.get("asset"), pay_to=a.get("payTo"), quoted_price_usd=q, amount_atomic=atomic(a))
         if not same_asset: return done("skip", f"asks for a different token than listed (listed {lead.get('asset')}, asks {a.get('asset')})")
         if lead.get("payTo") and str(a.get("payTo") or "").lower() != str(lead["payTo"]).lower():
             return done("skip", f"pays a different wallet than listed ({lead['payTo']} listed, {a.get('payTo')} asked)")
