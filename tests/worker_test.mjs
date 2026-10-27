@@ -2692,7 +2692,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.52.3");
+  assert.equal(VERSION, "0.53.3");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2799,7 +2799,7 @@ test("0.37.0 reputation: documented weighted formula; new hosts are insufficient
   const rj = rulesJson("https://402xagent.com");
   assert.deepEqual(rj.reputation.weights, REPUTATION_WEIGHTS);
   assert.match(rj.reputation.formula, /sum\(w_i \* c_i\)/);
-  assert.equal(rj.reason_codes.length, 17); // 0.52.3: + delivery_failed
+  assert.equal(rj.reason_codes.length, 17); // 0.53.3: + delivery_failed
   assert.ok(rj.quality_codes.some((q) => q.code === "quality_schema_mismatch"));
   assert.ok(rj.fields.reputation && rj.fields.quality);
   const html = await (await worker.fetch(new Request("https://lookup.fixture/rules", { headers: { "user-agent": "agent-x/1.0" } }), spotEnv().env, { waitUntil() {} })).text();
@@ -2893,7 +2893,7 @@ test("0.37.2: stale free-tier text says 5/day; sitemap lists rules/bazaar/saves;
   for (const p of ["/sitemap.xml", "/llms.txt", "/robots.txt"]) assert.equal((await raw(p)).headers.get("access-control-allow-origin"), "*", p);
   const oa = await (await raw("/openapi.json")).json();
   for (const p of ["/v1/skips.json", "/badge/{host}", "/pricing", "/docs", "/.well-known/x402", "/health"]) assert.ok(oa.paths[p], p);
-  for (const p of Object.keys(oa.paths)) { if (p.includes("{")) continue; const s = (await raw(p === "/mcp" ? "/health" : p.replace("/v1/lookup/paid", "/health").replace(/^\/v1\/lookup$/, "/health").replace("/v1/receipts/by-url", "/health").replace(/^\/v1\/discover$/, "/health").replace(/^\/v1\/products\/.*/, "/health"))).status; assert.equal(s, 200, p); }
+  for (const p of Object.keys(oa.paths)) { if (p.includes("{")) continue; const s = (await raw(p === "/mcp" ? "/health" : p.replace("/v1/lookup/paid", "/health").replace(/^\/v1\/lookup$/, "/health").replace("/v1/receipts/by-url", "/health").replace(/^\/v1\/discover$/, "/health").replace(/^\/v1\/facilitator\/check$/, "/health").replace(/^\/v1\/products\/.*/, "/health"))).status; assert.equal(s, 200, p); }
   assert.equal((await (await raw("/health")).json()).version, VERSION);
   const rep = await raw("/reputation/api.402rates.com.json"); assert.equal(rep.headers.get("content-type"), "application/json; charset=utf-8");
   const src = (await import("node:fs")).readFileSync(new URL("../worker/src/lib.js", import.meta.url), "utf8");

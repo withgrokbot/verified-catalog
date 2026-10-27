@@ -1,4 +1,4 @@
-// 0.52.3 post-payment delivery check, read side. Rows in D1 delivery_checks (migration 0020) come from our own paid
+// 0.53.3 post-payment delivery check, read side. Rows in D1 delivery_checks (migration 0020) come from our own paid
 // check rounds (scripts/run_checks.py --pay classifies the seller's response after settlement: scripts/delivery.py);
 // the Worker never pays a seller, so it never classifies a paid response itself.
 // Effects (flag DELIVERY_CHECK=1; off = no D1 read, nothing changes):

@@ -1,4 +1,4 @@
-"""0.52.3: copy post-payment delivery checks from our paid check rounds into D1 delivery_checks (migration 0020).
+"""0.53.3: copy post-payment delivery checks from our paid check rounds into D1 delivery_checks (migration 0020).
 
 Reads results/history.jsonl (written by run_checks.py; a paid, settled call carries delivery_flag/delivery_reason) and
 writes one INSERT OR IGNORE per row: hkey, host, checked_at, flag, reason, http_status. Nothing else is copied (no body,

@@ -5,7 +5,7 @@ import { DELIVERY_WEIGHT, hostDeliveries } from "./delivery.js";
 import { historySummary } from "./history.js";
 import { QUALITY_SCORE } from "./quality.js";
 
-export const REPUTATION_VERSION = "2026-10-15"; // unchanged for hosts without delivery data (0.52.3 delivery component is additive)
+export const REPUTATION_VERSION = "2026-10-15"; // unchanged for hosts without delivery data (0.53.3 delivery component is additive)
 export const REPUTATION_WEIGHTS = { stability: 25, drift: 20, verdicts: 30, freshness: 10, quality: 15 };
 export const REPUTATION_MIN = { observations: 5, tracking_days: 2 };
 // a host that almost never passes cannot rank above low, however stable its (wrong) terms are
@@ -27,7 +27,7 @@ export const REPUTATION_RULES = {
     drift: "1 - min(1, 2 * penalty / transitions) over consecutive term-bearing observations of every endpoint; penalty per transition: pay_to change 1, network or asset change 1, price-only change 0.5. No transitions -> no data.",
     verdicts: "last 30 days of checks: pay_share * (0.5 + 0.5 * consistency). pay_share = pay / (pay + skip); consistency = share of checks that agree with their endpoint's latest verdict. Recheck verdicts (timeouts, 5xx) are left out.",
     freshness: "1 if the newest check is under 24 h old, then linear down to 0 at 14 days.",
-    delivery: `0.52.3, only for hosts with post-payment delivery checks (our own paid check rounds): share of delivery checks in 30 days whose delivered response was ok (not a 5xx, challenge/CAPTCHA page, sign-in/subscribe wall, canned refusal, error-only or placeholder body). Weight ${DELIVERY_WEIGHT}, added to the sum only when the host has delivery data; hosts without delivery data are scored exactly as before.`,
+    delivery: `0.53.3, only for hosts with post-payment delivery checks (our own paid check rounds): share of delivery checks in 30 days whose delivered response was ok (not a 5xx, challenge/CAPTCHA page, sign-in/subscribe wall, canned refusal, error-only or placeholder body). Weight ${DELIVERY_WEIGHT}, added to the sum only when the host has delivery data; hosts without delivery data are scored exactly as before.`,
     quality: "mean over endpoints of the latest quality code's value: " + Object.entries(QUALITY_SCORE).map(([k, v]) => k + "=" + v).join(", ") + ". No quality data -> no data.",
   },
   insufficient_data: `fewer than ${REPUTATION_MIN.observations} observations, or first seen less than ${REPUTATION_MIN.tracking_days} days ago: band insufficient_data and score null (paid answers still show provisional_score and the breakdown). A new host is never given a low score for being new.`,
@@ -107,7 +107,7 @@ export function computeReputation({ host, receipts = [], histories = {}, quality
     breakdown[k] = { value: r3(v), weight: w, points: null };
     if (v != null) { wsum += w; acc += w * v; }
   }
-  // 0.52.3 delivery component: only when the host has delivery rows (30 days), so other hosts are unchanged
+  // 0.53.3 delivery component: only when the host has delivery rows (30 days), so other hosts are unchanged
   const dRows = (deliveries || []).filter((x) => x && (x.flag === "ok" || x.flag === "failed"));
   const dFailed = dRows.filter((x) => x.flag === "failed").length;
   const dVal = dRows.length ? (dRows.length - dFailed) / dRows.length : null;

@@ -1,4 +1,4 @@
-// 0.52.3 post-payment delivery check, Worker read side (worker/src/delivery.js + reputation + verdict path).
+// 0.53.3 post-payment delivery check, Worker read side (worker/src/delivery.js + reputation + verdict path).
 // Real SQLite (node:sqlite) with every migration behind a tiny D1 adapter; seller fetches are stubbed. Synthetic data only.
 import { test } from "node:test";
 import assert from "node:assert/strict";
