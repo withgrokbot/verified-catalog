@@ -146,6 +146,12 @@ test("freshness (0.54.0): TERMS_MAX_AGE_HOURS is configurable (168 = the old 7-d
   assert.deepEqual(searchRows(rs, parseDiscover({ verdict: "pay" }), NOW - 30 * H, NOW), []);
   assert.deepEqual(searchRows(rs, parseDiscover({ verdict: "pay" }), NOW - 30 * H, NOW, 168).map((r) => r.id), ["a1"]);
   assert.deepEqual(searchRows(rs, parseDiscover({ verdict: "recheck" }), NOW - 30 * H, NOW).map((r) => r.id), ["a1", "a3"]);
+  // the rules text states the live threshold (review fix: production sets 168)
+  const env = await envFor([row("a000000001", "pay", 1)]);
+  assert.match((await discover(env, {}, "https://o", NOW)).body.rules, /older than 24 h \(TERMS_MAX_AGE_HOURS = 24\)/);
+  env.TERMS_MAX_AGE_HOURS = "168";
+  const r7 = (await discover(env, {}, "https://o", NOW)).body;
+  assert.match(r7.rules, /older than 7 days \(TERMS_MAX_AGE_HOURS = 168\)/); assert.equal(r7.terms_max_age_hours, 168);
 });
 
 test("0.45.1: concurrent first signers all sign (no unsigned results on a cold isolate); crawl_run from d:meta", async () => {

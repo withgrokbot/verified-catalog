@@ -105,7 +105,7 @@ export function coverage() {
 
 export function skipsSummary(origin, env = {}, now = Date.now()) {
   const m = RECEIPTS_META;
-  // 0.54.0: the crawl's pay counts carry the age of their terms; stale past TERMS_MAX_AGE_HOURS (default 24 h)
+  // 0.54.0: the crawl's pay counts carry the age of their terms; stale past TERMS_MAX_AGE_HOURS (production 168 h = 7 days)
   const f = freshnessFor("pay", m.crawled_at, termsMaxAgeHours(env), now);
   return {
     free_check: { url: FREE_CHECK_URL, example: FREE_CHECK_EXAMPLE_URL, example_response: FREE_CHECK_EXAMPLE, then: "the paid check (HTTP 402) for the full payment terms" },

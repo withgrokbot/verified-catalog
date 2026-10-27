@@ -26,7 +26,7 @@ export const REASON_CODES = [
   { code: "server_error", verdict: "recheck", confidence: "low", rule: "The endpoint returned a 5xx." },
   { code: "delivery_failed", verdict: "recheck", confidence: "low", rule: "0.53.3 (DELIVERY_CHECK): the terms would pass, but our latest paid call to this endpoint (within 14 days) settled and got back a failed delivery (5xx, challenge/CAPTCHA page, sign-in/subscribe wall, canned refusal, error-only or placeholder body). Applies to new checks only; past pay/skip verdicts and receipts are never changed; endpoints without delivery data are unaffected." },
   { code: "terms_changed_since_quote", verdict: "recheck", confidence: "low", rule: "0.54.0 opt-in (&quote=<receipt id>): the live terms would pass, but the price, pay_to, network or asset differs from the quote (crawl or live receipt) the buyer was shown. Check again without quote to approve the new terms." },
-  { code: "terms_stale", verdict: "recheck", confidence: "low", rule: "0.54.0 catalog/crawl answers only (discover; effective_verdict on crawl receipts, by-url, skips and lookup): the stored pay's terms are older than TERMS_MAX_AGE_HOURS (default 24 h). Never produced by a live check, which always re-reads the 402." },
+  { code: "terms_stale", verdict: "recheck", confidence: "low", rule: "0.54.0 catalog/crawl answers only (discover; effective_verdict on crawl receipts, by-url, skips and lookup): the stored pay's terms are older than TERMS_MAX_AGE_HOURS (7 days in production; see each discover answer's terms_max_age_hours). Never produced by a live check, which always re-reads the 402." },
 ];
 const BY_CODE = Object.fromEntries(REASON_CODES.map((r) => [r.code, r]));
 export const CONFIDENCE_RULES = [

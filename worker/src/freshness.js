@@ -1,7 +1,7 @@
 // 0.54.0 terms freshness. Two rules, both read-time only (stored receipts are never rewritten, no KV writes):
 //  1. Catalog / crawl-derived answers (/v1/discover + MCP discover, crawl receipts, /v1/receipts/by-url, /v1/skips(.json)
 //     summary and recent_checks, /v1/lookup) carry the age of the payment terms they show. A crawl/catalog "pay" whose
-//     terms are older than TERMS_MAX_AGE_HOURS (env var, default 24) is stale: discover returns it as verdict "recheck"
+//     terms are older than TERMS_MAX_AGE_HOURS (env var; production 168 = 7 days, 24 when unset) is stale: discover returns it as verdict "recheck"
 //     (reason_code terms_stale, original_verdict "pay"); the other surfaces keep the stored verdict and add a
 //     `freshness` object whose effective_verdict is "recheck".
 //  2. A live spot-check that is given the quote a buyer was shown (&quote=<receipt id>, a crawl id or an sc- id) and
@@ -29,7 +29,9 @@ export function ageHours(at, now = Date.now()) {
 }
 
 export const termsStaleText = (maxH) => `payment terms were last read more than ${fmtH(maxH)} ago; run the live check right before paying`;
-const fmtH = (h) => (h % 24 === 0 && h >= 48 ? `${h / 24} days` : `${h} h`);
+/** Human form of a threshold in hours: "7 days" for 168, "24 h" for 24 (whole days from 48 h up). */
+export const termsWindowText = (h) => (h % 24 === 0 && h >= 48 ? `${h / 24} days` : `${h} h`);
+const fmtH = termsWindowText;
 
 /**
  * Pure. Freshness of a stored/catalog answer: {terms_checked_at, terms_age_hours, terms_max_age_hours, terms_stale,

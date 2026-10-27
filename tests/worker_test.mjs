@@ -4484,7 +4484,24 @@ test("0.54.0 terms freshness: lookup last_check carries terms age; quote documen
   for (const c of ["terms_changed_since_quote", "terms_stale"]) assert.ok(rules.reason_codes.some((x) => x.code === c && x.verdict === "recheck"), c);
   const llms = await (await worker.fetch(new Request("https://lookup.fixture/llms.txt"), e.env, { waitUntil() {} })).text();
   assert.match(llms, /older than 24 h comes back as recheck/);
-  assert.ok(!/older than 7 days comes back as recheck/.test(llms));
+  assert.ok(!/older than 7 days comes back as recheck/.test(llms), "unset env renders the 24 h default");
+  assert.match(oa.paths["/v1/discover"].get.summary, /older than 24 h \(TERMS_MAX_AGE_HOURS\)/);
+});
+
+test("0.54.0 review fix: production TERMS_MAX_AGE_HOURS is 168 and llms.txt, OpenAPI, MCP discover and discover rules render 7 days from env; README says 7 days", async () => {
+  const toml = readFileSync(new URL("../worker/wrangler.toml", import.meta.url), "utf8");
+  const vars = toml.split(/^\[vars\]\s*$/m)[1].split(/^\[/m)[0];
+  assert.match(vars, /^TERMS_MAX_AGE_HOURS = "168"$/m, "set in [vars]");
+  assert.match(readFileSync(new URL("../README.md", import.meta.url), "utf8"), /terms are older than 7 days comes back as recheck/);
+  const e = meteredEnv(); e.env.TERMS_MAX_AGE_HOURS = "168";
+  const llms = await (await worker.fetch(new Request("https://lookup.fixture/llms.txt"), e.env, { waitUntil() {} })).text();
+  assert.match(llms, /older than 7 days comes back as recheck/); assert.ok(!/older than 24 h comes back/.test(llms));
+  const oa = (await send("/openapi.json", { envo: e })).body;
+  assert.match(oa.paths["/v1/discover"].get.summary, /older than 7 days \(TERMS_MAX_AGE_HOURS\)/);
+  const tools = (await rpc({ jsonrpc: "2.0", id: 9, method: "tools/list" }, { envo: e })).body.result.tools;
+  assert.match(tools.find((t) => t.name === "discover").description, /older than 7 days \(TERMS_MAX_AGE_HOURS\)/);
+  const { termsWindowText } = await import("../worker/src/freshness.js");
+  assert.equal(termsWindowText(168), "7 days"); assert.equal(termsWindowText(24), "24 h"); assert.equal(termsWindowText(36), "36 h");
 });
 
 let passed = 0, skipped = 0;

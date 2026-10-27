@@ -79,8 +79,9 @@ SPOT_FREE_PER_IP_DAY = "25"
 SAVES_PAGE = "on"
 SPOT_PAID_PER_HOUR = "30"
 # 0.54.0 terms freshness: catalog/crawl pays (discover, crawl receipts, by-url, skips, lookup) older than this many hours
-# are stale (discover answers recheck/terms_stale). Unset = 24. "168" restores the pre-0.54.0 7-day discover window.
-# TERMS_MAX_AGE_HOURS = "24"
+# are stale (discover answers recheck/terms_stale). 168 h = 7 days (the weekly crawl; same window as before 0.54.0).
+# Unset or invalid = 24. llms.txt, OpenAPI, MCP discover and the discover rules text are rendered from this value.
+TERMS_MAX_AGE_HOURS = "168"
 ENDPOINT_REPORT = "1"  # 0.46.1: paid /v1/products/endpoint-report on (migration 0012 applied); Base mainnet (no PAYMENT_* vars)
 WATCHTOWER = "1"  # 0.47.0: Watchtower on (migration 0013 applied); Base mainnet preset (no PAYMENT_* vars)
 EXPLAIN_LINE = "1"  # 0.49.0: explanation line on (no migration/secret)

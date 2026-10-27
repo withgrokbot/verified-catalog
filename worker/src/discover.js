@@ -1,17 +1,17 @@
 // 0.43.0: free discovery. GET /v1/discover?q=&verdict=&limit= and the MCP tool `discover`.
 // 0.45.0: reads compressed d: blobs from D1 crawl_store (the 0010 table is unused and empty). No KV reads or writes.
 // Freshness rules (from the shared crawl `meta` date): a result older than 36 h is stale:true. 0.54.0: a "pay" whose terms
-// are older than TERMS_MAX_AGE_HOURS (env, default 24 h; was a fixed 7 days) is returned as "recheck" / reason_code
+// are older than TERMS_MAX_AGE_HOURS (env; production sets 168 = 7 days in wrangler.toml; 24 h when unset) is returned as "recheck" / reason_code
 // terms_stale (original_verdict keeps what the crawl said). Skips are included by default with their reason.
 import { signObject } from "./sign.js";
 import { crawlStoreGet } from "./skips.js";
-import { termsMaxAgeHours, termsStaleText, TERMS_MAX_AGE_HOURS_DEFAULT } from "./freshness.js";
+import { termsMaxAgeHours, termsStaleText, termsWindowText, TERMS_MAX_AGE_HOURS_DEFAULT } from "./freshness.js";
 
 export const DISCOVER_MAX = 20;
 export const DISCOVER_DEFAULT = 10;
 export const DISCOVER_PER_MIN = 60; // per client (IP /24 + UA hash) per UTC minute
 export const STALE_HOURS = 36;
-export const PAY_EXPIRES_DAYS = 7; // legacy (<= 0.53.x); 0.54.0 uses termsMaxAgeHours(env), default 24 h
+export const PAY_EXPIRES_DAYS = 7; // legacy (<= 0.53.x); 0.54.0 uses termsMaxAgeHours(env): production 168 h (7 days), 24 h when unset
 const VERDICTS = ["pay", "skip", "recheck"];
 const Q_RE = /^[A-Za-z0-9 ._:\/\-]{2,100}$/;
 
@@ -180,7 +180,7 @@ export async function discover(env, input, origin, now = Date.now()) {
       terms_max_age_hours: maxH, // 0.54.0
       index_terms_stale: ageH === null ? true : ageH > maxH,
       ...(got.missing.length ? { index_partial: true, missing_shards: got.missing.length } : {}),
-      rules: `stale = last crawl older than ${STALE_HOURS} h; a pay whose terms are older than ${maxH} h is returned as recheck (reason_code terms_stale, original_verdict pay); each pay's check_url carries &quote=<receipt id> so the live check flags terms that moved since the crawl. Skips are included by default (filter with verdict=pay|skip|recheck). Facts from our unpaid crawl probe, not endorsements; run the free check right before paying.`,
+      rules: `stale = last crawl older than ${STALE_HOURS} h; a pay whose terms are older than ${termsWindowText(maxH)} (TERMS_MAX_AGE_HOURS = ${maxH}) is returned as recheck (reason_code terms_stale, original_verdict pay); each pay's check_url carries &quote=<receipt id> so the live check flags terms that moved since the crawl. Skips are included by default (filter with verdict=pay|skip|recheck). Facts from our unpaid crawl probe, not endorsements; run the free check right before paying.`,
       results,
     },
   };
