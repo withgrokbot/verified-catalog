@@ -247,7 +247,7 @@ test("live route: 3 x 5xx open the breaker; then recheck/host_unstable for the w
     assert.equal(r.body.access.tier, "free"); assert.equal(r.body.access.free_check_used, false); assert.equal(r.body.access.charged, false);
     assert.equal(r.body.breaker.state, "open"); assert.ok(r.body.breaker.retry_after_s > 0 && r.body.breaker.retry_after_s <= 900);
     assert.equal(r.headers.get("retry-after"), String(r.body.breaker.retry_after_s));
-    assert.ok(r.body.receipt_id, "receipt stored");
+    assert.equal(r.body.receipt_id, null, "review: no receipt per host_unstable answer"); assert.equal(r.body.receipt_url, null);
   }
   assert.equal(sellerHits.length, 3, "the target is not fetched while the breaker is open");
   assert.equal(quota.ops.length, opsBefore, "no quota counter read or taken");
@@ -263,9 +263,11 @@ test("live route: 3 x 5xx open the breaker; then recheck/host_unstable for the w
   // the same client still has its remaining free checks for other hosts
   const ok = await callAs(env, spot("https://api.healthyb.dev/v1/q"), ip);
   assert.equal(ok.body.verdict, "pay"); assert.equal(ok.body.access.free_used_today, 4);
-  // stored breaker answers are not public recent checks
-  const hist = db.raw.prepare("SELECT COUNT(*) AS n FROM spot_receipts WHERE reason = 'host_unstable' AND pub_url IS NOT NULL").get().n;
-  assert.equal(hist, 0);
+  // review: host_unstable answers write nothing to D1: no receipt, no commitment; one audit row for the one transition
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM spot_receipts WHERE reason = 'host_unstable'").get().n, 0);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM spot_receipts").get().n, 4, "3 x server_error + the healthy pay");
+  const ev = db.raw.prepare("SELECT host, event, fail_count, last_fail_kind, last_status FROM breaker_events").all().map((x) => ({ ...x }));
+  assert.deepEqual(ev, [{ host: "api.flaky5xx.dev", event: "opened", fail_count: 3, last_fail_kind: "server_error", last_status: 503 }]);
 });
 
 test("live route: after the cooldown one half-open probe decides: a recovered host closes (normal pay), a still-failing host re-opens", async () => {
@@ -341,7 +343,7 @@ test("0.55.0 transient fallback: host_unstable is neutral (never counts toward a
   assert.match(plan, /spot_receipts_probe_cache/, "still the existing index");
 });
 
-test("a stored host_unstable answer is never reused as the 5-min probe cache; rules, reason text, OpenAPI enum and llms.txt list host_unstable; price and free tier unchanged; no new migration", async () => {
+test("a stored host_unstable answer is never reused as the 5-min probe cache; rules, reason text, OpenAPI enum and llms.txt list host_unstable; price and free tier unchanged; one new local migration (0021_breaker_events.sql)", async () => {
   B._resetBreakers();
   const db = d1(); const env = envFor(db, { SPOT_PROBE_CACHE_S: "300" });
   const U = "https://api.healthyb.dev/v1/cached";
@@ -361,7 +363,121 @@ test("a stored host_unstable answer is never reused as the 5-min probe cache; ru
   assert.match(llms, /host_unstable/); assert.match(llms, /PROBE_TIMEOUT_MS/);
   const toml = readFileSync(join(ROOT, "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /SPOT_FREE_PER_DAY = "5"/); assert.equal(SPOT_PAID_ATOMIC, "20000");
-  assert.ok(!readdirSync(MIG_DIR).some((f) => /^002[1-9]/.test(f)), "0.56.0 adds no migration");
+  assert.deepEqual(readdirSync(MIG_DIR).filter((f) => /^002[1-9]/.test(f)), ["0021_breaker_events.sql"], "0.56.0 adds exactly one migration");
+  const sql = readFileSync(join(MIG_DIR, "0021_breaker_events.sql"), "utf8").replace(/--.*$/gm, "");
+  assert.ok(!/\b(ALTER|DROP|DELETE|UPDATE)\b/i.test(sql), "additive only"); assert.match(sql, /CREATE TABLE IF NOT EXISTS breaker_events/);
+});
+
+test("review 2: one breaker_events row per transition (opened, half_open_failed, closed) with host, times, failure count and last failure kind; open-state answers write nothing", async () => {
+  B._resetBreakers();
+  const db = d1(); const env = envFor(db, { BREAKER_COOLDOWN_MIN: "0.002" }); // 120 ms
+  mode["api.auditfix.dev"] = "hang";
+  const tenv = { ...env, PROBE_TIMEOUT_MS: "1000" };
+  for (let i = 0; i < 3; i++) await callAs(tenv, spot("https://api.auditfix.dev/v1/a" + i), "198.18.30." + (i + 1));
+  const receipts0 = db.raw.prepare("SELECT COUNT(*) AS n FROM spot_receipts").get().n;
+  const commits0 = db.raw.prepare("SELECT COUNT(*) AS n FROM commitments").get().n;
+  for (let i = 0; i < 20; i++) { // spam while open: unpaid, many IPs, payment headers, dry runs
+    const r = await callAs(tenv, spot("https://api.auditfix.dev/v1/s" + i, i % 2 ? "&mode=dry-run" : ""), "198.18.31." + (i + 1), i % 3 ? {} : { "payment-signature": "e30=" });
+    assert.equal(r.body.reason_code, "host_unstable"); assert.equal(r.body.receipt_id, null);
+  }
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM spot_receipts").get().n, receipts0, "no receipt per host_unstable answer");
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM commitments").get().n, commits0, "no commitment snapshot per host_unstable answer");
+  let ev = db.raw.prepare("SELECT * FROM breaker_events ORDER BY at, rowid").all();
+  assert.equal(ev.length, 1);
+  assert.equal(ev[0].event, "opened"); assert.equal(ev[0].host, "api.auditfix.dev"); assert.equal(ev[0].fail_count, 3);
+  assert.equal(ev[0].last_fail_kind, "timeout"); assert.equal(ev[0].last_status, null); assert.equal(ev[0].trips, 1); assert.equal(ev[0].worker_version, "0.56.0");
+  assert.match(ev[0].at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/); assert.equal(ev[0].opened_at, ev[0].at); assert.ok(ev[0].open_until >= ev[0].at); // second precision; the cooldown here is 120 ms
+  assert.match(ev[0].id, /^be:[0-9a-f]{64}$/);
+  await sleep(150);
+  mode["api.auditfix.dev"] = "5xx"; // half-open probe fails -> half_open_failed
+  await callAs(env, spot("https://api.auditfix.dev/v1/h"), "198.18.32.1");
+  for (let i = 0; i < 5; i++) await callAs(env, spot("https://api.auditfix.dev/v1/h" + i), "198.18.32." + (i + 2));
+  await sleep(150);
+  mode["api.auditfix.dev"] = "pay"; // half-open probe succeeds -> closed
+  await callAs(env, spot("https://api.auditfix.dev/v1/h"), "198.18.33.1");
+  for (let i = 0; i < 5; i++) await callAs(env, spot("https://api.auditfix.dev/v1/ok" + i), "198.18.33." + (i + 2)); // healthy: no rows
+  ev = db.raw.prepare("SELECT event, fail_count, last_fail_kind, last_status, trips FROM breaker_events ORDER BY at, rowid").all().map((x) => ({ ...x }));
+  assert.deepEqual(ev, [
+    { event: "opened", fail_count: 3, last_fail_kind: "timeout", last_status: null, trips: 1 },
+    { event: "half_open_failed", fail_count: 1, last_fail_kind: "server_error", last_status: 503, trips: 2 },
+    { event: "closed", fail_count: 0, last_fail_kind: null, last_status: null, trips: 2 },
+  ]);
+  const cols = db.raw.prepare("PRAGMA table_info(breaker_events)").all().map((c) => c.name);
+  assert.deepEqual(cols, ["id", "host", "event", "at", "opened_at", "open_until", "fail_count", "last_fail_kind", "last_status", "trips", "worker_version"], "no path, query, client, IP or wallet column");
+});
+
+test("review 2: transition rows dedupe across isolates (shared Cache API state + deterministic id with INSERT OR IGNORE); a failing audit write never fails the request", async () => {
+  const t = 4_000_000_000_000, h = "api.dedupe.dev";
+  // A and B share one colo cache: B sees the breaker already open and records nothing
+  let db = d1(); const cache = fakeCache();
+  B._resetBreakers();
+  for (let i = 0; i < 3; i++) await B.breakerRecord({ RECEIPTS_DB: db, BREAKER_CACHE: cache }, h, "fail", { kind: "server_error", status: 502 }, t + i);
+  B._resetBreakers(); // isolate B
+  assert.equal(await B.breakerRecord({ RECEIPTS_DB: db, BREAKER_CACHE: cache }, h, "fail", { kind: "timeout" }, t + 10), "open");
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM breaker_events").get().n, 1);
+  // two isolates without a shared cache open the same host in the same cooldown bucket: still one row
+  db = d1();
+  for (const iso_ of ["A", "B"]) {
+    B._resetBreakers();
+    for (let i = 0; i < 3; i++) await B.breakerRecord({ RECEIPTS_DB: db, BREAKER_CACHE: null }, h, "fail", { kind: "server_error", status: 500 }, t + i + (iso_ === "B" ? 50 : 0));
+  }
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM breaker_events WHERE event = 'opened'").get().n, 1);
+  // ... and both closing the same episode: one closed row
+  const eA = { RECEIPTS_DB: db, BREAKER_CACHE: null };
+  B._resetBreakers();
+  for (let i = 0; i < 3; i++) await B.breakerRecord(eA, h, "fail", {}, t + i);
+  await B.breakerRecord(eA, h, "ok", {}, t + 20 * MIN);
+  B._resetBreakers();
+  for (let i = 0; i < 3; i++) await B.breakerRecord(eA, h, "fail", {}, t + i);
+  await B.breakerRecord(eA, h, "ok", {}, t + 20 * MIN + 5);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM breaker_events WHERE event = 'closed'").get().n, 1);
+  // audit store broken (e.g. migration 0021 not applied yet): breaker still works, the request still answers
+  B._resetBreakers();
+  const noTable = d1(); noTable.raw.exec("DROP TABLE breaker_events");
+  const env = envFor(noTable);
+  mode["api.notable.dev"] = "5xx";
+  for (let i = 0; i < 3; i++) assert.equal((await callAs(env, spot("https://api.notable.dev/v1/x" + i), "198.18.34." + (i + 1))).status, 200);
+  const r = await callAs(env, spot("https://api.notable.dev/v1/y"), "198.18.34.9");
+  assert.equal(r.status, 200); assert.equal(r.body.reason_code, "host_unstable");
+});
+
+test("review 3: /__breaker on the real route is 404 for every method, host and path variant; Cache API entries are never read or served", async () => {
+  B._resetBreakers();
+  const cache = fakeCache(); let matches = 0;
+  const watched = { ...cache, match: async (k) => { matches++; return cache.match(k); } };
+  const origCaches = globalThis.caches;
+  globalThis.caches = { default: watched };
+  try {
+    const db = d1(); const env = { ...envFor(db), BREAKER_CACHE: undefined }; // use globalThis.caches like production
+    delete env.BREAKER_CACHE;
+    for (let i = 0; i < 3; i++) await B.breakerRecord(env, "api.secretish.dev", "fail", {}, Date.now() + i);
+    const key = [...cache.m.keys()][0]; const keyPath = new URL(key).pathname; const stored = cache.m.get(key);
+    assert.ok(keyPath.startsWith("/__breaker/v1/") && stored.includes("open_until"));
+    matches = 0;
+    const paths = ["/__breaker", "/__breaker/", "/__breaker/v1", "/__breaker/v1/", keyPath, keyPath + "/", keyPath + "?x=1", "/__BREAKER/v1/abc", "/__Breaker/",
+      "/%5F%5Fbreaker/v1/abc", "/%5f%5fbreaker/", "/%5F%5FBREAKER", "/%255F%255Fbreaker/v1/abc", "/__breaker%2Fv1%2Fabc", "/%2F__breaker/v1/abc", "//__breaker/v1/abc",
+      "/./__breaker/v1/abc", "/v1/../__breaker/v1/abc", "/x/__breaker", "/__breaker%20", keyPath.replace("/__breaker/", "/%5F_breaker/")];
+    const hosts = ["api.402xagent.com", "402xagent.com", "payscout.dev", "verified-catalog-lookup.withgrokbot.workers.dev"];
+    const methods = ["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"];
+    let n = 0;
+    for (const host of hosts) for (const path of paths) for (const method of methods) {
+      const res = await worker.fetch(new Request("https://" + host + path, { method, headers: { "user-agent": "agent-x/1.0", "cf-connecting-ip": "198.18.40.1" }, ...(method === "POST" || method === "PUT" || method === "PATCH" ? { body: "{}" } : {}) }), env, { waitUntil() {} });
+      assert.equal(res.status, 404, method + " " + host + path);
+      const text = method === "HEAD" ? "" : await res.text();
+      assert.ok(!text.includes("open_until") && !text.includes("probe_until"), "cache entry never served: " + method + " " + path);
+      assert.equal(res.headers.get("cache-control"), "no-store");
+      n++;
+    }
+    assert.ok(n >= hosts.length * paths.length * methods.length);
+    assert.equal(matches, 0, "the route never reads the breaker's Cache API entries");
+    assert.ok(cache.m.has(key), "and does not touch them");
+    assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM notfound_daily").get().n, 0, "answered before the ops wrapper: no D1 write");
+    // real routes are unaffected
+    for (const p of ["/", "/rules.json", "/v1/products/endpoint-spot-check", "/__breakers", "/breaker"]) assert.equal(B.isBreakerPath(p), false, p);
+    assert.equal((await worker.fetch(new Request("https://api.402xagent.com/rules.json", { headers: { "user-agent": "agent-x/1.0" } }), env, { waitUntil() {} })).status, 200);
+  } finally {
+    if (origCaches === undefined) delete globalThis.caches; else globalThis.caches = origCaches;
+  }
 });
 
 test.after(() => { globalThis.fetch = origFetch; });

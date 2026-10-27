@@ -297,22 +297,37 @@ untouched, the price stays $0.02 and the free tier stays 5 a day. Code: `src/bre
   `BREAKER_COOLDOWN_MIN` (default `15`). While it is open, a new check of any URL on that host answers HTTP 200
   `recheck` / `host_unstable` straight away, with a `breaker` object (`state`, `opened_at`, `retry_after_s`, the knobs)
   and a `Retry-After` header: the target is not fetched, no free check is used, nothing is verified, charged or settled
-  (even with a payment header), and it is never published to `recent_checks`. After the cooldown one check is let
+  (even with a payment header), and nothing is written to D1 (no receipt, no commitment snapshot, nothing in
+  `recent_checks`; `receipt_id` is null). After the cooldown one check is let
   through as the half-open probe: success closes the breaker, another failure re-opens it for a full cooldown.
   Not failures: SSRF blocks (still `skip` / `ssrf_blocked`), DNS errors (0.55.0 path), 429, any 403 (a plain 403 is
   still `skip` / `no_paywall`), any other HTTP answer (counts as a success). `BREAKER_FAILS=0` turns it off. Our own
   hosts are never gated.
 - **State store: per-isolate memory written through to the Cache API** (`caches.default`, one data center, shared by
   every isolate there; key = a SHA-256 of the host under a synthetic `https://api.402xagent.com/__breaker/v1/` URL
-  that is only a cache key, never fetched). No D1 table, no KV. The state lives at most window/cooldown minutes, losing it
+  that is only a cache key, never fetched). The real route answers 404 to `/__breaker` on every host and method
+  (any case, percent-encoded or double-encoded, doubled slashes, any path segment), before the ops wrapper, and never
+  reads or serves Cache API entries. No KV. The state lives at most window/cooldown minutes, losing it
   only costs a few extra probes, and a D1 row per failing probe would add a write and latency to exactly the requests
   that are already slow. Healthy hosts cost one cache read per uncached probe and no writes. Any store error fails open
   (the probe runs as before). Trade-offs: the breaker is per data center, and two concurrent failures can race the
   read-modify-write (one may not be counted).
+- **Transition audit: D1 `breaker_events`, NEW migration `0021_breaker_events.sql`** (additive, `CREATE ... IF NOT
+  EXISTS` only; the remote migration needs the owner's OK before deploy). One row per transition, never per request:
+  `opened` (fail_count = failures in the window), `half_open_failed` (re-opened; fail_count 1), `closed` (a success
+  closed an open/half-open breaker). Columns: host (lower-case hostname only), event, at, opened_at, open_until,
+  fail_count, last_fail_kind (`server_error` | `timeout` | `connection_error`), last_status (5xx or null), trips,
+  worker_version. No path, query, client, IP or wallet. Dedupe: the transition is decided on the shared per-colo Cache
+  API state (another isolate sees "already open" and writes nothing), and the row id is a deterministic
+  `be:` + sha256(host, event, episode) written with `INSERT OR IGNORE` (opened: a cooldown-sized time bucket; the
+  others: the episode's opened_at). Residual: separate data centers each record their own transitions, and two isolates
+  racing an `opened` across a bucket boundary can write 2 rows. Opening needs `BREAKER_FAILS` real failed probes (each
+  is a normal check), so unpaid spam cannot add more than one row per transition. The write is awaited in try/catch and
+  never fails or changes the answer (also before the migration is applied: no row, same behaviour). No pruning yet.
 - **0.55.0 transient fallback: `host_unstable` is neutral.** It is not a transient code, so it never starts or extends a
   `*_persistent` streak and is never turned into a skip; and the streak query ignores it, so it does not break a running
-  `rate_limited` / `waf_challenge` / `dns_error` streak either. The cooldown bounds how long it can last. Stored
-  `host_unstable` receipts are never reused as the 5-minute probe cache and are not history or quality observations.
+  `rate_limited` / `waf_challenge` / `dns_error` streak either. The cooldown bounds how long it can last. Breaker
+  answers store no receipt, and they are not history or quality observations.
 
 | Variable | Default | Valid |
 | --- | --- | --- |

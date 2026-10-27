@@ -15,10 +15,20 @@
 // (those count as a success), and our own concurrency cap.
 //
 // State store: per-isolate memory (Map) written through to the Cloudflare Cache API (caches.default, local to one
-// data center, shared by every isolate there). No D1 table and no KV: the state is short-lived (<= window/cooldown),
+// data center, shared by every isolate there). Not D1 and no KV: the state is short-lived (<= window/cooldown),
 // losing it only means a few more probes, and it must not add a database write to every failing probe. A Cache API
 // miss/error falls back to memory; any store error fails open (the probe runs as before). The cache key is a synthetic
-// URL under our own API origin that is only ever used as a cache key (never fetched).
+// URL under our own API origin that is only ever used as a cache key (never fetched); the Worker answers 404 to any
+// /__breaker path on every host and method (isBreakerPath, checked first in lib.js), and never serves Cache API
+// entries to clients.
+//
+// Audit (review): ONE D1 row per transition in breaker_events (migration 0021): opened, half_open_failed, closed. An
+// answer while the breaker is open writes nothing (no receipt either). Dedupe: the transition is decided on the shared
+// per-colo Cache API state (a second isolate sees "already open" and records nothing), and the row id is a
+// deterministic key written with INSERT OR IGNORE (opened: host + cooldown-sized time bucket; the others: host + the
+// episode's opened_at), so racing isolates collapse to one row. Residual: two colos (separate caches) can each record
+// their own transitions, and two isolates racing an "opened" across a bucket boundary can write 2 rows. The write is
+// awaited inside try/catch and never fails or changes the answer.
 //
 // 0.55.0 transient fallback: host_unstable is NEUTRAL. It is not one of the TRANSIENT codes, so it never starts or
 // extends a *_persistent streak and is never turned into a skip; and STREAK_SQL ignores it, so it does not break a
@@ -62,6 +72,42 @@ export function breakerOutcome(probe) {
   return null; // our own concurrency cap, redirect bookkeeping, ...
 }
 
+/** Kind of a failed probe for the audit row: server_error | timeout | connection_error (null when not a failure). */
+export function breakerFailKind(probe) {
+  if (breakerOutcome(probe) !== "fail") return null;
+  if (probe.reachable) return "server_error";
+  return /timeout/.test(String(probe.error || "")) ? "timeout" : "connection_error";
+}
+
+/** 0.56.0 review: /__breaker (any case, percent-encoded, doubled slashes, any segment) is never a client route. */
+export function isBreakerPath(pathname) {
+  let p = String(pathname || "");
+  for (let i = 0; i < 4; i++) { let d; try { d = decodeURIComponent(p); } catch (_) { break; } if (d === p) break; p = d; }
+  p = p.replace(/\\/g, "/").toLowerCase();
+  return p.split("/").some((seg) => seg.trim() === "__breaker");
+}
+
+export const BREAKER_AUDIT_VERSION = "0.56.0";
+export const BREAKER_EVENT_SQL =
+  "INSERT OR IGNORE INTO breaker_events (id, host, event, at, opened_at, open_until, fail_count, last_fail_kind, last_status, trips, worker_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+async function sha(s) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+/** One audit row per transition. Never throws; no store = no row. */
+async function audit(env, host, event, episode, row) {
+  const db = env && env.RECEIPTS_DB;
+  if (!db) return false;
+  try {
+    const id = "be:" + (await sha(host + "|" + event + "|" + episode));
+    await db.prepare(BREAKER_EVENT_SQL).bind(id, host, event, isoS(row.at), row.opened_at ? isoS(row.opened_at) : null, row.open_until ? isoS(row.open_until) : null,
+      row.fail_count || 0, row.last_fail_kind || null, row.last_status == null ? null : Number(row.last_status), row.trips || 0, BREAKER_AUDIT_VERSION).run();
+    return true;
+  } catch (_) {
+    return false; // never fails the request
+  }
+}
+
 /** Lower-case hostname of a URL, or null. */
 export function breakerHost(u) {
   try { return new URL(String(u)).hostname.toLowerCase() || null; } catch (_) { return null; }
@@ -75,8 +121,7 @@ function cacheOf(env) {
   try { return (globalThis.caches && globalThis.caches.default) || null; } catch (_) { return null; }
 }
 async function cacheKey(host) {
-  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(host));
-  return BREAKER_KEY_ORIGIN + [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return BREAKER_KEY_ORIGIN + (await sha(host));
 }
 async function load(env, host) {
   const m = mem.get(host) || null;
@@ -134,25 +179,38 @@ export async function breakerGate(env, host, now = Date.now()) {
   return { allow: true, half_open: true, breaker: null };
 }
 
-/** After a live probe of host. outcome = breakerOutcome(probe). Returns the new state: "closed" | "counting" | "open". Never throws. */
-export async function breakerRecord(env, host, outcome, { halfOpen = false } = {}, now = Date.now()) {
+/**
+ * After a live probe of host. outcome = breakerOutcome(probe); kind/status = breakerFailKind(probe) / probe.http_status.
+ * Returns the new state: "closed" | "counting" | "open". Writes one breaker_events row per transition. Never throws.
+ */
+export async function breakerRecord(env, host, outcome, { halfOpen = false, kind = null, status = null } = {}, now = Date.now()) {
   const cfg = breakerCfg(env);
   if (!cfg.enabled || !host) return "closed";
   try {
     const st = await load(env, host);
-    if (outcome === "ok") { if (st) await clear(env, host); return "closed"; }
+    if (outcome === "ok") {
+      if (!st) return "closed";
+      await clear(env, host);
+      if (st.open_until) await audit(env, host, "closed", String(st.opened_at || 0), { at: now, opened_at: st.opened_at, fail_count: 0, trips: st.trips || 0 });
+      return "closed";
+    }
     if (outcome === "fail") {
+      const last_status = Number(status) >= 500 ? Number(status) : null;
       if (st && st.open_until && now < st.open_until && !halfOpen) return "open"; // already open (a probe that started before it opened)
       if (halfOpen || (st && st.open_until)) { // the half-open probe failed: a full new cooldown
-        await save(env, host, { v: now, fails: [], open_until: now + cfg.cooldownMs, opened_at: now, probe_until: 0, trips: ((st && st.trips) || 0) + 1 }, cfg);
+        const next = { v: now, fails: [], open_until: now + cfg.cooldownMs, opened_at: now, probe_until: 0, trips: ((st && st.trips) || 0) + 1, last_kind: kind, last_status };
+        await save(env, host, next, cfg);
+        await audit(env, host, "half_open_failed", String((st && st.opened_at) || 0), { at: now, opened_at: now, open_until: next.open_until, fail_count: 1, last_fail_kind: kind, last_status, trips: next.trips });
         return "open";
       }
       const fails = ((st && st.fails) || []).filter((t) => t > now - cfg.windowMs).concat(now);
       if (fails.length >= cfg.fails) {
-        await save(env, host, { v: now, fails: [], open_until: now + cfg.cooldownMs, opened_at: now, probe_until: 0, trips: ((st && st.trips) || 0) + 1 }, cfg);
+        const next = { v: now, fails: [], open_until: now + cfg.cooldownMs, opened_at: now, probe_until: 0, trips: ((st && st.trips) || 0) + 1, last_kind: kind, last_status };
+        await save(env, host, next, cfg);
+        await audit(env, host, "opened", String(Math.floor(now / cfg.cooldownMs)), { at: now, opened_at: now, open_until: next.open_until, fail_count: fails.length, last_fail_kind: kind, last_status, trips: next.trips });
         return "open";
       }
-      await save(env, host, { v: now, fails, open_until: 0, opened_at: 0, probe_until: 0, trips: (st && st.trips) || 0 }, cfg);
+      await save(env, host, { v: now, fails, open_until: 0, opened_at: 0, probe_until: 0, trips: (st && st.trips) || 0, last_kind: kind, last_status }, cfg);
       return "counting";
     }
     // outcome null: says nothing about the host. A half-open probe that ended this way hands the lease back.

@@ -64,7 +64,7 @@ import { facilitatorChain, callFacilitator } from "./facilitator.js";
 import { handleFacilitatorCheck, FACIL_CHECK_PATH, FACIL_CHECK_PER_MIN, FACIL_HOST_PER_MIN, FACIL_EXAMPLE } from "./facilcheck.js";
 import { latestDelivery, applyDelivery } from "./delivery.js";
 import { applyTransientGuard, transientSkipAfterHours } from "./transient.js"; // 0.55.0
-import { probeTimeoutMs, breakerCfg, breakerGate, breakerRecord, breakerOutcome, breakerHost, hostUnstableProbe } from "./breaker.js"; // 0.56.0
+import { probeTimeoutMs, breakerCfg, breakerGate, breakerRecord, breakerOutcome, breakerFailKind, breakerHost, hostUnstableProbe, isBreakerPath } from "./breaker.js"; // 0.56.0
 const transientWindowText = (env) => termsWindowText(transientSkipAfterHours(env));
 import { termsWindowText, QUOTE_ID_RE, quoteTerms, applyQuote, quoteChangedText, freshnessFor, termsMaxAgeHours, ageHours } from "./freshness.js"; // 0.54.0
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
@@ -1564,7 +1564,7 @@ async function getProbe(env, q, probeOpts, now = new Date()) {
   const gated = host && !isOwnHost(host);
   const gate = gated ? await breakerGate(env, host, now.getTime()) : { allow: true, half_open: false };
   if (!gate.allow) return { probe: hostUnstableProbe(gate.breaker), probedAt, cached: false, key };
-  const record = async (p, halfOpen) => { if (gated) await breakerRecord(env, host, breakerOutcome(p), { halfOpen }, Date.now()); };
+  const record = async (p, halfOpen) => { if (gated) await breakerRecord(env, host, breakerOutcome(p), { halfOpen, kind: breakerFailKind(p), status: p && p.http_status }, Date.now()); };
   let probe = await spotProbe(q.url, { ...probeOpts, method: q.method });
   await record(probe, gate.half_open);
   // 0.27.0 fix (false skip): a POST-only route answers 405 to GET. Probe it once with POST; use that only if it is a 402.
@@ -2025,7 +2025,9 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const pm = d.verdict === "pay" ? pm0 : null; // only a "pay" verdict approves terms
     const termsHash = await termsSha256(pm);
     const payment = paymentObject(pm, pr.probedAt);
-    const rid = env.RECEIPTS_DB ? newReceiptId() : null;
+    // 0.56.0 review: a breaker answer (host_unstable) stores NO receipt: anyone could repeat it for free, so it must not
+    // cost a D1 write. The breaker's transitions are audited once each in breaker_events instead (breaker.js).
+    const rid = env.RECEIPTS_DB && !probe.host_unstable ? newReceiptId() : null;
     const ptc = rid ? await payToChanged(env, q.url, pm0) : { pay_to_changed: null };
     const hk = await historyKey(q.url);
     const fresh = !pr.cached && !probe.host_unstable; // 0.56.0: a breaker answer fetched nothing, so it is not an observation
@@ -2053,13 +2055,14 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     // Free tier: verdict + plain reason + a hash of the approved terms (enough for x402-spotcheck to refuse a
     // different payment); the terms themselves, quoted/claimed price and pay-to are behind the paid 402.
     if (access && access.tier === "free") {
-      const lk = await lockedFor(env, { hk, url: q.url, history, quality, probedAt: pr.probedAt });
+      // 0.56.0 review: no commitment snapshot (a D1 write) for a breaker answer
+      const lk = probe.host_unstable ? { locked: null, locked_commitments: null } : await lockedFor(env, { hk, url: q.url, history, quality, probedAt: pr.probedAt });
       Object.assign(rf, lk, q.policy ? { policy: q.policy } : {});
       // 0.25.0: an outside free check with a clear verdict is listed in /v1/skips.json recent_checks (URL path only)
       const pub = probe.host_unstable ? null : publishable({ tier: "free", verdict: d.verdict, botTag: spotExcluded, client: q.client, ref: q.ref, url: q.url }); // 0.56.0: breaker answers are not public observations
       if (pub && rid) await publishRecent(env, rid, pub);
       // 0.49.0 (EXPLAIN_LINE): redacted line (field names + the public teasers only), response-only, not in the signed receipt
-      const ex = explainOn(env) ? { explain: explainFree({ diffFields: (v2.diff || []).map((x) => x.field), compared: comparedFields(exp, probe, pm0), driftCount: lk.locked.drift.count_30d, grade: lk.locked.hygiene.grade }), explain_v: EXPLAIN_V } : {};
+      const ex = explainOn(env) && !probe.host_unstable ? { explain: explainFree({ diffFields: (v2.diff || []).map((x) => x.field), compared: comparedFields(exp, probe, pm0), driftCount: lk.locked.drift.count_30d, grade: lk.locked.hygiene.grade }), explain_v: EXPLAIN_V } : {};
       return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), ...ex, ...rf, payment_terms_sha256: termsHash, ...receiptFields, quality: qualityPublic(quality), reputation: reputationPublic(reputation), prior_checks: PRIOR_CHECKS, upsell: FREE_UPSELL, access };
     }
     const acc = Array.isArray(probe.accepts) ? probe.accepts.find((a) => a && a.payTo) : null;
@@ -2142,7 +2145,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   }
   // 0.56.0: per-host circuit breaker open -> recheck/host_unstable, answered like the DNS case above: before any quota,
   // router credit, hosted meter or payment step; HTTP 200, free-shaped, no free check used, nothing verified or settled
-  // even with a payment header; the target was not fetched. Receipt stored (neutral for the 0.55.0 transient guard).
+  // even with a payment header; the target was not fetched. No receipt and no other D1 write (review): the breaker's
+  // transitions are audited once each in breaker_events.
   if (probe && probe.host_unstable) {
     const out = await buildResult(probe, BREAKER_NO_CHARGE_ACCESS);
     writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 200, referer, access: "spot-breaker-no-charge", verdict: out.verdict, shape }));
@@ -2333,12 +2337,19 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
   if (!env.RECEIPTS_DB) { point(503, "dry-run-no-store"); return json({ error: "dry runs are always stored as receipts; the receipt store is unavailable, try again shortly", mode: "dry-run" }, 503); }
   const pr = await getProbe(env, q, probeOpts);
   const probe = pr.probe;
+  if (probe && probe.host_unstable) { // 0.56.0 review: breaker open -> answered without a fetch and without any D1 write
+    const dB = decideVerdict(probe, exp.claimed);
+    point(200, "dry-run-breaker", dB.verdict);
+    return json({ mode: "dry-run", check_type: exempt ? "self-checked" : "dry-run", verdict: dB.verdict, reason: spotLossReason(dB, exp.claimed), ...reasonFields(dB, exp.claimed, null), breaker: probe.breaker, payment_terms_sha256: null, receipt_id: null, receipt_url: null,
+      access: { tier: exempt ? "dry-run-exempt" : "dry-run", dry_runs_per_day: c.dryPerDay, dry_runs_used_today: cap.used, dry_runs_remaining_today: cap.used === null ? null : Math.max(0, c.dryPerDay - cap.used), note: "Free dry run: nothing signed or paid, not an approval to pay. The host's circuit breaker is open, so the target was not fetched and no receipt was stored." } },
+      200, { "cache-control": "no-store", ...(probe.breaker && probe.breaker.retry_after_s ? { "retry-after": String(probe.breaker.retry_after_s) } : {}) });
+  }
   const pmD = pickPayment(probe, exp);
   let d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pmD, exp), probe, q, listing);
   let transient = null; // 0.55.0: same guard as live checks
   ({ d, transient } = await applyTransientGuard(env, d, pr.key, pr.probedAt));
   const hk = await historyKey(q.url);
-  const freshD = !pr.cached && !probe.host_unstable; // 0.56.0: a breaker answer is not an observation
+  const freshD = !pr.cached; // (0.56.0: breaker answers return above)
   const history = await recordHistory(env, hk, observation(probe, pmD, d.verdict, pr.probedAt), freshD);
   const quality = qualityFor(probe); // 0.37.0: metadata of the same unpaid probe; dry runs get the code + coarse band
   await recordQuality(env, hk, hostOf(q.url), quality, pr.probedAt, freshD);
@@ -2359,7 +2370,6 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
     reason,
     ...reasonFields(d, exp.claimed, history),
     ...(transient ? { transient } : {}),
-    ...(probe.host_unstable && probe.breaker ? { breaker: probe.breaker } : {}),
     payment_terms_sha256: null,
     receipt_id: rid,
     receipt_url: CANON_ORIGIN + "/v1/receipts/" + rid,
@@ -3715,6 +3725,9 @@ async function explicit400(res, req, url, path, bodyCopy) {
 
 export const handler = {
   async fetch(req, env, ctx) {
+    // 0.56.0 review: /__breaker/* names the circuit breaker's Cache API keys. It is never a route: 404 for every method
+    // and host, before any other work (no ops counter, D1, KV or cache read), and Cache API entries are never served.
+    try { if (isBreakerPath(new URL(req.url).pathname)) return new Response("not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } }); } catch (_) {}
     return opsWrap(req, env, ctx, () => fetchInner(req, env, ctx));
   },
   async scheduled(event, env, ctx) { return scheduledInner(event, env, ctx); },
