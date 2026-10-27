@@ -395,6 +395,7 @@ export async function manifest(env, deps, origin) {
     },
     free: { delay_hours: FEED_DELAY_H, max_rows: FREE_ROWS, drift_days: FREE_DRIFT_DAYS, calls_per_day_per_network: FEED_FREE_PER_DAY, snapshot: "daily, at least 24 h old, paginated" },
     paid: Object.fromEntries(Object.entries(FEED_PRICES).map(([k, p]) => [k, { price_usd: p.usd, amount_atomic: p.atomic, what: p.what, ...(p.subscription ? { period_days: PERIOD_DAYS } : { per_call: true }) }])),
+    license: "Self-serve feed tiers (free and paid) exclude resale and use by risk-engine or competing verification vendors; those uses need a separate license.",
     payment: { protocol: "x402 v2 exact", network: c.network, asset: c.asset, pay_to: c.payTo, testnet: c.network !== "eip155:8453", rows_per_paid_call: PAID_ROWS,
       how: "live=1 on /v1/feed or /v1/feed/endpoint/{hkey} ($0.01), full=1 on /v1/feed/drift ($0.05), or Authorization: Bearer fk_<key> from /v1/feed/subscribe" },
     writes: "an observation row per endpoint only when state, HTTP status or payment terms change (or a drift/down/recovery event), plus one heartbeat row per UTC day",
