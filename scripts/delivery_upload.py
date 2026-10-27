@@ -6,7 +6,7 @@ no tx hash, no wallet). Re-running is a no-op (PK hkey + checked_at).
 
 Usage: python3 scripts/delivery_upload.py [--local|--remote] [--persist-to DIR] [--dry-run] [--history FILE] [--since ISO]
   --local (default) writes the wrangler dev local D1; --remote writes production D1 (owner OK only).
-  --remote checks the D1 size first (wrangler d1 info --json) and writes nothing over D1_SIZE_MAX_MB / --max-mb (400).
+  --remote checks the D1 size first (wrangler d1 info --json) and writes nothing over D1_SIZE_MAX_MB / --max-mb (400); unknown size = write + warn.
 """
 import argparse, hashlib, json, os, re, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -60,7 +60,7 @@ def _wrangler(args, check=True, capture=False):
     return subprocess.run([*base, *args], cwd=os.path.join(ROOT, "worker"), env=env, check=check, capture_output=capture, text=True)
 
 # D1 size guard (same rule as worker/src/d1size.js): over D1_SIZE_MAX_MB (default 400) this writer stops and warns.
-# Size comes from `wrangler d1 info <db> --json` (database_size, bytes). If it cannot be read, writes are skipped too.
+# Size comes from `wrangler d1 info <db> --json` (database_size, bytes). If it cannot be read, writes go ahead with a warning (as in the Worker).
 D1_SIZE_MAX_MB_DEFAULT = 400
 def d1_max_mb(cli=None):
     for v in (cli, os.environ.get("D1_SIZE_MAX_MB")):
@@ -78,9 +78,11 @@ def d1_size_bytes():
 
 def d1_write_allowed(max_mb, writer="delivery_checks"):
     size = d1_size_bytes()
-    if size is not None and size <= max_mb * 1e6: return True
-    print(json.dumps({"d1_size_guard": "over" if size is not None else "unknown", "writer": writer,
-                      "size_mb": round(size / 1e6, 1) if size is not None else None, "max_mb": max_mb, "skipped": True}), file=sys.stderr)
+    if size is None:  # same as the Worker: unknown size does not block writes, but say so
+        print(json.dumps({"d1_size_guard": "unknown", "writer": writer, "size_mb": None, "max_mb": max_mb, "skipped": False}), file=sys.stderr)
+        return True
+    if size <= max_mb * 1e6: return True
+    print(json.dumps({"d1_size_guard": "over", "writer": writer, "size_mb": round(size / 1e6, 1), "max_mb": max_mb, "skipped": True}), file=sys.stderr)
     return False
 
 def main(argv=None):
