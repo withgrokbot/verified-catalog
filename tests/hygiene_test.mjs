@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 const codes = (r) => r.deductions.map((d) => d.code).sort();
 const sum = (r) => r.deductions.reduce((a, d) => a + d.points, 0);
 
-test("0.56.0 version", () => assert.equal(VERSION, "0.56.0"));
+test("0.57.0 version", () => assert.equal(VERSION, "0.57.0"));
 
 test("good fixture: 100 / A, no deductions, 402 discipline scored", () => {
   const r = hygiene(GOOD);

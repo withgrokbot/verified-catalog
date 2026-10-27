@@ -33,6 +33,8 @@ export const REASON_TEXT = {
   dns_error_persistent: "the endpoint's domain has not resolved (DNS) for longer than our retry window (default 24 h)",
   // 0.56.0 per-host circuit breaker (breaker.js)
   host_unstable: "recent probes of this endpoint's host failed (server errors, timeouts or connection errors), so we paused probing it for a few minutes, try again later",
+  // 0.57.0 multi-probe before pay (multiprobe.js)
+  terms_unstable: "two quick probes of this endpoint got different payment terms, try again later",
 };
 export const shortReason = (code) => REASON_TEXT[code] || "see receipt";
 
