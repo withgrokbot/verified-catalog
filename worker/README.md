@@ -202,3 +202,15 @@ With no secrets set there is only one source, so `safe_to_resign` is never true.
 
 ## Hosted mode (0.41.0, part one)
 Integrator keys for routers/wallets: `Authorization: Bearer 402x_live_<id>_<secret>` (or `x-402xagent-key`) on the check and payment status. 1,000 free hosted checks (lifetime), then $0.02, $0.01 for each billable check after the first 1,000 in a UTC month; cached answers count. Credit limit $20 until the first invoice is paid, then $100 (from `hosted_usage`); over it the call takes the normal free/x402 path. D1 only (migration 0009: `integrators` with the key hash only, `hosted_usage` one row per hosted receipt). Secret `HOSTED_KEY_PEPPER` (without it a keyed call gets 501; calls without a key are unchanged). `GET /v1/integrators/me` shows the meter. Owner tool: `node scripts/hosted_key.mjs pepper|issue <name>|revoke <id>|meter <id>`. Not yet: invoices and the invoice cron (part two).
+
+## Post-payment delivery check (0.52.3, off by default)
+
+"Did I get what I paid for." Our own paid check rounds (`scripts/run_checks.py --pay`) classify the seller's response
+after settlement with `scripts/delivery.py`: `delivery_flag` ok|failed plus a reason (`server_error`, `http_error`,
+`empty_body`, `challenge_page`, `soft_paywall`, `canned_refusal`, `error_body`, `placeholder_body`, `no_response`).
+The Worker never pays a seller; `scripts/delivery_upload.py` copies the flags (hkey, host, time, flag, reason, status only)
+into D1 `delivery_checks` (migration 0020, additive). With `DELIVERY_CHECK=1`: a new check whose verdict would be `pay`
+returns `recheck` / `delivery_failed` when the endpoint's latest delivery check in the last 14 days failed, and host
+reputation gets a `delivery` component (weight 15, only for hosts with delivery rows). Skip/recheck verdicts, stored
+receipts and sellers without delivery data are unchanged. Code: `src/delivery.js`; tests: `tests/delivery_test.mjs`,
+`tests/delivery_test.py` (fixtures in `tests/fixtures/delivery/`).

@@ -344,6 +344,25 @@ def _valid_delivery(r):
     return True
 
 
+def expects_html(svc, ch, opt=None):
+    """True when HTML is the listed product (svc "expect_html", or the 402's resource/option mimeType says html)."""
+    if svc.get("expect_html"):
+        return True
+    mimes = [str((opt or {}).get("mimeType") or "")]
+    res = (ch or {}).get("resource")
+    if isinstance(res, dict):
+        mimes.append(str(res.get("mimeType") or ""))
+    return any("html" in m.lower() for m in mimes)
+
+
+def delivery_check(r, svc, ch, opt=None):
+    """{delivery_flag, delivery_reason} for a settled paid call (scripts/delivery.py)."""
+    import delivery  # local module (stdlib only)
+    if not r.get("ok"):
+        return {"delivery_flag": "failed", "delivery_reason": "no_response"}  # settled, but the connection failed before any response
+    return delivery.classify(r.get("status"), r.get("headers", {}), r.get("body", b""), expect_html=expects_html(svc, ch, opt))
+
+
 # ------------------------------------------------------------------ one check
 def check_service(svc, timeout=20, signer=None, guard=None, network="base", now=None, quality_tests=None, refs=None):
     """Return (result, raw_log). Free check unless both signer and guard are given.
@@ -361,7 +380,7 @@ def check_service(svc, timeout=20, signer=None, guard=None, network="base", now=
            "advertised_price_usd": usd_str(adv), "quoted_price_usd": None, "price_matches_listing": None,
            "payment_options": [], "paid": False, "charged_price_usd": None, "delivered_valid": None,
            "delivered_status": None, "payment_refused_reason": None, "settlement_tx": None, "pay_to": None,
-           "quality": None}
+           "quality": None, "delivery_flag": None, "delivery_reason": None}
     raw = {"service_id": svc["id"], "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
            "request": {"method": method, "url": url, "json_body": svc.get("sample_request", {}).get("json_body"),
                        "payment_header_sent": False},
@@ -425,6 +444,9 @@ def check_service(svc, timeout=20, signer=None, guard=None, network="base", now=
         guard.update_last(status=f"settled, not delivered (HTTP {r2.get('status')})", tx=tx)
     else:
         guard.update_last(status=f"not delivered (HTTP {r2.get('status')})" if r2.get("ok") else "request failed")
+    # post-payment delivery check: only once the payment settled (we were charged), on the seller's paid response
+    if res["charged_price_usd"] is not None:
+        res.update(delivery_check(r2, svc, ch, opt))
     if quality_tests is not None:
         import quality  # local module; imported lazily so the free path stays minimal
         q = quality.grade(svc["id"], r2.get("body", b"") if r2.get("ok") else b"", (sent_at, received_at), quality_tests,
