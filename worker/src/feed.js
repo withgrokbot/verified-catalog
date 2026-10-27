@@ -4,7 +4,10 @@
 // PRIVACY: every response is built from the explicit FEED_COLUMNS / EVENT_COLUMNS allowlists over feed_* tables only.
 // This module never reads watches.webhook_url / webhook_hash / ip_hash / secret_hash, watch_events, spot_receipts,
 // settled_payments, hygiene tables or trial_claims. pay_to is the public seller address. No query strings.
-// Flags: FEED=1 serves the routes (default off -> 404). FEED_OBSERVE=1 writes hourly observations from opted-in watches.
+// Flags (0.52.1, explicit modes, see feedMode): FEED unset/0 = off (routes 404, no writes). FEED=observe (or the older
+// FEED_OBSERVE=1 with FEED unset) = observe-only: opt-ins are accepted and opted-in watch observations are recorded and
+// pruned, but nothing is served (routes 404, no snapshot build, nothing in openapi/llms.txt). FEED=1 = serve the routes.
+// FEED=1 records observations only when FEED_OBSERVE=1 is also set (unchanged from 0.52.0).
 // FEED_MAINNET=1 takes paid tiers on the main payment preset; default (off) = Base Sepolia testnet USDC.
 import { normUrl } from "./skips.js";
 import { canonicalize, signObject } from "./sign.js";
@@ -38,7 +41,9 @@ export const sha256Hex = async (s) => hex(await crypto.subtle.digest("SHA-256", 
 const randHex = (n) => hex(crypto.getRandomValues(new Uint8Array(n)));
 const on = (v) => ["1", "on", "true"].includes(String(v || "").toLowerCase());
 export const feedOn = (env) => on(env && env.FEED);
-export const feedObserveOn = (env) => on(env && env.FEED_OBSERVE);
+export const feedObserveOn = (env) => on(env && env.FEED_OBSERVE) || String((env && env.FEED) || "").toLowerCase() === "observe";
+/** "off" | "observe" (record, never serve) | "serve" | "serve+observe". Only "serve*" exposes routes. */
+export const feedMode = (env) => (feedOn(env) ? (feedObserveOn(env) ? "serve+observe" : "serve") : feedObserveOn(env) ? "observe" : "off");
 export const feedMainnet = (env) => on(env && env.FEED_MAINNET);
 const pepper = (env) => String(env.FEED_PEPPER || env.WATCH_PEPPER || env.HOSTED_KEY_PEPPER || "");
 const J = (obj, status = 200, extra = {}) => new Response(JSON.stringify(obj, null, 2), { status, headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE", "cache-control": "no-store", ...extra } });
@@ -167,7 +172,7 @@ export function needsObservation(prev, ob) {
   return null;
 }
 export async function feedStatementsForWatch(env, db, w, o, fired, now) {
-  if (!feedObserveOn(env) || !Number(w.feed_opt_in)) return [];
+  if (!feedObserveOn(env) || !Number(w.feed_opt_in)) return []; // w.feed_opt_in comes from feed_opt_ins (watch.js optInCol)
   const pu = publicUrl(w.url);
   if (!pu) return [];
   const ep = { hkey: await feedKey(pu.url), ...pu, method: w.method || "GET", category: categoryOf({ url: pu.url }), crawl_known: 0, watch_opt_in: 1 };
@@ -180,10 +185,16 @@ export const FEED_OPT_IN_MAX = 100;
 export const optInMax = (env) => { const n = parseInt((env && env.FEED_OPT_IN_MAX) ?? "", 10); return Number.isFinite(n) && n >= 0 ? n : FEED_OPT_IN_MAX; };
 /** true if one more watch may opt in; logs (no ids, no URLs) when the cap is hit. */
 export async function optInAllowed(env, db) {
-  const n = ((await db.prepare("SELECT COUNT(*) AS n FROM watches WHERE feed_opt_in = 1 AND status != 'deleted'").first()) || {}).n || 0;
+  const n = ((await db.prepare("SELECT COUNT(*) AS n FROM feed_opt_ins f JOIN watches w ON w.id = f.watch_id WHERE w.status != 'deleted'").first()) || {}).n || 0;
   if (n < optInMax(env)) return true;
   console.log(JSON.stringify({ feed: "opt_in_cap_hit", cap: optInMax(env), opted_in: n }));
   return false;
+}
+// 0.52.1: opt-in lives in its own table (migration 0018 is CREATE ... IF NOT EXISTS only; watches is not altered).
+export async function isOptedIn(db, watchId) { return !!(await db.prepare("SELECT 1 AS x FROM feed_opt_ins WHERE watch_id = ?").bind(watchId).first()); }
+export async function setOptIn(db, watchId, optIn, now = new Date()) {
+  if (optIn) await db.prepare("INSERT INTO feed_opt_ins (watch_id, opted_in_at) VALUES (?, ?) ON CONFLICT(watch_id) DO NOTHING").bind(watchId, iso(now)).run();
+  else await db.prepare("DELETE FROM feed_opt_ins WHERE watch_id = ?").bind(watchId).run();
 }
 /** Opt-out: drop watch-sourced rows for an endpoint that no other opted-in watch covers (crawl rows stay: public). */
 export async function feedOptOut(db, url) {
@@ -319,6 +330,7 @@ export async function feedTick(env, now = new Date()) {
 export async function prune(db, now = new Date()) {
   const cut = iso(new Date(now).getTime() - KEEP_DAYS * DAY);
   const r = await db.prepare("DELETE FROM feed_observations WHERE observed_at < ?").bind(cut).run();
+  await db.prepare("DELETE FROM feed_opt_ins WHERE watch_id NOT IN (SELECT id FROM watches)").run(); // purged watches
   await db.prepare("DELETE FROM feed_quota WHERE day < ?").bind(iso(new Date(now).getTime() - 2 * DAY).slice(0, 10)).run();
   return { observations: (r && r.meta && r.meta.changes) || 0, before: cut };
 }
@@ -387,7 +399,7 @@ export async function manifest(env, deps, origin) {
     type: "402xagent-feed-manifest", schema: "feed.v1", issuer: "402xAgent Watchtower",
     facts_only: "Liveness, payment terms and drift events as observed. No scores, grades, ratings or rankings.",
     categories: FEED_CATEGORIES, category_source: "fixed keyword map over the crawl's URL and source-list fields",
-    inclusion: "crawl-known public x402 URLs, plus Watchtower watches whose owner opted in (feed_opt_in). Query strings are never stored.",
+    inclusion: "crawl-known public x402 URLs, plus Watchtower watches whose owner opted in (feed_opt_ins). Query strings are never stored.",
     columns: { endpoint: FEED_COLUMNS, observation: OBS_COLUMNS, event: EVENT_COLUMNS },
     endpoints: {
       feed: "GET /v1/feed?category=&host=&since=&offset=&limit=", endpoint: "GET /v1/feed/endpoint/{hkey}", drift: "GET /v1/feed/drift?from=&to=&category=&host=",

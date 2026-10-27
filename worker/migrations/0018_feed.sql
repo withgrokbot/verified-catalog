@@ -1,8 +1,14 @@
 -- 0.52.0 Watchtower drift & liveness data feed (GET /v1/feed*). D1 only, no KV.
--- PUBLIC by construction: a row is written only for a crawl-known public URL or a watch that opted in (watches.feed_opt_in = 1).
+-- PUBLIC by construction: a row is written only for a crawl-known public URL or a watch that opted in (row in feed_opt_ins).
 -- Facts only: liveness, payment terms (pay_to is the public seller address), drift events. No scores, grades or rankings.
 -- Never stored here: buyer wallets, tx hashes, payment proofs, client IPs, webhook URLs/hashes, query strings.
-ALTER TABLE watches ADD COLUMN feed_opt_in INTEGER NOT NULL DEFAULT 0;
+-- 0.52.1: additive and idempotent. Only CREATE TABLE/INDEX IF NOT EXISTS; no existing table is altered, so the file can
+-- be applied ahead of the code (observe-only rollout) and re-run safely. Running 0.52.0 code ignores these tables.
+-- watch opt-in to the public feed (default: absent = not in the feed). One row per opted-in watch; no URL/webhook here.
+CREATE TABLE IF NOT EXISTS feed_opt_ins (
+  watch_id TEXT PRIMARY KEY,         -- watches.id
+  opted_in_at TEXT NOT NULL
+);
 -- current state, one row per endpoint (hkey = "h:" + sha256(normalized URL), same key as endpoint_history)
 CREATE TABLE IF NOT EXISTS feed_endpoints (
   hkey TEXT PRIMARY KEY,

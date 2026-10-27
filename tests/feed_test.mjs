@@ -90,16 +90,18 @@ async function seedPrivate(db) {
 const probeOf = (amount, payTo = SELLER, status = 402) => ({ reachable: true, http_status: status, paywall: status === 402, x402_version: 2, schemes: ["exact"], terms: status === 402 ? { network: "eip155:8453", asset: USDC_BASE, payTo, amount } : null });
 async function addWatch(db, id, url, optIn) {
   const base = W.baselineOf(probeOf("10000"));
-  db.raw.prepare("INSERT INTO watches (id, secret_hash, url, method, hkey, webhook_url, webhook_hash, webhook_domain_hash, ip_hash, status, created_at, paid_until, period_start, next_probe_at, baseline_json, baseline_sig, baseline_at, feed_opt_in) VALUES (?, ?, ?, 'GET', ?, ?, 'wh', 'dh', 'ih', 'active', ?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(id, await W.sha256Hex("test-pepper:wts_" + "1".repeat(48)), url, "hk-" + id, HOOK, iso(T0), iso(T0 + 30 * 24 * H), iso(T0), iso(T0), JSON.stringify(base), await W.sigOf(base), iso(T0), optIn ? 1 : 0);
+  db.raw.prepare("INSERT INTO watches (id, secret_hash, url, method, hkey, webhook_url, webhook_hash, webhook_domain_hash, ip_hash, status, created_at, paid_until, period_start, next_probe_at, baseline_json, baseline_sig, baseline_at) VALUES (?, ?, ?, 'GET', ?, ?, 'wh', 'dh', 'ih', 'active', ?, ?, ?, ?, ?, ?, ?)")
+    .run(id, await W.sha256Hex("test-pepper:wts_" + "1".repeat(48)), url, "hk-" + id, HOOK, iso(T0), iso(T0 + 30 * 24 * H), iso(T0), iso(T0), JSON.stringify(base), await W.sigOf(base), iso(T0));
+  if (optIn) db.raw.prepare("INSERT INTO feed_opt_ins (watch_id, opted_in_at) VALUES (?, ?)").run(id, iso(T0));
 }
-const watchRow = (db, id) => db.raw.prepare("SELECT id, url, method, webhook_url, status, paused_reason, state, fail_streak, ok_streak, pending_sig, pending_count, was_paused, quiet_until, baseline_json, baseline_sig, last_event_id, fail_days, fail_day, ok_day, consecutive_failed, paid_until, feed_opt_in FROM watches WHERE id = ?").get(id);
+const watchRow = (db, id) => db.raw.prepare("SELECT id, url, method, webhook_url, status, paused_reason, state, fail_streak, ok_streak, pending_sig, pending_count, was_paused, quiet_until, baseline_json, baseline_sig, last_event_id, fail_days, fail_day, ok_day, consecutive_failed, paid_until, EXISTS (SELECT 1 FROM feed_opt_ins f WHERE f.watch_id = watches.id) AS feed_opt_in FROM watches WHERE id = ?").get(id);
+const optedIn = (db, id) => db.raw.prepare("SELECT COUNT(*) AS n FROM feed_opt_ins WHERE watch_id = ?").get(id).n;
 
-test("migration 0018 applies on a local D1 with the four feed tables + watches.feed_opt_in", () => {
+test("migration 0018 applies on a local D1 with the five feed tables; watches is not altered", () => {
   const { db } = setup();
   const tables = db.raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'feed_%' ORDER BY name").all().map((r) => r.name);
-  assert.deepEqual(tables, ["feed_endpoints", "feed_keys", "feed_observations", "feed_quota"]);
-  assert.ok(db.raw.prepare("PRAGMA table_info(watches)").all().some((c) => c.name === "feed_opt_in" && c.dflt_value === "0"));
+  assert.deepEqual(tables, ["feed_endpoints", "feed_keys", "feed_observations", "feed_opt_ins", "feed_quota"]);
+  assert.ok(!db.raw.prepare("PRAGMA table_info(watches)").all().some((c) => c.name === "feed_opt_in"));
   const obsCols = db.raw.prepare("PRAGMA table_info(feed_observations)").all().map((c) => c.name);
   for (const bad of ["webhook_url", "ip_hash", "payer", "transaction", "tx_hash"]) assert.ok(!obsCols.includes(bad));
 });
@@ -160,7 +162,7 @@ test("opt-in toggle: POST /v1/watch/{id}/feed (Bearer); opting out removes watch
   const url = new URL("https://api.402xagent.com/v1/watch/wt-000000000000000d/feed");
   const r = await W.handleWatch(new Request(url, { method: "POST", headers: { authorization: "Bearer wts_" + "1".repeat(48), "content-type": "application/json" }, body: JSON.stringify({ opt_in: false }) }), s.env, null, url, { ...feedDeps(s.env), cfg: {}, now: () => new Date(T0) });
   assert.equal(r.status, 200);
-  assert.equal(s.db.raw.prepare("SELECT feed_opt_in FROM watches WHERE id = 'wt-000000000000000d'").get().feed_opt_in, 0);
+  assert.equal(optedIn(s.db, "wt-000000000000000d"), 0);
   assert.equal(s.db.raw.prepare("SELECT COUNT(*) AS n FROM feed_endpoints").get().n, 0);
   assert.equal(s.db.raw.prepare("SELECT COUNT(*) AS n FROM feed_observations").get().n, 0);
 });
@@ -191,7 +193,7 @@ test("opt-in cap: at FEED_OPT_IN_MAX opted-in watches a new opt-in is refused (4
   assert.equal((await r.json()).code, "opt_in_cap");
   assert.ok(logs.some((l) => /"feed":"opt_in_cap_hit","cap":1,"opted_in":1/.test(l)));
   assert.ok(!logs.join().includes("wt-") && !logs.join().includes("fixture-sellers"));
-  assert.equal(s.db.raw.prepare("SELECT feed_opt_in FROM watches WHERE id = 'wt-0000000000000002'").get().feed_opt_in, 0);
+  assert.equal(optedIn(s.db, "wt-0000000000000002"), 0);
   assert.equal(F.optInMax({}), 100);
 });
 
@@ -408,6 +410,52 @@ test("routing: worker.fetch serves /v1/feed only when FEED=1", async () => {
   const llms = async (env) => (await worker.fetch(new Request("https://api.402xagent.com/llms.txt"), env, { waitUntil() {} })).text();
   assert.match(await llms(s.env), /Watchtower feed .*\/v1\/feed\/manifest/);
   assert.ok(!/v1\/feed/.test(await llms({ RECEIPTS_DB: d1() })));
+});
+
+test("0.52.1 migration 0018 is additive + idempotent: re-applying is a no-op, data kept, 0.52.0-era watches rows untouched", async () => {
+  const sql = mig("0018_feed.sql");
+  assert.ok(!/\b(ALTER|DROP|UPDATE|DELETE|INSERT|REPLACE)\b/i.test(sql.replace(/--.*$/gm, "")), "0018 only creates");
+  for (const m of sql.replace(/--.*$/gm, "").split(";").map((x) => x.trim()).filter(Boolean)) assert.match(m, /^CREATE (TABLE|INDEX) IF NOT EXISTS /);
+  const db = new DatabaseSync(":memory:");
+  for (const m of MIGS.slice(0, -1)) db.exec(m);
+  const before = db.prepare("PRAGMA table_info(watches)").all();
+  db.exec(sql); db.prepare("INSERT INTO feed_opt_ins (watch_id, opted_in_at) VALUES ('wt-0000000000000001', '2026-10-20T00:00:00Z')").run();
+  db.exec(sql); db.exec(sql);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM feed_opt_ins").get().n, 1);
+  assert.deepEqual(db.prepare("PRAGMA table_info(watches)").all(), before);
+});
+
+test("0.52.1 flag modes: off / observe (records, serves nothing) / serve", async () => {
+  assert.equal(F.feedMode({}), "off");
+  assert.equal(F.feedMode({ FEED: "0" }), "off");
+  assert.equal(F.feedMode({ FEED: "observe" }), "observe");
+  assert.equal(F.feedMode({ FEED_OBSERVE: "1" }), "observe");
+  assert.equal(F.feedMode({ FEED: "1" }), "serve");
+  assert.equal(F.feedMode({ FEED: "1", FEED_OBSERVE: "1" }), "serve+observe");
+  for (const FEED of [undefined, "0", "observe"]) {
+    const s = setup({ FEED, FEED_OBSERVE: "" });
+    const ctx = { waitUntil() {} };
+    for (const p of ["/v1/feed", "/v1/feed/manifest", "/v1/feed/drift", "/v1/feed/snapshot.json"]) assert.equal((await worker.fetch(new Request("https://api.402xagent.com" + p), s.env, ctx)).status, 404, FEED + " " + p);
+    const paths = (await (await worker.fetch(new Request("https://api.402xagent.com/openapi.json"), s.env, ctx)).json()).paths;
+    assert.ok(!Object.keys(paths).some((p) => p.includes("/feed")), "no feed paths in openapi when " + FEED);
+    assert.ok(!/v1\/feed/.test(await (await worker.fetch(new Request("https://api.402xagent.com/llms.txt"), s.env, ctx)).text()));
+    assert.deepEqual(await F.feedTick(s.env, new Date(T0)), { did: "off" }); // no snapshot build unless serving
+    await addWatch(s.db, "wt-00000000000000f1", "https://observe.fixture-sellers.example/v1/search", true);
+    await W.stepWatch(s.env, watchRow(s.db, "wt-00000000000000f1"), probeOf("10000"), new Date(T0));
+    const n = s.db.raw.prepare("SELECT COUNT(*) AS n FROM feed_observations").get().n;
+    const url = new URL("https://api.402xagent.com/v1/watch/wt-00000000000000f1/feed");
+    const r = await W.handleWatch(new Request(url, { method: "POST", headers: { authorization: "Bearer wts_" + "1".repeat(48), "content-type": "application/json" }, body: JSON.stringify({ opt_in: true }) }), s.env, null, url, { ...feedDeps(s.env), cfg: {}, now: () => new Date(T0) });
+    if (FEED === "observe") {
+      assert.equal(n, 1, "observe-only records opted-in watch observations");
+      assert.equal(r.status, 200);
+      assert.equal((await F.feedDaily(s.env, new Date(T0))).did, "daily"); // prune runs
+      assert.equal(s.db.raw.prepare("SELECT COUNT(*) AS n FROM crawl_store WHERE source = 'feed'").get().n, 0, "no snapshot stored");
+    } else {
+      assert.equal(n, 0, "off records nothing");
+      assert.equal(r.status, 404);
+      assert.deepEqual(await F.feedDaily(s.env, new Date(T0)), { did: "off" });
+    }
+  }
 });
 
 test("privacy leak scan: no buyer wallet, tx hash, proof, IP, webhook URL/hash, secret, receipt or score in any output", async () => {
