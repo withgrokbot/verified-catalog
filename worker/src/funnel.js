@@ -13,7 +13,8 @@ async function sha256hex(s) {
 
 /** Per-day digest of a quota key ("c:name" or "ip:<hash>"). Rotates at 00:00 UTC, so it never links days. */
 export async function funnelDigest(salt, key, day) {
-  return (await sha256hex(`${salt || "unsalted-dev"}|funnel|${day}|${key}`)).slice(0, 32);
+  if (!salt) return ""; // no CLIENT_SALT = no digest = funnelEvent writes nothing (never an unsalted key)
+  return (await sha256hex(`${salt}|funnel|${day}|${key}`)).slice(0, 32);
 }
 
 const uaFamily = (ua) => String(ua || "").split(/[\/\s(;]/)[0].slice(0, 40) || "-";
@@ -40,8 +41,8 @@ export function funnelSql(days) {
   const base = `FROM ${FUNNEL_DATASET} WHERE timestamp > NOW() - INTERVAL '${d}' DAY AND double3 = 0`;
   return {
     days: d,
-    daily: `SELECT toStartOfDay(timestamp) AS day, blob1 AS event, count(DISTINCT blob2) AS digests, SUM(_sample_interval) AS events ${base} GROUP BY day, event ORDER BY day`,
-    top: `SELECT blob3 AS ua, count(DISTINCT blob2) AS digest_days, SUM(_sample_interval) AS cap_hits ${base} AND blob1 = 'cap_hit' GROUP BY ua ORDER BY cap_hits DESC LIMIT 15`,
+    daily: `SELECT toStartOfDay(timestamp) AS day, blob1 AS event, count(DISTINCT blob2) AS digests, SUM(_sample_interval) AS events ${base} GROUP BY day, event ORDER BY day FORMAT JSON`,
+    top: `SELECT blob3 AS ua, count(DISTINCT blob2) AS digest_days, SUM(_sample_interval) AS cap_hits ${base} AND blob1 = 'cap_hit' GROUP BY ua ORDER BY cap_hits DESC LIMIT 15 FORMAT JSON`,
   };
 }
 

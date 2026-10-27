@@ -4360,21 +4360,6 @@ test("0.51.4: bare spot call logs 402 spot-discovery (not 400); real 400 keeps s
   assert.ok(!m.points.some((p) => p.blobs[16] === "bad_pay_to"), "no bad_pay_to 400 from the MCP");
 });
 
-let passed = 0, skipped = 0;
-const SKIP = Symbol("skip");
-for (const [name, fn] of T) {
-  try {
-    await fn({ skip(msg) { throw { [SKIP]: msg }; } });
-    passed++;
-    console.log("PASS " + name);
-  } catch (e) {
-    if (e && e[SKIP] !== undefined) { skipped++; console.log("SKIP " + name + ": " + e[SKIP]); continue; }
-    console.log("FAIL " + name + "\n  " + (e && e.stack ? e.stack.split("\n").slice(0, 12).join("\n  ") : e));
-  }
-}
-console.log(`${passed}/${T.length - skipped} worker tests passed` + (skipped ? ` (${skipped} skipped)` : ""));
-process.exit(passed === T.length ? 0 : 1);
-
 // 0.52.0 spot funnel: free_check -> cap_hit (before the 402) -> paid (after verify+settle and the idempotency check)
 test("0.52.0 funnel: free_check, cap_hit before the 402, paid once; digests only, never the raw client key", async () => {
   const e = spotEnv();
@@ -4392,11 +4377,12 @@ test("0.52.0 funnel: free_check, cap_hit before the 402, paid once; digests only
   assert.deepEqual(fpts.map((p) => p.blobs[0]), ["free_check", "cap_hit"]);
   assert.equal(cap.body.cap_hit, true);
   assert.ok(Array.isArray(cap.body.paid_adds) && cap.body.paid_adds.length === 6);
-  assert.equal(cap.body.price.amount_atomic, "250000");
+  assert.equal(cap.body.price.amount_atomic, "20000");
+  assert.equal(cap.body.price.amount_usd, "0.02");
   assert.equal(cap.body.price.pay_to, PAY_TO);
   assert.equal(cap.body.payment_instructions.header, "PAYMENT-SIGNATURE");
   assert.ok(cap.body.paid_adds.some((x) => x.startsWith("reputation: 0-100")));
-  const pay = spotPayment({ amount: "250000" });
+  const pay = spotPayment({ amount: "20000" });
   const paid = await send(target, { envo: e, headers: { "payment-signature": pay } });
   assert.equal(paid.status, 200);
   const evs = fpts.map((p) => p.blobs[0]);
@@ -4421,7 +4407,7 @@ test("0.52.0 funnel: a replayed settlement (retry of the same payload) is never 
   facMode = "ok";
   const target = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=funnel-2";
   await send(target, { envo: e });
-  const pay = spotPayment({ amount: "250000" });
+  const pay = spotPayment({ amount: "20000" });
   const a = await send(target, { envo: e, headers: { "payment-signature": pay } });
   const b = await send(target, { envo: e, headers: { "payment-signature": pay } });
   assert.equal(a.status, 200);
@@ -4439,7 +4425,23 @@ test("0.52.0 funnel: our own wallet's payments are flagged self-test (excluded b
   await send(target, { envo: e });
   facPayer = PAY_TO;
   try {
-    await send(target, { envo: e, headers: { "payment-signature": spotPayment({ amount: "250000" }) } });
+    await send(target, { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
   } finally { facPayer = "0x" + "11".repeat(20); }
   assert.equal(fpts.filter((p) => p.blobs[0] === "paid").pop().doubles[2], 1);
 });
+
+
+let passed = 0, skipped = 0;
+const SKIP = Symbol("skip");
+for (const [name, fn] of T) {
+  try {
+    await fn({ skip(msg) { throw { [SKIP]: msg }; } });
+    passed++;
+    console.log("PASS " + name);
+  } catch (e) {
+    if (e && e[SKIP] !== undefined) { skipped++; console.log("SKIP " + name + ": " + e[SKIP]); continue; }
+    console.log("FAIL " + name + "\n  " + (e && e.stack ? e.stack.split("\n").slice(0, 12).join("\n  ") : e));
+  }
+}
+console.log(`${passed}/${T.length - skipped} worker tests passed` + (skipped ? ` (${skipped} skipped)` : ""));
+process.exit(passed === T.length ? 0 : 1);

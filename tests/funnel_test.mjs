@@ -8,6 +8,8 @@ test("digest is per-day, salted and never contains the key", async () => {
   const a = await funnelDigest("s", "ip:abc", "2026-10-27"), b = await funnelDigest("s", "ip:abc", "2026-10-28");
   assert.match(a, /^[0-9a-f]{32}$/); assert.notEqual(a, b);
   assert.notEqual(a, await funnelDigest("t", "ip:abc", "2026-10-27"));
+  assert.equal(await funnelDigest("", "ip:abc", "2026-10-27"), "", "no salt = no digest");
+  assert.equal(await funnelDigest(undefined, "ip:abc", "2026-10-27"), "");
 });
 
 test("funnelEvent ignores unknown events and never throws", () => {
