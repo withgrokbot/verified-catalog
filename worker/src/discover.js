@@ -1,15 +1,17 @@
 // 0.43.0: free discovery. GET /v1/discover?q=&verdict=&limit= and the MCP tool `discover`.
 // 0.45.0: reads compressed d: blobs from D1 crawl_store (the 0010 table is unused and empty). No KV reads or writes.
-// Freshness rules (from the shared crawl `meta` date): a result older than 36 h is stale:true; older than 7 days a "pay" is returned as "recheck"
-// (original_verdict keeps what the crawl said). Skips are included by default with their reason.
+// Freshness rules (from the shared crawl `meta` date): a result older than 36 h is stale:true. 0.54.0: a "pay" whose terms
+// are older than TERMS_MAX_AGE_HOURS (env, default 24 h; was a fixed 7 days) is returned as "recheck" / reason_code
+// terms_stale (original_verdict keeps what the crawl said). Skips are included by default with their reason.
 import { signObject } from "./sign.js";
 import { crawlStoreGet } from "./skips.js";
+import { termsMaxAgeHours, termsStaleText, TERMS_MAX_AGE_HOURS_DEFAULT } from "./freshness.js";
 
 export const DISCOVER_MAX = 20;
 export const DISCOVER_DEFAULT = 10;
 export const DISCOVER_PER_MIN = 60; // per client (IP /24 + UA hash) per UTC minute
 export const STALE_HOURS = 36;
-export const PAY_EXPIRES_DAYS = 7;
+export const PAY_EXPIRES_DAYS = 7; // legacy (<= 0.53.x); 0.54.0 uses termsMaxAgeHours(env), default 24 h
 const VERDICTS = ["pay", "skip", "recheck"];
 const Q_RE = /^[A-Za-z0-9 ._:\/\-]{2,100}$/;
 
@@ -101,9 +103,9 @@ export async function loadShards(db, verdict, now = Date.now()) {
   }
   return { rows: m.rows, missing, loaded: out.length };
 }
-/** In-memory filter on the EFFECTIVE verdict (a pay older than 7 days, by the crawl date, counts as recheck). */
-export function searchRows(rows, p, crawledMs, now = Date.now()) {
-  const expired = !(now - crawledMs <= PAY_EXPIRES_DAYS * 86400000);
+/** In-memory filter on the EFFECTIVE verdict (a pay older than maxH hours, by the crawl date, counts as recheck). */
+export function searchRows(rows, p, crawledMs, now = Date.now(), maxH = TERMS_MAX_AGE_HOURS_DEFAULT) {
+  const expired = !(now - crawledMs <= maxH * 3600000);
   if (p.verdict === "pay" && expired) return [];
   const want = (r) => (p.verdict === "pay" ? r.verdict === "pay" : p.verdict === "skip" ? r.verdict === "skip" : p.verdict === "recheck" ? r.verdict === "recheck" || (r.verdict === "pay" && expired) : true);
   const hit = (r) => want(r) && p.words.every((w) => searchText(r).includes(w));
@@ -117,7 +119,9 @@ export function searchRows(rows, p, crawledMs, now = Date.now()) {
 export async function shapeResult(env, row, origin, now = Date.now(), crawledAt = row.checked_at) {
   const t = Date.parse(crawledAt);
   const ageH = Number.isFinite(t) ? (now - t) / 3600000 : Infinity;
-  const expired = row.verdict === "pay" && ageH > PAY_EXPIRES_DAYS * 24;
+  const maxH = termsMaxAgeHours(env);
+  const termsStale = !(ageH <= maxH);
+  const expired = row.verdict === "pay" && termsStale;
   const verdict = expired ? "recheck" : row.verdict;
   const result = {
     endpoint: row.url,
@@ -128,15 +132,19 @@ export async function shapeResult(env, row, origin, now = Date.now(), crawledAt 
     last_checked: row.checked_at,
     age_hours: Number.isFinite(ageH) ? Math.round(ageH * 10) / 10 : null,
     stale: ageH > STALE_HOURS,
+    terms_age_hours: Number.isFinite(ageH) ? Math.round(ageH * 10) / 10 : null, // 0.54.0
+    terms_max_age_hours: maxH,
+    terms_stale: termsStale,
     verdict,
-    reason: expired ? `last pay check is older than ${PAY_EXPIRES_DAYS} days; run the free check before paying` : row.reason,
-    ...(expired ? { original_verdict: "pay", original_reason: row.reason } : {}),
+    reason: expired ? termsStaleText(maxH) : row.reason,
+    ...(expired ? { reason_code: "terms_stale", original_verdict: "pay", original_reason: row.reason } : {}),
     source_list: row.source_list || null,
     receipt_url: origin + "/v1/receipts/" + row.id,
-    check_url: "https://api.402xagent.com/v1/products/endpoint-spot-check?url=" + encodeURIComponent(row.url),
+    // 0.54.0: &quote=<this crawl receipt> makes the live check answer recheck/terms_changed_since_quote if the live terms moved
+    check_url: "https://api.402xagent.com/v1/products/endpoint-spot-check?url=" + encodeURIComponent(row.url) + (row.verdict === "pay" && /^[0-9a-f]{10}$/.test(String(row.id || "")) ? "&quote=" + row.id : ""),
   };
   const body = { type: "discover-result", issuer: "402xAgent", receipt_id: row.id, crawl_run: row.crawl_run || null, issued_at: isoS(now),
-    endpoint: result.endpoint, verified_price_usd: result.verified_price_usd, network: result.network, last_checked: result.last_checked, verdict, reason: result.reason, stale: result.stale };
+    endpoint: result.endpoint, verified_price_usd: result.verified_price_usd, network: result.network, last_checked: result.last_checked, verdict, reason: result.reason, stale: result.stale, terms_stale: termsStale };
   const signed = await signObject(env, body);
   result.receipt = signed || { ...body, signature: null, note: "unsigned: signing key not configured on this host" };
   return result;
@@ -158,7 +166,8 @@ export async function discover(env, input, origin, now = Date.now()) {
   if (!got.loaded) return { status: 503, body: { error: "discovery index unavailable" } };
   const crawled = (meta && meta.crawled_at) || got.rows.map((r) => r.checked_at).sort().pop() || null;
   const crawledMs = crawled ? Date.parse(crawled) : -Infinity;
-  const rows = searchRows(got.rows, p, crawledMs, now);
+  const maxH = termsMaxAgeHours(env);
+  const rows = searchRows(got.rows, p, crawledMs, now, maxH);
   const results = await Promise.all(rows.map((r) => shapeResult(env, r, origin, now, crawled)));
   const ageH = crawled ? (now - crawledMs) / 3600000 : null;
   return {
@@ -168,8 +177,10 @@ export async function discover(env, input, origin, now = Date.now()) {
       count: results.length,
       index_last_crawled: crawled,
       index_stale: ageH === null ? true : ageH > STALE_HOURS,
+      terms_max_age_hours: maxH, // 0.54.0
+      index_terms_stale: ageH === null ? true : ageH > maxH,
       ...(got.missing.length ? { index_partial: true, missing_shards: got.missing.length } : {}),
-      rules: `stale = last crawl older than ${STALE_HOURS} h; a pay older than ${PAY_EXPIRES_DAYS} days is returned as recheck. Skips are included by default (filter with verdict=pay|skip|recheck). Facts from our unpaid crawl probe, not endorsements; run the free check right before paying.`,
+      rules: `stale = last crawl older than ${STALE_HOURS} h; a pay whose terms are older than ${maxH} h is returned as recheck (reason_code terms_stale, original_verdict pay); each pay's check_url carries &quote=<receipt id> so the live check flags terms that moved since the crawl. Skips are included by default (filter with verdict=pay|skip|recheck). Facts from our unpaid crawl probe, not endorsements; run the free check right before paying.`,
       results,
     },
   };

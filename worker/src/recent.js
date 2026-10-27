@@ -1,4 +1,5 @@
 import { isPlaceholderUrl } from "./ops.js";
+import { freshnessFor, termsMaxAgeHours } from "./freshness.js"; // 0.54.0
 // Shared short reason texts (no prices). 0.24.0: used by redacted receipts and the free answer's plain reason.
 export const REASON_TEXT = {
   // 0.27.0: plain words, one line; codes unchanged. Rechecks say "try again", skips say what we saw.
@@ -20,6 +21,9 @@ export const REASON_TEXT = {
   asset_not_usdc: "asks for a token other than USDC",
   ssrf_blocked: "private or local address, not checked",
   delivery_failed: "our latest paid call to this endpoint was charged but did not deliver a usable response, try again later",
+  // 0.54.0 terms freshness (freshness.js)
+  terms_changed_since_quote: "live payment terms differ from the quote you were given, check again without quote to approve the new terms",
+  terms_stale: "payment terms are older than our freshness limit, run the live check right before paying",
 };
 export const shortReason = (code) => REASON_TEXT[code] || "see receipt";
 
@@ -99,7 +103,14 @@ export async function recentChecks(env, origin) {
   try {
     const { results } = await env.RECEIPTS_DB.prepare("SELECT id, pub_url, verdict, reason, created_at, check_type FROM spot_receipts WHERE pub_url IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT ?").bind(RECENT_MAX).all();
     // caller: "self-checked" for our own rows (e.g. a retagged verification call), else "outside"
-    return (results || []).map((r) => ({ url: r.pub_url, verdict: r.verdict, reason: shortReason(r.reason), checked_at: r.created_at, receipt_url: origin + "/v1/receipts/" + r.id, caller: r.check_type === "self-checked" ? "self-checked" : "outside" }));
+    // 0.54.0: a pay entry carries the age of its terms and terms_stale past TERMS_MAX_AGE_HOURS (the listed verdict is history, unchanged)
+    const maxH = termsMaxAgeHours(env), now = Date.now();
+    return (results || []).map((r) => {
+      const e = { url: r.pub_url, verdict: r.verdict, reason: shortReason(r.reason), checked_at: r.created_at, receipt_url: origin + "/v1/receipts/" + r.id, caller: r.check_type === "self-checked" ? "self-checked" : "outside" };
+      if (r.verdict !== "pay") return e;
+      const f = freshnessFor("pay", r.created_at, maxH, now);
+      return { ...e, terms_age_hours: f.terms_age_hours, terms_stale: f.terms_stale };
+    });
   } catch (_) {
     return [];
   }

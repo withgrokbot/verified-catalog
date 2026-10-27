@@ -2094,7 +2094,8 @@ test("0.25.0: recent_checks in /v1/skips.json: outside free checks only, URL pat
   assert.ok(Array.isArray(sk.skips) && "endpoints_covered" in sk, "existing structure unchanged");
   assert.equal(sk.recent_checks.length, 1, JSON.stringify(sk.recent_checks));
   const x = sk.recent_checks[0];
-  assert.deepEqual(Object.keys(x), ["url", "verdict", "reason", "checked_at", "receipt_url", "caller"]);
+  assert.deepEqual(Object.keys(x), ["url", "verdict", "reason", "checked_at", "receipt_url", "caller", "terms_age_hours", "terms_stale"]); // 0.54.0: + terms age on pay entries
+  assert.equal(x.terms_stale, false);
   assert.deepEqual([x.url, x.verdict, x.reason, x.caller, x.receipt_url], [R, "pay", "payment request matches the listed price", "outside", "https://402xagent.com/v1/receipts/" + a.body.receipt_id]);
   assert.match(x.checked_at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
   const txt = JSON.stringify(sk.recent_checks);
@@ -2692,7 +2693,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.53.4");
+  assert.equal(VERSION, "0.54.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2799,7 +2800,7 @@ test("0.37.0 reputation: documented weighted formula; new hosts are insufficient
   const rj = rulesJson("https://402xagent.com");
   assert.deepEqual(rj.reputation.weights, REPUTATION_WEIGHTS);
   assert.match(rj.reputation.formula, /sum\(w_i \* c_i\)/);
-  assert.equal(rj.reason_codes.length, 17); // 0.53.3: + delivery_failed
+  assert.equal(rj.reason_codes.length, 19); // 0.53.3: + delivery_failed; 0.54.0: + terms_changed_since_quote, terms_stale
   assert.ok(rj.quality_codes.some((q) => q.code === "quality_schema_mismatch"));
   assert.ok(rj.fields.reputation && rj.fields.quality);
   const html = await (await worker.fetch(new Request("https://lookup.fixture/rules", { headers: { "user-agent": "agent-x/1.0" } }), spotEnv().env, { waitUntil() {} })).text();
@@ -4464,6 +4465,27 @@ test("0.52.0 funnel: our own wallet's payments are flagged self-test (excluded b
   assert.equal(fpts.filter((p) => p.blobs[0] === "paid").pop().doubles[2], 1);
 });
 
+
+test("0.54.0 terms freshness: lookup last_check carries terms age; quote documented in OpenAPI, MCP and llms.txt; rules list the two recheck codes", async () => {
+  const r = await call("/v1/lookup?task=web-search&max_price=0.01&n=5");
+  assert.equal(r.status, 200);
+  const lc = r.body.results[0].last_check;
+  assert.equal(lc.terms_max_age_hours, 24); assert.equal(lc.terms_stale, false); assert.ok(lc.terms_age_hours >= 0.9 && lc.terms_age_hours <= 1.1, String(lc.terms_age_hours));
+  const r2 = await call("/v1/lookup?task=web-search&max_price=0.01&n=5", { envo: (() => { const e = mkEnv(); e.env.TERMS_MAX_AGE_HOURS = "0.5"; return e; })() });
+  assert.equal(r2.body.results[0].last_check.terms_stale, true);
+  const e = meteredEnv();
+  const oa = (await send("/openapi.json", { envo: e })).body;
+  const params = oa.paths["/v1/products/endpoint-spot-check"].get.parameters.map((x) => x.name);
+  assert.ok(params.includes("quote"), params.join(","));
+  const tools = (await rpc({ jsonrpc: "2.0", id: 9, method: "tools/list" }, { envo: e })).body.result.tools;
+  assert.ok(tools.find((t) => t.name === "endpoint_spot_check").inputSchema.properties.quote);
+  assert.match(tools.find((t) => t.name === "discover").description, /older than 24 h/);
+  const rules = (await send("/rules.json", { envo: e })).body;
+  for (const c of ["terms_changed_since_quote", "terms_stale"]) assert.ok(rules.reason_codes.some((x) => x.code === c && x.verdict === "recheck"), c);
+  const llms = await (await worker.fetch(new Request("https://lookup.fixture/llms.txt"), e.env, { waitUntil() {} })).text();
+  assert.match(llms, /older than 24 h comes back as recheck/);
+  assert.ok(!/older than 7 days comes back as recheck/.test(llms));
+});
 
 let passed = 0, skipped = 0;
 const SKIP = Symbol("skip");

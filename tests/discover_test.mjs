@@ -115,17 +115,37 @@ test("cache: warm queries make one cheap listing call at most per 5 min, no blob
   assert.equal(loaded.rows.length, 2); assert.equal(loaded.missing.length, 0);
 });
 
-test("freshness: <36h fresh; >36h stale; pay >7d -> recheck with original_verdict; skip keeps reason", async () => {
+test("freshness (0.54.0): terms <=24h pay; >24h pay -> recheck/terms_stale with original_verdict; stale flag still 36h; skip keeps reason", async () => {
   const f = await shapeResult({}, row("a", "pay", 2), "https://o", NOW);
   assert.equal(f.stale, false); assert.equal(f.verdict, "pay"); assert.equal(f.original_verdict, undefined);
-  const s = await shapeResult({}, row("b", "pay", 40), "https://o", NOW);
-  assert.equal(s.stale, true); assert.equal(s.verdict, "pay");
-  const e = await shapeResult({}, row("c", "pay", 7 * 24 + 1), "https://o", NOW);
-  assert.equal(e.verdict, "recheck"); assert.equal(e.original_verdict, "pay"); assert.equal(e.receipt.verdict, "recheck");
+  assert.equal(f.terms_stale, false); assert.equal(f.terms_max_age_hours, 24); assert.equal(f.terms_age_hours, 2);
+  assert.ok(!f.check_url.includes("&quote="), "not a crawl id: no quote param");
+  const q = await shapeResult({}, row("a000000001", "pay", 2), "https://o", NOW);
+  assert.ok(q.check_url.endsWith("&quote=a000000001"), q.check_url);
+  assert.ok(!(await shapeResult({}, row("b000000002", "skip", 2), "https://o", NOW)).check_url.includes("&quote="), "skips carry no quote");
+  const y = await shapeResult({}, row("b", "pay", 25), "https://o", NOW);
+  assert.equal(y.stale, false); assert.equal(y.verdict, "recheck"); assert.equal(y.reason_code, "terms_stale"); assert.equal(y.original_verdict, "pay"); assert.equal(y.terms_stale, true);
+  assert.equal(y.receipt.verdict, "recheck"); assert.equal(y.receipt.terms_stale, true);
+  const s = await shapeResult({}, row("c", "pay", 40), "https://o", NOW);
+  assert.equal(s.stale, true); assert.equal(s.verdict, "recheck");
   const k = await shapeResult({}, row("d", "skip", 7 * 24 + 1), "https://o", NOW);
-  assert.equal(k.verdict, "skip"); assert.equal(k.reason, "skip reason");
+  assert.equal(k.verdict, "skip"); assert.equal(k.reason, "skip reason"); assert.equal(k.terms_stale, true); assert.equal(k.reason_code, undefined);
   for (const key of ["endpoint", "verified_price_usd", "last_checked", "verdict", "reason", "receipt", "receipt_url"]) assert.ok(key in f, key);
   assert.equal(f.receipt.signature, null);
+});
+
+test("freshness (0.54.0): TERMS_MAX_AGE_HOURS is configurable (168 = the old 7-day window); bad values fall back to 24", async () => {
+  const wk = { TERMS_MAX_AGE_HOURS: "168" };
+  assert.equal((await shapeResult(wk, row("a", "pay", 40), "https://o", NOW)).verdict, "pay");
+  const e = await shapeResult(wk, row("c", "pay", 7 * 24 + 1), "https://o", NOW);
+  assert.equal(e.verdict, "recheck"); assert.equal(e.terms_max_age_hours, 168); assert.match(e.reason, /7 days/);
+  for (const bad of ["0", "-3", "abc", "1e9", ""]) assert.equal((await shapeResult({ TERMS_MAX_AGE_HOURS: bad }, row("a", "pay", 25), "https://o", NOW)).terms_max_age_hours, 24, bad);
+  assert.equal((await shapeResult({ TERMS_MAX_AGE_HOURS: "1.5" }, row("a", "pay", 2), "https://o", NOW)).verdict, "recheck");
+  // the in-memory filter follows the same threshold
+  const rs = [row("a1", "pay", 1), row("a3", "recheck", 3)];
+  assert.deepEqual(searchRows(rs, parseDiscover({ verdict: "pay" }), NOW - 30 * H, NOW), []);
+  assert.deepEqual(searchRows(rs, parseDiscover({ verdict: "pay" }), NOW - 30 * H, NOW, 168).map((r) => r.id), ["a1"]);
+  assert.deepEqual(searchRows(rs, parseDiscover({ verdict: "recheck" }), NOW - 30 * H, NOW).map((r) => r.id), ["a1", "a3"]);
 });
 
 test("0.45.1: concurrent first signers all sign (no unsigned results on a cold isolate); crawl_run from d:meta", async () => {
