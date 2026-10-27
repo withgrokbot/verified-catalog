@@ -4,6 +4,7 @@
 // all trial / rate-limit keys are stored only as hashes. Plan: docs/plan-watchtower.md.
 import { assertSafeUrl, resolveHost, parseX402Challenge, readBodyCapped } from "./spotcheck.js";
 import { canonicalize, signObject, signBytes } from "./sign.js";
+import { noteD1Size } from "./d1size.js";
 import { feedObserveOn, feedStatementsForWatch, feedOptOut, optInAllowed, optInMax, isOptedIn, setOptIn } from "./feed.js";
 import { methodNotAllowed, inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER } from "./ops.js";
 
@@ -285,13 +286,13 @@ export async function stepWatch(env, w, o, now, deps = {}) {
     w.was_paused = 0;
   }
   if (w.quiet_until && !quiet && w.quiet_until <= iso(now)) w.quiet_until = null;
-  await db.batch([
+  noteD1Size(await db.batch([ // 0.53.1: the batch's meta.size_after refreshes the D1 size guard for free
     db.prepare("UPDATE watches SET state = ?, fail_streak = ?, ok_streak = ?, pending_sig = ?, pending_count = ?, was_paused = ?, quiet_until = ?, baseline_json = ?, baseline_sig = ?, baseline_at = CASE WHEN baseline_sig = ? THEN baseline_at ELSE ? END, last_probe_at = ?, next_probe_at = ?, probes_total = probes_total + 1, probes_period = probes_period + 1 WHERE id = ?")
       .bind(w.state, w.fail_streak, w.ok_streak, w.pending_sig, w.pending_count, w.was_paused ? 1 : 0, w.quiet_until, w.baseline_json, w.baseline_sig, w.baseline_sig, iso(now), iso(now), iso(nowMs + probeInterval(env)), w.id),
     db.prepare("INSERT INTO watch_usage (watch_id, day, probes) VALUES (?, ?, 1) ON CONFLICT(watch_id, day) DO UPDATE SET probes = probes + 1").bind(w.id, dayOf(now)),
     // 0.52.0: public feed observation in the same batch, only for watches that opted in (and FEED_OBSERVE on)
     ...(await feedStatementsForWatch(env, db, w, o, fired, now)),
-  ]);
+  ]));
   return fired;
 }
 

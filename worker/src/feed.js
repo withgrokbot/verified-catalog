@@ -11,6 +11,7 @@
 // FEED_MAINNET=1 takes paid tiers on the main payment preset; default (off) = Base Sepolia testnet USDC.
 import { normUrl } from "./skips.js";
 import { canonicalize, signObject } from "./sign.js";
+import { d1WriteAllowed } from "./d1size.js";
 
 export const FEED_CATEGORIES = Object.freeze(["search/data", "inference", "crypto-market", "content", "infra", "other"]);
 export const FEED_COLUMNS = Object.freeze(["hkey", "url", "host", "method", "category", "state", "http_status", "price_usd", "amount_atomic", "network", "asset", "pay_to", "terms_sig", "observed_at", "last_change_at"]);
@@ -173,6 +174,7 @@ export function needsObservation(prev, ob) {
 }
 export async function feedStatementsForWatch(env, db, w, o, fired, now) {
   if (!feedObserveOn(env) || !Number(w.feed_opt_in)) return []; // w.feed_opt_in comes from feed_opt_ins (watch.js optInCol)
+  if (!(await d1WriteAllowed(env, db, "feed_observations"))) return []; // 0.53.1 size guard: skip the feed rows only
   const pu = publicUrl(w.url);
   if (!pu) return [];
   const ep = { hkey: await feedKey(pu.url), ...pu, method: w.method || "GET", category: categoryOf({ url: pu.url }), crawl_known: 0, watch_opt_in: 1 };
@@ -233,6 +235,7 @@ async function getOne(db, key) { const r = await db.prepare("SELECT sha256, valu
 /** One build step (one cron tick): reads up to BUILD_ROWS_PER_STEP endpoints, writes their pages, finalizes when done. */
 export async function snapshotStep(env, now = new Date(), { rowsPerStep = BUILD_ROWS_PER_STEP } = {}) {
   const db = env.RECEIPTS_DB;
+  if (!(await d1WriteAllowed(env, db, "feed_snapshot"))) return { did: "size_guard" }; // 0.53.1: old snapshots keep serving
   const today = iso(now).slice(0, 10);
   const sraw = await getOne(db, "f:build");
   let st = sraw ? JSON.parse(sraw.value) : null;
@@ -270,7 +273,7 @@ export async function snapshotStep(env, now = new Date(), { rowsPerStep = BUILD_
 }
 /** Runs steps until the snapshot is complete (tests, local tools). The Worker runs one step per cron tick. */
 export async function buildSnapshot(env, now = new Date(), opts = {}) {
-  for (let i = 0; i < 100000; i++) { const r = await snapshotStep(env, now, opts); if (r.did === "done") return { key: headKey(r.date), count: r.count, pages: r.pages, header: r.header }; if (r.did === "idle") return null; }
+  for (let i = 0; i < 100000; i++) { const r = await snapshotStep(env, now, opts); if (r.did === "done") return { key: headKey(r.date), count: r.count, pages: r.pages, header: r.header }; if (r.did === "idle" || r.did === "size_guard") return null; }
   throw new Error("snapshot build did not finish");
 }
 const headCache = new Map(), pageCache = new Map();

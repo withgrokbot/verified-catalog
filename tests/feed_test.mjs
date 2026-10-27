@@ -11,6 +11,7 @@ import { feedDeps } from "../worker/src/lib.js";
 import * as S from "../worker/src/sign.js";
 import * as W from "../worker/src/watch.js";
 import * as F from "../worker/src/feed.js";
+import * as Z from "../worker/src/d1size.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const mig = (f) => readFileSync(join(ROOT, "worker", "migrations", f), "utf8");
@@ -456,6 +457,60 @@ test("0.53.1 flag modes: off / observe (records, serves nothing) / serve", async
       assert.deepEqual(await F.feedDaily(s.env, new Date(T0)), { did: "off" });
     }
   }
+});
+
+// 0.53.1 D1 size guard: wrap the SQLite D1 adapter so every run()/batch() reports meta.size_after like real D1
+function sized(db, bytes) {
+  let selects = 0;
+  const wrap = (st) => ({ ...st, bind: (...a) => wrap(st.bind(...a)), run: async () => { if (/^SELECT 1$/.test(st.sql)) selects++; return { ...(await st.run()), meta: { changes: 0, size_after: bytes.n } }; } });
+  return { raw: db.raw, prepare: (sql) => wrap(db.prepare(sql)), batch: async (st) => { await db.batch(st); return st.map(() => ({ meta: { size_after: bytes.n } })); }, selects: () => selects };
+}
+
+test("0.53.1 size guard: meta.size_after is read once per TTL, refreshed from batch results; unknown size allows writes", async () => {
+  Z._resetD1Size();
+  const bytes = { n: 100e6 };
+  const db = sized(d1(), bytes);
+  const t = 1_000_000;
+  assert.equal(await Z.d1Size(db, t), 100e6);
+  assert.equal(await Z.d1Size(db, t + 1000), 100e6);
+  assert.equal(db.selects(), 1, "one SELECT 1 per TTL");
+  Z.noteD1Size([{ meta: { size_after: 120e6 } }, { meta: { size_after: 130e6 } }], t + 2000);
+  assert.equal(await Z.d1Size(db, t + 3000), 130e6, "batch results refresh the cache for free");
+  bytes.n = 450e6;
+  assert.equal(await Z.d1Size(db, t + Z.SIZE_TTL_MS + 3000), 450e6, "re-read after the TTL");
+  assert.equal(Z.d1MaxBytes({}), 400e6);
+  assert.equal(Z.d1MaxBytes({ D1_SIZE_MAX_MB: "1000" }), 1000e6);
+  assert.equal(Z.d1MaxBytes({ D1_SIZE_MAX_MB: "junk" }), 400e6);
+  Z._resetD1Size();
+  assert.equal(await Z.d1WriteAllowed({}, d1(), "x"), true, "the SQLite stub reports no size: allowed");
+  Z._resetD1Size();
+});
+
+test("0.53.1 size guard: over D1_SIZE_MAX_MB the feed stops writing (one warning), the watch and every feed answer keep working", async () => {
+  Z._resetD1Size();
+  const s = setup();
+  await seedCrawl(s.db, 20, T0);
+  await F.buildSnapshot(s.env, new Date(T0 + 30 * H));
+  const bytes = { n: 401e6 };
+  s.env.RECEIPTS_DB = sized(s.db, bytes);
+  await addWatch(s.db, "wt-00000000000000e1", "https://guard.fixture-sellers.example/v1/search", true);
+  const nObs = () => s.db.raw.prepare("SELECT COUNT(*) AS n FROM feed_observations WHERE src = 'w'").get().n;
+  const logs = []; const orig = console.log; console.log = (m) => logs.push(String(m));
+  try {
+    for (let h = 0; h < 3; h++) await W.stepWatch(s.env, watchRow(s.db, "wt-00000000000000e1"), probeOf(h ? "20000" : "10000"), new Date(T0 + 40 * H + h * H));
+    assert.deepEqual(await F.snapshotStep(s.env, new Date(T0 + 72 * H)), { did: "size_guard" });
+    assert.equal(await F.buildSnapshot(s.env, new Date(T0 + 72 * H)), null);
+  } finally { console.log = orig; }
+  assert.equal(nObs(), 0, "no feed observations while over the limit");
+  assert.equal(s.db.raw.prepare("SELECT last_probe_at FROM watches WHERE id = 'wt-00000000000000e1'").get().last_probe_at, iso(T0 + 42 * H), "the watch itself still updates");
+  assert.equal(logs.filter((l) => l.includes('"d1_size_guard":"over"')).length, 1, "one warning per TTL");
+  assert.match(logs.find((l) => l.includes("d1_size_guard")), /"writer":"feed_observations","size_mb":401,"max_mb":400/);
+  for (const p of ["/v1/feed/manifest", "/v1/feed", "/v1/feed/drift", "/v1/feed/snapshot.json"]) assert.equal((await s.call(p)).status, 200, p);
+  // a higher configured ceiling lets writes resume
+  s.env.D1_SIZE_MAX_MB = "500";
+  await W.stepWatch(s.env, watchRow(s.db, "wt-00000000000000e1"), probeOf("30000"), new Date(T0 + 50 * H));
+  assert.equal(nObs(), 1);
+  Z._resetD1Size();
 });
 
 test("privacy leak scan: no buyer wallet, tx hash, proof, IP, webhook URL/hash, secret, receipt or score in any output", async () => {

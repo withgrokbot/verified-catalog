@@ -8,6 +8,9 @@
 //       Reads nothing remote.
 //   node worker/scripts/feed-backfill.mjs --local   [--persist-to DIR] [--dry-run] [--out DIR]
 //   node worker/scripts/feed-backfill.mjs --preview [--dry-run] [--out DIR]
+//   0.53.1: --days N (default 30) keeps only observations from the last N days (an endpoint with none left is skipped).
+//   The feed promises 7 days of free history (endpoint + drift) and retains up to 400 days; it does not promise any
+//   history from before it went live, so a 30-day seed keeps every stated window (the 7-day free window is the minimum).
 //       Reads the discover shards (crawl_store d:*) and endpoint_history from that D1 with `wrangler d1 execute`, writes
 //       SQL files (feed_endpoints upserts + feed_observations, src c/h) to DIR, then applies them to the same D1
 //       (skipped with --dry-run). Only crawl-known public URLs are written; endpoint_history rows are used only when their
@@ -92,6 +95,9 @@ function d1(where, sql) {
 }
 async function backfill(where) {
   const out = opt("--out", join(WORKER, ".feed-backfill"));
+  const days = Number(opt("--days", "30"));
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 19) + "Z";
+  const recent = (t) => !!t && t >= cutoff;
   mkdirSync(out, { recursive: true });
   // 1. crawl-known URLs from the discover shards (all parts, sha-checked)
   const parts = d1(where, "SELECT key, part, parts, sha256, value FROM crawl_store WHERE key >= 'd:' AND key < 'd;' ORDER BY key, part");
@@ -106,6 +112,7 @@ async function backfill(where) {
     const v = ps.map((x) => x.value).join("");
     if ((await F.sha256Hex(v)) !== ps[0].sha256) continue;
     for (const r of expandShard(m[1], await decodeBlob(v), run)) {
+      if (!recent(r.checked_at)) continue;
       const pu = F.publicUrl(r.url); if (!pu) continue;
       const hkey = await F.feedKey(pu.url);
       const t = { network: r.network, asset: r.asset, pay_to: null, amount_atomic: null };
@@ -120,6 +127,7 @@ async function backfill(where) {
   for (let i = 0; i < keys.length; i += 200) {
     const rows = d1(where, `SELECT hkey, observed_at, http_status, amount_atomic, price_usd, network, asset, pay_to FROM endpoint_history WHERE hkey IN (${keys.slice(i, i + 200).map(sqlLit).join(",")})`);
     for (const h of rows) {
+      if (!recent(h.observed_at)) continue;
       const t = { network: h.network, asset: h.asset, pay_to: h.pay_to, amount_atomic: h.amount_atomic };
       eps.get(h.hkey).obs.push({ observed_at: h.observed_at, src: "h", state: h.http_status && h.http_status < 500 ? "up" : "down", http_status: h.http_status, ...t, price_usd: h.price_usd ?? F.priceUsdOf(h.amount_atomic, h.asset), terms_sig: await F.termsSig(t) });
     }
@@ -138,7 +146,7 @@ async function backfill(where) {
     }
   }
   flush();
-  console.log(JSON.stringify({ target: where.join(" "), endpoints: eps.size, observations: nObs, sql_files: files, out }, null, 2));
+  console.log(JSON.stringify({ target: where.join(" "), days, since: cutoff, endpoints: eps.size, observations: nObs, sql_files: files, out }, null, 2));
   if (flag("--dry-run")) return;
   for (let i = 0; i < files; i++) execFileSync("npx", ["-y", "wrangler@4", "d1", "execute", DB, ...where, "--file", join(out, `feed-backfill-${String(i).padStart(4, "0")}.sql`)], { cwd: WORKER, stdio: "inherit" });
 }

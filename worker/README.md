@@ -260,3 +260,10 @@ nothing probed). Unlike other routes, a counter error or missing `QUOTA` binding
 `limiter_unavailable`, `hold`, nothing probed. x402 v1 sellers (`maxAmountRequired`, v1 network names) compare the same way. Both are separate from the
 spot-check 5/day. No D1/KV writes, no logging. A `paymentPayload` in the body is ignored and never echoed or stored.
 Not on the pricing page. Code: `worker/src/facilcheck.js`; tests: `tests/facilcheck_test.mjs`.
+
+### D1 size guard (0.53.1)
+Feed observations and feed snapshots are growth-only writers. Once the database is over `D1_SIZE_MAX_MB` (default
+400), they stop writing and log `{"d1_size_guard":"over",...}` once per 10 minutes; every route keeps answering from
+what is stored, and the watch's own state update still runs. The size comes from `meta.size_after`, which D1 returns on
+every query: it is refreshed for free from the watch batch result, otherwise read with one `SELECT 1` per 10 minutes per
+isolate (`src/d1size.js`). The backfill seeds only the last 30 days (`--days`, default 30).
