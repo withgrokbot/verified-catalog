@@ -110,10 +110,11 @@ export async function recentChecks(env, origin) {
   try {
     const { results } = await env.RECEIPTS_DB.prepare("SELECT id, pub_url, verdict, reason, created_at, check_type FROM spot_receipts WHERE pub_url IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT ?").bind(RECENT_MAX).all();
     // caller: "self-checked" for our own rows (e.g. a retagged verification call), else "outside"
+    // 0.55.0: + reason_code (the stored code, e.g. rate_limited_persistent), so persistent skips list under their own code
     // 0.54.0: a pay entry carries the age of its terms and terms_stale past TERMS_MAX_AGE_HOURS (the listed verdict is history, unchanged)
     const maxH = termsMaxAgeHours(env), now = Date.now();
     return (results || []).map((r) => {
-      const e = { url: r.pub_url, verdict: r.verdict, reason: shortReason(r.reason), checked_at: r.created_at, receipt_url: origin + "/v1/receipts/" + r.id, caller: r.check_type === "self-checked" ? "self-checked" : "outside" };
+      const e = { url: r.pub_url, verdict: r.verdict, reason: shortReason(r.reason), checked_at: r.created_at, receipt_url: origin + "/v1/receipts/" + r.id, caller: r.check_type === "self-checked" ? "self-checked" : "outside" , reason_code: r.reason};
       if (r.verdict !== "pay") return e;
       const f = freshnessFor("pay", r.created_at, maxH, now);
       return { ...e, terms_age_hours: f.terms_age_hours, terms_stale: f.terms_stale };

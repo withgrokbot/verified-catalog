@@ -180,6 +180,21 @@ class Guard(unittest.TestCase):
         finally:
             b.tearDown(); cp.PREV.clear()
 
+    def test_two_consecutive_weekly_runs(self):
+        """Review: the crawl falls back on the 2nd consecutive weekly run with the same transient result (default 24 h)."""
+        week1 = cp.transient_guard({"id": "x", "verdict": "recheck", "reason_code": "waf_challenge", "reason": "r", "timestamp": "2026-10-20T13:30:00Z"}, None)
+        self.assertEqual(week1["verdict"], "recheck")
+        prev = {k: week1.get(k) for k in ("verdict", "reason_code", "transient_since", "timestamp")}  # what load_prev keeps
+        week2 = cp.transient_guard({"id": "x", "verdict": "recheck", "reason_code": "waf_challenge", "reason": "r", "timestamp": "2026-10-27T13:30:00Z"}, prev)
+        self.assertEqual((week2["verdict"], week2["reason_code"]), ("skip", "waf_blocked_persistent"))
+        prev = {k: week2.get(k) for k in ("verdict", "reason_code", "transient_since", "timestamp")}
+        week3 = cp.transient_guard({"id": "x", "verdict": "recheck", "reason_code": "rate_limited", "reason": "r", "timestamp": "2026-11-03T13:30:00Z"}, prev)
+        self.assertEqual((week3["verdict"], week3["reason_code"], week3["transient_since"]), ("skip", "rate_limited_persistent", "2026-10-20T13:30:00Z"))
+        # a recovery in between restarts the count: two more consecutive runs are needed
+        ok = {"verdict": "pay", "timestamp": "2026-11-10T13:30:00Z"}
+        week5 = cp.transient_guard({"id": "x", "verdict": "recheck", "reason_code": "dns_error", "reason": "r", "timestamp": "2026-11-17T13:30:00Z"}, ok)
+        self.assertEqual(week5["verdict"], "recheck")
+
     def test_load_prev(self):
         import tempfile, json
         with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False) as f:

@@ -1944,6 +1944,8 @@ function placeholderReject(hdr, field, received, body402, compact = false) {
   const body = { ...body402, error: PLACEHOLDER_MESSAGE, ...placeholderInputError(field, received) };
   return (compact ? json402c : json)(body, 402, { "payment-required": b64encode(body), [INPUT_ERROR_HEADER]: field, ...ph });
 }
+// 0.55.0: access block of a DNS-failure answer (no free check used, never charged); answered in the free shape
+export const DNS_NO_CHARGE_ACCESS = Object.freeze({ tier: "free", free_check_used: false, charged: false, note: "the host did not resolve (DNS, after one retry): no free check was used and nothing was charged" });
 async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const c = spotCfg(env);
   const resourceUrl = url.origin + url.pathname.replace(/\/+$/, "");
@@ -2113,6 +2115,15 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
 
   const pr = await getProbe(env, q, probeOpts);
   const probe = pr.probe;
+  // 0.55.0 (review): a host that does not resolve (after the one retry) is answered before any quota, credit, hosted
+  // meter or payment step: HTTP 200 recheck/dns_error (or skip/dns_error_persistent after the guard window), free-shaped,
+  // no free check used and nothing charged or settled, even when a payment header was sent. The receipt is still stored
+  // (the 24 h guard reads it).
+  if (probe && probe.dns_error) {
+    const out = await buildResult(probe, DNS_NO_CHARGE_ACCESS);
+    writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 200, referer, access: "spot-dns-no-charge", verdict: out.verdict, shape }));
+    return json(out, 200, { "cache-control": "no-store" });
+  }
   cd = spotDynCfg(c, probe.quoted_price_usd);
   let access;
   const extraHeaders = {};

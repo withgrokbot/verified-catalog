@@ -2094,7 +2094,7 @@ test("0.25.0: recent_checks in /v1/skips.json: outside free checks only, URL pat
   assert.ok(Array.isArray(sk.skips) && "endpoints_covered" in sk, "existing structure unchanged");
   assert.equal(sk.recent_checks.length, 1, JSON.stringify(sk.recent_checks));
   const x = sk.recent_checks[0];
-  assert.deepEqual(Object.keys(x), ["url", "verdict", "reason", "checked_at", "receipt_url", "caller", "terms_age_hours", "terms_stale"]); // 0.54.0: + terms age on pay entries
+  assert.deepEqual(Object.keys(x), ["url", "verdict", "reason", "checked_at", "receipt_url", "caller", "reason_code", "terms_age_hours", "terms_stale"]); // 0.54.0: + terms age on pay entries; 0.55.0: + reason_code
   assert.equal(x.terms_stale, false);
   assert.deepEqual([x.url, x.verdict, x.reason, x.caller, x.receipt_url], [R, "pay", "payment request matches the listed price", "outside", "https://402xagent.com/v1/receipts/" + a.body.receipt_id]);
   assert.match(x.checked_at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
