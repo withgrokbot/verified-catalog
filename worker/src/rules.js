@@ -5,7 +5,7 @@ import { REASON_TEXT } from "./recent.js";
 import { QUALITY_CODES } from "./quality.js";
 import { REPUTATION_RULES } from "./reputation.js";
 
-export const RULES_VERSION = "2026-10-27"; // 0.37.0: + quality_codes, reputation (additive); 0.53.3: + delivery_failed (additive); 0.54.0: + terms_changed_since_quote, terms_stale (additive); 0.55.0: + rate_limited, waf_challenge, dns_error (recheck) and their *_persistent skips (new checks only)
+export const RULES_VERSION = "2026-10-27"; // 0.37.0: + quality_codes, reputation (additive); 0.53.3: + delivery_failed (additive); 0.54.0: + terms_changed_since_quote, terms_stale (additive); 0.55.0: + rate_limited, waf_challenge, dns_error (recheck) and their *_persistent skips (new checks only); 0.56.0: + host_unstable (recheck; per-host circuit breaker, target not fetched, never charged; neutral for the 0.55.0 transient fallback), timeout now covers the whole probe (PROBE_TIMEOUT_MS)
 // code -> verdict it produces, and its default confidence
 export const REASON_CODES = [
   { code: "price_ok", verdict: "pay", confidence: "high", rule: "Live 402 offers canonical USDC on a supported mainnet, to the listed wallet and network, at the listed price (within 1%)." },
@@ -21,7 +21,7 @@ export const REASON_CODES = [
   { code: "challenge_expired", verdict: "skip", confidence: "high", rule: "Opt-in only (&check_expiry=1): every Base USDC option has an absolute expiry (extra.validBefore/expiresAt/expiry/deadline) at or within skew_s (default 30, max 300) of now, or maxTimeoutSeconds <= 5." },
   { code: "ambiguous", verdict: "skip", confidence: "medium", rule: "The payment request is unclear (several incompatible offers)." },
   { code: "free_trial_active", verdict: "recheck", confidence: "low", rule: "The seller says a free trial is active, so there is no price to check yet." },
-  { code: "timeout", verdict: "recheck", confidence: "low", rule: "The endpoint did not answer in time." },
+  { code: "timeout", verdict: "recheck", confidence: "low", rule: "The endpoint did not answer in time. Since 0.56.0 one budget covers the whole probe of a target (every redirect hop and the body read): PROBE_TIMEOUT_MS, default 8000 ms." },
   { code: "unreachable", verdict: "recheck", confidence: "low", rule: "Could not connect (TLS or network error; an unresolvable host is dns_error since 0.55.0)." },
   { code: "server_error", verdict: "recheck", confidence: "low", rule: "The endpoint returned a 5xx." },
   { code: "delivery_failed", verdict: "recheck", confidence: "low", rule: "0.53.3 (DELIVERY_CHECK): the terms would pass, but our latest paid call to this endpoint (within 14 days) settled and got back a failed delivery (5xx, challenge/CAPTCHA page, sign-in/subscribe wall, canned refusal, error-only or placeholder body). Applies to new checks only; past pay/skip verdicts and receipts are never changed; endpoints without delivery data are unaffected." },
@@ -32,6 +32,7 @@ export const REASON_CODES = [
   { code: "rate_limited_persistent", verdict: "skip", confidence: "medium", rule: "0.55.0: the endpoint has answered only rate_limited / waf_challenge / dns_error for at least TRANSIENT_SKIP_AFTER_HOURS (default 24 h; from our stored checks of the same URL + method) and the latest was a 429." },
   { code: "waf_blocked_persistent", verdict: "skip", confidence: "medium", rule: "0.55.0: as rate_limited_persistent, and the latest answer was a WAF-challenge 403." },
   { code: "dns_error_persistent", verdict: "skip", confidence: "medium", rule: "0.55.0: as rate_limited_persistent, and the latest lookup failed DNS (after one retry)." },
+  { code: "host_unstable", verdict: "recheck", confidence: "low", rule: "0.56.0 (new checks only): per-host circuit breaker. After BREAKER_FAILS (default 3) failed probes of the same host (HTTP 5xx, timeout or connection error) within BREAKER_WINDOW_MIN (default 10) minutes, with no successful probe in between, new checks of that host answer this for BREAKER_COOLDOWN_MIN (default 15) minutes without fetching the target: no free check used, never charged or settled. Then one half-open probe decides: success closes the breaker, a failure re-opens it. Neutral for the 0.55.0 fallback: it neither counts toward nor breaks a rate_limited / waf_challenge / dns_error streak, and never becomes a skip. SSRF blocks stay ssrf_blocked; a plain 403 stays no_paywall." },
   { code: "terms_stale", verdict: "recheck", confidence: "low", rule: "0.54.0 catalog/crawl answers only (discover; effective_verdict on crawl receipts, by-url, skips and lookup): the stored pay's terms are older than TERMS_MAX_AGE_HOURS (7 days in production; see each discover answer's terms_max_age_hours). Never produced by a live check, which always re-reads the 402." },
 ];
 const BY_CODE = Object.fromEntries(REASON_CODES.map((r) => [r.code, r]));

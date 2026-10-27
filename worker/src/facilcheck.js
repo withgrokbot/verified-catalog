@@ -7,6 +7,7 @@
 // KV writes, nothing logged. paymentPayload (payer, signature) is never read, stored or echoed: only the seller-side
 // requirement fields below are used.
 import { spotProbe, assertSafeUrl, resolveHost } from "./spotcheck.js";
+import { probeTimeoutMs } from "./breaker.js"; // 0.56.0
 import { isPlaceholderUrl, methodNotAllowed } from "./ops.js";
 import { caip, sameAddr, termsSha256, takeFree, quotaKey, selfFetch, utcMinute } from "./lib.js";
 
@@ -111,7 +112,7 @@ export async function handleFacilitatorCheck(req, env, deps = {}, now = new Date
   const h = await takeFree(env, sellerHostKey(p.url), FACIL_HOST_PER_MIN, now, "take", FACIL_HOST_COUNTER, minute);
   if (h.error) return limiterDown();
   if (!h.free) return J({ error: "too many checks for this seller host, retry shortly", code: "host_rate_limited", limit: `${FACIL_HOST_PER_MIN} probes per minute per seller host`, retry_after_seconds: Number(ra), recommendation: "hold", nothing_probed: true }, 429, { "retry-after": ra });
-  const probeOpts = { fetchImpl: selfFetch(env, fetchImpl), resolveHostFn, ...(deps.timeoutMs ? { timeoutMs: deps.timeoutMs } : {}) };
+  const probeOpts = { fetchImpl: selfFetch(env, fetchImpl), resolveHostFn, timeoutMs: deps.timeoutMs || probeTimeoutMs(env) }; // 0.56.0: same per-target budget as the spot-check
   let probe = await spotProbe(p.url, { ...probeOpts, method: p.method });
   if (probe && probe.http_status === 405 && !probe.x402_challenge && p.method === "GET") {
     try { const p2 = await spotProbe(p.url, { ...probeOpts, method: "POST" }); if (p2 && p2.x402_challenge) probe = p2; } catch (_) {}

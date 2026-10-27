@@ -1,6 +1,6 @@
 """Self-checked crawl: read public x402 lists, probe each endpoint once WITHOUT payment, write receipts JSONL.
 Never sends PAYMENT-SIGNATURE / X-PAYMENT. SSRF-gated (private/loopback/link-local/CGNAT/metadata blocked).
-5s timeout. Every listed endpoint (no cap), deduped by normalized URL. Polite: at most LANES requests in flight per host,
+5 s timeout (0.56.0: PROBE_TIMEOUT_MS overrides). Every listed endpoint (no cap), deduped by normalized URL. Polite: at most LANES requests in flight per host,
 each lane spaced by SPACING seconds; DNS answers cached per host."""
 import json, glob, re, os, sys, socket, ipaddress, hashlib, base64, datetime, collections, threading, time
 from concurrent.futures import ThreadPoolExecutor
@@ -10,7 +10,21 @@ import requests
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 CRAWL = os.path.join(ROOT, "crawl")
-TIMEOUT, WORKERS, LANES, SPACING = 5, 48, 3, 0.34
+WORKERS, LANES, SPACING = 48, 3, 0.34
+
+
+def probe_timeout_s(env=None):
+    """0.56.0: the Worker's PROBE_TIMEOUT_MS knob, read the same way (whole ms in [1000, 30000]). Unset or invalid keeps
+    the crawl's own 5 s (unchanged default; the crawl is a polite batch and stays tighter than the Worker's 8 s)."""
+    raw = str((os.environ if env is None else env).get("PROBE_TIMEOUT_MS", "")).strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        return 5
+    return n / 1000 if 1000 <= n <= 30000 else 5
+
+
+TIMEOUT = probe_timeout_s()
 LANE_BUDGET_S = int(os.environ.get("CRAWL_LANE_BUDGET_S", "2400"))  # per host lane; the rest is "not probed this run"
 CRAWL = os.environ.get("CRAWL_DIR", CRAWL)
 USDC = {"eip155:8453": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
@@ -266,7 +280,7 @@ def fetch(url, c, done):
             return done("skip", "too many redirects")
         return r
     except requests.exceptions.Timeout:
-        return done("recheck", "endpoint did not answer in 5 s, try again later")
+        return done("recheck", f"endpoint did not answer in {TIMEOUT:g} s, try again later")
     except requests.exceptions.RequestException as e:
         return done("recheck", "could not connect (" + type(e).__name__ + "), try again later")
 
@@ -352,7 +366,7 @@ def judge(r, rec, lead, claimed, done):
         if below: return done("pay", f"live price lower than listed (listed ${claimed:g}, asks ${q:g})")
         return done("pay", "payment request matches the listing (price, token, network, wallet)" if claimed is not None else "valid payment request, no listed price to compare")
     except requests.exceptions.Timeout:
-        return done("recheck", "endpoint did not answer in 5 s, try again later")
+        return done("recheck", f"endpoint did not answer in {TIMEOUT:g} s, try again later")
     except requests.exceptions.RequestException as e:
         return done("recheck", "could not connect (" + type(e).__name__ + "), try again later")
 

@@ -64,6 +64,7 @@ import { facilitatorChain, callFacilitator } from "./facilitator.js";
 import { handleFacilitatorCheck, FACIL_CHECK_PATH, FACIL_CHECK_PER_MIN, FACIL_HOST_PER_MIN, FACIL_EXAMPLE } from "./facilcheck.js";
 import { latestDelivery, applyDelivery } from "./delivery.js";
 import { applyTransientGuard, transientSkipAfterHours } from "./transient.js"; // 0.55.0
+import { probeTimeoutMs, breakerCfg, breakerGate, breakerRecord, breakerOutcome, breakerHost, hostUnstableProbe } from "./breaker.js"; // 0.56.0
 const transientWindowText = (env) => termsWindowText(transientSkipAfterHours(env));
 import { termsWindowText, QUOTE_ID_RE, quoteTerms, applyQuote, quoteChangedText, freshnessFor, termsMaxAgeHours, ageHours } from "./freshness.js"; // 0.54.0
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
@@ -71,7 +72,7 @@ import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.55.0";
+export const VERSION = "0.56.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1046,7 +1047,7 @@ export const SPOT_PAID_SCHEMA = {
   description: "paid response: decision plus the facts behind it",
   properties: {
     verdict: SPOT_VERDICT_SCHEMA,
-    reason: { type: "string", enum: ["price_ok", "price_below_listing", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "network_unsupported", "no_paywall", "free_trial_active", "timeout", "unreachable", "server_error", "bad_challenge", "ssrf_blocked", "delivery_failed", "terms_changed_since_quote", "rate_limited", "waf_challenge", "dns_error", "rate_limited_persistent", "waf_blocked_persistent", "dns_error_persistent"] },
+    reason: { type: "string", enum: ["price_ok", "price_below_listing", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "network_unsupported", "no_paywall", "free_trial_active", "timeout", "unreachable", "server_error", "bad_challenge", "ssrf_blocked", "delivery_failed", "terms_changed_since_quote", "rate_limited", "waf_challenge", "dns_error", "rate_limited_persistent", "waf_blocked_persistent", "dns_error_persistent", "host_unstable"] },
     free_trial_remaining: { type: ["integer", "null"], description: "reason free_trial_active only: the seller's x-free-trial-remaining, when parseable" },
     quoted_price_usd: { type: ["number", "null"], description: "price in the target's live 402 challenge" },
     claimed_price_usd: { type: ["number", "null"], description: "the claimed_price you sent" },
@@ -1512,7 +1513,7 @@ export async function probeKeyHash(u, method) {
 }
 export function probeSnapshot(p) {
   if (!p) return null;
-  const keep = ["x402_version", "latency_ms", "method_used", "reachable", "http_status", "ssrf_blocked", "error", "x402_challenge", "accepts", "quoted_price_usd", "known_answer", "free_trial", "dns_error", "dns_retried", "waf", "body_truncated", "quality_meta"];
+  const keep = ["x402_version", "latency_ms", "method_used", "reachable", "http_status", "ssrf_blocked", "error", "x402_challenge", "accepts", "quoted_price_usd", "known_answer", "free_trial", "dns_error", "dns_retried", "waf", "body_truncated", "quality_meta", "timeout_ms", "host_unstable", "breaker"];
   const o = {};
   for (const k of keep) if (p[k] !== undefined) o[k] = p[k];
   return o;
@@ -1542,28 +1543,39 @@ export function selfFetch(env, base, opts = {}) {
   };
 }
 async function getProbe(env, q, probeOpts, now = new Date()) {
-  probeOpts = { ...probeOpts, fetchImpl: selfFetch(env, probeOpts.fetchImpl) };
+  // 0.56.0: PROBE_TIMEOUT_MS = one time budget per target (all redirect hops + body); an explicit test override wins
+  probeOpts = { ...probeOpts, timeoutMs: probeOpts.timeoutMs ?? probeTimeoutMs(env), fetchImpl: selfFetch(env, probeOpts.fetchImpl) };
   const key = await probeKeyHash(q.url, q.method);
   const ttl = env.SPOT_PROBE_CACHE_S != null && /^\d+$/.test(String(env.SPOT_PROBE_CACHE_S)) ? Number(env.SPOT_PROBE_CACHE_S) : SPOT_PROBE_CACHE_S;
+  const probedAt = now.toISOString().replace(/\.\d{3}Z$/, "Z");
   if (env.RECEIPTS_DB && ttl > 0) {
     try {
       const since = new Date(now.getTime() - ttl * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
       const row = await env.RECEIPTS_DB.prepare("SELECT body FROM spot_receipts WHERE norm_key = ? AND probed_at >= ? ORDER BY probed_at DESC LIMIT 1").bind(key, since).first();
       const b = row ? JSON.parse(row.body) : null;
-      if (b && b.probe_snapshot && b.probe && b.probe.probed_at) return { probe: b.probe_snapshot, probedAt: b.probe.probed_at, cached: true, key };
+      // 0.56.0: a stored breaker answer (host_unstable, nothing fetched) is never reused as a probe; the breaker decides again
+      if (b && b.probe_snapshot && b.probe && b.probe.probed_at && !b.probe_snapshot.host_unstable) return { probe: b.probe_snapshot, probedAt: b.probe.probed_at, cached: true, key };
     } catch (_) {
       // cache miss on any store error
     }
   }
+  // 0.56.0 per-host circuit breaker (breaker.js). Our own hosts are served in-process (selfFetch) and never gated.
+  const host = breakerHost(q.url);
+  const gated = host && !isOwnHost(host);
+  const gate = gated ? await breakerGate(env, host, now.getTime()) : { allow: true, half_open: false };
+  if (!gate.allow) return { probe: hostUnstableProbe(gate.breaker), probedAt, cached: false, key };
+  const record = async (p, halfOpen) => { if (gated) await breakerRecord(env, host, breakerOutcome(p), { halfOpen }, Date.now()); };
   let probe = await spotProbe(q.url, { ...probeOpts, method: q.method });
+  await record(probe, gate.half_open);
   // 0.27.0 fix (false skip): a POST-only route answers 405 to GET. Probe it once with POST; use that only if it is a 402.
   if (probe && probe.http_status === 405 && !probe.x402_challenge && String(q.method || "GET").toUpperCase() === "GET") {
     try {
       const p2 = await spotProbe(q.url, { ...probeOpts, method: "POST" });
+      await record(p2, false);
       if (p2 && p2.x402_challenge) probe = { ...p2, method_used: "POST" };
     } catch (_) {}
   }
-  return { probe, probedAt: now.toISOString().replace(/\.\d{3}Z$/, "Z"), cached: false, key };
+  return { probe, probedAt, cached: false, key };
 }
 export async function saveLiveReceipt(env, r) {
   if (!env.RECEIPTS_DB) return false;
@@ -1946,6 +1958,8 @@ function placeholderReject(hdr, field, received, body402, compact = false) {
 }
 // 0.55.0: access block of a DNS-failure answer (no free check used, never charged); answered in the free shape
 export const DNS_NO_CHARGE_ACCESS = Object.freeze({ tier: "free", free_check_used: false, charged: false, note: "the host did not resolve (DNS, after one retry): no free check was used and nothing was charged" });
+// 0.56.0: the per-host circuit breaker is open: the target was not fetched, no free check used, nothing charged or settled
+export const BREAKER_NO_CHARGE_ACCESS = Object.freeze({ tier: "free", free_check_used: false, charged: false, note: "recent probes of this host failed (5xx, timeout or connection error), so the circuit breaker is open and the target was not fetched: no free check was used and nothing was charged" });
 async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const c = spotCfg(env);
   const resourceUrl = url.origin + url.pathname.replace(/\/+$/, "");
@@ -2014,14 +2028,16 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const rid = env.RECEIPTS_DB ? newReceiptId() : null;
     const ptc = rid ? await payToChanged(env, q.url, pm0) : { pay_to_changed: null };
     const hk = await historyKey(q.url);
-    const history = await recordHistory(env, hk, observation(probe, pm0, d.verdict, pr.probedAt), !pr.cached);
+    const fresh = !pr.cached && !probe.host_unstable; // 0.56.0: a breaker answer fetched nothing, so it is not an observation
+    const history = await recordHistory(env, hk, observation(probe, pm0, d.verdict, pr.probedAt), fresh);
     const rf = reasonFields(d, exp.claimed, history);
     if (expiryCheck) rf.expiry_check = expiryCheck;
     if (quoteCheck) rf.quote_check = quoteCheck;
     if (transient) rf.transient = transient; // 0.55.0
+    if (probe.host_unstable && probe.breaker) rf.breaker = probe.breaker; // 0.56.0
     // 0.37.0 (additive): quality of the unpaid 402 response + seller reputation; neither changes verdict/reason_code
     const quality = qualityFor(probe);
-    await recordQuality(env, hk, hostOf(q.url), quality, pr.probedAt, !pr.cached);
+    await recordQuality(env, hk, hostOf(q.url), quality, pr.probedAt, fresh);
     // cron self-checks (bazaar / stale / daily) keep their D1 budget: nobody reads those answers, so no reputation read
     const internal = selfChecked && (q.ref === BAZAAR_REF || q.ref === STALE_REF || q.ref === DAILY_REF);
     const reputation = internal ? null : await hostReputation(env, hostOf(q.url), historyKey);
@@ -2040,7 +2056,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       const lk = await lockedFor(env, { hk, url: q.url, history, quality, probedAt: pr.probedAt });
       Object.assign(rf, lk, q.policy ? { policy: q.policy } : {});
       // 0.25.0: an outside free check with a clear verdict is listed in /v1/skips.json recent_checks (URL path only)
-      const pub = publishable({ tier: "free", verdict: d.verdict, botTag: spotExcluded, client: q.client, ref: q.ref, url: q.url });
+      const pub = probe.host_unstable ? null : publishable({ tier: "free", verdict: d.verdict, botTag: spotExcluded, client: q.client, ref: q.ref, url: q.url }); // 0.56.0: breaker answers are not public observations
       if (pub && rid) await publishRecent(env, rid, pub);
       // 0.49.0 (EXPLAIN_LINE): redacted line (field names + the public teasers only), response-only, not in the signed receipt
       const ex = explainOn(env) ? { explain: explainFree({ diffFields: (v2.diff || []).map((x) => x.field), compared: comparedFields(exp, probe, pm0), driftCount: lk.locked.drift.count_30d, grade: lk.locked.hygiene.grade }), explain_v: EXPLAIN_V } : {};
@@ -2123,6 +2139,15 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const out = await buildResult(probe, DNS_NO_CHARGE_ACCESS);
     writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 200, referer, access: "spot-dns-no-charge", verdict: out.verdict, shape }));
     return json(out, 200, { "cache-control": "no-store" });
+  }
+  // 0.56.0: per-host circuit breaker open -> recheck/host_unstable, answered like the DNS case above: before any quota,
+  // router credit, hosted meter or payment step; HTTP 200, free-shaped, no free check used, nothing verified or settled
+  // even with a payment header; the target was not fetched. Receipt stored (neutral for the 0.55.0 transient guard).
+  if (probe && probe.host_unstable) {
+    const out = await buildResult(probe, BREAKER_NO_CHARGE_ACCESS);
+    writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 200, referer, access: "spot-breaker-no-charge", verdict: out.verdict, shape }));
+    const ra = probe.breaker && probe.breaker.retry_after_s ? { "retry-after": String(probe.breaker.retry_after_s) } : {};
+    return json(out, 200, { "cache-control": "no-store", ...ra });
   }
   cd = spotDynCfg(c, probe.quoted_price_usd);
   let access;
@@ -2313,9 +2338,10 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
   let transient = null; // 0.55.0: same guard as live checks
   ({ d, transient } = await applyTransientGuard(env, d, pr.key, pr.probedAt));
   const hk = await historyKey(q.url);
-  const history = await recordHistory(env, hk, observation(probe, pmD, d.verdict, pr.probedAt), !pr.cached);
+  const freshD = !pr.cached && !probe.host_unstable; // 0.56.0: a breaker answer is not an observation
+  const history = await recordHistory(env, hk, observation(probe, pmD, d.verdict, pr.probedAt), freshD);
   const quality = qualityFor(probe); // 0.37.0: metadata of the same unpaid probe; dry runs get the code + coarse band
-  await recordQuality(env, hk, hostOf(q.url), quality, pr.probedAt, !pr.cached);
+  await recordQuality(env, hk, hostOf(q.url), quality, pr.probedAt, freshD);
   const reputation = await hostReputation(env, hostOf(q.url), historyKey);
   const rid = newReceiptId();
   const reason = spotLossReason(d, exp.claimed).replace(/, details locked$/, "");
@@ -2333,6 +2359,7 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
     reason,
     ...reasonFields(d, exp.claimed, history),
     ...(transient ? { transient } : {}),
+    ...(probe.host_unstable && probe.breaker ? { breaker: probe.breaker } : {}),
     payment_terms_sha256: null,
     receipt_id: rid,
     receipt_url: CANON_ORIGIN + "/v1/receipts/" + rid,
@@ -2718,7 +2745,7 @@ export function openapi(origin, env = {}) {
             protocols: [{ x402: { scheme: "exact", network: spotCfg(env).network, asset: spotCfg(env).asset, payTo: spotCfg(env).payTo } }],
           },
           responses: {
-            200: { description: `No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx, network errors and (0.55.0) HTTP 429 (rate_limited), a 403 with a firewall/WAF challenge signature (waf_challenge: cf-mitigated, x-amzn-waf-action, a Cloudflare challenge/block page or an Akamai Access Denied page) or a host that still does not resolve after one retry (dns_error); after ${transientWindowText(env)} (TRANSIENT_SKIP_AFTER_HOURS) of only those rechecks the endpoint falls back to skip (rate_limited_persistent, waf_blocked_persistent, dns_error_persistent); a plain 403 stays skip/no_paywall; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. Free tier: verdict (pay|skip|recheck), a plain-words reason, access. Paid tier: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, payment (the exact signable payment when verdict is pay), payment_terms_sha256, access (with settlement tx). Free tier also carries payment_terms_sha256`, content: { "application/json": { schema: { oneOf: [SPOT_PAID_SCHEMA, SPOT_FREE_SCHEMA] }, examples: { paid: { value: SPOT_PAID_EXAMPLE }, free: { value: SPOT_FREE_EXAMPLE } } } } },
+            200: { description: `No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx, network errors and (0.55.0) HTTP 429 (rate_limited), a 403 with a firewall/WAF challenge signature (waf_challenge: cf-mitigated, x-amzn-waf-action, a Cloudflare challenge/block page or an Akamai Access Denied page) or a host that still does not resolve after one retry (dns_error); after ${transientWindowText(env)} (TRANSIENT_SKIP_AFTER_HOURS) of only those rechecks the endpoint falls back to skip (rate_limited_persistent, waf_blocked_persistent, dns_error_persistent); (0.56.0) one time budget covers the whole probe of a target, redirects and body included (PROBE_TIMEOUT_MS, default ${probeTimeoutMs(env)} ms; over it: recheck/timeout); a host whose probes failed ${breakerCfg(env).fails} times (5xx, timeout, connection error) within ${breakerCfg(env).windowMin} min answers recheck/host_unstable for ${breakerCfg(env).cooldownMin} min without fetching the target, no free check used and never charged (BREAKER_FAILS, BREAKER_WINDOW_MIN, BREAKER_COOLDOWN_MIN), then one half-open probe decides; host_unstable never counts toward or breaks the 24 h fallback; a plain 403 stays skip/no_paywall; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. Free tier: verdict (pay|skip|recheck), a plain-words reason, access. Paid tier: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, payment (the exact signable payment when verdict is pay), payment_terms_sha256, access (with settlement tx). Free tier also carries payment_terms_sha256`, content: { "application/json": { schema: { oneOf: [SPOT_PAID_SCHEMA, SPOT_FREE_SCHEMA] }, examples: { paid: { value: SPOT_PAID_EXAMPLE }, free: { value: SPOT_FREE_EXAMPLE } } } } },
             400: { description: "bad params, or SSRF-blocked URL as verdict=skip reason=ssrf_blocked (no fetch)" },
             402: { description: "free quota used: x402 v2 payment requirement ($0.02 USDC on Base, amount 20000)" },
             429: { description: "paid rate limit (per payer per UTC hour), or (0.33.0) the free-check network cap: 25 free live checks per network per UTC day across all client names; JSON points to the paid check and the router pack; Retry-After = seconds to 00:00 UTC" },
@@ -3256,7 +3283,7 @@ export const MCP_TOOLS = [
       "Decision-shaped 402xAgent check of a public URL (private, loopback and link-local addresses blocked on every redirect hop) for an x402 PAYMENT-REQUIRED / 402 challenge. " +
       "Every answer has reason_code (stable code) and confidence (high|medium|low); rules: https://402xagent.com/rules.json. History: stable_for_days, last_changed, drift. " +
       "Free: verdict (pay|skip|recheck), a plain-words reason, payment_terms_sha256 (hash of the approved payment), and access. Paid: verdict, reason code, quoted/claimed price, pay_to, network, asset, and payment = the exact {network, asset, amount_atomic, amount_usd, pay_to} a router may sign (verdict pay only), plus access with the settlement tx. " +
-      "No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx, network errors and (0.55.0) HTTP 429 (rate_limited), a 403 with a firewall/WAF challenge signature (waf_challenge) or a host that still does not resolve after one retry (dns_error); after 24 h (TRANSIENT_SKIP_AFTER_HOURS) of only those rechecks the endpoint falls back to skip (*_persistent); a plain 403 stays skip/no_paywall; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. " +
+      "No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx, network errors and (0.55.0) HTTP 429 (rate_limited), a 403 with a firewall/WAF challenge signature (waf_challenge) or a host that still does not resolve after one retry (dns_error); after 24 h (TRANSIENT_SKIP_AFTER_HOURS) of only those rechecks the endpoint falls back to skip (*_persistent); (0.56.0) recheck/timeout when the whole probe (redirects + body) exceeds PROBE_TIMEOUT_MS (default 8000 ms), and recheck/host_unstable while the per-host circuit breaker is open (3 failed probes of the host in 10 min -> 15 min pause; target not fetched, no free check used, never charged); a plain 403 stays skip/no_paywall; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. " +
       "mode=dry-run: free dry run (nothing signed or paid, stored as a public receipt, no approval hash, 50/caller/day). " +
       "Never pays the target (probe GET only). 5 free checks per client per UTC day (at most 25 per network) (client=vc-mcp), then $0.02 USDC a check on Base via x402. " +
       "Unpaid after free quota: payment instructions. Forward PAYMENT-SIGNATURE for a paid check.",
@@ -3947,7 +3974,7 @@ const routeInnerHolder = {
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${CANON_ORIGIN}/sitemap.xml\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
     if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${["/v1/skips", "/v1/skips.json", "/v1/receipts", "/", "/openapi.json", "/llms.txt", "/pricing", "/docs", "/blog", ...BLOG_POSTS.map((p) => "/blog/" + p.slug), "/rules", "/rules.json", "/bazaar", "/bazaar.json", ...(env.SAVES_PAGE === "on" ? ["/saves", "/saves.json"] : [])].map((u) => `<url><loc>${CANON_ORIGIN}${u}</loc><changefreq>daily</changefreq></url>`).join("")}</urlset>\n`, { headers: { "content-type": "application/xml; charset=utf-8", "access-control-allow-origin": "*" } });
     if (path === "/llms.txt") return new Response(`# 402xAgent + x402 Verified Catalog\n\nStart with the free check: GET ${FREE_CHECK_URL}\nReal example: GET ${FREE_CHECK_EXAMPLE_URL}\n  -> ${JSON.stringify(FREE_CHECK_EXAMPLE)}\n5 free checks per client per UTC day (at most 25 per network), free dry runs with &mode=dry-run, prior checks at ${PRIOR_CHECKS}. After that, the paid check (HTTP 402, $0.02 USDC on Base via x402) adds the full payment terms.\n\n402xAgent checks an x402 endpoint right before your agent pays: pay | skip | recheck, plus the exact payment to sign. Home: ${CANON_ORIGIN}. API: ${API_ORIGIN} (same routes on every host; the old ${LEGACY_ORIGIN} keeps working).\n\n**Discover (verdict-filtered index).** \`GET https://api.402xagent.com/v1/discover?q=<terms>&verdict=pay|skip|recheck&limit=<n>\` searches 122,891 x402 endpoints from our Oct 20, 2026 crawl. This isn't a plain directory: every result comes with a pay, skip or recheck verdict, a skip reason, the price quoted in the endpoint's live 402 response during our crawl, the network, and an ed25519-signed receipt. Results are facts from an unpaid crawl probe, not endorsements. A pay whose terms are older than ${termsWindowText(termsMaxAgeHours(env))} comes back as recheck (reason_code terms_stale), so run the free check (each result's \`check_url\`, or the MCP tool \`endpoint_spot_check\`) right before you pay. Also available as the MCP tool \`discover\` at https://api.402xagent.com/mcp. — withgrokbot\n\n- Skips page (free): ${CANON_ORIGIN}/v1/skips (JSON: ${CANON_ORIGIN}/v1/skips.json). ${COVERED()} self-checked x402 endpoints (weekly crawl); the skip list shows which ones disagree with their listing.\n- x402 hygiene (free, 20/day per network, cached 24 h): GET ${API_ORIGIN}/v1/hygiene?url=<endpoint> -> {score, grade, deductions[{code, points, fix}]}. Scores your own 402 (version consistency, atomic amount, timeout, parseability, size, 402-vs-400, p50 latency) from normal unpaid requests; grades go only to the caller, never to a public list.
-- Bazaar check (free): ${CANON_ORIGIN}/bazaar (JSON: ${CANON_ORIGIN}/bazaar.json). Our daily check of the top CDP Bazaar search results.\n- Facilitator pre-settle check (free, ${FACIL_CHECK_PER_MIN}/min per IP, ${FACIL_HOST_PER_MIN}/min per seller host): POST ${API_ORIGIN}${FACIL_CHECK_PATH} JSON {"paymentRequirements":{scheme, network, amount, asset, payTo},"url":"<resource>"} -> {match, mismatches[{field, expected, live}], live_terms_sha256, checked_at, recommendation: settle|hold}. Re-reads the seller's live 402 terms (never pays); for an onBeforeSettle hook. Send only the requirements, never the payment payload.\n- Status badge (free): ${CANON_ORIGIN}/badge/api.402rates.com.svg (any host in place of api.402rates.com; optional ?path=/exact/path). Green "pay · stable N days" only when the latest check is pay and under 72 h old; otherwise grey "stale" or "not verified". Embed: [![402xAgent status](${CANON_ORIGIN}/badge/api.402rates.com.svg)](${CANON_ORIGIN}/badge/api.402rates.com). Every receipt carries its own badge snippet (Markdown + HTML).\n- Saves (free): ${CANON_ORIGIN}/saves (JSON: ${CANON_ORIGIN}/saves.json). Endpoints from the last 30 days whose live 402 differed from the listing (asked more, paid a different wallet, or another network), with redacted receipts.\n- Rules (free): ${CANON_ORIGIN}/rules (JSON: ${CANON_ORIGIN}/rules.json). Every verdict carries a stable reason_code and a confidence (high|medium|low); the codes and confidence rules are listed there.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (one receipt by id, e.g. ${CANON_ORIGIN}/v1/receipts/006776f7b6; live receipt ids start with sc-; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 5 free/day (25 per network), then $0.02 USDC a check on Base via x402.\n${endpointReportOn(env) ? `- Endpoint report ($0.05, no free tier): POST ${API_ORIGIN}${ER_ROUTE_PATH} with JSON {"url":"https://api.402rates.com/v1/ping","commitment_ref":"cm-0123456789abcdef"} (commitment_ref = locked_commitments.ref of a free check). Reveals exactly the committed drift history and hygiene detail behind the free answer's locked teasers; verify the sha256 digests: ${CANON_ORIGIN}/docs#endpoint-report\n` : ""}${watchOn(env) ? `- Watchtower ($1 per 30 days, 7-day free trial on the first watch per webhook domain): POST ${API_ORIGIN}/v1/watch with JSON ${JSON.stringify(WATCH_EXAMPLE)}. Hourly re-probe; Ed25519-signed webhooks on drift, down and recovery (verify with ${API_ORIGIN}/.well-known/402xagent-keys.json). Renew: POST ${API_ORIGIN}/v1/watch/${EXAMPLE_WATCH_ID}/renew. Docs: ${CANON_ORIGIN}/docs#watchtower\n` : ""}${feedOn(env) ? `- Watchtower data feed (separate from the Watchtower monitor above; facts only: liveness, payment terms, drift events; no scores): GET ${API_ORIGIN}/v1/feed?category=<search/data|inference|crypto-market|content|infra|other> (free: daily snapshot >= 24 h old, 100 rows, 200 calls/day per network; live=1 = $${FEED_PRICES.call.usd} per call real-time), GET ${API_ORIGIN}/v1/feed/endpoint/{hkey}, GET ${API_ORIGIN}/v1/feed/drift?from=&to= (free 7 days; full=1 = $${FEED_PRICES.drift.usd}), signed paginated snapshot ${API_ORIGIN}/v1/feed/snapshot.json (?page=n; .csv?page=n), keys via POST ${API_ORIGIN}/v1/feed/subscribe ($${FEED_PRICES.endpoint.usd} endpoint / $${FEED_PRICES.category.usd} category / $${FEED_PRICES.firehose.usd} firehose per 30 days). Schema, tiers and limitations: ${API_ORIGIN}/v1/feed/manifest\n` : ""}- After you pay (did it land? safe to sign again?): POST ${API_ORIGIN}/v1/products/payment-status with JSON {"payment_payload":"<base64 PAYMENT-SIGNATURE you sent>","seller_url":"<url>"} (or tx_hash, or from + nonce). Base USDC (EIP-3009) only. Returns status landed|not_landed|pending|canceled|unknown, safe_to_retry_same_payload (always true), safe_to_resign (true only when two independent RPC sources agree the nonce is unused and validBefore has passed), tx details, terms match, a claim pointer, and a signed receipt. Same price and the same 5 free/day as the check. Docs: ${CANON_ORIGIN}/docs#payment-status\n- Hosted mode for routers/wallets (integrator key, Authorization: Bearer 402x_live_...): 1,000 free hosted checks, then $0.02, $0.01 after 1,000 a month, monthly USDC invoice: ${CANON_ORIGIN}/docs#hosted\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n- Pricing: ${CANON_ORIGIN}/pricing  Docs: ${CANON_ORIGIN}/docs (quick start: ${CANON_ORIGIN}/docs#quick-start)\n- Blog: ${CANON_ORIGIN}/blog${BLOG_POSTS.map((p) => `\n  - ${p.title}: ${CANON_ORIGIN}/blog/${p.slug}`).join("")}\n- Signed receipts: new receipts carry kid + signature (ed25519 over RFC 8785 JCS of the receipt minus signature). Public keys: ${API_ORIGIN}/.well-known/402xagent-keys.json. Verify offline: ${CANON_ORIGIN}/docs#receipt-signatures or x402-spotcheck 1.1.0 verifyReceipt().\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
+- Bazaar check (free): ${CANON_ORIGIN}/bazaar (JSON: ${CANON_ORIGIN}/bazaar.json). Our daily check of the top CDP Bazaar search results.\n- Facilitator pre-settle check (free, ${FACIL_CHECK_PER_MIN}/min per IP, ${FACIL_HOST_PER_MIN}/min per seller host): POST ${API_ORIGIN}${FACIL_CHECK_PATH} JSON {"paymentRequirements":{scheme, network, amount, asset, payTo},"url":"<resource>"} -> {match, mismatches[{field, expected, live}], live_terms_sha256, checked_at, recommendation: settle|hold}. Re-reads the seller's live 402 terms (never pays); for an onBeforeSettle hook. Send only the requirements, never the payment payload.\n- Status badge (free): ${CANON_ORIGIN}/badge/api.402rates.com.svg (any host in place of api.402rates.com; optional ?path=/exact/path). Green "pay · stable N days" only when the latest check is pay and under 72 h old; otherwise grey "stale" or "not verified". Embed: [![402xAgent status](${CANON_ORIGIN}/badge/api.402rates.com.svg)](${CANON_ORIGIN}/badge/api.402rates.com). Every receipt carries its own badge snippet (Markdown + HTML).\n- Saves (free): ${CANON_ORIGIN}/saves (JSON: ${CANON_ORIGIN}/saves.json). Endpoints from the last 30 days whose live 402 differed from the listing (asked more, paid a different wallet, or another network), with redacted receipts.\n- Rules (free): ${CANON_ORIGIN}/rules (JSON: ${CANON_ORIGIN}/rules.json). Every verdict carries a stable reason_code and a confidence (high|medium|low); the codes and confidence rules are listed there.\n- All receipts: ${CANON_ORIGIN}/v1/receipts  (one receipt by id, e.g. ${CANON_ORIGIN}/v1/receipts/006776f7b6; live receipt ids start with sc-; dry runs: ${CANON_ORIGIN}/v1/receipts?type=dry-run; latest for a URL: ${CANON_ORIGIN}/v1/receipts/by-url?url=<endpoint>; free to read)\n- Check before you pay: GET ${API_ORIGIN}/v1/products/endpoint-spot-check?url=https://example.com/api/paid returns pay|skip|recheck (the 402xAgent check; route path kept for compatibility). Free dry run: add &mode=dry-run. 5 free/day (25 per network), then $0.02 USDC a check on Base via x402. Recheck codes are stable (${CANON_ORIGIN}/rules.json); 0.56.0: timeout = the whole probe of a target (redirects + body) ran past PROBE_TIMEOUT_MS (default ${probeTimeoutMs(env)} ms); host_unstable = recent probes of that host failed (5xx, timeout, connection error; ${breakerCfg(env).fails} in ${breakerCfg(env).windowMin} min), so for ${breakerCfg(env).cooldownMin} min we answer without fetching it: no free check used, never charged.\n${endpointReportOn(env) ? `- Endpoint report ($0.05, no free tier): POST ${API_ORIGIN}${ER_ROUTE_PATH} with JSON {"url":"https://api.402rates.com/v1/ping","commitment_ref":"cm-0123456789abcdef"} (commitment_ref = locked_commitments.ref of a free check). Reveals exactly the committed drift history and hygiene detail behind the free answer's locked teasers; verify the sha256 digests: ${CANON_ORIGIN}/docs#endpoint-report\n` : ""}${watchOn(env) ? `- Watchtower ($1 per 30 days, 7-day free trial on the first watch per webhook domain): POST ${API_ORIGIN}/v1/watch with JSON ${JSON.stringify(WATCH_EXAMPLE)}. Hourly re-probe; Ed25519-signed webhooks on drift, down and recovery (verify with ${API_ORIGIN}/.well-known/402xagent-keys.json). Renew: POST ${API_ORIGIN}/v1/watch/${EXAMPLE_WATCH_ID}/renew. Docs: ${CANON_ORIGIN}/docs#watchtower\n` : ""}${feedOn(env) ? `- Watchtower data feed (separate from the Watchtower monitor above; facts only: liveness, payment terms, drift events; no scores): GET ${API_ORIGIN}/v1/feed?category=<search/data|inference|crypto-market|content|infra|other> (free: daily snapshot >= 24 h old, 100 rows, 200 calls/day per network; live=1 = $${FEED_PRICES.call.usd} per call real-time), GET ${API_ORIGIN}/v1/feed/endpoint/{hkey}, GET ${API_ORIGIN}/v1/feed/drift?from=&to= (free 7 days; full=1 = $${FEED_PRICES.drift.usd}), signed paginated snapshot ${API_ORIGIN}/v1/feed/snapshot.json (?page=n; .csv?page=n), keys via POST ${API_ORIGIN}/v1/feed/subscribe ($${FEED_PRICES.endpoint.usd} endpoint / $${FEED_PRICES.category.usd} category / $${FEED_PRICES.firehose.usd} firehose per 30 days). Schema, tiers and limitations: ${API_ORIGIN}/v1/feed/manifest\n` : ""}- After you pay (did it land? safe to sign again?): POST ${API_ORIGIN}/v1/products/payment-status with JSON {"payment_payload":"<base64 PAYMENT-SIGNATURE you sent>","seller_url":"<url>"} (or tx_hash, or from + nonce). Base USDC (EIP-3009) only. Returns status landed|not_landed|pending|canceled|unknown, safe_to_retry_same_payload (always true), safe_to_resign (true only when two independent RPC sources agree the nonce is unused and validBefore has passed), tx details, terms match, a claim pointer, and a signed receipt. Same price and the same 5 free/day as the check. Docs: ${CANON_ORIGIN}/docs#payment-status\n- Hosted mode for routers/wallets (integrator key, Authorization: Bearer 402x_live_...): 1,000 free hosted checks, then $0.02, $0.01 after 1,000 a month, monthly USDC invoice: ${CANON_ORIGIN}/docs#hosted\n- One-line guard for x402 clients (@x402/fetch, @x402/axios): https://github.com/withgrokbot/x402-spotcheck  ->  const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);  (blocks the payment on skip)\n- OpenAPI: ${API_ORIGIN}/openapi.json  MCP: ${API_ORIGIN}/mcp\n- Pricing: ${CANON_ORIGIN}/pricing  Docs: ${CANON_ORIGIN}/docs (quick start: ${CANON_ORIGIN}/docs#quick-start)\n- Blog: ${CANON_ORIGIN}/blog${BLOG_POSTS.map((p) => `\n  - ${p.title}: ${CANON_ORIGIN}/blog/${p.slug}`).join("")}\n- Signed receipts: new receipts carry kid + signature (ed25519 over RFC 8785 JCS of the receipt minus signature). Public keys: ${API_ORIGIN}/.well-known/402xagent-keys.json. Verify offline: ${CANON_ORIGIN}/docs#receipt-signatures or x402-spotcheck 1.1.0 verifyReceipt().\n`, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*" } });
     if (path === "/" && url.hostname === "402xagent.com" && /text\/html/.test(req.headers.get("accept") || ""))
       return new Response(landingHtml(CANON_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", vary: "accept", "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "access-control-allow-origin": "*" } });
     if (path === "/")

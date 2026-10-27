@@ -280,3 +280,43 @@ returns `recheck` / `delivery_failed` when the endpoint's latest delivery check 
 reputation gets a `delivery` component (weight 15, only for hosts with delivery rows). Skip/recheck verdicts, stored
 receipts and sellers without delivery data are unchanged. Code: `src/delivery.js`; tests: `tests/delivery_test.mjs`,
 `tests/delivery_test.py` (fixtures in `tests/fixtures/delivery/`).
+
+## Per-target timeout + per-host circuit breaker (0.56.0)
+
+Hardening (b). A backtest of wrong `pay` verdicts in our tracked set found that within 7 days 0.96% went wrong because
+the seller later answered 5xx and 0.74% because of timeouts. New checks only; stored receipts and past verdicts are
+untouched, the price stays $0.02 and the free tier stays 5 a day. Code: `src/breaker.js` (+ `spotProbe` in
+`src/spotcheck.js`, `getProbe` and the no-charge branch in `src/lib.js`); tests: `tests/breaker_test.mjs`.
+
+- **Per-target timeout.** `PROBE_TIMEOUT_MS` (default `8000`, valid 1000-30000) is one budget for the whole probe of a
+  target: every redirect hop and the body read. Before 0.56.0 the same 8000 ms applied per hop (up to 4 hops) and the
+  body read had no limit. Out of time: `recheck` / `timeout` (receipt `probe_snapshot.timeout_ms`), never `pay`. The
+  facilitator pre-settle check uses the same budget; the weekly crawl reads the same variable (its default stays 5 s).
+- **Per-host circuit breaker.** `BREAKER_FAILS` (default `3`) failed probes of one host (HTTP 5xx, timeout, connection
+  error) within `BREAKER_WINDOW_MIN` (default `10`) with no successful probe in between open the breaker for
+  `BREAKER_COOLDOWN_MIN` (default `15`). While it is open, a new check of any URL on that host answers HTTP 200
+  `recheck` / `host_unstable` straight away, with a `breaker` object (`state`, `opened_at`, `retry_after_s`, the knobs)
+  and a `Retry-After` header: the target is not fetched, no free check is used, nothing is verified, charged or settled
+  (even with a payment header), and it is never published to `recent_checks`. After the cooldown one check is let
+  through as the half-open probe: success closes the breaker, another failure re-opens it for a full cooldown.
+  Not failures: SSRF blocks (still `skip` / `ssrf_blocked`), DNS errors (0.55.0 path), 429, any 403 (a plain 403 is
+  still `skip` / `no_paywall`), any other HTTP answer (counts as a success). `BREAKER_FAILS=0` turns it off. Our own
+  hosts are never gated.
+- **State store: per-isolate memory written through to the Cache API** (`caches.default`, one data center, shared by
+  every isolate there; key = a SHA-256 of the host under a synthetic `https://api.402xagent.com/__breaker/v1/` URL
+  that is only a cache key, never fetched). No D1 table, no KV. The state lives at most window/cooldown minutes, losing it
+  only costs a few extra probes, and a D1 row per failing probe would add a write and latency to exactly the requests
+  that are already slow. Healthy hosts cost one cache read per uncached probe and no writes. Any store error fails open
+  (the probe runs as before). Trade-offs: the breaker is per data center, and two concurrent failures can race the
+  read-modify-write (one may not be counted).
+- **0.55.0 transient fallback: `host_unstable` is neutral.** It is not a transient code, so it never starts or extends a
+  `*_persistent` streak and is never turned into a skip; and the streak query ignores it, so it does not break a running
+  `rate_limited` / `waf_challenge` / `dns_error` streak either. The cooldown bounds how long it can last. Stored
+  `host_unstable` receipts are never reused as the 5-minute probe cache and are not history or quality observations.
+
+| Variable | Default | Valid |
+| --- | --- | --- |
+| `PROBE_TIMEOUT_MS` | 8000 | integer 1000-30000 |
+| `BREAKER_FAILS` | 3 | integer 0-100 (0 = off) |
+| `BREAKER_WINDOW_MIN` | 10 | minutes, > 0 and <= 1440 |
+| `BREAKER_COOLDOWN_MIN` | 15 | minutes, > 0 and <= 1440 |
