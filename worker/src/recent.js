@@ -31,6 +31,8 @@ export const REASON_TEXT = {
   rate_limited_persistent: "endpoint has only answered HTTP 429 (rate limited) for longer than our retry window (default 24 h)",
   waf_blocked_persistent: "a firewall or bot challenge (HTTP 403) has blocked every probe for longer than our retry window (default 24 h)",
   dns_error_persistent: "the endpoint's domain has not resolved (DNS) for longer than our retry window (default 24 h)",
+  // 0.56.0 per-host circuit breaker (breaker.js)
+  host_unstable: "recent probes of this endpoint's host failed (server errors, timeouts or connection errors), so we paused probing it for a few minutes, try again later",
 };
 export const shortReason = (code) => REASON_TEXT[code] || "see receipt";
 

@@ -206,5 +206,33 @@ class Guard(unittest.TestCase):
             os.unlink(f.name)
 
 
+class ProbeTimeout(Base):
+    """0.56.0: the crawl reads the Worker's PROBE_TIMEOUT_MS knob; unset/invalid keeps its own 5 s; a timeout is recheck."""
+
+    def test_probe_timeout_s(self):
+        self.assertEqual(cp.probe_timeout_s({}), 5)
+        self.assertEqual(cp.probe_timeout_s({"PROBE_TIMEOUT_MS": "8000"}), 8.0)
+        self.assertEqual(cp.probe_timeout_s({"PROBE_TIMEOUT_MS": "1000"}), 1.0)
+        for bad in ("", "abc", "999", "30001", "-5", "2.5"):
+            self.assertEqual(cp.probe_timeout_s({"PROBE_TIMEOUT_MS": bad}), 5, bad)
+
+    def test_timeout_is_recheck_and_uses_the_knob(self):
+        seen = []
+        def slow(method, url, **kw):
+            seen.append(kw.get("timeout"))
+            raise cp.requests.exceptions.ReadTimeout("read timed out")
+        cp.requests.request = slow
+        old = cp.TIMEOUT
+        try:
+            cp.TIMEOUT = 2.5
+            r = cp.probe(cand())
+        finally:
+            cp.TIMEOUT = old
+        self.assertEqual(seen, [2.5])
+        self.assertEqual(r["verdict"], "recheck")
+        self.assertEqual(r["reason"], "endpoint did not answer in 2.5 s, try again later")
+        self.assertNotEqual(r["verdict"], "pay")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

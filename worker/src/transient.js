@@ -42,12 +42,16 @@ export function wafSignature(status, headers, bodyText) {
   return null;
 }
 
+// 0.56.0: codes that are neutral for the streak: they neither count toward it nor break it. host_unstable = our own
+// per-host circuit breaker answered without fetching the target (breaker.js), so it says nothing about the endpoint.
+export const STREAK_NEUTRAL_CODES = Object.freeze(["host_unstable"]);
 const IN = "(" + STREAK_CODES.map((c) => `'${c}'`).join(",") + ")";
-// Oldest probe of the unbroken run of transient results for this endpoint (rows newer than the newest other result).
-// One indexed D1 read, only when the current answer is one of the three rechecks.
+const IN_OR_NEUTRAL = "(" + [...STREAK_CODES, ...STREAK_NEUTRAL_CODES].map((c) => `'${c}'`).join(",") + ")";
+// Oldest probe of the unbroken run of transient results for this endpoint (rows newer than the newest other result;
+// neutral rows are skipped on both sides). One indexed D1 read, only when the current answer is one of the three rechecks.
 export const STREAK_SQL =
   `SELECT MIN(probed_at) AS since FROM spot_receipts WHERE norm_key = ?1 AND probed_at IS NOT NULL AND reason IN ${IN} ` +
-  `AND probed_at > COALESCE((SELECT MAX(probed_at) FROM spot_receipts WHERE norm_key = ?1 AND probed_at IS NOT NULL AND reason NOT IN ${IN}), '')`;
+  `AND probed_at > COALESCE((SELECT MAX(probed_at) FROM spot_receipts WHERE norm_key = ?1 AND probed_at IS NOT NULL AND reason NOT IN ${IN_OR_NEUTRAL}), '')`;
 export async function transientSince(env, normKey) {
   const db = env && env.RECEIPTS_DB;
   if (!db || !normKey) return null;

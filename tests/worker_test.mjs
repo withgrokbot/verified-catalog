@@ -2693,7 +2693,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.55.0");
+  assert.equal(VERSION, "0.56.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2800,7 +2800,7 @@ test("0.37.0 reputation: documented weighted formula; new hosts are insufficient
   const rj = rulesJson("https://402xagent.com");
   assert.deepEqual(rj.reputation.weights, REPUTATION_WEIGHTS);
   assert.match(rj.reputation.formula, /sum\(w_i \* c_i\)/);
-  assert.equal(rj.reason_codes.length, 25); // 0.53.3: + delivery_failed; 0.54.0: + terms_changed_since_quote, terms_stale
+  assert.equal(rj.reason_codes.length, 26); // 0.53.3: + delivery_failed; 0.54.0: + terms_changed_since_quote, terms_stale; 0.56.0: + host_unstable
   assert.ok(rj.quality_codes.some((q) => q.code === "quality_schema_mismatch"));
   assert.ok(rj.fields.reputation && rj.fields.quality);
   const html = await (await worker.fetch(new Request("https://lookup.fixture/rules", { headers: { "user-agent": "agent-x/1.0" } }), spotEnv().env, { waitUntil() {} })).text();
@@ -4521,6 +4521,28 @@ test("0.55.0 skip-reason tuning: OpenAPI and MCP endpoint_spot_check text render
   assert.deepEqual(["rate_limited", "waf_challenge", "dns_error"].map((c) => by[c]), ["recheck", "recheck", "recheck"]);
   assert.deepEqual(["rate_limited_persistent", "waf_blocked_persistent", "dns_error_persistent"].map((c) => by[c]), ["skip", "skip", "skip"]);
   assert.equal(by.no_paywall, "skip"); assert.equal(by.ssrf_blocked, "skip");
+});
+
+test("0.56.0 per-target timeout + per-host circuit breaker: rules.json lists host_unstable (recheck, low); OpenAPI renders PROBE_TIMEOUT_MS and BREAKER_* from env; MCP text names host_unstable", async () => {
+  const e = meteredEnv();
+  let oa = (await send("/openapi.json", { envo: e })).body;
+  const d200 = (o) => o.paths["/v1/products/endpoint-spot-check"].get.responses[200].description;
+  assert.match(d200(oa), /PROBE_TIMEOUT_MS, default 8000 ms; over it: recheck\/timeout/);
+  assert.match(d200(oa), /failed 3 times \(5xx, timeout, connection error\) within 10 min answers recheck\/host_unstable for 15 min without fetching the target, no free check used and never charged/);
+  const e2 = meteredEnv(); Object.assign(e2.env, { PROBE_TIMEOUT_MS: "5000", BREAKER_FAILS: "5", BREAKER_WINDOW_MIN: "20", BREAKER_COOLDOWN_MIN: "30" });
+  oa = (await send("/openapi.json", { envo: e2 })).body;
+  assert.match(d200(oa), /default 5000 ms/); assert.match(d200(oa), /failed 5 times .* within 20 min .* for 30 min/);
+  const tools = (await rpc({ jsonrpc: "2.0", id: 9, method: "tools/list" }, { envo: e })).body.result.tools;
+  assert.match(tools.find((t) => t.name === "endpoint_spot_check").description, /recheck\/host_unstable/);
+  const rules = (await send("/rules.json", { envo: e })).body;
+  const hu = rules.reason_codes.find((x) => x.code === "host_unstable");
+  assert.equal(hu.verdict, "recheck"); assert.equal(hu.confidence, "low"); assert.ok(hu.text);
+  assert.match(rules.rules_version, /^2026-/);
+  const { RULES_VERSION } = await import("../worker/src/rules.js");
+  assert.equal(rules.rules_version, RULES_VERSION);
+  const { decideVerdict } = await import("../worker/src/spotcheck.js");
+  assert.deepEqual(decideVerdict({ reachable: false, error: "fetch timeout", timeout_ms: 8000 }), { verdict: "recheck", reason: "timeout" });
+  assert.deepEqual(decideVerdict({ reachable: false, host_unstable: true }), { verdict: "recheck", reason: "host_unstable" });
 });
 
 let passed = 0, skipped = 0;

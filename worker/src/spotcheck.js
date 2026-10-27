@@ -17,7 +17,7 @@ export const SPOT_TAGS = ["x402", "402xagent", "pre-payment-check", "probe", "ca
 export const SPOT_DEFAULT_PRICE_ATOMIC = "20000"; // $0.02 USDC (0.38.0: flat; the per-request price is SPOT_PAID_ATOMIC)
 export const SPOT_DEFAULT_FREE_PER_DAY = 5;
 export const SPOT_PAID_PER_HOUR = 30;
-export const SPOT_FETCH_TIMEOUT_MS = 8000;
+export const SPOT_FETCH_TIMEOUT_MS = 8000; // 0.56.0: default of PROBE_TIMEOUT_MS, one budget per target (all hops + body), see breaker.js
 export const DNS_RETRY_DELAY_MS = 300; // 0.55.0: pause before the single DNS retry
 export const SPOT_MAX_BODY = 65536;
 export const SPOT_MAX_REDIRECTS = 3;
@@ -377,10 +377,27 @@ export async function spotProbe(rawUrl, opts = {}) {
   inflight++;
   const started = Date.now();
   let current = safe0.url;
+  // 0.56.0: per-target timeout. One deadline for the whole probe (every redirect hop and the body read); before 0.56.0
+  // each hop had its own 8 s and the body read had none. Running out of time is "fetch timeout" -> recheck/timeout.
+  const deadline = started + timeoutMs;
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort("timeout"), timeoutMs);
+  const timedOut = (status = null, what = "fetch timeout") => ({
+    reachable: false,
+    http_status: status,
+    latency_ms: Date.now() - started,
+    ssrf_blocked: false,
+    error: what,
+    timeout_ms: timeoutMs,
+    x402_challenge: false,
+    accepts: [],
+    quoted_price_usd: null,
+    known_answer: null,
+    body_truncated: false,
+  });
   try {
     for (let hop = 0; hop <= SPOT_MAX_REDIRECTS; hop++) {
-      const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort("timeout"), timeoutMs);
+      if (Date.now() >= deadline) return timedOut();
       let resp;
       try {
         const headers = {
@@ -395,23 +412,21 @@ export async function spotProbe(rawUrl, opts = {}) {
         }
         resp = await fetchImpl(current.toString(), init);
       } catch (e) {
-        clearTimeout(timer);
         const msg = String(e && e.message ? e.message : e);
-        const timed = /timeout|aborted|AbortError/i.test(msg) || (e && e.name === "AbortError");
+        const timed = ac.signal.aborted || /timeout|aborted|AbortError/i.test(msg) || (e && e.name === "AbortError");
+        if (timed) return timedOut();
         return {
           reachable: false,
           http_status: null,
           latency_ms: Date.now() - started,
           ssrf_blocked: false,
-          error: timed ? "fetch timeout" : "fetch failed",
+          error: "fetch failed",
           x402_challenge: false,
           accepts: [],
           quoted_price_usd: null,
           known_answer: null,
           body_truncated: false,
         };
-      } finally {
-        clearTimeout(timer);
       }
 
       // Redirect hop: re-validate Location
@@ -481,7 +496,17 @@ export async function spotProbe(rawUrl, opts = {}) {
         continue;
       }
 
-      const { text, truncated, bytes } = await readBodyCapped(resp, maxBody);
+      // 0.56.0: the body read shares the same deadline (a seller that sends headers and then stalls is a timeout)
+      const left = deadline - Date.now();
+      if (left <= 0) { try { resp.body && resp.body.cancel && (await resp.body.cancel()); } catch (_) {} return timedOut(resp.status, "fetch timeout (body)"); }
+      let bodyTimer;
+      const TIMED = Symbol("timeout");
+      const got = await Promise.race([
+        readBodyCapped(resp, maxBody).catch((e) => (ac.signal.aborted ? TIMED : Promise.reject(e))),
+        new Promise((res) => { bodyTimer = setTimeout(() => res(TIMED), left); }),
+      ]).finally(() => clearTimeout(bodyTimer));
+      if (got === TIMED) { try { ac.abort("timeout"); } catch (_) {} return timedOut(resp.status, "fetch timeout (body)"); }
+      const { text, truncated, bytes } = got;
       const parsed = parseX402Challenge({ status: resp.status, headers: resp.headers, bodyText: text });
       let quality_meta = null; // 0.37.0: metadata only (status, media type, size, schema declared/matched); no body kept
       try { quality_meta = qualityMeta({ status: resp.status, headers: resp.headers, bodyText: text, bytes }); } catch (_) {}
@@ -500,6 +525,7 @@ export async function spotProbe(rawUrl, opts = {}) {
       };
     }
   } finally {
+    clearTimeout(timer);
     inflight = Math.max(0, inflight - 1);
   }
   return {
@@ -547,6 +573,8 @@ export function freeTrialSignal(headers) {
  * - 0.55.0: recheck + dns_error (host did not resolve after one retry), rate_limited (429, no terms),
  *   waf_challenge (403 with a WAF signature, see transient.js); a plain 403 stays skip + no_paywall.
  *   Persisting ~24 h, these fall back to skip (applyTransientGuard in transient.js).
+ * - 0.56.0: recheck + host_unstable when the per-host circuit breaker is open (breaker.js; the target was not fetched);
+ *   a probe that runs out of its PROBE_TIMEOUT_MS budget (hops + body) is recheck + timeout.
  * - skip + no_paywall when reachable with no 402 terms (any other non-5xx status, no trial headers)
  * - skip + bad_challenge when a challenge is present but unreadable / incomplete
  * - skip + price_mismatch when claimed and quoted differ; pay + price_ok when they match or nothing is claimed
@@ -554,6 +582,7 @@ export function freeTrialSignal(headers) {
  */
 export function decideVerdict(probe, claimedPrice) {
   if (!probe || probe.ssrf_blocked) return { verdict: "skip", reason: "ssrf_blocked" };
+  if (probe.host_unstable) return { verdict: "recheck", reason: "host_unstable" }; // 0.56.0 breaker open: not fetched
   if (!probe.reachable && probe.dns_error) return { verdict: "recheck", reason: "dns_error" };
   if (!probe.reachable) {
     const err = String(probe.error || "");

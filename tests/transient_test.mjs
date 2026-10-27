@@ -227,7 +227,8 @@ test("guard SQL uses the existing (norm_key, probed_at) index; no migration need
   const plan = db.raw.prepare("EXPLAIN QUERY PLAN " + T.STREAK_SQL).all("k:x").map((x) => x.detail).join(" | ");
   assert.match(plan, /spot_receipts_probe_cache/, plan);
   assert.equal(MIGS.length, readdirSync(MIG_DIR).filter((f) => f.endsWith(".sql")).length);
-  assert.ok(!readdirSync(MIG_DIR).some((f) => /^002[1-9]/.test(f)), "0.55.0 adds no migration");
+  // 0.55.0 added no migration; 0.56.0 adds exactly 0021_breaker_events.sql (breaker audit, not used by this guard)
+  assert.deepEqual(readdirSync(MIG_DIR).filter((f) => /^002[1-9]/.test(f)), ["0021_breaker_events.sql"]);
 });
 
 async function callAs(env, path, ip, headers = {}) {
