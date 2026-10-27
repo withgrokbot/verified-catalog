@@ -91,7 +91,7 @@ async function callAs(env, path, ip, headers = {}) {
 const spot = (url, extra = "") => "/v1/products/endpoint-spot-check?url=" + encodeURIComponent(url) + extra;
 
 test("knobs: PROBE_TIMEOUT_MS default 8000 (1000-30000), BREAKER_FAILS 3 / WINDOW 10 min / COOLDOWN 15 min, BREAKER_FAILS=0 turns it off", () => {
-  assert.equal(VERSION, "0.56.0");
+  assert.equal(VERSION, "0.57.0");
   assert.equal(B.probeTimeoutMs({}), 8000); assert.equal(B.probeTimeoutMs({ PROBE_TIMEOUT_MS: "5000" }), 5000);
   for (const bad of ["", "abc", "999", "30001", "-1", "2500.5"]) assert.equal(B.probeTimeoutMs({ PROBE_TIMEOUT_MS: bad }), 8000, bad);
   const c = B.breakerCfg({});
@@ -286,9 +286,9 @@ test("live route: after the cooldown one half-open probe decides: a recovered ho
   await sleep(150);
   mode["api.flaky5xx.dev"] = "pay"; // recovered
   r = await callAs(env, spot("https://api.flaky5xx.dev/v1/h"), "198.18.22.12");
-  assert.equal(r.body.verdict, "pay"); assert.equal(sellerHits.length, 5);
+  assert.equal(r.body.verdict, "pay"); assert.equal(sellerHits.length, 6, "0.57.0: half-open probe + its confirm probe");
   r = await callAs(env, spot("https://api.flaky5xx.dev/v1/h2"), "198.18.22.13");
-  assert.equal(r.body.verdict, "pay", "closed: normal probes again"); assert.equal(sellerHits.length, 6);
+  assert.equal(r.body.verdict, "pay", "closed: normal probes again"); assert.equal(sellerHits.length, 8, "0.57.0: probe + confirm probe");
   mode["api.flaky5xx.dev"] = "5xx";
 });
 
@@ -352,7 +352,7 @@ test("a stored host_unstable answer is never reused as the 5-min probe cache; ru
     .run(U, at, await probeKeyHash(U, "GET"), at, JSON.stringify({ id: "sc-00000000000000aa", probe: { probed_at: at }, probe_snapshot: B.hostUnstableProbe({ state: "open" }) }));
   sellerHits.length = 0;
   const r = (await callAs(env, spot(U), "198.18.28.1")).body;
-  assert.equal(r.verdict, "pay"); assert.deepEqual(sellerHits, ["api.healthyb.dev/v1/cached"]);
+  assert.equal(r.verdict, "pay"); assert.deepEqual(sellerHits, ["api.healthyb.dev/v1/cached", "api.healthyb.dev/v1/cached"], "0.57.0: probe + confirm probe");
   const rc = REASON_CODES.find((x) => x.code === "host_unstable");
   assert.equal(rc.verdict, "recheck"); assert.equal(rc.confidence, "low"); assert.ok(REASON_TEXT.host_unstable);
   const oa = (await callAs(envFor(d1()), "/openapi.json", "198.18.28.2")).body;

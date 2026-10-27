@@ -575,6 +575,8 @@ export function freeTrialSignal(headers) {
  *   Persisting ~24 h, these fall back to skip (applyTransientGuard in transient.js).
  * - 0.56.0: recheck + host_unstable when the per-host circuit breaker is open (breaker.js; the target was not fetched);
  *   a probe that runs out of its PROBE_TIMEOUT_MS budget (hops + body) is recheck + timeout.
+ * - 0.57.0: recheck + terms_unstable when the live confirm probe (multiprobe.js) read different 402 terms than the
+ *   first probe; a confirm probe that failed carries its own reason (server_error, timeout, unreachable, ...).
  * - skip + no_paywall when reachable with no 402 terms (any other non-5xx status, no trial headers)
  * - skip + bad_challenge when a challenge is present but unreadable / incomplete
  * - skip + price_mismatch when claimed and quoted differ; pay + price_ok when they match or nothing is claimed
@@ -583,6 +585,7 @@ export function freeTrialSignal(headers) {
 export function decideVerdict(probe, claimedPrice) {
   if (!probe || probe.ssrf_blocked) return { verdict: "skip", reason: "ssrf_blocked" };
   if (probe.host_unstable) return { verdict: "recheck", reason: "host_unstable" }; // 0.56.0 breaker open: not fetched
+  if (probe.terms_unstable) return { verdict: "recheck", reason: "terms_unstable" }; // 0.57.0 confirm probe saw other terms
   if (!probe.reachable && probe.dns_error) return { verdict: "recheck", reason: "dns_error" };
   if (!probe.reachable) {
     const err = String(probe.error || "");

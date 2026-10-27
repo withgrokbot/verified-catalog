@@ -165,8 +165,9 @@ test("live check DNS: exactly one retry, then recheck/dns_error (HTTP 200, never
   doh.length = 0;
   const ok = (await check(env, "https://api.flakydns.dev/v1/x")).body;
   assert.equal(ok.verdict, "pay");
-  assert.deepEqual(doh.filter((x) => x.name === "api.flakydns.dev").map((x) => x.retry), [false, false, true, true]);
-  assert.deepEqual(sellerHits, ["api.flakydns.dev"]);
+  // 0.57.0: the confirm probe before pay makes its own DNS lookup (same flaky resolver: one failed try + one retry)
+  assert.deepEqual(doh.filter((x) => x.name === "api.flakydns.dev").map((x) => x.retry), [false, false, true, true, false, false, true, true]);
+  assert.deepEqual(sellerHits, ["api.flakydns.dev", "api.flakydns.dev"]);
   // private / blocked hosts are unchanged: immediate 400, no retry
   doh.length = 0;
   const blocked = await check(env, "https://api.privfix.dev/v1/x");
@@ -273,7 +274,7 @@ test("review 1: a live DNS failure is HTTP 200 recheck/dns_error, uses NO free c
   await seed(db, "https://api.nodns.dev/v1/q2", 30, "recheck", "dns_error");
   const p2 = await callAs(env, "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://api.nodns.dev/v1/q2"), ip);
   assert.equal(p2.body.reason_code, "dns_error_persistent"); assert.equal(p2.body.access.free_check_used, false);
-  assert.deepEqual(otherHits, [], "no facilitator or other outside call"); assert.deepEqual(sellerHits, ["api.okfix.dev"]);
+  assert.deepEqual(otherHits, [], "no facilitator or other outside call"); assert.deepEqual(sellerHits, ["api.okfix.dev", "api.okfix.dev"], "0.57.0: probe + confirm probe of the one pay, still one free check");
   const again = await callAs(env, "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://api.okfix.dev/v1/q3"), ip);
   assert.equal(again.body.access.free_used_today, 2, "only the two real checks counted");
   assert.equal(quota.ops.filter((o) => o.startsWith("take:")).length, 4, "two real checks x (client + network counter)");
