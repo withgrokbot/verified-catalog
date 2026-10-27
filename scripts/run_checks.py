@@ -82,7 +82,9 @@ def main(argv=None):
     qtests = quality.load_tests(qtests_path) if (signer and os.path.exists(qtests_path)) else None
 
     def one(svc):
-        return xp.check_service(svc, timeout=a.timeout, signer=signer, guard=guard, network=a.network,
+        # free_probe_only services (seller-submitted, unpaid tracking) are never paid, even in --pay rounds
+        paid = signer is not None and not svc.get("free_probe_only")
+        return xp.check_service(svc, timeout=a.timeout, signer=signer if paid else None, guard=guard if paid else None, network=a.network,
                                 quality_tests=qtests)
 
     if signer:  # paid calls run one at a time so the caps are checked in order
