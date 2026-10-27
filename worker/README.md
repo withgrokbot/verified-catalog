@@ -213,6 +213,9 @@ payTo (EVM case-insensitive) against every live accepts entry. Answer: `{match, 
 live_terms_sha256, checked_at, recommendation}`; `settle` only on an exact match, else `hold`. Errors also carry
 `recommendation: "hold"`: 400 `bad_input` / `ssrf_blocked` (nothing probed, no rate tick), 429 `rate_limited`,
 502 `seller_unreachable` / `seller_redirect_blocked`, 503 `busy`, 504 `seller_timeout`.
-Free for now: 60 per minute per client (`QuotaCounter`, key `fck:<client id>`, counter `fck`), separate from the
+Free for now: 60 per minute per caller IP (`QuotaCounter`, key `fck:` + `quotaKey()` IP digest (salted, daily, IPv6 /64;
+never the raw IP; `?client=` is ignored so rotating it gains nothing), counter `fck`) and 30 probes per minute per
+seller host across all callers (key `fckh:<lowercase hostname>`, counter `fckh`; over it: 429 `host_rate_limited`,
+nothing probed). x402 v1 sellers (`maxAmountRequired`, v1 network names) compare the same way. Both are separate from the
 spot-check 5/day. No D1/KV writes, no logging. A `paymentPayload` in the body is ignored and never echoed or stored.
 Not on the pricing page. Code: `worker/src/facilcheck.js`; tests: `tests/facilcheck_test.mjs`.

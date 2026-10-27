@@ -1,16 +1,22 @@
 // 0.53.0 POST /v1/facilitator/check: for a facilitator's onBeforeSettle hook. Re-fetches the seller's live
 // advertised x402 terms for the resource (the spot probe: SSRF guards on every hop, timeout, body cap, never any
 // payment header) and compares them with the paymentRequirements about to be settled.
-// Free for now, rate-limited per client (QuotaCounter DO, own counter "fck"; never the spot-check 5/day). No D1 or
+// Free for now. Two limits on the QuotaCounter DO, each under its own key prefix + counter (never the spot-check
+// 5/day): 60/min per caller IP (salted daily IP digest from quotaKey; ?client= is ignored, so rotating it gains
+// nothing) and 30 probes/min per seller host across all callers (over it: 429 hold, nothing probed). No D1 or
 // KV writes, nothing logged. paymentPayload (payer, signature) is never read, stored or echoed: only the seller-side
 // requirement fields below are used.
 import { spotProbe, assertSafeUrl, resolveHost } from "./spotcheck.js";
 import { isPlaceholderUrl, methodNotAllowed } from "./ops.js";
-import { caip, sameAddr, termsSha256, takeFree, clientId, selfFetch, utcMinute } from "./lib.js";
+import { caip, sameAddr, termsSha256, takeFree, quotaKey, selfFetch, utcMinute } from "./lib.js";
 
 export const FACIL_CHECK_PATH = "/v1/facilitator/check";
 export const FACIL_CHECK_PER_MIN = 60;
 export const FACIL_CHECK_COUNTER = "fck";
+export const FACIL_HOST_PER_MIN = 30;
+export const FACIL_HOST_COUNTER = "fckh";
+/** Normalized seller host for the per-host cap: lowercase, trailing dots removed. */
+export const sellerHostKey = (u) => "fckh:" + new URL(u).hostname.toLowerCase().replace(/\.+$/, "");
 export const FACIL_CHECK_MAX_BODY = 16384;
 export const FACIL_FIELDS = ["scheme", "network", "amount", "asset", "payTo"];
 export const FACIL_EXAMPLE = {
@@ -58,8 +64,9 @@ export function diffTerms(req, live) {
   const net = caip(req.network);
   if (String(live.scheme || "") !== req.scheme) out.push({ field: "scheme", expected: req.scheme, live: live.scheme ?? null });
   if (caip(live.network) !== net) out.push({ field: "network", expected: req.network, live: live.network ?? null });
-  let same = false; try { same = live.amount != null && BigInt(String(live.amount)) === BigInt(req.amount); } catch (_) {}
-  if (!same) out.push({ field: "amount", expected: req.amount, live: live.amount ?? null });
+  const liveAmt = live.amount ?? live.maxAmountRequired ?? null; // x402 v1 sellers advertise maxAmountRequired
+  let same = false; try { same = liveAmt != null && BigInt(String(liveAmt)) === BigInt(req.amount); } catch (_) {}
+  if (!same) out.push({ field: "amount", expected: req.amount, live: liveAmt == null ? null : String(liveAmt) });
   if (!sameAddr(req.asset, live.asset, net)) out.push({ field: "asset", expected: req.asset, live: live.asset ?? null });
   if (!sameAddr(req.payTo, live.payTo, net)) out.push({ field: "payTo", expected: req.payTo, live: live.payTo ?? null });
   return out;
@@ -90,14 +97,15 @@ export async function handleFacilitatorCheck(req, env, deps = {}, now = new Date
   const resolveHostFn = deps.resolveHostFn || resolveHost;
   const safe = await assertSafeUrl(p.url, { resolveHostFn, fetchImpl });
   if (!safe.ok) return J({ error: "blocked: " + safe.reason, code: "ssrf_blocked", field: "url", expected: "a public http(s) URL", received: "blocked host", recommendation: "hold", nothing_probed: true }, 400);
-  // rate limit after validation (bad input never counts); own key prefix + counter, so the spot-check quota is untouched
-  const client = new URL(req.url).searchParams.get("client");
-  const cid = await clientId(req, client ? { client: String(client).slice(0, 64) } : {}, env, now);
-  const t = await takeFree(env, "fck:" + cid.id, FACIL_CHECK_PER_MIN, now, "take", FACIL_CHECK_COUNTER, utcMinute(now));
-  if (!t.free) {
-    const ra = String(60 - now.getUTCSeconds());
-    return J({ error: "rate limited", code: "rate_limited", limit: `${FACIL_CHECK_PER_MIN} requests per minute per client`, retry_after_seconds: Number(ra), recommendation: "hold" }, 429, { "retry-after": ra });
-  }
+  // limits after validation (bad input never counts); own key prefixes + counters, so the spot-check quota is untouched.
+  // 1) per caller IP: quotaKey with no client -> "ip:" + salted daily digest of the IP (IPv6 /64); never the raw IP.
+  const ra = String(60 - now.getUTCSeconds());
+  const minute = utcMinute(now);
+  const t = await takeFree(env, "fck:" + (await quotaKey(req, {}, env, now)), FACIL_CHECK_PER_MIN, now, "take", FACIL_CHECK_COUNTER, minute);
+  if (!t.free) return J({ error: "rate limited", code: "rate_limited", limit: `${FACIL_CHECK_PER_MIN} requests per minute per IP`, retry_after_seconds: Number(ra), recommendation: "hold" }, 429, { "retry-after": ra });
+  // 2) per seller host across all callers, checked before any probe
+  const h = await takeFree(env, sellerHostKey(p.url), FACIL_HOST_PER_MIN, now, "take", FACIL_HOST_COUNTER, minute);
+  if (!h.free) return J({ error: "too many checks for this seller host, retry shortly", code: "host_rate_limited", limit: `${FACIL_HOST_PER_MIN} probes per minute per seller host`, retry_after_seconds: Number(ra), recommendation: "hold", nothing_probed: true }, 429, { "retry-after": ra });
   const probeOpts = { fetchImpl: selfFetch(env, fetchImpl), resolveHostFn, ...(deps.timeoutMs ? { timeoutMs: deps.timeoutMs } : {}) };
   let probe = await spotProbe(p.url, { ...probeOpts, method: p.method });
   if (probe && probe.http_status === 405 && !probe.x402_challenge && p.method === "GET") {
@@ -115,7 +123,7 @@ export async function handleFacilitatorCheck(req, env, deps = {}, now = new Date
     return J({ match: false, mismatches: [{ field: "terms", expected: "an x402 402 with accepts", live: "HTTP " + probe.http_status + " without readable terms" }], live_terms_sha256: null, checked_at: checkedAt, recommendation: "hold", live_status: probe.http_status });
   }
   const e = best.entry;
-  const liveHash = await termsSha256({ network: caip(e.network), asset: e.asset, amount_atomic: e.amount, pay_to: e.payTo });
+  const liveHash = await termsSha256({ network: caip(e.network), asset: e.asset, amount_atomic: e.amount ?? e.maxAmountRequired, pay_to: e.payTo });
   const match = best.mismatches.length === 0;
   return J({ match, mismatches: best.mismatches, live_terms_sha256: liveHash, checked_at: checkedAt, recommendation: match ? "settle" : "hold", live_status: probe.http_status, live_accepts_count: probe.accepts.length });
 }

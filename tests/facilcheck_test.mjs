@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { handleFacilitatorCheck, parseFacilInput, diffTerms, FACIL_CHECK_PATH, FACIL_CHECK_PER_MIN } from "../worker/src/facilcheck.js";
+import { handleFacilitatorCheck, parseFacilInput, diffTerms, FACIL_CHECK_PATH, FACIL_CHECK_PER_MIN, FACIL_HOST_PER_MIN } from "../worker/src/facilcheck.js";
 import { VERSION } from "../worker/src/lib.js";
 import worker from "../worker/src/index.js";
 
@@ -136,24 +136,66 @@ test("bad input: 400 bad_input, hold, nothing probed, never echoes the body", as
   assert.equal(parseFacilInput({ paymentRequirements: REQ, url: URL_ }).req.amount, "20000");
 });
 
-test("rate limit: own key prefix + counter (never the spot-check quota), 60/min per client, then 429 hold", async () => {
+test("rate limit: 60/min per caller IP digest; rotating ?client= (or User-Agent) gains nothing; never the spot-check quota", async () => {
   const env = { CLIENT_SALT: "s", ...quota() };
   assert.equal(FACIL_CHECK_PER_MIN, 60);
-  for (let i = 0; i < FACIL_CHECK_PER_MIN; i++) assert.equal((await handleFacilitatorCheck(post({ paymentRequirements: REQ, url: URL_ }), env, seller(), NOW)).status, 200);
-  const r = await handleFacilitatorCheck(post({ paymentRequirements: REQ, url: URL_ }), env, seller(), NOW);
-  assert.equal(r.status, 429);
-  assert.equal((await r.json()).recommendation, "hold");
-  assert.ok(r.headers.get("retry-after"));
-  assert.equal((await handleFacilitatorCheck(post({ paymentRequirements: REQ, url: URL_ }, { ip: "192.0.2.80" }), env, seller(), NOW)).status, 200, "other client unaffected");
-  assert.equal((await handleFacilitatorCheck(post({ paymentRequirements: REQ, url: URL_ }, { q: "?client=fac-1" }), env, seller(), NOW)).status, 200, "client= gets its own bucket");
-  assert.ok(env.calls.length > 0);
-  for (const c of env.calls) {
-    assert.match(c.key, /^fck:/);
-    assert.equal(c.counter, "fck");
-    assert.equal(c.day, "2026-10-27T15:00", "per-minute period");
+  const body = (i) => ({ paymentRequirements: REQ, url: `https://s${i}.fixture/api` }); // distinct hosts: only the IP limit applies
+  const call = (i, opts) => handleFacilitatorCheck(post(body(i), opts), env, seller(), NOW);
+  for (let i = 0; i < FACIL_CHECK_PER_MIN; i++) assert.equal((await call(i, { q: "?client=rot-" + i })).status, 200, "call " + i);
+  for (const q of ["", "?client=fresh-name", "?client=another"]) {
+    const r = await call(100, { q });
+    assert.equal(r.status, 429, "rotated client " + q);
+    const j = await r.json();
+    assert.deepEqual([j.code, j.recommendation], ["rate_limited", "hold"]);
+    assert.ok(j.retry_after_seconds > 0 && r.headers.get("retry-after"));
   }
-  assert.ok(!env.calls.some((c) => /spotcheck|^ip:|^c:/.test(c.key) || c.counter === "spotcheck" || c.counter === "q"), "spot-check quota untouched");
+  const ua = new Request(post(body(101)), { headers: { "content-type": "application/json", "cf-connecting-ip": "198.51.100.7", "user-agent": "rotated/1" } });
+  assert.equal((await handleFacilitatorCheck(ua, env, seller(), NOW)).status, 429, "rotated UA");
+  assert.equal((await call(102, { ip: "192.0.2.80" })).status, 200, "another IP unaffected");
+  assert.equal((await handleFacilitatorCheck(post(body(103)), env, seller(), new Date("2026-10-27T15:01:05Z"))).status, 200, "next minute");
+  const ipKeys = env.calls.filter((c) => c.counter === "fck");
+  assert.ok(ipKeys.length > 0);
+  for (const c of ipKeys) { assert.match(c.key, /^fck:ip:[0-9a-f]{24}$/); assert.match(c.day, /^2026-10-27T15:0[01]$/); }
+  assert.equal(new Set(ipKeys.filter((c) => c.day.endsWith("15:00")).map((c) => c.key)).size, 2, "one bucket per IP whatever the client name");
+  for (const c of env.calls) assert.ok(["fck", "fckh"].includes(c.counter), c.counter);
+  assert.ok(!env.calls.some((c) => /spotcheck|^ip:|^c:|rot-|fresh/.test(c.key) || c.counter === "spotcheck" || c.counter === "q"), "spot-check quota untouched, client names unused");
   assert.ok(!env.calls.some((c) => /198\.51|192\.0/.test(c.key)), "no raw IP in keys");
+});
+
+test("per seller host cap: 30 probes/min across all callers (lowercase host), then 429 hold with nothing probed", async () => {
+  const env = { CLIENT_SALT: "s", ...quota() };
+  assert.equal(FACIL_HOST_PER_MIN, 30);
+  const calls = [];
+  for (let i = 0; i < FACIL_HOST_PER_MIN; i++) {
+    const host = i % 2 ? "SELLER.fixture" : "seller.fixture."; // case + trailing dot normalize to one host
+    const r = await handleFacilitatorCheck(post({ paymentRequirements: REQ, url: `https://${host}/api/${i}` }, { ip: "203.0.113." + (i + 1) }), env, seller([LIVE], 402, calls), NOW);
+    assert.equal(r.status, 200, "call " + i);
+  }
+  assert.equal(calls.length, FACIL_HOST_PER_MIN);
+  const r = await handleFacilitatorCheck(post({ paymentRequirements: REQ, url: URL_ }, { ip: "192.0.2.200" }), env, seller([LIVE], 402, calls), NOW);
+  assert.equal(r.status, 429);
+  const j = await r.json();
+  assert.deepEqual([j.code, j.recommendation, j.nothing_probed], ["host_rate_limited", "hold", true]);
+  assert.ok(j.retry_after_seconds > 0 && r.headers.get("retry-after"));
+  assert.equal(calls.length, FACIL_HOST_PER_MIN, "no probe over the cap");
+  assert.equal((await handleFacilitatorCheck(post({ paymentRequirements: REQ, url: "https://other.fixture/api" }, { ip: "192.0.2.200" }), env, seller([LIVE], 402, calls), NOW)).status, 200, "other hosts unaffected");
+  const hostKeys = [...new Set(env.calls.filter((c) => c.counter === "fckh").map((c) => c.key))].sort();
+  assert.deepEqual(hostKeys, ["fckh:other.fixture", "fckh:seller.fixture"]);
+});
+
+test("x402 v1 seller: live maxAmountRequired + v1 network name compare like v2 (settle / hold with the live value)", async () => {
+  const V1 = { scheme: "exact", network: "base", maxAmountRequired: "20000", asset: ASSET, payTo: PAYTO, resource: URL_, maxTimeoutSeconds: 60 };
+  const v1seller = (live) => ({ resolveHostFn: async () => ["203.0.113.50"], fetchImpl: async () => new Response(JSON.stringify({ x402Version: 1, accepts: [live] }), { status: 402, headers: { "content-type": "application/json" } }) });
+  const ok = await run({ paymentRequirements: REQ, url: URL_ }, v1seller(V1));
+  assert.deepEqual([ok.status, ok.body.match, ok.body.recommendation], [200, true, "settle"]);
+  assert.equal(ok.body.live_terms_sha256, createHash("sha256").update(["eip155:8453", ASSET.toLowerCase(), "20000", PAYTO.toLowerCase()].join("|")).digest("hex"));
+  const bad = await run({ paymentRequirements: REQ, url: URL_ }, v1seller({ ...V1, maxAmountRequired: "25000" }));
+  assert.deepEqual([bad.body.match, bad.body.recommendation], [false, "hold"]);
+  assert.deepEqual(bad.body.mismatches, [{ field: "amount", expected: "20000", live: "25000" }]);
+  // diffTerms on a raw v1 entry (not via the probe summary) reads maxAmountRequired too
+  assert.deepEqual(diffTerms(REQ, V1), []);
+  assert.deepEqual(diffTerms(REQ, { ...V1, maxAmountRequired: "1" }), [{ field: "amount", expected: "20000", live: "1" }]);
+  assert.deepEqual(diffTerms(REQ, { ...V1, network: "base-sepolia" }).map((m) => m.field), ["network"]);
 });
 
 test("routed via the worker; listed in OpenAPI, llms.txt, skill.md, docs; not on the pricing page", async () => {
@@ -170,7 +212,7 @@ test("routed via the worker; listed in OpenAPI, llms.txt, skill.md, docs; not on
     const res = await worker.fetch(post({ paymentRequirements: REQ, url: URL_ }), env, { waitUntil() {} });
     assert.equal(res.status, 200);
     assert.equal((await res.json()).recommendation, "settle");
-    assert.ok(q.calls.every((c) => c.counter === "fck"));
+    assert.deepEqual(q.calls.map((c) => c.counter).sort(), ["fck", "fckh"]);
     const bad = await worker.fetch(post({}), env, { waitUntil() {} });
     assert.equal(bad.status, 400);
     const bb = await bad.json();
