@@ -151,5 +151,59 @@ class TermHistory(unittest.TestCase):
         self.assertEqual([(r["new_rows"], r["last_seen_updates"]) for r in e["runs"]], [(2, 0), (1, 1)])
 
 
+
+STUB = """import json, os, sys
+a = sys.argv[1:]
+open(os.environ["STUB_LOG"], "a").write(" ".join(a) + "\\n")
+if a[:2] == ["d1", "info"]:
+    v = os.environ.get("STUB_D1_SIZE", "")
+    if v == "fail": sys.exit(1)
+    print(json.dumps({"name": "vc-spot-receipts", "num_tables": 25, "database_size": int(v)}))
+elif "--command" in a: print(json.dumps([{"results": []}]))
+"""
+
+
+class SizeGuard(unittest.TestCase):
+    """--remote checks `wrangler d1 info --json` first; over the ceiling (or unreadable) nothing is written."""
+
+    def run_main(self, size, *extra, env_max=None):
+        d = tempfile.mkdtemp()
+        stub, log = os.path.join(d, "wrangler.py"), os.path.join(d, "log")
+        open(stub, "w").write(STUB); open(log, "w").close()
+        old = {k: os.environ.get(k) for k in ("TERM_HISTORY_WRANGLER", "STUB_LOG", "STUB_D1_SIZE", "D1_SIZE_MAX_MB")}
+        os.environ.update(TERM_HISTORY_WRANGLER=f"{sys.executable} {stub}", STUB_LOG=log, STUB_D1_SIZE=str(size))
+        if env_max: os.environ["D1_SIZE_MAX_MB"] = env_max
+        else: os.environ.pop("D1_SIZE_MAX_MB", None)
+        try:
+            self.assertEqual(th.main([*extra, "--out", os.path.join(d, "out"), crawl(rec())]), 0)
+        finally:
+            for k, v in old.items():
+                if v is None: os.environ.pop(k, None)
+                else: os.environ[k] = v
+        return open(log).read().splitlines()
+
+    def files_applied(self, calls): return [c for c in calls if "--file" in c]
+
+    def test_remote_under_limit_writes(self):
+        calls = self.run_main(399_000_000, "--remote")
+        self.assertTrue(any(c == "d1 info RECEIPTS_DB --json" for c in calls))
+        self.assertEqual(len(self.files_applied(calls)), 1)
+
+    def test_remote_over_limit_skips_and_exits_0(self):
+        self.assertEqual(self.files_applied(self.run_main(401_000_000, "--remote")), [])
+
+    def test_unreadable_size_skips(self):
+        self.assertEqual(self.files_applied(self.run_main("fail", "--remote")), [])
+
+    def test_ceiling_configurable(self):
+        self.assertEqual(len(self.files_applied(self.run_main(450_000_000, "--remote", "--max-mb", "500"))), 1)
+        self.assertEqual(len(self.files_applied(self.run_main(450_000_000, "--remote", env_max="500"))), 1)
+        self.assertEqual(self.files_applied(self.run_main(450_000_000, "--remote", env_max="junk")), [])
+
+    def test_local_does_not_call_info(self):
+        calls = self.run_main(999_000_000, "--local")
+        self.assertFalse(any(c.startswith("d1 info") for c in calls))
+        self.assertEqual(len(self.files_applied(calls)), 1)
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

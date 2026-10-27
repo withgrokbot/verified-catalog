@@ -9,6 +9,7 @@ Key: endpoint_key = "h:" + sha256(norm_url), same as the Worker's historyKey / e
 Usage:
   python3 term_history.py [--local|--remote] [--persist-to DIR] [--dry-run] [--out DIR] RECEIPTS.jsonl [MORE.jsonl ...]
       Reads the open rows from that D1 (read-only SELECT), diffs, writes SQL files, applies them (skipped with --dry-run).
+      --remote checks the D1 size first (wrangler d1 info --json) and writes nothing over D1_SIZE_MAX_MB / --max-mb (400).
       Several files = backfill, applied oldest first. --local is the default (nothing leaves the box); --remote only
       with the owner's OK (weekly_refresh_skips.sh passes it when TERM_HISTORY=1).
   python3 term_history.py --estimate RECEIPTS.jsonl [MORE.jsonl ...]
@@ -95,11 +96,36 @@ def chunk(stmts, limit=FILE_BYTES):
     if cur: files.append(cur)
     return files
 
-def wrangler(args, where):
+def _wrangler(args):
     env = {k: v for k, v in os.environ.items() if k not in ("CF_API_TOKEN", "CLOUDFLARE_API_TOKEN")}
     base = os.environ.get("TERM_HISTORY_WRANGLER", "").split() or ["npx", "-y", "-p", "node@22", "-p", "wrangler@latest", "wrangler"]  # override: local tests
-    cmd = [*base, "d1", "execute", DB, *where, *args]
-    return subprocess.run(cmd, cwd=WORKER, env=env, check=True, capture_output=True, text=True).stdout
+    return subprocess.run([*base, *args], cwd=WORKER, env=env, check=True, capture_output=True, text=True).stdout
+
+def wrangler(args, where): return _wrangler(["d1", "execute", DB, *where, *args])
+
+# D1 size guard (same rule as worker/src/d1size.js): over D1_SIZE_MAX_MB (default 400) this writer stops and warns.
+# Size comes from `wrangler d1 info <db> --json` (database_size, bytes). If it cannot be read, writes are skipped too.
+D1_SIZE_MAX_MB_DEFAULT = 400
+def d1_max_mb(cli=None):
+    for v in (cli, os.environ.get("D1_SIZE_MAX_MB")):
+        try:
+            if v is not None and float(v) > 0: return float(v)
+        except ValueError: pass
+    return D1_SIZE_MAX_MB_DEFAULT
+
+def d1_size_bytes():
+    try:
+        j = json.loads(_wrangler(["d1", "info", DB, "--json"]))
+        v = j.get("database_size", j.get("file_size"))
+        return int(v) if v is not None else None
+    except Exception: return None
+
+def d1_write_allowed(max_mb, writer="term_history"):
+    size = d1_size_bytes()
+    if size is not None and size <= max_mb * 1e6: return True
+    print(json.dumps({"d1_size_guard": "over" if size is not None else "unknown", "writer": writer,
+                      "size_mb": round(size / 1e6, 1) if size is not None else None, "max_mb": max_mb, "skipped": True}), file=sys.stderr)
+    return False
 
 def migration_sql():
     """0019 from the repo checkout (scripts/weekly-crawl/../../worker) or the factory app (CRAWL_WORKER_DIR)."""
@@ -130,6 +156,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     g = ap.add_mutually_exclusive_group(); g.add_argument("--local", action="store_true"); g.add_argument("--remote", action="store_true"); g.add_argument("--estimate", action="store_true")
     ap.add_argument("--persist-to"); ap.add_argument("--dry-run", action="store_true"); ap.add_argument("--out")
+    ap.add_argument("--max-mb", help="D1 size guard ceiling in MB (default D1_SIZE_MAX_MB or 400); --remote only")
     ap.add_argument("files", nargs="+")
     a = ap.parse_args(argv)
     files = sorted(a.files, key=os.path.basename)  # receipts-YYYYMMDDTHHMMSSZ.jsonl: name order = time order
@@ -145,8 +172,9 @@ def main(argv=None):
     paths = []
     for i, c in enumerate(chunk(stmts)):
         fp = os.path.join(out, f"term_history_{i:03d}.sql"); open(fp, "w").write("\n".join(c) + "\n"); paths.append(fp)
-    print(json.dumps({"new_rows": len(ins_all), "last_seen_updates": len(bump_all), "sql_files": len(paths), "out": out, "applied": not a.dry_run}))
-    if not a.dry_run:
+    apply = not a.dry_run and (not a.remote or d1_write_allowed(d1_max_mb(a.max_mb)))
+    print(json.dumps({"new_rows": len(ins_all), "last_seen_updates": len(bump_all), "sql_files": len(paths), "out": out, "applied": apply}))
+    if apply:
         for fp in paths: wrangler(["--file", fp], where)
     return 0
 
