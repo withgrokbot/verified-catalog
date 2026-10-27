@@ -2692,7 +2692,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.51.4");
+  assert.equal(VERSION, "0.52.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -4374,3 +4374,72 @@ for (const [name, fn] of T) {
 }
 console.log(`${passed}/${T.length - skipped} worker tests passed` + (skipped ? ` (${skipped} skipped)` : ""));
 process.exit(passed === T.length ? 0 : 1);
+
+// 0.52.0 spot funnel: free_check -> cap_hit (before the 402) -> paid (after verify+settle and the idempotency check)
+test("0.52.0 funnel: free_check, cap_hit before the 402, paid once; digests only, never the raw client key", async () => {
+  const e = spotEnv();
+  const fpts = [];
+  e.env.FUNNEL = { writeDataPoint(p) { fpts.push(p); } };
+  spotTargetMode = "402";
+  facMode = "ok";
+  const target = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=funnel-1";
+  const free = await send(target, { envo: e });
+  assert.equal(free.status, 200);
+  assert.deepEqual(fpts.map((p) => p.blobs[0]), ["free_check"]);
+  assert.equal(fpts[0].doubles[0], 0, "credits remaining after the only free check");
+  const cap = await send(target, { envo: e });
+  assert.equal(cap.status, 402);
+  assert.deepEqual(fpts.map((p) => p.blobs[0]), ["free_check", "cap_hit"]);
+  assert.equal(cap.body.cap_hit, true);
+  assert.ok(Array.isArray(cap.body.paid_adds) && cap.body.paid_adds.length === 6);
+  assert.equal(cap.body.price.amount_atomic, "250000");
+  assert.equal(cap.body.price.pay_to, PAY_TO);
+  assert.equal(cap.body.payment_instructions.header, "PAYMENT-SIGNATURE");
+  assert.ok(cap.body.paid_adds.some((x) => x.startsWith("reputation: 0-100")));
+  const pay = spotPayment({ amount: "250000" });
+  const paid = await send(target, { envo: e, headers: { "payment-signature": pay } });
+  assert.equal(paid.status, 200);
+  const evs = fpts.map((p) => p.blobs[0]);
+  assert.deepEqual(evs, ["free_check", "cap_hit", "paid"]);
+  const d = fpts[0].blobs[1];
+  assert.match(d, /^[0-9a-f]{32}$/);
+  assert.ok(fpts.every((p) => p.blobs[1] === d && p.indexes[0] === d), "one per-day digest for the client");
+  assert.ok(!JSON.stringify(fpts).includes("funnel-1"), "the raw client key is never written");
+  assert.equal(fpts[2].doubles[2], 0, "outside payer is not self-test");
+});
+
+test("0.52.0 funnel: a replayed settlement (retry of the same payload) is never counted as a second paid", async () => {
+  const rows = new Map();
+  const db = { prepare(sql) { let a = []; return { bind(...x) { a = x; return this; },
+    async first() { if (/FROM settled_payments/.test(sql)) return rows.get(a[0]) || null; return null; },
+    async run() { if (/INTO settled_payments/.test(sql) && !rows.has(a[0])) rows.set(a[0], { resource: a[1], amount: a[2], settle: a[3], facilitator: a[4] }); return { meta: { changes: 1 } }; },
+    async all() { return { results: [] }; } }; }, async batch(s) { return Promise.all(s.map((x) => x.run())); } };
+  const e = spotEnv({ RECEIPTS_DB: db });
+  const fpts = [];
+  e.env.FUNNEL = { writeDataPoint(p) { fpts.push(p); } };
+  spotTargetMode = "402";
+  facMode = "ok";
+  const target = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=funnel-2";
+  await send(target, { envo: e });
+  const pay = spotPayment({ amount: "250000" });
+  const a = await send(target, { envo: e, headers: { "payment-signature": pay } });
+  const b = await send(target, { envo: e, headers: { "payment-signature": pay } });
+  assert.equal(a.status, 200);
+  assert.equal(b.status, 200, "the retry is answered from the stored settlement");
+  assert.equal(fpts.filter((p) => p.blobs[0] === "paid").length, 1);
+});
+
+test("0.52.0 funnel: our own wallet's payments are flagged self-test (excluded by the admin query)", async () => {
+  const e = spotEnv();
+  const fpts = [];
+  e.env.FUNNEL = { writeDataPoint(p) { fpts.push(p); } };
+  spotTargetMode = "402";
+  facMode = "ok";
+  const target = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=funnel-3";
+  await send(target, { envo: e });
+  facPayer = PAY_TO;
+  try {
+    await send(target, { envo: e, headers: { "payment-signature": spotPayment({ amount: "250000" }) } });
+  } finally { facPayer = "0x" + "11".repeat(20); }
+  assert.equal(fpts.filter((p) => p.blobs[0] === "paid").pop().doubles[2], 1);
+});

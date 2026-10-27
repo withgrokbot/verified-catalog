@@ -95,6 +95,11 @@ BULK_REPORT = "1"  # 0.49.0: bulk endpoint report on (1-5 URLs, min(n x $0.05, $
 binding = "LOOKUPS"
 dataset = "vc_lookups"
 
+# 0.52.0 spot funnel (free_check / cap_hit / paid), per-day digests only; read at admin GET /v1/admin/funnel
+[[analytics_engine_datasets]]
+binding = "FUNNEL"
+dataset = "vc_funnel"
+
 # Free-quota counter: one SQLite-backed Durable Object per client key (Workers free plan).
 [[durable_objects.bindings]]
 name = "QUOTA"
