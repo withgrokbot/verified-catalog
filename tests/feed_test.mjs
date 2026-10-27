@@ -1,4 +1,4 @@
-// 0.52.0 Watchtower drift & liveness feed tests. Real SQLite (node:sqlite) runs migrations 0011, 0013, 0016, 0017 and 0018
+// 0.52.0 Watchtower data feed (drift & liveness) tests. Real SQLite (node:sqlite) runs migrations 0011, 0013, 0016, 0017 and 0018
 // behind a tiny D1 adapter; the facilitator is stubbed. All data is synthetic. Run: npx -y -p node@22 node tests/feed_test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -225,6 +225,7 @@ test("tier gating: free is 24 h delayed and capped at 100 rows; live=1 without p
   assert.equal(p.j.x402Version, 2);
   assert.equal(p.j.accepts[0].network, "eip155:84532");
   assert.equal(p.j.accepts[0].amount, "10000");
+  assert.match(p.j.resource.description, /^402xAgent Watchtower data feed: \$0\.01 /); // naming: data feed, not the Watchtower monitor
   assert.equal(p.j.accepts[0].asset.toLowerCase(), "0x036cbd53842c5426634e7929541ec2318f3dcf7e");
   assert.equal(p.j.testnet, true);
   assert.ok(p.headers.get("payment-required"));
@@ -403,13 +404,17 @@ test("routing: worker.fetch serves /v1/feed only when FEED=1", async () => {
   const s = setup();
   const on = await worker.fetch(new Request("https://api.402xagent.com/v1/feed/manifest"), s.env, { waitUntil() {} });
   assert.equal(on.status, 200);
-  assert.equal((await on.json()).schema, "feed.v1");
+  const onJ = await on.json();
+  assert.equal(onJ.schema, "feed.v1");
+  assert.equal(onJ.issuer, "402xAgent Watchtower data feed");
   const oa = async (env) => (await (await worker.fetch(new Request("https://api.402xagent.com/openapi.json"), env, { waitUntil() {} })).json()).paths;
   const pOn = await oa(s.env), pOff = await oa({ RECEIPTS_DB: d1() });
   for (const p of ["/v1/feed", "/v1/feed/endpoint/{hkey}", "/v1/feed/drift", "/v1/feed/snapshot.json", "/v1/feed/snapshot.csv", "/v1/feed/manifest", "/v1/feed/subscribe", "/v1/watch/{watch_id}/feed"]) assert.ok(pOn[p], p);
   assert.ok(!pOff["/v1/feed"]);
+  assert.match(pOn["/v1/feed"].get.summary, /^Watchtower data feed \(separate from the Watchtower monitor, POST \/v1\/watch\)/);
+  assert.match(pOn["/v1/watch"].post.summary, /^Watchtower \(0\.47\.0\): watch one x402 endpoint for \$1 USDC per 30 days/); // monitor copy unchanged
   const llms = async (env) => (await worker.fetch(new Request("https://api.402xagent.com/llms.txt"), env, { waitUntil() {} })).text();
-  assert.match(await llms(s.env), /Watchtower feed .*\/v1\/feed\/manifest/);
+  assert.match(await llms(s.env), /Watchtower data feed \(separate from the Watchtower monitor.*\/v1\/feed\/manifest/);
   assert.ok(!/v1\/feed/.test(await llms({ RECEIPTS_DB: d1() })));
 });
 

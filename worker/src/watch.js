@@ -504,12 +504,12 @@ export async function handleWatch(req, env, ctx, url, deps) {
     await db.prepare("INSERT INTO watches (id, secret_hash, url, method, hkey, webhook_url, webhook_hash, webhook_domain_hash, ip_hash, status, trial, paid, created_at, paid_until, period_start, slot, next_probe_at, baseline_json, baseline_sig, baseline_at, state, last_event_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'up', ?)")
       .bind(id, await sha256Hex(pepper(env) + ":" + secret), t.toString(), method, hkey, wh.toString(), whHash, domHash, ipHash, trial ? 1 : 0, trial ? 0 : 1, iso(now), paidUntil, iso(now), slot, iso(new Date(now).getTime() + probeInterval(env)), JSON.stringify(base), bsig, iso(now), signedVerify.event_id).run();
     await db.prepare("INSERT INTO watch_events (id, watch_id, type, created_at, payload) VALUES (?, ?, 'watch.verify', ?, ?)").bind(signedVerify.event_id, id, iso(now), JSON.stringify(signedVerify)).run();
-    // 0.52.0: opt in to the public Watchtower feed (default off: a watched URL never appears unless its owner says so)
+    // 0.52.0: opt in to the public Watchtower data feed (default off: a watched URL never appears unless its owner says so)
     let feedOptIn = false;
     let feedCap = false;
     if (b.feed_opt_in === true && feedObserveOn(env)) { try { if (await optInAllowed(env, db)) { await setOptIn(db, id, true, now); feedOptIn = true; } else feedCap = true; } catch (_) {} }
     const rc = trial ? null : await paymentReceipt(env, w, "create", cd, paidUntil, now, payFacilitator);
-    return jsonResp({ watch_id: id, ...(feedOptIn ? { feed_opt_in: true } : {}), ...(feedCap ? { feed_opt_in: false, feed_opt_in_note: `the public feed is at its opt-in cap (${optInMax(env)}); the watch works normally` } : {}), watch_secret: secret, secret_note: "shown once; send as Authorization: Bearer <watch_secret> to GET, verify or DELETE this watch", status: "active", trial, paid_until: paidUntil,
+    return jsonResp({ watch_id: id, ...(feedOptIn ? { feed_opt_in: true } : {}), ...(feedCap ? { feed_opt_in: false, feed_opt_in_note: `the Watchtower data feed is at its opt-in cap (${optInMax(env)}); the watch works normally` } : {}), watch_secret: secret, secret_note: "shown once; send as Authorization: Bearer <watch_secret> to GET, verify or DELETE this watch", status: "active", trial, paid_until: paidUntil,
       baseline: { ...base, sig: bsig }, verify_event_id: signedVerify.event_id, ...(rc ? { receipt_id: rc.id, receipt: rc } : {}), manage: { get: "/v1/watch/" + id, renew: "/v1/watch/" + id + "/renew", verify: "/v1/watch/" + id + "/verify" } }, 201, payHeaders);
   }
   const m = /^\/v1\/watch\/(wt-[0-9a-f]{16})(\/renew|\/verify|\/feed)?$/.exec(path);
@@ -539,11 +539,11 @@ export async function handleWatch(req, env, ctx, url, deps) {
   if (!w) return jsonResp({ error: "send Authorization: Bearer <watch_secret> (returned once at create)", code: "unauthorized" }, 401, { "www-authenticate": "Bearer" });
   if (m[2] === "/feed") { // 0.52.0: {opt_in: true|false} (Bearer). Opting out removes watch-sourced feed rows for this URL.
     if (req.method !== "POST") return methodNotAllowed(req.method, "POST, OPTIONS", url.pathname, { docs: "https://402xagent.com/docs#watchtower" });
-    if (!feedObserveOn(env)) return jsonResp({ error: "the Watchtower feed is not enabled yet", code: "not_enabled" }, 404);
+    if (!feedObserveOn(env)) return jsonResp({ error: "the Watchtower data feed is not enabled yet", code: "not_enabled" }, 404);
     const fb = await readBody(req);
     if (!fb || typeof fb.opt_in !== "boolean") return jsonResp({ error: 'send JSON {"opt_in": true|false}', code: "bad_body", field: "opt_in" }, 400);
     const was = await isOptedIn(db, w.id);
-    if (fb.opt_in && !was && !(await optInAllowed(env, db))) return jsonResp({ error: `the public feed is at its opt-in cap (${optInMax(env)}); try again later`, code: "opt_in_cap", watch_id: w.id, feed_opt_in: false }, 409);
+    if (fb.opt_in && !was && !(await optInAllowed(env, db))) return jsonResp({ error: `the Watchtower data feed is at its opt-in cap (${optInMax(env)}); try again later`, code: "opt_in_cap", watch_id: w.id, feed_opt_in: false }, 409);
     await setOptIn(db, w.id, fb.opt_in, now);
     if (!fb.opt_in) {
       const others = ((await db.prepare("SELECT COUNT(*) AS n FROM watches w JOIN feed_opt_ins f ON f.watch_id = w.id WHERE w.url = ? AND w.status != 'deleted' AND w.id != ?").bind(w.url, w.id).first()) || {}).n || 0;

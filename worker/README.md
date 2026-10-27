@@ -203,9 +203,10 @@ With no secrets set there is only one source, so `safe_to_resign` is never true.
 ## Hosted mode (0.41.0, part one)
 Integrator keys for routers/wallets: `Authorization: Bearer 402x_live_<id>_<secret>` (or `x-402xagent-key`) on the check and payment status. 1,000 free hosted checks (lifetime), then $0.02, $0.01 for each billable check after the first 1,000 in a UTC month; cached answers count. Credit limit $20 until the first invoice is paid, then $100 (from `hosted_usage`); over it the call takes the normal free/x402 path. D1 only (migration 0009: `integrators` with the key hash only, `hosted_usage` one row per hosted receipt). Secret `HOSTED_KEY_PEPPER` (without it a keyed call gets 501; calls without a key are unchanged). `GET /v1/integrators/me` shows the meter. Owner tool: `node scripts/hosted_key.mjs pepper|issue <name>|revoke <id>|meter <id>`. Not yet: invoices and the invoice cron (part two).
 
-## Watchtower drift & liveness feed (0.52.0, 0.53.1 modes; off by default)
+## Watchtower data feed (drift & liveness facts; 0.52.0, 0.53.1 modes; off by default)
 
-Facts only: liveness, payment terms (seller `pay_to` is public) and drift/down/recovery events. No scores, grades,
+A separate product from the Watchtower monitor (`POST /v1/watch`, $1 per watched endpoint per 30 days, signed webhooks):
+the Watchtower data feed publishes facts only: liveness, payment terms (seller `pay_to` is public) and drift/down/recovery events. No scores, grades,
 ratings or rankings. Migration `0018_feed.sql` (D1 only, no KV). Code: `src/feed.js`; tests: `tests/feed_test.mjs`.
 
 Flags (none set in wrangler.toml), see `feedMode(env)` in `src/feed.js`:
