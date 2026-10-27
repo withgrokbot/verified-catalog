@@ -202,3 +202,21 @@ With no secrets set there is only one source, so `safe_to_resign` is never true.
 
 ## Hosted mode (0.41.0, part one)
 Integrator keys for routers/wallets: `Authorization: Bearer 402x_live_<id>_<secret>` (or `x-402xagent-key`) on the check and payment status. 1,000 free hosted checks (lifetime), then $0.02, $0.01 for each billable check after the first 1,000 in a UTC month; cached answers count. Credit limit $20 until the first invoice is paid, then $100 (from `hosted_usage`); over it the call takes the normal free/x402 path. D1 only (migration 0009: `integrators` with the key hash only, `hosted_usage` one row per hosted receipt). Secret `HOSTED_KEY_PEPPER` (without it a keyed call gets 501; calls without a key are unchanged). `GET /v1/integrators/me` shows the meter. Owner tool: `node scripts/hosted_key.mjs pepper|issue <name>|revoke <id>|meter <id>`. Not yet: invoices and the invoice cron (part two).
+
+## Facilitator pre-settle check (0.53.0)
+
+`POST /v1/facilitator/check` with JSON `{paymentRequirements: {scheme, network, amount, asset, payTo, resource?}, url?, method?}`
+is meant for a facilitator's `onBeforeSettle` hook. It re-reads the seller's live 402 terms for the resource with
+`spotProbe` (same SSRF guards on every redirect, 8 s timeout, 64 KB cap, never a payment header; a 405 to GET is
+retried once with POST) and compares scheme, network (CAIP-2; x402 v1 names mapped), amount (integer), asset and
+payTo (EVM case-insensitive) against every live accepts entry. Answer: `{match, mismatches[{field, expected, live}],
+live_terms_sha256, checked_at, recommendation}`; `settle` only on an exact match, else `hold`. Errors also carry
+`recommendation: "hold"`: 400 `bad_input` / `ssrf_blocked` (nothing probed, no rate tick), 429 `rate_limited`,
+502 `seller_unreachable` / `seller_redirect_blocked`, 503 `busy`, 504 `seller_timeout`.
+Free for now: 60 per minute per caller IP (`QuotaCounter`, key `fck:` + `quotaKey()` IP digest (salted, daily, IPv6 /64;
+never the raw IP; `?client=` is ignored so rotating it gains nothing), counter `fck`) and 30 probes per minute per
+seller host across all callers (key `fckh:<lowercase hostname>`, counter `fckh`; over it: 429 `host_rate_limited`,
+nothing probed). Unlike other routes, a counter error or missing `QUOTA` binding fails CLOSED here: 503
+`limiter_unavailable`, `hold`, nothing probed. x402 v1 sellers (`maxAmountRequired`, v1 network names) compare the same way. Both are separate from the
+spot-check 5/day. No D1/KV writes, no logging. A `paymentPayload` in the body is ignored and never echoed or stored.
+Not on the pricing page. Code: `worker/src/facilcheck.js`; tests: `tests/facilcheck_test.mjs`.
