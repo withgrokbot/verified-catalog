@@ -2094,7 +2094,7 @@ test("0.25.0: recent_checks in /v1/skips.json: outside free checks only, URL pat
   assert.ok(Array.isArray(sk.skips) && "endpoints_covered" in sk, "existing structure unchanged");
   assert.equal(sk.recent_checks.length, 1, JSON.stringify(sk.recent_checks));
   const x = sk.recent_checks[0];
-  assert.deepEqual(Object.keys(x), ["url", "verdict", "reason", "checked_at", "receipt_url", "caller", "terms_age_hours", "terms_stale"]); // 0.54.0: + terms age on pay entries
+  assert.deepEqual(Object.keys(x), ["url", "verdict", "reason", "checked_at", "receipt_url", "caller", "reason_code", "terms_age_hours", "terms_stale"]); // 0.54.0: + terms age on pay entries; 0.55.0: + reason_code
   assert.equal(x.terms_stale, false);
   assert.deepEqual([x.url, x.verdict, x.reason, x.caller, x.receipt_url], [R, "pay", "payment request matches the listed price", "outside", "https://402xagent.com/v1/receipts/" + a.body.receipt_id]);
   assert.match(x.checked_at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
@@ -2693,7 +2693,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.54.0");
+  assert.equal(VERSION, "0.55.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2800,7 +2800,7 @@ test("0.37.0 reputation: documented weighted formula; new hosts are insufficient
   const rj = rulesJson("https://402xagent.com");
   assert.deepEqual(rj.reputation.weights, REPUTATION_WEIGHTS);
   assert.match(rj.reputation.formula, /sum\(w_i \* c_i\)/);
-  assert.equal(rj.reason_codes.length, 19); // 0.53.3: + delivery_failed; 0.54.0: + terms_changed_since_quote, terms_stale
+  assert.equal(rj.reason_codes.length, 25); // 0.53.3: + delivery_failed; 0.54.0: + terms_changed_since_quote, terms_stale
   assert.ok(rj.quality_codes.some((q) => q.code === "quality_schema_mismatch"));
   assert.ok(rj.fields.reputation && rj.fields.quality);
   const html = await (await worker.fetch(new Request("https://lookup.fixture/rules", { headers: { "user-agent": "agent-x/1.0" } }), spotEnv().env, { waitUntil() {} })).text();
@@ -4502,6 +4502,25 @@ test("0.54.0 review fix: production TERMS_MAX_AGE_HOURS is 168 and llms.txt, Ope
   assert.match(tools.find((t) => t.name === "discover").description, /older than 7 days \(TERMS_MAX_AGE_HOURS\)/);
   const { termsWindowText } = await import("../worker/src/freshness.js");
   assert.equal(termsWindowText(168), "7 days"); assert.equal(termsWindowText(24), "24 h"); assert.equal(termsWindowText(36), "36 h");
+});
+
+test("0.55.0 skip-reason tuning: OpenAPI and MCP endpoint_spot_check text render the fallback window from TRANSIENT_SKIP_AFTER_HOURS; rules.json lists the six codes", async () => {
+  const e = meteredEnv();
+  let oa = (await send("/openapi.json", { envo: e })).body;
+  const d200 = (o) => o.paths["/v1/products/endpoint-spot-check"].get.responses[200].description;
+  assert.match(d200(oa), /HTTP 429 \(rate_limited\)/); assert.match(d200(oa), /after 24 h \(TRANSIENT_SKIP_AFTER_HOURS\)/); assert.match(d200(oa), /a plain 403 stays skip\/no_paywall/);
+  let tools = (await rpc({ jsonrpc: "2.0", id: 9, method: "tools/list" }, { envo: e })).body.result.tools;
+  assert.match(tools.find((t) => t.name === "endpoint_spot_check").description, /after 24 h \(TRANSIENT_SKIP_AFTER_HOURS\)/);
+  const e2 = meteredEnv(); e2.env.TRANSIENT_SKIP_AFTER_HOURS = "48";
+  oa = (await send("/openapi.json", { envo: e2 })).body;
+  assert.match(d200(oa), /after 2 days \(TRANSIENT_SKIP_AFTER_HOURS\)/);
+  tools = (await rpc({ jsonrpc: "2.0", id: 9, method: "tools/list" }, { envo: e2 })).body.result.tools;
+  assert.match(tools.find((t) => t.name === "endpoint_spot_check").description, /after 2 days \(TRANSIENT_SKIP_AFTER_HOURS\)/);
+  const rules = (await send("/rules.json", { envo: e })).body;
+  const by = Object.fromEntries(rules.reason_codes.map((x) => [x.code, x.verdict]));
+  assert.deepEqual(["rate_limited", "waf_challenge", "dns_error"].map((c) => by[c]), ["recheck", "recheck", "recheck"]);
+  assert.deepEqual(["rate_limited_persistent", "waf_blocked_persistent", "dns_error_persistent"].map((c) => by[c]), ["skip", "skip", "skip"]);
+  assert.equal(by.no_paywall, "skip"); assert.equal(by.ssrf_blocked, "skip");
 });
 
 let passed = 0, skipped = 0;

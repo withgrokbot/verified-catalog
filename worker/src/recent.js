@@ -24,6 +24,13 @@ export const REASON_TEXT = {
   // 0.54.0 terms freshness (freshness.js)
   terms_changed_since_quote: "live payment terms differ from the quote you were given, check again without quote to approve the new terms",
   terms_stale: "payment terms are older than our freshness limit, run the live check right before paying",
+  // 0.55.0 skip-reason tuning (transient.js)
+  rate_limited: "endpoint is rate limiting us (HTTP 429), try again later",
+  waf_challenge: "a firewall or bot challenge (HTTP 403) blocked our unpaid probe, try again later",
+  dns_error: "the endpoint's domain did not resolve (DNS, retried once), try again later",
+  rate_limited_persistent: "endpoint has only answered HTTP 429 (rate limited) for longer than our retry window (default 24 h)",
+  waf_blocked_persistent: "a firewall or bot challenge (HTTP 403) has blocked every probe for longer than our retry window (default 24 h)",
+  dns_error_persistent: "the endpoint's domain has not resolved (DNS) for longer than our retry window (default 24 h)",
 };
 export const shortReason = (code) => REASON_TEXT[code] || "see receipt";
 
@@ -103,10 +110,11 @@ export async function recentChecks(env, origin) {
   try {
     const { results } = await env.RECEIPTS_DB.prepare("SELECT id, pub_url, verdict, reason, created_at, check_type FROM spot_receipts WHERE pub_url IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT ?").bind(RECENT_MAX).all();
     // caller: "self-checked" for our own rows (e.g. a retagged verification call), else "outside"
+    // 0.55.0: + reason_code (the stored code, e.g. rate_limited_persistent), so persistent skips list under their own code
     // 0.54.0: a pay entry carries the age of its terms and terms_stale past TERMS_MAX_AGE_HOURS (the listed verdict is history, unchanged)
     const maxH = termsMaxAgeHours(env), now = Date.now();
     return (results || []).map((r) => {
-      const e = { url: r.pub_url, verdict: r.verdict, reason: shortReason(r.reason), checked_at: r.created_at, receipt_url: origin + "/v1/receipts/" + r.id, caller: r.check_type === "self-checked" ? "self-checked" : "outside" };
+      const e = { url: r.pub_url, verdict: r.verdict, reason: shortReason(r.reason), checked_at: r.created_at, receipt_url: origin + "/v1/receipts/" + r.id, caller: r.check_type === "self-checked" ? "self-checked" : "outside" , reason_code: r.reason};
       if (r.verdict !== "pay") return e;
       const f = freshnessFor("pay", r.created_at, maxH, now);
       return { ...e, terms_age_hours: f.terms_age_hours, terms_stale: f.terms_stale };

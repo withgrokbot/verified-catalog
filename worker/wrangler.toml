@@ -82,6 +82,9 @@ SPOT_PAID_PER_HOUR = "30"
 # are stale (discover answers recheck/terms_stale). 168 h = 7 days (the weekly crawl; same window as before 0.54.0).
 # Unset or invalid = 24. llms.txt, OpenAPI, MCP discover and the discover rules text are rendered from this value.
 TERMS_MAX_AGE_HOURS = "168"
+# 0.55.0 skip-reason tuning: rate_limited (429) / waf_challenge (WAF 403) / dns_error rechecks that persist this many hours
+# for the same URL + method fall back to skip (*_persistent). Unset or invalid = 24. The crawl reads the same name.
+# TRANSIENT_SKIP_AFTER_HOURS = "24"
 ENDPOINT_REPORT = "1"  # 0.46.1: paid /v1/products/endpoint-report on (migration 0012 applied); Base mainnet (no PAYMENT_* vars)
 WATCHTOWER = "1"  # 0.47.0: Watchtower on (migration 0013 applied); Base mainnet preset (no PAYMENT_* vars)
 EXPLAIN_LINE = "1"  # 0.49.0: explanation line on (no migration/secret)
