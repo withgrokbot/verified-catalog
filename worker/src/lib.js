@@ -62,9 +62,10 @@ import { handleHygiene, reportHygiene } from "./hygiene.js";
 import { facilitatorChain, callFacilitator } from "./facilitator.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
+import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.51.4";
+export const VERSION = "0.52.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1178,6 +1179,18 @@ export function spotPaymentRequired(c, resourceUrl, error, used, target = "") {
   };
 }
 
+// 0.52.0 cap-hit 402: what the paid check adds over the free answer (facts about the response shape only; payment never
+// changes the verdict), plus machine-readable price and payment instructions. Free tier and price are unchanged.
+export function spotCapHitOffer(c) {
+  return {
+    cap_hit: true,
+    price: { amount_usd: c.priceUsd, amount_atomic: String(c.priceAtomic), asset: c.asset || USDC_BASE, network: c.network, pay_to: c.payTo },
+    payment_instructions: { header: "PAYMENT-SIGNATURE", sign: "EIP-3009", retry: "same request + header" },
+    paid_adds: ["payment: signable object on pay", "terms: full (free: hash)", "probe: details", "history_observations: last 30", "quality: full checks", "reputation: 0-100 (free: band)"],
+    verdict_note: "Same verdict free or paid.",
+  };
+}
+
 const SPOT_URL_ALIASES = ["url", "endpoint", "target", "resource", "endpoint_url", "uri"];
 const SPOT_PRICE_ALIASES = ["claimed_price", "claimed_price_usd", "price", "price_usd"];
 export const SPOT_EXAMPLE_TARGET = "https://example.com/api/paid";
@@ -2002,8 +2015,9 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   };
 
   let cd = c; // per-request priced config, set after the probe
-  const deny = (error, used, kind = "payment-required", payer = "") => {
+  const deny = (error, used, kind = "payment-required", payer = "", capHit = false) => {
     const body = spotPaymentRequired(cd, resourceUrl, error, used, q.url || "");
+    if (capHit) Object.assign(body, spotCapHitOffer(cd));
     body.pricing = typeof isRouter !== "undefined" && isRouter
       ? `router tier: $${rcfg.perCheckAtomic / 1e6} per check, billed per pack of checks in one settlement`
       : "flat $0.02 USDC per check (any target price)";
@@ -2088,7 +2102,10 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       }, 429, { "retry-after": String(retry), "cache-control": "no-store" });
     }
     freeUsed = t.used;
+    // 0.52.0 spot funnel (Analytics Engine): per-day digest of the quota key only, never the raw key/IP/wallet
+    const fdg = await funnelDigest(env.CLIENT_SALT, key, utcDay());
     if (t.free) {
+      funnelEvent(env, { event: "free_check", digest: fdg, ua, creditsRemaining: t.used === null ? 0 : Math.max(0, c.freePerDay - t.used) });
       access = {
         tier: "free",
         free_per_day: c.freePerDay,
@@ -2111,11 +2128,15 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         const usd = (rcfg.packAtomic / 1e6).toString();
         cd = { ...cd, priceAtomic: String(rcfg.packAtomic), priceUsd: usd };
         if (!hdr) {
+          funnelEvent(env, { event: "cap_hit", digest: fdg, ua }); // fired before the 402 goes out
           const res = deny(`Router tier: $${usd} USDC on Base buys ${Math.floor(rcfg.packAtomic / rcfg.perCheckAtomic)} checks ($${rcfg.perCheckAtomic / 1e6}/check): this one now, the rest prepaid for your next calls with client=${q.client}.`, t.used, "payment-required");
           return res;
         }
       }
-      if (!hdr) return deny(`Free 402xAgent checks used up for today (${c.freePerDay} per UTC day). Pay $${cd.priceUsd} USDC on Base via x402 to continue.`, t.used, "payment-required");
+      if (!hdr) {
+        funnelEvent(env, { event: "cap_hit", digest: fdg, ua }); // fired before the 402 goes out
+        return deny(`Free 402xAgent checks used up for today (${c.freePerDay} per UTC day). Pay $${cd.priceUsd} USDC on Base via x402 to continue.`, t.used, "payment-required", "", true);
+      }
       const payload = decodePaymentHeader(hdr);
       if (!payload) return deny("payment header is not valid base64 JSON x402 payload", t.used, "payment-failed");
       {
@@ -2159,6 +2180,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       // 0.51.0: self_test = payer is our payTo or a DRILL_WALLETS address (never self-declared); excluded from revenue + demand
       const selfPaid = String(r.settle.payer || authFrom || "").toLowerCase() === c.payTo.toLowerCase() || selfTestOf(payload, env, c.payTo);
       if (selfPaid) access.self_test = true;
+      // counted only after verify+settle AND the idempotency check: a replayed settlement (retry) is never a second sale
+      if (!r.replayed) funnelEvent(env, { event: "paid", digest: fdg, ua, amountUsd: Number(cd.priceUsd), self: !!selfPaid });
       if (isRouter && !r.replayed) { // 0.51.1: a replayed settlement never credits the pack twice
         const n = Math.floor(Number(cd.priceAtomic) / rcfg.perCheckAtomic) - 1;
         const cr = await routerCredits(env, q.client, "credit", n);
@@ -3730,6 +3753,7 @@ const routeInnerHolder = {
     if (path === "/v1/lookup/paid" && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaidLookup(req, env, ctx, url);
     if (path === "/v1/products/overnight-cos-pack" && ["GET", "HEAD", "POST"].includes(req.method)) return handleOvernightCosPack(req, env, ctx, url);
     if (path === "/v1/products/endpoint-spot-check/docs" && (req.method === "GET" || req.method === "HEAD")) return new Response(JSON.stringify(spotDocs(API_ORIGIN), null, 2), { headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });
+    if (path === "/v1/admin/funnel" && req.method === "GET") return handleFunnelAdmin(req, env);
     if (path === "/v1/products/endpoint-spot-check" && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointSpotCheck(req, env, ctx, url);
     if (path === PS_ROUTE_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaymentStatus(req, env, ctx, url);
     if (path === ER_ROUTE_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointReport(req, env, ctx, url);
