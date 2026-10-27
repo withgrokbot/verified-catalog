@@ -216,6 +216,7 @@ live_terms_sha256, checked_at, recommendation}`; `settle` only on an exact match
 Free for now: 60 per minute per caller IP (`QuotaCounter`, key `fck:` + `quotaKey()` IP digest (salted, daily, IPv6 /64;
 never the raw IP; `?client=` is ignored so rotating it gains nothing), counter `fck`) and 30 probes per minute per
 seller host across all callers (key `fckh:<lowercase hostname>`, counter `fckh`; over it: 429 `host_rate_limited`,
-nothing probed). x402 v1 sellers (`maxAmountRequired`, v1 network names) compare the same way. Both are separate from the
+nothing probed). Unlike other routes, a counter error or missing `QUOTA` binding fails CLOSED here: 503
+`limiter_unavailable`, `hold`, nothing probed. x402 v1 sellers (`maxAmountRequired`, v1 network names) compare the same way. Both are separate from the
 spot-check 5/day. No D1/KV writes, no logging. A `paymentPayload` in the body is ignored and never echoed or stored.
 Not on the pricing page. Code: `worker/src/facilcheck.js`; tests: `tests/facilcheck_test.mjs`.

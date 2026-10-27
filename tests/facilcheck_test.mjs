@@ -198,6 +198,23 @@ test("x402 v1 seller: live maxAmountRequired + v1 network name compare like v2 (
   assert.deepEqual(diffTerms(REQ, { ...V1, network: "base-sepolia" }).map((m) => m.field), ["network"]);
 });
 
+test("limiter fails CLOSED on this route: counter error (IP or host) or no binding -> 503 limiter_unavailable, hold, no outbound fetch", async () => {
+  const throwing = (failCounter) => ({ idFromName: (n) => n, get: () => ({ fetch: async (u) => {
+    const c = new URL(u).searchParams.get("counter");
+    if (!failCounter || c === failCounter) throw new Error("DO unavailable");
+    return new Response(JSON.stringify({ free: true, used: 1 }));
+  } }) });
+  for (const [label, env] of [["ip counter throws", { CLIENT_SALT: "s", QUOTA: throwing("fck") }], ["host counter throws", { CLIENT_SALT: "s", QUOTA: throwing("fckh") }], ["every counter throws", { CLIENT_SALT: "s", QUOTA: throwing(null) }], ["no QUOTA binding", { CLIENT_SALT: "s" }]]) {
+    const calls = [];
+    const r = await handleFacilitatorCheck(post({ paymentRequirements: REQ, url: URL_ }), env, seller([LIVE], 402, calls), NOW);
+    assert.equal(r.status, 503, label);
+    const j = await r.json();
+    assert.deepEqual([j.error, j.recommendation, j.nothing_probed], ["limiter_unavailable", "hold", true], label);
+    assert.ok(r.headers.get("retry-after"), label);
+    assert.equal(calls.length, 0, label + ": no outbound fetch to the seller");
+  }
+});
+
 test("routed via the worker; listed in OpenAPI, llms.txt, skill.md, docs; not on the pricing page", async () => {
   const q = quota();
   const env = { DATA_BASE_URL: "https://data.fixture/vc/", CLIENT_SALT: "s", QUOTA: q.QUOTA };

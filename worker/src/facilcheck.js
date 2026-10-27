@@ -2,7 +2,7 @@
 // advertised x402 terms for the resource (the spot probe: SSRF guards on every hop, timeout, body cap, never any
 // payment header) and compares them with the paymentRequirements about to be settled.
 // Free for now. Two limits on the QuotaCounter DO, each under its own key prefix + counter (never the spot-check
-// 5/day): 60/min per caller IP (salted daily IP digest from quotaKey; ?client= is ignored, so rotating it gains
+// 5/day; a counter error fails CLOSED here: 503 limiter_unavailable, hold, nothing probed): 60/min per caller IP (salted daily IP digest from quotaKey; ?client= is ignored, so rotating it gains
 // nothing) and 30 probes/min per seller host across all callers (over it: 429 hold, nothing probed). No D1 or
 // KV writes, nothing logged. paymentPayload (payer, signature) is never read, stored or echoed: only the seller-side
 // requirement fields below are used.
@@ -84,6 +84,7 @@ export function compareLive(req, accepts) {
   return best;
 }
 
+const limiterDown = () => J({ error: "limiter_unavailable", code: "limiter_unavailable", recommendation: "hold", nothing_probed: true, retry_after_seconds: 5 }, 503, { "retry-after": "5" });
 const hold = (status, error, code, checkedAt, extra = {}) => J({ match: false, mismatches: [], live_terms_sha256: null, checked_at: checkedAt, recommendation: "hold", error, code, ...extra }, status);
 
 export async function handleFacilitatorCheck(req, env, deps = {}, now = new Date()) {
@@ -102,9 +103,13 @@ export async function handleFacilitatorCheck(req, env, deps = {}, now = new Date
   const ra = String(60 - now.getUTCSeconds());
   const minute = utcMinute(now);
   const t = await takeFree(env, "fck:" + (await quotaKey(req, {}, env, now)), FACIL_CHECK_PER_MIN, now, "take", FACIL_CHECK_COUNTER, minute);
+  // Fail CLOSED on this route only: takeFree fails open (free: true + error) on a counter error or a missing binding;
+  // here that is a 503 hold and nothing is probed. Other routes keep takeFree's fail-open behaviour.
+  if (t.error) return limiterDown();
   if (!t.free) return J({ error: "rate limited", code: "rate_limited", limit: `${FACIL_CHECK_PER_MIN} requests per minute per IP`, retry_after_seconds: Number(ra), recommendation: "hold" }, 429, { "retry-after": ra });
   // 2) per seller host across all callers, checked before any probe
   const h = await takeFree(env, sellerHostKey(p.url), FACIL_HOST_PER_MIN, now, "take", FACIL_HOST_COUNTER, minute);
+  if (h.error) return limiterDown();
   if (!h.free) return J({ error: "too many checks for this seller host, retry shortly", code: "host_rate_limited", limit: `${FACIL_HOST_PER_MIN} probes per minute per seller host`, retry_after_seconds: Number(ra), recommendation: "hold", nothing_probed: true }, 429, { "retry-after": ra });
   const probeOpts = { fetchImpl: selfFetch(env, fetchImpl), resolveHostFn, ...(deps.timeoutMs ? { timeoutMs: deps.timeoutMs } : {}) };
   let probe = await spotProbe(p.url, { ...probeOpts, method: p.method });
