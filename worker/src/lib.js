@@ -62,12 +62,13 @@ import { handleHygiene, reportHygiene } from "./hygiene.js";
 import { handleFeed, feedDaily, feedTick, feedOn, feedObserveOn, FEED_PRICES } from "./feed.js";
 import { facilitatorChain, callFacilitator } from "./facilitator.js";
 import { handleFacilitatorCheck, FACIL_CHECK_PATH, FACIL_CHECK_PER_MIN, FACIL_HOST_PER_MIN, FACIL_EXAMPLE } from "./facilcheck.js";
+import { latestDelivery, applyDelivery } from "./delivery.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.53.1";
+export const VERSION = "0.53.3";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1038,7 +1039,7 @@ export const SPOT_PAID_SCHEMA = {
   description: "paid response: decision plus the facts behind it",
   properties: {
     verdict: SPOT_VERDICT_SCHEMA,
-    reason: { type: "string", enum: ["price_ok", "price_below_listing", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "network_unsupported", "no_paywall", "free_trial_active", "timeout", "unreachable", "server_error", "bad_challenge", "ssrf_blocked"] },
+    reason: { type: "string", enum: ["price_ok", "price_below_listing", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "network_unsupported", "no_paywall", "free_trial_active", "timeout", "unreachable", "server_error", "bad_challenge", "ssrf_blocked", "delivery_failed"] },
     free_trial_remaining: { type: ["integer", "null"], description: "reason free_trial_active only: the seller's x-free-trial-remaining, when parseable" },
     quoted_price_usd: { type: ["number", "null"], description: "price in the target's live 402 challenge" },
     claimed_price_usd: { type: ["number", "null"], description: "the claimed_price you sent" },
@@ -1952,6 +1953,9 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     let d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pm0, exp), probe, q, listing);
     let expiryCheck = null;
     if (q.expiry) ({ d, check: expiryCheck } = applyExpiry(d, probe, expiryOpts(q.expiry))); // 0.42.0 opt-in only
+    // 0.53.3 (DELIVERY_CHECK=1): a pay becomes recheck/delivery_failed if our latest paid call to this endpoint (<= 14 d)
+    // settled but did not deliver; new checks only, no effect without delivery data (delivery.js)
+    if (d.verdict === "pay") ({ d } = applyDelivery(d, await latestDelivery(env, await historyKey(q.url), new Date())));
     const pm = d.verdict === "pay" ? pm0 : null; // only a "pay" verdict approves terms
     const termsHash = await termsSha256(pm);
     const payment = paymentObject(pm, pr.probedAt);

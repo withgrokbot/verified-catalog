@@ -121,6 +121,7 @@ def main(argv=None):
         "paid_calls": sum(1 for r in allr if r["paid"]),
         "quality_pass": sum(1 for r in allr if (r.get("quality") or {}).get("result") == "pass"),
         "quality_fail": sum(1 for r in allr if (r.get("quality") or {}).get("result") == "fail"),
+        "delivery_failed": sum(1 for r in allr if r.get("delivery_flag") == "failed"),
     }
     latest = {"schema": 1, "generated_at": xp.iso_z(now), "run_id": run_id, "mode": "paid" if signer else "dry-run",
               "checker_version": xp.CHECKER_VERSION, "summary": summary, "spend": guard.summary(),
@@ -138,7 +139,8 @@ def main(argv=None):
               f"latency={r['latency_ms']}ms 402={'yes' if r['x402_challenge'] else 'no'} "
               f"quoted=${r['quoted_price_usd']} listed=${r['advertised_price_usd']} "
               + (f"paid={r['paid']} valid={r['delivered_valid']} charged=${r['charged_price_usd']} "
-                 f"refused={r['payment_refused_reason']} quality={(r.get('quality') or {}).get('result')}" if signer else ""))
+                 f"refused={r['payment_refused_reason']} quality={(r.get('quality') or {}).get('result')} "
+                 f"delivery={r.get('delivery_flag')}{'/' + r['delivery_reason'] if r.get('delivery_reason') else ''}" if signer else ""))
     print("summary:", json.dumps(summary), "spend:", json.dumps(guard.summary()))
     if not a.no_build:
         build_site.build(site)

@@ -267,3 +267,15 @@ Feed observations and feed snapshots are growth-only writers. Once the database 
 what is stored, and the watch's own state update still runs. The size comes from `meta.size_after`, which D1 returns on
 every query: it is refreshed for free from the watch batch result, otherwise read with one `SELECT 1` per 10 minutes per
 isolate (`src/d1size.js`). The backfill seeds only the last 30 days (`--days`, default 30).
+
+## Post-payment delivery check (0.53.3, off by default)
+
+"Did I get what I paid for." Our own paid check rounds (`scripts/run_checks.py --pay`) classify the seller's response
+after settlement with `scripts/delivery.py`: `delivery_flag` ok|failed plus a reason (`server_error`, `http_error`,
+`empty_body`, `challenge_page`, `soft_paywall`, `canned_refusal`, `error_body`, `placeholder_body`, `no_response`).
+The Worker never pays a seller; `scripts/delivery_upload.py` copies the flags (hkey, host, time, flag, reason, status only)
+into D1 `delivery_checks` (migration 0020, additive). With `DELIVERY_CHECK=1`: a new check whose verdict would be `pay`
+returns `recheck` / `delivery_failed` when the endpoint's latest delivery check in the last 14 days failed, and host
+reputation gets a `delivery` component (weight 15, only for hosts with delivery rows). Skip/recheck verdicts, stored
+receipts and sellers without delivery data are unchanged. Code: `src/delivery.js`; tests: `tests/delivery_test.mjs`,
+`tests/delivery_test.py` (fixtures in `tests/fixtures/delivery/`).

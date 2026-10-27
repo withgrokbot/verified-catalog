@@ -1,10 +1,11 @@
 // 0.37.0 seller reputation (additive; never changes verdict or reason_code). One score per seller host, 0..100,
 // computed on read from D1 data that already exists (spot_receipts, endpoint_history, endpoint_quality). No KV.
 // Published verbatim at /rules and /rules.json (REPUTATION_RULES).
+import { DELIVERY_WEIGHT, hostDeliveries } from "./delivery.js";
 import { historySummary } from "./history.js";
 import { QUALITY_SCORE } from "./quality.js";
 
-export const REPUTATION_VERSION = "2026-10-15";
+export const REPUTATION_VERSION = "2026-10-15"; // unchanged for hosts without delivery data (0.53.3 delivery component is additive)
 export const REPUTATION_WEIGHTS = { stability: 25, drift: 20, verdicts: 30, freshness: 10, quality: 15 };
 export const REPUTATION_MIN = { observations: 5, tracking_days: 2 };
 // a host that almost never passes cannot rank above low, however stable its (wrong) terms are
@@ -26,6 +27,7 @@ export const REPUTATION_RULES = {
     drift: "1 - min(1, 2 * penalty / transitions) over consecutive term-bearing observations of every endpoint; penalty per transition: pay_to change 1, network or asset change 1, price-only change 0.5. No transitions -> no data.",
     verdicts: "last 30 days of checks: pay_share * (0.5 + 0.5 * consistency). pay_share = pay / (pay + skip); consistency = share of checks that agree with their endpoint's latest verdict. Recheck verdicts (timeouts, 5xx) are left out.",
     freshness: "1 if the newest check is under 24 h old, then linear down to 0 at 14 days.",
+    delivery: `0.53.3, only for hosts with post-payment delivery checks (our own paid check rounds): share of delivery checks in 30 days whose delivered response was ok (not a 5xx, challenge/CAPTCHA page, sign-in/subscribe wall, canned refusal, error-only or placeholder body). Weight ${DELIVERY_WEIGHT}, added to the sum only when the host has delivery data; hosts without delivery data are scored exactly as before.`,
     quality: "mean over endpoints of the latest quality code's value: " + Object.entries(QUALITY_SCORE).map(([k, v]) => k + "=" + v).join(", ") + ". No quality data -> no data.",
   },
   insufficient_data: `fewer than ${REPUTATION_MIN.observations} observations, or first seen less than ${REPUTATION_MIN.tracking_days} days ago: band insufficient_data and score null (paid answers still show provisional_score and the breakdown). A new host is never given a low score for being new.`,
@@ -45,7 +47,7 @@ const termSig = (o) => (o && o.amount_atomic != null && o.network && o.pay_to ? 
 
 // Pure. receipts: [{url, created_at, verdict}] newest first; histories: {hkey: [obs newest first]}; quality: [{hkey, observed_at, code}];
 // firstSeen: ISO or null.
-export function computeReputation({ host, receipts = [], histories = {}, quality = [], firstSeen = null, now = new Date() }) {
+export function computeReputation({ host, receipts = [], histories = {}, quality = [], firstSeen = null, now = new Date(), deliveries = [] }) {
   const t = now.getTime();
   const winStart = t - REPUTATION_WINDOW_DAYS * DAY;
   // stability + drift (endpoint_history)
@@ -105,7 +107,13 @@ export function computeReputation({ host, receipts = [], histories = {}, quality
     breakdown[k] = { value: r3(v), weight: w, points: null };
     if (v != null) { wsum += w; acc += w * v; }
   }
-  for (const [k, w] of Object.entries(REPUTATION_WEIGHTS)) if (comps[k] != null) breakdown[k].points = r3((100 * w * comps[k]) / wsum);
+  // 0.53.3 delivery component: only when the host has delivery rows (30 days), so other hosts are unchanged
+  const dRows = (deliveries || []).filter((x) => x && (x.flag === "ok" || x.flag === "failed"));
+  const dFailed = dRows.filter((x) => x.flag === "failed").length;
+  const dVal = dRows.length ? (dRows.length - dFailed) / dRows.length : null;
+  const weights = dVal != null ? { ...REPUTATION_WEIGHTS, delivery: DELIVERY_WEIGHT } : REPUTATION_WEIGHTS;
+  if (dVal != null) { comps.delivery = dVal; breakdown.delivery = { value: r3(dVal), weight: DELIVERY_WEIGHT, points: null }; wsum += DELIVERY_WEIGHT; acc += DELIVERY_WEIGHT * dVal; }
+  for (const [k, w] of Object.entries(weights)) if (comps[k] != null) breakdown[k].points = r3((100 * w * comps[k]) / wsum);
   let raw = wsum ? Math.round((100 * acc) / wsum) : null;
   const capped = raw != null && clear.length >= REPUTATION_CAP.min_clear_checks && pays / clear.length < REPUTATION_CAP.pay_share_below && raw > REPUTATION_CAP.max_score;
   if (capped) raw = REPUTATION_CAP.max_score;
@@ -143,6 +151,7 @@ export function computeReputation({ host, receipts = [], histories = {}, quality
       first_seen: Number.isFinite(firstMs) ? new Date(firstMs).toISOString().replace(/\.\d{3}Z$/, "Z") : null,
       tracking_days: trackingDays,
       quality_codes: qCount,
+      ...(dRows.length ? { delivery_checks_30d: dRows.length, delivery_failed_30d: dFailed } : {}),
     },
     formula_version: REPUTATION_VERSION,
     rules: "https://402xagent.com/rules.json",
@@ -180,7 +189,8 @@ export async function hostReputation(env, host, hkeyFn, now = new Date()) {
       const qr = await db.prepare("SELECT hkey, observed_at, code FROM endpoint_quality WHERE host = ? ORDER BY observed_at DESC LIMIT 100").bind(h).all();
       quality = (qr && qr.results) || [];
     } catch (_) {} // migration 0007 not applied yet: no quality component
-    return computeReputation({ host: h, receipts, histories, quality, firstSeen, now });
+    const deliveries = await hostDeliveries(env, h, now); // [] unless DELIVERY_CHECK=1 and migration 0020 has rows
+    return computeReputation({ host: h, receipts, histories, quality, firstSeen, now, deliveries });
   } catch (_) {
     return null;
   }

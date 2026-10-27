@@ -19,6 +19,7 @@ export const REASON_TEXT = {
   pay_to_mismatch: "pays a different wallet than listed",
   asset_not_usdc: "asks for a token other than USDC",
   ssrf_blocked: "private or local address, not checked",
+  delivery_failed: "our latest paid call to this endpoint was charged but did not deliver a usable response, try again later",
 };
 export const shortReason = (code) => REASON_TEXT[code] || "see receipt";
 

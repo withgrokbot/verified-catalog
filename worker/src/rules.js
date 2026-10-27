@@ -5,7 +5,7 @@ import { REASON_TEXT } from "./recent.js";
 import { QUALITY_CODES } from "./quality.js";
 import { REPUTATION_RULES } from "./reputation.js";
 
-export const RULES_VERSION = "2026-10-15"; // 0.37.0: + quality_codes, reputation (additive)
+export const RULES_VERSION = "2026-10-27"; // 0.37.0: + quality_codes, reputation (additive); 0.53.3: + delivery_failed (additive)
 // code -> verdict it produces, and its default confidence
 export const REASON_CODES = [
   { code: "price_ok", verdict: "pay", confidence: "high", rule: "Live 402 offers canonical USDC on a supported mainnet, to the listed wallet and network, at the listed price (within 1%)." },
@@ -24,6 +24,7 @@ export const REASON_CODES = [
   { code: "timeout", verdict: "recheck", confidence: "low", rule: "The endpoint did not answer in time." },
   { code: "unreachable", verdict: "recheck", confidence: "low", rule: "Could not connect (DNS, TLS or network error)." },
   { code: "server_error", verdict: "recheck", confidence: "low", rule: "The endpoint returned a 5xx." },
+  { code: "delivery_failed", verdict: "recheck", confidence: "low", rule: "0.53.3 (DELIVERY_CHECK): the terms would pass, but our latest paid call to this endpoint (within 14 days) settled and got back a failed delivery (5xx, challenge/CAPTCHA page, sign-in/subscribe wall, canned refusal, error-only or placeholder body). Applies to new checks only; past pay/skip verdicts and receipts are never changed; endpoints without delivery data are unaffected." },
 ];
 const BY_CODE = Object.fromEntries(REASON_CODES.map((r) => [r.code, r]));
 export const CONFIDENCE_RULES = [
