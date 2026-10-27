@@ -8,16 +8,21 @@
 #   DRY_RUN=1   -> stop after tests (no KV upload, no deploy, no push)
 #   SKIP_FETCH=1 -> reuse the lists already in receipts/crawl (debugging only)
 #   TERM_HISTORY=1 -> also append change-only payment-term rows to D1 term_history (migration 0019 must be applied)
+#   PUBLISH_ONLY=1 -> no list fetch, no crawl: publish the existing latest crawl (receipts/latest.txt, compared with
+#                     receipts/previous.txt) through the same build/test/D1/deploy/verify/push steps (0.53.4: a failed publish
+#                     never needs a re-crawl)
+#   WRANGLER_PKG    -> wrangler package for every wrangler call (0.53.4: pinned, default wrangler@4.154.0, run on Node 22)
 #   CRAWL_STORE=d1|kv -> where pages/shards go (0.44.0; default d1, kv = legacy Workers KV); d1 also refreshes the d: discovery blobs (0.45.0)
 # Never pays anything: no payment headers are ever sent, no wallet is loaded.
 set -euo pipefail
+export WRANGLER_PKG="${WRANGLER_PKG:-wrangler@4.154.0}"  # 0.53.4: pinned (was @latest, which changed between runs)
 JOB="${BM_JOB:-$(cd "$(dirname "$0")/../.." && pwd)}"
 R=$JOB/receipts; APP=$JOB/app; S=$R/scripts
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p "$R/logs"; LOG="$R/logs/weekly-$STAMP.log"
 exec > >(tee -a "$LOG") 2>&1
 echo "== weekly refresh $STAMP (log $LOG)"
-WR() { (cd "$APP/worker" && env -u CF_API_TOKEN -u CLOUDFLARE_API_TOKEN npx -y -p node@22 -p wrangler@latest wrangler "$@"); }
+WR() { (cd "$APP/worker" && env -u CF_API_TOKEN -u CLOUDFLARE_API_TOKEN npx -y -p node@22 -p "$WRANGLER_PKG" wrangler "$@"); }
 
 # 0) deploy only committed code: the factory worker + tests must equal withgrokbot/verified-catalog HEAD
 #    (receipts-data.js is the one generated file; it is committed below before the deploy). Checked now and again before deploy.
@@ -33,14 +38,19 @@ clean_or_die() {
 }
 [ "${DRY_RUN:-0}" = "1" ] || clean_or_die "start"
 
-# 1) lists -> temp dir; swap into crawl/ only if the Bazaar lists came back complete
-if [ "${SKIP_FETCH:-0}" != "1" ]; then
-  mkdir -p "$TMP/lists" && python3 "$S/fetch_lists.py" "$TMP/lists"
-  mkdir -p "$R/crawl" && find "$R/crawl" -maxdepth 1 -type f -delete && cp "$TMP/lists"/* "$R/crawl/"
-fi
+if [ "${PUBLISH_ONLY:-0}" = "1" ]; then
+  echo "PUBLISH_ONLY: no fetch, no crawl; publishing $(cat "$R/latest.txt") (compared with $(cat "$R/previous.txt" 2>/dev/null || echo none))"
+else
+  # 1) lists -> temp dir; swap into crawl/ only if the Bazaar lists came back complete
+  if [ "${SKIP_FETCH:-0}" != "1" ]; then
+    mkdir -p "$TMP/lists" && python3 "$S/fetch_lists.py" "$TMP/lists"
+    mkdir -p "$R/crawl" && find "$R/crawl" -maxdepth 1 -type f -delete && cp "$TMP/lists"/* "$R/crawl/"
+  fi
 
-# 2) crawl every endpoint (box, not the Worker: no subrequest/CPU limits involved)
-cd "$S" && CRAWL_DIR="$R/crawl" python3 crawl_probe.py
+  # 2) crawl every endpoint (box, not the Worker: no subrequest/CPU limits involved)
+  cd "$S" && CRAWL_DIR="$R/crawl" python3 crawl_probe.py
+fi
+cd "$S"
 python3 - "$R" <<'PY'
 import sys, os
 r = sys.argv[1]; name = open(os.path.join(r, "latest.txt")).read().strip()
@@ -70,13 +80,14 @@ case "$CRAWL_STORE" in
   *) echo "CRAWL_STORE must be kv or d1"; exit 1 ;;
 esac
 echo "crawl store: $CRAWL_STORE"
-# 5b) term history (migration 0019, D1 term_history): change-only rows per endpoint. Off unless TERM_HISTORY=1, which
-#     needs 0019 applied to production first (owner OK). A failure here is logged and does not block the deploy.
+[ "$KRC" = 3 ] && { echo "KV budget reached: rest deferred; rerun tomorrow (UTC) to finish, then deploy"; exit 3; }
+[ "$KRC" = 0 ] || { if [ "$CRAWL_STORE" = d1 ]; then echo "D1 upload failed (full wrangler stderr above)"; else echo "KV upload failed"; fi; exit 1; }
+# 5b) term history (migration 0019, D1 term_history): change-only rows per endpoint. Off unless TERM_HISTORY=1. 0.53.4: runs only
+#     after the crawl store upload succeeded (a failed upload no longer leaves term rows for an unpublished crawl). A failure
+#     here is logged and does not block the deploy.
 if [ "${TERM_HISTORY:-0}" = "1" ]; then
   python3 "$S/term_history.py" --remote --out "$TMP/term-history" "$R/$(cat "$R/latest.txt")" || echo "term history: FAILED (non-fatal)"
 fi
-[ "$KRC" = 3 ] && { echo "KV budget reached: rest deferred; rerun tomorrow (UTC) to finish, then deploy"; exit 3; }
-[ "$KRC" = 0 ] || { echo "KV upload failed"; exit 1; }
 
 # 6) commit the data locally, re-check the tree is clean, deploy that commit, verify live (cache-busted)
 REPO_HEAD_BEFORE=$(git -C "$REPO" rev-parse HEAD)

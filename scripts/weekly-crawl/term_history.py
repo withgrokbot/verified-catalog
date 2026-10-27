@@ -98,7 +98,7 @@ def chunk(stmts, limit=FILE_BYTES):
 
 def _wrangler(args):
     env = {k: v for k, v in os.environ.items() if k not in ("CF_API_TOKEN", "CLOUDFLARE_API_TOKEN")}
-    base = os.environ.get("TERM_HISTORY_WRANGLER", "").split() or ["npx", "-y", "-p", "node@22", "-p", "wrangler@latest", "wrangler"]  # override: local tests
+    base = os.environ.get("TERM_HISTORY_WRANGLER", "").split() or ["npx", "-y", "-p", "node@22", "-p", os.environ.get("WRANGLER_PKG", "wrangler@4.154.0"), "wrangler"]  # override: local tests
     return subprocess.run([*base, *args], cwd=WORKER, env=env, check=True, capture_output=True, text=True).stdout
 
 def wrangler(args, where): return _wrangler(["d1", "execute", DB, *where, *args])
@@ -181,4 +181,6 @@ def main(argv=None):
     return 0
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try: sys.exit(main())
+    except subprocess.CalledProcessError as e:  # 0.53.4: full wrangler stderr in the run log
+        print(f"term_history failed: wrangler exit {e.returncode}\n--- wrangler stderr ---\n{e.stderr or ''}\n--- wrangler stdout ---\n{e.stdout or ''}", file=sys.stderr); sys.exit(1)

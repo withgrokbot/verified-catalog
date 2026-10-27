@@ -39,7 +39,7 @@ def main():
     if todo:
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f: json.dump(todo, f)
         env = {k: v for k, v in os.environ.items() if k not in ("CF_API_TOKEN", "CLOUDFLARE_API_TOKEN")}
-        subprocess.run(["npx", "-y", "-p", "node@22", "-p", "wrangler@latest", "wrangler", "kv", "bulk", "put", f.name, "--binding", "CRAWL_KV", "--remote"], cwd=WORKER, env=env, check=True)
+        subprocess.run(["npx", "-y", "-p", "node@22", "-p", os.environ.get("WRANGLER_PKG", "wrangler@4.154.0"), "wrangler", "kv", "bulk", "put", f.name, "--binding", "CRAWL_KV", "--remote"], cwd=WORKER, env=env, check=True)
         os.unlink(f.name)
         ledger[today] = ledger.get(today, 0) + len(todo)
         json.dump({d: n for d, n in ledger.items() if d >= (dt.date.fromisoformat(today) - dt.timedelta(days=14)).isoformat()}, open(lp, "w"))

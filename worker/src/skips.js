@@ -64,14 +64,14 @@ async function kvJson(env, key) {
     return null;
   }
 }
-/** 0.38.0: "Updated weekly (last crawl Oct 13, next crawl Oct 19)." from the crawl timestamp. The crawl is weekly on
- * Mondays (UTC): next = the first Monday after the last crawl (= last + 7 days when it ran on its Monday). */
+/** 0.38.0: "Updated weekly (last crawl Oct 27, next crawl Nov 3)." from the crawl timestamp. 0.53.4: the crawl routine runs
+ * weekly on Tuesdays (6:30 AM PT): next = the first Tuesday after the last crawl's UTC date (= last + 7 days when it ran on its Tuesday). */
 export function crawlSchedule(crawledAt) {
   const t = Date.parse(String(crawledAt || ""));
   if (!Number.isFinite(t)) return null;
   const d = new Date(t);
   const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const next = new Date(last.getTime() + (((8 - last.getUTCDay()) % 7) || 7) * 86400000);
+  const next = new Date(last.getTime() + (((9 - last.getUTCDay()) % 7) || 7) * 86400000);
   const fmt = (x) => x.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   return { last: fmt(last), next: fmt(next), last_iso: last.toISOString().slice(0, 10), next_iso: next.toISOString().slice(0, 10) };
 }

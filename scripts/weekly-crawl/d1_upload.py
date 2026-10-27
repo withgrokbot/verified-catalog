@@ -41,7 +41,7 @@ def statements(key, value, now, source="crawl"):
 
 def wrangler(args, where):
     env = {k: v for k, v in os.environ.items() if k not in ("CF_API_TOKEN", "CLOUDFLARE_API_TOKEN")}
-    cmd = ["npx", "-y", "-p", "node@22", "-p", "wrangler@latest", "wrangler", "d1", "execute", DB, *where, *args]
+    cmd = ["npx", "-y", "-p", "node@22", "-p", os.environ.get("WRANGLER_PKG", "wrangler@4.154.0"), "wrangler", "d1", "execute", DB, *where, *args]
     return subprocess.run(cmd, cwd=WORKER, env=env, check=True, capture_output=True, text=True).stdout
 
 def current_hashes(where):
@@ -81,5 +81,6 @@ def main():
 
 if __name__ == "__main__":
     try: sys.exit(main())
-    except subprocess.CalledProcessError as e: print(f"d1_upload failed: wrangler exit {e.returncode}: {(e.stderr or '')[-300:]}", file=sys.stderr); sys.exit(1)
+    except subprocess.CalledProcessError as e:  # 0.53.4: the full wrangler stderr (the last 300 chars were only npm warnings)
+        print(f"d1_upload failed: wrangler exit {e.returncode}: {' '.join(map(str, e.cmd[:8]))} ...\n--- wrangler stderr ---\n{e.stderr or ''}\n--- wrangler stdout ---\n{e.stdout or ''}", file=sys.stderr); sys.exit(1)
     except Exception as e: print(f"d1_upload failed: {type(e).__name__}: {str(e)[:200]}", file=sys.stderr); sys.exit(1)

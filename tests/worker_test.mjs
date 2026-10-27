@@ -2692,7 +2692,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.53.3");
+  assert.equal(VERSION, "0.53.4");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2994,16 +2994,26 @@ test("0.38.0 flat $0.02: 402 amount 20000 for any quote; well-known/OpenAPI/llms
   assert.ok(!/\$0\.0/.test(await b.text()), "badges carry no price");
 });
 
-test("0.38.0 crawl schedule copy: 'Updated weekly (last crawl Oct 13, next crawl Oct 19)' computed from crawled_at on home + skips", async () => {
+test("0.38.0/0.53.4 crawl schedule copy: 'Updated weekly (last crawl Oct 27, next crawl Nov 3)' (next Tuesday) computed from crawled_at on home + skips", async () => {
   const { crawlSchedule, crawlScheduleText } = await import("../worker/src/skips.js");
   const { landingHtml } = await import("../worker/src/landing.js");
-  assert.deepEqual(crawlSchedule("2026-10-13T14:36:14Z"), { last: "Oct 13", next: "Oct 19", last_iso: "2026-10-13", next_iso: "2026-10-19" });
-  assert.equal(crawlSchedule("2026-10-19T09:00:00Z").next, "Oct 26", "on its Monday: last + 7 days");
-  assert.equal(crawlSchedule("2026-12-28T23:59:00Z").next, "Jan 4", "year rollover");
+  assert.deepEqual(crawlSchedule("2026-10-27T17:36:57Z"), { last: "Oct 27", next: "Nov 3", last_iso: "2026-10-27", next_iso: "2026-11-03" }, "on its Tuesday: last + 7 days");
+  assert.equal(crawlScheduleText("2026-10-27T17:36:57Z"), "Updated weekly (last crawl Oct 27, next crawl Nov 3).");
+  assert.equal(crawlSchedule("2026-10-20T19:29:58Z").next, "Oct 27", "a Tuesday crawl -> the next Tuesday");
+  assert.equal(crawlSchedule("2026-10-13T14:36:14Z").next, "Oct 20");
+  assert.equal(crawlSchedule("2026-10-26T09:00:00Z").next, "Oct 27", "a late (Monday) crawl -> the next day's Tuesday");
+  assert.equal(crawlSchedule("2026-10-28T09:00:00Z").next, "Nov 3", "a late (Wednesday) crawl -> the following Tuesday");
+  assert.equal(crawlSchedule("2026-12-30T23:59:00Z").next, "Jan 5", "year rollover");
+  for (const iso of ["2026-11-01T00:00:00Z", "2026-11-02T00:00:00Z", "2026-11-03T00:00:00Z", "2026-11-04T00:00:00Z", "2026-11-05T00:00:00Z", "2026-11-06T00:00:00Z", "2026-11-07T00:00:00Z"]) {
+    const n = new Date(crawlSchedule(iso).next_iso + "T00:00:00Z");
+    assert.equal(n.getUTCDay(), 2, "next is always a Tuesday: " + iso);
+    const gap = (n - new Date(iso.slice(0, 10) + "T00:00:00Z")) / 86400000;
+    assert.ok(gap >= 1 && gap <= 7, "1..7 days after the crawl: " + iso);
+  }
   assert.equal(crawlScheduleText("nope"), "Updated weekly.");
-  const html = landingHtml("https://402xagent.com", { crawled_at: "2026-11-02T14:00:00Z", endpoints_covered: 9 });
-  assert.match(html, /Updated weekly \(last crawl Nov 2, next crawl Nov 9\)\. Each row has a public receipt\./);
-  assert.match(html, />9 checks · last crawl Nov 2</);
+  const html = landingHtml("https://402xagent.com", { crawled_at: "2026-11-03T14:00:00Z", endpoints_covered: 9 });
+  assert.match(html, /Updated weekly \(last crawl Nov 3, next crawl Nov 10\)\. Each row has a public receipt\./);
+  assert.match(html, />9 checks · last crawl Nov 3</);
   assert.ok(!/crawl of 20/.test(html));
   const live = landingHtml("https://402xagent.com");
   const exp = crawlScheduleText(RECEIPTS_META.crawled_at);
@@ -3236,6 +3246,30 @@ print(json.dumps(ok))`;
   assert.match(sh, /build_discover_blobs\.py" "\$R\/\$\(cat "\$R\/latest\.txt"\)" "\$TMP\/d-blobs\.json" && python3 "\$S\/d1_upload\.py" --remote --source discover/, "0.45.0: weekly d1 run refreshes the d: blobs");
   const mig = readFileSync(new URL("../worker/migrations/0011_crawl_store.sql", import.meta.url), "utf8");
   assert.match(mig, /PRIMARY KEY \(key, part\)/);
+});
+test("0.53.4 weekly crawl publish: wrangler pinned (no @latest) on Node 22, full stderr, D1 failure message, term_history only after a good upload, PUBLISH_ONLY skips fetch+crawl", () => {
+  const dir = new URL("../scripts/weekly-crawl/", import.meta.url);
+  const sh = readFileSync(new URL("weekly_refresh_skips.sh", dir), "utf8");
+  for (const f of ["weekly_refresh_skips.sh", "d1_upload.py", "term_history.py", "kv_upload.py"]) {
+    const t = readFileSync(new URL(f, dir), "utf8");
+    assert.ok(!/wrangler@latest/.test(t), f + ": no wrangler@latest");
+    if (/npx/.test(t)) assert.ok(/node@22/.test(t), f + ": Node 22");
+  }
+  assert.match(sh, /export WRANGLER_PKG="\$\{WRANGLER_PKG:-wrangler@4\.154\.0\}"/);
+  assert.match(sh, /WR\(\) \{.*-p node@22 -p "\$WRANGLER_PKG" wrangler/);
+  const up = readFileSync(new URL("d1_upload.py", dir), "utf8");
+  assert.match(up, /os\.environ\.get\("WRANGLER_PKG", "wrangler@4\.154\.0"\)/);
+  assert.ok(!/\[-300:\]/.test(up), "no 300-char stderr tail");
+  assert.match(up, /--- wrangler stderr ---\\n\{e\.stderr or ''\}/);
+  assert.match(sh, /echo "D1 upload failed/);
+  const iFail = sh.indexOf('[ "$KRC" = 0 ] ||'), iTerm = sh.indexOf('python3 "$S/term_history.py" --remote');
+  assert.ok(iFail > 0 && iTerm > iFail, "term_history runs only after the upload check");
+  const iPub = sh.indexOf('if [ "${PUBLISH_ONLY:-0}" = "1" ]'), iElse = sh.indexOf("else", iPub), iFi = sh.indexOf("\nfi\n", iElse);
+  const crawlPart = sh.slice(iElse, iFi);
+  assert.ok(iPub > 0 && /fetch_lists\.py/.test(crawlPart) && /crawl_probe\.py/.test(crawlPart), "fetch + crawl only in the non-PUBLISH_ONLY branch");
+  assert.ok(sh.indexOf("build_worker_data.py") > iFi && sh.indexOf("WR deploy") > iFi, "build + deploy still run in PUBLISH_ONLY");
+  const bash = spawnSync("bash", ["-n", new URL("weekly_refresh_skips.sh", dir).pathname], { encoding: "utf8" });
+  assert.equal(bash.status, 0, bash.stderr);
 });
 
 
