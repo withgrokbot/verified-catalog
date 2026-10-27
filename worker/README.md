@@ -203,6 +203,46 @@ With no secrets set there is only one source, so `safe_to_resign` is never true.
 ## Hosted mode (0.41.0, part one)
 Integrator keys for routers/wallets: `Authorization: Bearer 402x_live_<id>_<secret>` (or `x-402xagent-key`) on the check and payment status. 1,000 free hosted checks (lifetime), then $0.02, $0.01 for each billable check after the first 1,000 in a UTC month; cached answers count. Credit limit $20 until the first invoice is paid, then $100 (from `hosted_usage`); over it the call takes the normal free/x402 path. D1 only (migration 0009: `integrators` with the key hash only, `hosted_usage` one row per hosted receipt). Secret `HOSTED_KEY_PEPPER` (without it a keyed call gets 501; calls without a key are unchanged). `GET /v1/integrators/me` shows the meter. Owner tool: `node scripts/hosted_key.mjs pepper|issue <name>|revoke <id>|meter <id>`. Not yet: invoices and the invoice cron (part two).
 
+## Watchtower drift & liveness feed (0.52.0, 0.53.1 modes; off by default)
+
+Facts only: liveness, payment terms (seller `pay_to` is public) and drift/down/recovery events. No scores, grades,
+ratings or rankings. Migration `0018_feed.sql` (D1 only, no KV). Code: `src/feed.js`; tests: `tests/feed_test.mjs`.
+
+Flags (none set in wrangler.toml), see `feedMode(env)` in `src/feed.js`:
+- FEED unset/0 (default): off. `/v1/feed*` and `/v1/watch/{id}/feed` return 404, nothing in openapi/llms.txt, no feed writes.
+- `FEED=observe` (or `FEED_OBSERVE=1` with FEED unset): observe-only. Opt-ins are accepted and each opted-in watch's
+  observations are written (same D1 batch as `stepWatch`) and pruned daily; nothing is served (routes 404, no snapshot
+  build, not in openapi/llms.txt).
+- `FEED=1`: serves the routes and builds snapshots; add `FEED_OBSERVE=1` to keep recording watch observations.
+- `FEED_MAINNET=1` takes paid tiers on the main preset.
+
+Migration 0018 is additive and idempotent (only `CREATE TABLE/INDEX IF NOT EXISTS`; `watches` is not altered, opt-ins
+live in `feed_opt_ins`), so it can be applied before the code that uses it. Default for paid
+tiers is **Base Sepolia** USDC through the existing `paymentRequirements` / `verifyAndSettle` (PayAI via FACILITATOR_URL).
+
+| Route | Free | Paid |
+|---|---|---|
+| `GET /v1/feed?category=&host=&since=&offset=` | daily snapshot >= 24 h old, 100 rows, category + offset only | `live=1` $0.01/call (1000 rows, host/since), or a key |
+| `GET /v1/feed/endpoint/{hkey}` | state as of 24 h ago + 7 days of observations | `live=1` $0.01/call: live + 400 days |
+| `GET /v1/feed/drift?from=&to=` | 7 days, 24 h delayed, 100 rows | `full=1` $0.05/call: full history |
+| `GET /v1/feed/snapshot.json` / `.csv?page=n` | signed header (index) + 500-row pages, >= 24 h old | firehose key: latest snapshot |
+| `GET /v1/feed/manifest` | schema, tiers, network, signing kid | |
+| `POST /v1/feed/subscribe {tier, scope}` | | endpoint $1, category $10, firehose $49 per 30 days; `fk_` key shown once, stored hashed |
+
+Categories (fixed): search/data, inference, crypto-market, content, infra, other (keyword map over the crawl's URL and
+source-list fields). Inclusion: crawl-known public URLs, plus watches created with `"feed_opt_in": true` or toggled with
+`POST /v1/watch/{id}/feed {"opt_in": true|false}` (Bearer). Opting out deletes watch-only rows. Free calls: 200 per UTC
+day per network (`feed_quota`, salted prefix hash). The daily cron prunes observations older than 400 days and builds the
+snapshot is built in chunks: one step of 5000 endpoints per `*/20` tick (about 25 ticks for 123k; 82-182 ms per step under
+wrangler dev), stored as 500-row gzip pages in `crawl_store` (source `feed`, newest 3 complete snapshots kept); the signed
+header lists `page_csv_sha256[]` and `rows_root`. Watch observations are written only on a change (state, HTTP status,
+terms, drift/down/recovery) plus one heartbeat per endpoint per UTC day; at most 100 watches may opt in (`FEED_OPT_IN_MAX`,
+cap hits are logged without ids). Feed routes return the standard x402 `PAYMENT-RESPONSE` to the paying buyer; settlement
+data never enters feed tables, snapshots or bodies.
+
+Backfill (local or preview D1 only; `--remote` is refused): `node worker/scripts/feed-backfill.mjs --estimate ...` for
+the size estimate, `--local [--persist-to DIR] [--dry-run]` or `--preview` to write crawl + endpoint_history rows.
+
 ## Facilitator pre-settle check (0.53.0)
 
 `POST /v1/facilitator/check` with JSON `{paymentRequirements: {scheme, network, amount, asset, payTo, resource?}, url?, method?}`
@@ -220,3 +260,10 @@ nothing probed). Unlike other routes, a counter error or missing `QUOTA` binding
 `limiter_unavailable`, `hold`, nothing probed. x402 v1 sellers (`maxAmountRequired`, v1 network names) compare the same way. Both are separate from the
 spot-check 5/day. No D1/KV writes, no logging. A `paymentPayload` in the body is ignored and never echoed or stored.
 Not on the pricing page. Code: `worker/src/facilcheck.js`; tests: `tests/facilcheck_test.mjs`.
+
+### D1 size guard (0.53.1)
+Feed observations and feed snapshots are growth-only writers. Once the database is over `D1_SIZE_MAX_MB` (default
+400), they stop writing and log `{"d1_size_guard":"over",...}` once per 10 minutes; every route keeps answering from
+what is stored, and the watch's own state update still runs. The size comes from `meta.size_after`, which D1 returns on
+every query: it is refreshed for free from the watch batch result, otherwise read with one `SELECT 1` per 10 minutes per
+isolate (`src/d1size.js`). The backfill seeds only the last 30 days (`--days`, default 30).

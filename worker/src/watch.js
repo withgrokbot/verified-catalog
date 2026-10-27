@@ -4,6 +4,8 @@
 // all trial / rate-limit keys are stored only as hashes. Plan: docs/plan-watchtower.md.
 import { assertSafeUrl, resolveHost, parseX402Challenge, readBodyCapped } from "./spotcheck.js";
 import { canonicalize, signObject, signBytes } from "./sign.js";
+import { noteD1Size } from "./d1size.js";
+import { feedObserveOn, feedStatementsForWatch, feedOptOut, optInAllowed, optInMax, isOptedIn, setOptIn } from "./feed.js";
 import { methodNotAllowed, inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER } from "./ops.js";
 
 export const WATCH_PRICE_ATOMIC = "1000000";
@@ -243,6 +245,9 @@ export async function deliverDue(env, now, deps = {}, limit = 50) {
 
 // ------------------------------------------------------------------ one probe step for one watch
 const W_COLS = "id, url, method, webhook_url, status, paused_reason, state, fail_streak, ok_streak, pending_sig, pending_count, was_paused, quiet_until, baseline_json, baseline_sig, last_event_id, fail_days, fail_day, ok_day, consecutive_failed, paid_until";
+// 0.52.0/0.53.1: feed_opt_in (table feed_opt_ins, migration 0018) is selected only when FEED_OBSERVE / FEED=observe is
+// on, so ticks keep working before 0018 is applied and the watches table itself is never altered.
+const wCols = (env) => (feedObserveOn(env) ? W_COLS + ", EXISTS (SELECT 1 FROM feed_opt_ins f WHERE f.watch_id = watches.id) AS feed_opt_in" : W_COLS);
 export async function stepWatch(env, w, o, now, deps = {}) {
   const db = env.RECEIPTS_DB;
   const base = JSON.parse(w.baseline_json);
@@ -281,11 +286,13 @@ export async function stepWatch(env, w, o, now, deps = {}) {
     w.was_paused = 0;
   }
   if (w.quiet_until && !quiet && w.quiet_until <= iso(now)) w.quiet_until = null;
-  await db.batch([
+  noteD1Size(await db.batch([ // 0.53.1: the batch's meta.size_after refreshes the D1 size guard for free
     db.prepare("UPDATE watches SET state = ?, fail_streak = ?, ok_streak = ?, pending_sig = ?, pending_count = ?, was_paused = ?, quiet_until = ?, baseline_json = ?, baseline_sig = ?, baseline_at = CASE WHEN baseline_sig = ? THEN baseline_at ELSE ? END, last_probe_at = ?, next_probe_at = ?, probes_total = probes_total + 1, probes_period = probes_period + 1 WHERE id = ?")
       .bind(w.state, w.fail_streak, w.ok_streak, w.pending_sig, w.pending_count, w.was_paused ? 1 : 0, w.quiet_until, w.baseline_json, w.baseline_sig, w.baseline_sig, iso(now), iso(now), iso(nowMs + probeInterval(env)), w.id),
     db.prepare("INSERT INTO watch_usage (watch_id, day, probes) VALUES (?, ?, 1) ON CONFLICT(watch_id, day) DO UPDATE SET probes = probes + 1").bind(w.id, dayOf(now)),
-  ]);
+    // 0.52.0: public feed observation in the same batch, only for watches that opted in (and FEED_OBSERVE on)
+    ...(await feedStatementsForWatch(env, db, w, o, fired, now)),
+  ]));
   return fired;
 }
 
@@ -309,7 +316,7 @@ export async function watchTick(env, now = new Date(), deps = {}) {
     await writeEvent(env, w, "paused", { reason: "webhook_failing", failed_days: w.fail_days, resume: "POST /v1/watch/" + w.id + "/verify (Bearer) after fixing the webhook, or renew" }, now, deps);
   }
   const batch = intEnv(env.WATCH_BATCH, WATCH_BATCH_DEFAULT);
-  const due = (await db.prepare(`SELECT ${W_COLS} FROM watches WHERE status = 'active' AND next_probe_at <= ? ORDER BY next_probe_at LIMIT ?`).bind(t, batch).all()).results || [];
+  const due = (await db.prepare(`SELECT ${wCols(env)} FROM watches WHERE status = 'active' AND next_probe_at <= ? ORDER BY next_probe_at LIMIT ?`).bind(t, batch).all()).results || [];
   const cache = new Map(); // one probe per (url, method) per tick, shared by every watch on it
   const probeShared = (w) => { const k = w.method + " " + w.url; if (!cache.has(k)) cache.set(k, probe(w.url, w.method, env, deps)); return cache.get(k); };
   const events = [];
@@ -497,11 +504,15 @@ export async function handleWatch(req, env, ctx, url, deps) {
     await db.prepare("INSERT INTO watches (id, secret_hash, url, method, hkey, webhook_url, webhook_hash, webhook_domain_hash, ip_hash, status, trial, paid, created_at, paid_until, period_start, slot, next_probe_at, baseline_json, baseline_sig, baseline_at, state, last_event_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'up', ?)")
       .bind(id, await sha256Hex(pepper(env) + ":" + secret), t.toString(), method, hkey, wh.toString(), whHash, domHash, ipHash, trial ? 1 : 0, trial ? 0 : 1, iso(now), paidUntil, iso(now), slot, iso(new Date(now).getTime() + probeInterval(env)), JSON.stringify(base), bsig, iso(now), signedVerify.event_id).run();
     await db.prepare("INSERT INTO watch_events (id, watch_id, type, created_at, payload) VALUES (?, ?, 'watch.verify', ?, ?)").bind(signedVerify.event_id, id, iso(now), JSON.stringify(signedVerify)).run();
+    // 0.52.0: opt in to the public Watchtower feed (default off: a watched URL never appears unless its owner says so)
+    let feedOptIn = false;
+    let feedCap = false;
+    if (b.feed_opt_in === true && feedObserveOn(env)) { try { if (await optInAllowed(env, db)) { await setOptIn(db, id, true, now); feedOptIn = true; } else feedCap = true; } catch (_) {} }
     const rc = trial ? null : await paymentReceipt(env, w, "create", cd, paidUntil, now, payFacilitator);
-    return jsonResp({ watch_id: id, watch_secret: secret, secret_note: "shown once; send as Authorization: Bearer <watch_secret> to GET, verify or DELETE this watch", status: "active", trial, paid_until: paidUntil,
+    return jsonResp({ watch_id: id, ...(feedOptIn ? { feed_opt_in: true } : {}), ...(feedCap ? { feed_opt_in: false, feed_opt_in_note: `the public feed is at its opt-in cap (${optInMax(env)}); the watch works normally` } : {}), watch_secret: secret, secret_note: "shown once; send as Authorization: Bearer <watch_secret> to GET, verify or DELETE this watch", status: "active", trial, paid_until: paidUntil,
       baseline: { ...base, sig: bsig }, verify_event_id: signedVerify.event_id, ...(rc ? { receipt_id: rc.id, receipt: rc } : {}), manage: { get: "/v1/watch/" + id, renew: "/v1/watch/" + id + "/renew", verify: "/v1/watch/" + id + "/verify" } }, 201, payHeaders);
   }
-  const m = /^\/v1\/watch\/(wt-[0-9a-f]{16})(\/renew|\/verify)?$/.exec(path);
+  const m = /^\/v1\/watch\/(wt-[0-9a-f]{16})(\/renew|\/verify|\/feed)?$/.exec(path);
   if (!m) return jsonResp({ error: "not found", docs: "https://402xagent.com/docs#watchtower" }, 404);
   const id = m[1];
   if (m[2] === "/renew") {
@@ -526,6 +537,20 @@ export async function handleWatch(req, env, ctx, url, deps) {
   }
   const w = await auth(req, env, id);
   if (!w) return jsonResp({ error: "send Authorization: Bearer <watch_secret> (returned once at create)", code: "unauthorized" }, 401, { "www-authenticate": "Bearer" });
+  if (m[2] === "/feed") { // 0.52.0: {opt_in: true|false} (Bearer). Opting out removes watch-sourced feed rows for this URL.
+    if (req.method !== "POST") return methodNotAllowed(req.method, "POST, OPTIONS", url.pathname, { docs: "https://402xagent.com/docs#watchtower" });
+    if (!feedObserveOn(env)) return jsonResp({ error: "the Watchtower feed is not enabled yet", code: "not_enabled" }, 404);
+    const fb = await readBody(req);
+    if (!fb || typeof fb.opt_in !== "boolean") return jsonResp({ error: 'send JSON {"opt_in": true|false}', code: "bad_body", field: "opt_in" }, 400);
+    const was = await isOptedIn(db, w.id);
+    if (fb.opt_in && !was && !(await optInAllowed(env, db))) return jsonResp({ error: `the public feed is at its opt-in cap (${optInMax(env)}); try again later`, code: "opt_in_cap", watch_id: w.id, feed_opt_in: false }, 409);
+    await setOptIn(db, w.id, fb.opt_in, now);
+    if (!fb.opt_in) {
+      const others = ((await db.prepare("SELECT COUNT(*) AS n FROM watches w JOIN feed_opt_ins f ON f.watch_id = w.id WHERE w.url = ? AND w.status != 'deleted' AND w.id != ?").bind(w.url, w.id).first()) || {}).n || 0;
+      if (!others) await feedOptOut(db, w.url);
+    }
+    return jsonResp({ watch_id: w.id, feed_opt_in: fb.opt_in });
+  }
   if (m[2] === "/verify") {
     if (req.method !== "POST") return methodNotAllowed(req.method, "POST, OPTIONS", url.pathname, { docs: "https://402xagent.com/docs#watchtower" });
     const ev = { event_id: "evt-" + randHex(8), type: "watch.verify", occurred_at: iso(now), ...publicWatch(w), issuer: "402xAgent Watchtower" };

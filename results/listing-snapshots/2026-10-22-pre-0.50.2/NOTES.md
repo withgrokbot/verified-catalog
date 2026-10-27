@@ -13,3 +13,6 @@ endpoint-spot-check resource, lastUpdated 2026-10-16T16:19:44Z (Oct 16, 9:19 AM 
 - stored 402 accepts: amount 20000, eip155:8453, USDC, payTo 0x37cf...8674
 - extensions.bazaar.info.output: type json + full paid **example** (verdict/reason/pay_to/history/quality/reputation/access...) + **free_example**; full output schema.
 After 0.50.2, a re-scan would see output {type: "json", docs: ".../endpoint-spot-check/docs"} and an input-only schema.
+
+_AT-06 (2026-10-23): the two saved x402scan HTML pages were removed (third-party pages with embedded scripts; nothing linked
+to them). The facts above are what was recorded from them._
