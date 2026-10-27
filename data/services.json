@@ -139,7 +139,7 @@
       "name": "x402 Atlas web search",
       "provider": "x402atlas.com",
       "category": "web search",
-      "description": "Real-time web search for AI agents \u2014 search the web and get ranked SERP-style results as clean JSON: title, URL, snippet, relevance score, optional LLM-generated answer. Find up-to-date information online \u2014 latest news, current events, finance. Date, domain and exact-phrase filte",
+      "description": "Real-time web search for AI agents — search the web and get ranked SERP-style results as clean JSON: title, URL, snippet, relevance score, optional LLM-generated answer. Find up-to-date information online — latest news, current events, finance. Date, domain and exact-phrase filte",
       "endpoint": "https://websearch.use.x402atlas.com/search",
       "protocol": "x402",
       "x402_version": 2,
@@ -343,7 +343,7 @@
       "name": "Glassnode MVRV metric",
       "provider": "glassnode.com",
       "category": "on-chain data",
-      "description": "Market Value to Realized Value Ratio (MVRV) \u2014 Market Value to Realized Value (MVRV) is the ratio between market cap and realized cap. Data by Glassnode.",
+      "description": "Market Value to Realized Value Ratio (MVRV) — Market Value to Realized Value (MVRV) is the ratio between market cap and realized cap. Data by Glassnode.",
       "endpoint": "https://x402.glassnode.com/v1/metrics/market/mvrv",
       "protocol": "x402",
       "x402_version": 2,
@@ -509,7 +509,7 @@
       "name": "Stride20k Wikipedia summary",
       "provider": "stride20k.com",
       "category": "reference",
-      "description": "Wikipedia summary API: the lead summary of any English Wikipedia article \u2014 title, one-line description, extract paragraph, thumbnail, canonical URL, and Wikidata item id; disambiguation pages labeled via 'kind'. Titles case-sensitive; spaces or underscores accepted. Content CC BY",
+      "description": "Wikipedia summary API: the lead summary of any English Wikipedia article — title, one-line description, extract paragraph, thumbnail, canonical URL, and Wikidata item id; disambiguation pages labeled via 'kind'. Titles case-sensitive; spaces or underscores accepted. Content CC BY",
       "endpoint": "https://gateway.stride20k.com/knowledge/wiki/:title",
       "protocol": "x402",
       "x402_version": 2,
@@ -782,6 +782,433 @@
         "on-chain-data"
       ],
       "added": "2026-10-06"
+    },
+    {
+      "id": "bilbop-summarize",
+      "name": "bilbop summarize",
+      "provider": "bilbop.org",
+      "category": "text",
+      "description": "Text summarization (Solana USDC)",
+      "endpoint": "https://api.bilbop.org/v1/summarize",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.01",
+        "atomic": "10000",
+        "asset": "USDC",
+        "asset_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+      },
+      "sample_request": {
+        "method": "POST",
+        "json_body": {}
+      },
+      "source": {
+        "name": "Seller-submitted (verified-catalog issue #1)",
+        "url": "https://github.com/withgrokbot/verified-catalog/issues/1",
+        "retrieved": "2026-10-27"
+      },
+      "tasks": [
+        "summarize"
+      ],
+      "added": "2026-10-27",
+      "free_probe_only": true
+    },
+    {
+      "id": "bilbop-sol-token-brief",
+      "name": "bilbop Solana token brief",
+      "provider": "bilbop.org",
+      "category": "on-chain data",
+      "description": "Solana token brief",
+      "endpoint": "https://api.bilbop.org/v1/sol-token-brief",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.01",
+        "atomic": "10000",
+        "asset": "USDC",
+        "asset_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+      },
+      "sample_request": {
+        "method": "POST",
+        "json_body": {}
+      },
+      "source": {
+        "name": "Seller-submitted (verified-catalog issue #1)",
+        "url": "https://github.com/withgrokbot/verified-catalog/issues/1",
+        "retrieved": "2026-10-27"
+      },
+      "tasks": [
+        "on-chain-data"
+      ],
+      "added": "2026-10-27",
+      "free_probe_only": true
+    },
+    {
+      "id": "bilbop-sol-mint-info",
+      "name": "bilbop Solana mint info",
+      "provider": "bilbop.org",
+      "category": "on-chain data",
+      "description": "Solana mint info",
+      "endpoint": "https://api.bilbop.org/v1/sol-mint-info",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.01",
+        "atomic": "10000",
+        "asset": "USDC",
+        "asset_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+      },
+      "sample_request": {
+        "method": "POST",
+        "json_body": {}
+      },
+      "source": {
+        "name": "Seller-submitted (verified-catalog issue #1)",
+        "url": "https://github.com/withgrokbot/verified-catalog/issues/1",
+        "retrieved": "2026-10-27"
+      },
+      "tasks": [
+        "on-chain-data"
+      ],
+      "added": "2026-10-27",
+      "free_probe_only": true
+    },
+    {
+      "id": "bilbop-brand-feedback",
+      "name": "bilbop brand feedback",
+      "provider": "bilbop.org",
+      "category": "text",
+      "description": "Brand feedback",
+      "endpoint": "https://api.bilbop.org/brand-feedback",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.50",
+        "atomic": "500000",
+        "asset": "USDC",
+        "asset_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+      },
+      "sample_request": {
+        "method": "POST",
+        "json_body": {}
+      },
+      "source": {
+        "name": "Seller-submitted (verified-catalog issue #1)",
+        "url": "https://github.com/withgrokbot/verified-catalog/issues/1",
+        "retrieved": "2026-10-27"
+      },
+      "tasks": [
+        "feedback"
+      ],
+      "added": "2026-10-27",
+      "free_probe_only": true
+    },
+    {
+      "id": "bilbop-tts",
+      "name": "bilbop text to speech",
+      "provider": "bilbop.org",
+      "category": "media",
+      "description": "Text to speech",
+      "endpoint": "https://api.bilbop.org/v1/tts",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.025",
+        "atomic": "25000",
+        "asset": "USDC",
+        "asset_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+      },
+      "sample_request": {
+        "method": "POST",
+        "json_body": {}
+      },
+      "source": {
+        "name": "Seller-submitted (verified-catalog issue #1)",
+        "url": "https://github.com/withgrokbot/verified-catalog/issues/1",
+        "retrieved": "2026-10-27"
+      },
+      "tasks": [
+        "tts"
+      ],
+      "added": "2026-10-27",
+      "free_probe_only": true
+    },
+    {
+      "id": "plainchain-balances",
+      "name": "Plainchain balances",
+      "provider": "plainchain.appin60.com",
+      "category": "on-chain data",
+      "description": "Native and major token balances with USD values",
+      "endpoint": "https://plainchain.appin60.com/v1/balances",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.001942",
+        "atomic": "1942",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "chain": "base",
+          "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+        }
+      },
+      "source": {
+        "name": "Seller-submitted (verified-catalog issue #2)",
+        "url": "https://github.com/withgrokbot/verified-catalog/issues/2",
+        "retrieved": "2026-10-27"
+      },
+      "tasks": [
+        "token-balance",
+        "on-chain-data"
+      ],
+      "added": "2026-10-27",
+      "free_probe_only": true
+    },
+    {
+      "id": "plainchain-gas",
+      "name": "Plainchain gas",
+      "provider": "plainchain.appin60.com",
+      "category": "on-chain data",
+      "description": "Gas price",
+      "endpoint": "https://plainchain.appin60.com/v1/gas",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.001042",
+        "atomic": "1042",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "chain": "base"
+        }
+      },
+      "source": {
+        "name": "Seller-submitted (verified-catalog issue #2)",
+        "url": "https://github.com/withgrokbot/verified-catalog/issues/2",
+        "retrieved": "2026-10-27"
+      },
+      "tasks": [
+        "gas",
+        "on-chain-data"
+      ],
+      "added": "2026-10-27",
+      "free_probe_only": true
+    },
+    {
+      "id": "plainchain-address",
+      "name": "Plainchain address type",
+      "provider": "plainchain.appin60.com",
+      "category": "on-chain data",
+      "description": "Address type, ERC-20 metadata and proxy info",
+      "endpoint": "https://plainchain.appin60.com/v1/address",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.001942",
+        "atomic": "1942",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "chain": "base",
+          "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        }
+      },
+      "source": {
+        "name": "Seller-submitted (verified-catalog issue #2)",
+        "url": "https://github.com/withgrokbot/verified-catalog/issues/2",
+        "retrieved": "2026-10-27"
+      },
+      "tasks": [
+        "on-chain-data"
+      ],
+      "added": "2026-10-27",
+      "free_probe_only": true
+    },
+    {
+      "id": "plainchain-x402-receipt",
+      "name": "Plainchain x402 receipt check",
+      "provider": "plainchain.appin60.com",
+      "category": "on-chain data",
+      "description": "Decodes an x402 settlement transaction",
+      "endpoint": "https://plainchain.appin60.com/v1/x402/receipt",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.002942",
+        "atomic": "2942",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "chain": "base",
+          "hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      "source": {
+        "name": "Seller-submitted (verified-catalog issue #2)",
+        "url": "https://github.com/withgrokbot/verified-catalog/issues/2",
+        "retrieved": "2026-10-27"
+      },
+      "tasks": [
+        "on-chain-data"
+      ],
+      "added": "2026-10-27",
+      "free_probe_only": true
+    },
+    {
+      "id": "greyridge-is-contract",
+      "name": "Grey Ridge is-contract",
+      "provider": "api.greyridgesignals.ai",
+      "category": "on-chain data",
+      "description": "Whether an address is a contract",
+      "endpoint": "https://api.greyridgesignals.ai/chain/is-contract",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.002",
+        "atomic": "2000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        }
+      },
+      "source": {
+        "name": "Seller-submitted (verified-catalog issue #4)",
+        "url": "https://github.com/withgrokbot/verified-catalog/issues/4",
+        "retrieved": "2026-10-27"
+      },
+      "tasks": [
+        "on-chain-data"
+      ],
+      "added": "2026-10-27",
+      "free_probe_only": true
+    },
+    {
+      "id": "greyridge-total-supply",
+      "name": "Grey Ridge total supply",
+      "provider": "api.greyridgesignals.ai",
+      "category": "on-chain data",
+      "description": "Token total supply",
+      "endpoint": "https://api.greyridgesignals.ai/chain/total-supply",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.003",
+        "atomic": "3000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        }
+      },
+      "source": {
+        "name": "Seller-submitted (verified-catalog issue #4)",
+        "url": "https://github.com/withgrokbot/verified-catalog/issues/4",
+        "retrieved": "2026-10-27"
+      },
+      "tasks": [
+        "on-chain-data"
+      ],
+      "added": "2026-10-27",
+      "free_probe_only": true
+    },
+    {
+      "id": "greyridge-token-report",
+      "name": "Grey Ridge token report",
+      "provider": "api.greyridgesignals.ai",
+      "category": "token safety",
+      "description": "Token safety report",
+      "endpoint": "https://api.greyridgesignals.ai/chain/token-report",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.01",
+        "atomic": "10000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        }
+      },
+      "source": {
+        "name": "Seller-submitted (verified-catalog issue #4)",
+        "url": "https://github.com/withgrokbot/verified-catalog/issues/4",
+        "retrieved": "2026-10-27"
+      },
+      "tasks": [
+        "token-safety",
+        "on-chain-data"
+      ],
+      "added": "2026-10-27",
+      "free_probe_only": true
+    },
+    {
+      "id": "x402-data-api-gate-swap",
+      "name": "x402-data-api swap gate",
+      "provider": "x402-data-api.sigrunner.workers.dev",
+      "category": "token safety",
+      "description": "Pre-trade go/hold/block token gate",
+      "endpoint": "https://x402-data-api.sigrunner.workers.dev/gate/swap",
+      "protocol": "x402",
+      "x402_version": 2,
+      "advertised_price": {
+        "amount_usd": "0.008",
+        "atomic": "8000",
+        "asset": "USDC",
+        "asset_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "network": "eip155:8453"
+      },
+      "sample_request": {
+        "method": "GET",
+        "query": {
+          "token": "0x4200000000000000000000000000000000000006",
+          "side": "buy",
+          "notional_usd": "100"
+        }
+      },
+      "source": {
+        "name": "Seller-submitted (verified-catalog issue #5)",
+        "url": "https://github.com/withgrokbot/verified-catalog/issues/5",
+        "retrieved": "2026-10-27"
+      },
+      "tasks": [
+        "token-safety"
+      ],
+      "added": "2026-10-27",
+      "free_probe_only": true
     }
   ],
   "own_bots": [

@@ -63,9 +63,10 @@ import { handleFeed, feedDaily, feedTick, feedOn, feedObserveOn, FEED_PRICES } f
 import { facilitatorChain, callFacilitator } from "./facilitator.js";
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
+import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.51.2";
+export const VERSION = "0.52.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1179,6 +1180,18 @@ export function spotPaymentRequired(c, resourceUrl, error, used, target = "") {
   };
 }
 
+// 0.52.0 cap-hit 402: what the paid check adds over the free answer (facts about the response shape only; payment never
+// changes the verdict), plus machine-readable price and payment instructions. Free tier and price are unchanged.
+export function spotCapHitOffer(c) {
+  return {
+    cap_hit: true,
+    price: { amount_usd: c.priceUsd, amount_atomic: String(c.priceAtomic), asset: c.asset || USDC_BASE, network: c.network, pay_to: c.payTo },
+    payment_instructions: { header: "PAYMENT-SIGNATURE", sign: "EIP-3009", retry: "same request + header" },
+    paid_adds: ["payment: signable object on pay", "terms: full (free: hash)", "probe: details", "history_observations: last 30", "quality: full checks", "reputation: 0-100 (free: band)"],
+    verdict_note: "Same verdict free or paid.",
+  };
+}
+
 const SPOT_URL_ALIASES = ["url", "endpoint", "target", "resource", "endpoint_url", "uri"];
 const SPOT_PRICE_ALIASES = ["claimed_price", "claimed_price_usd", "price", "price_usd"];
 export const SPOT_EXAMPLE_TARGET = "https://example.com/api/paid";
@@ -1186,15 +1199,30 @@ export function spotExample(origin) {
   return origin + "/v1/products/endpoint-spot-check?url=" + SPOT_EXAMPLE_TARGET;
 }
 // One-line 400 message: exact field name + a full working sample request (GET URL, and the one-line POST JSON).
+// 0.51.4: still JSON with the same keys (error, field, example, mistake, hint, fixed_example, docs); example is now the
+// copyable template (?url=<endpoint>), example_filled a real public endpoint from the docs (the old example.com sample is a
+// placeholder host that 0.49.2 rejects), free_check links the free check (5/day). GET 400s stay under 1 KB, POST ones about 1.05 KB.
+export const SPOT_400_FREE_CHECK = { url: FREE_CHECK_URL, free_per_day: 5 };
 export function spotBadRequest(origin, field, problem, fix = null) {
-  const example = spotExample(origin);
   return {
-    error: `${problem}. Example: ${example} (or POST JSON {"url":"${SPOT_EXAMPLE_TARGET}"} to ${origin}/v1/products/endpoint-spot-check)`,
-    field,
-    example,
+    error: `${problem}. Example: ${FREE_CHECK_EXAMPLE_URL}`,
+    field: String(field || "").replace(/[^A-Za-z0-9_.\-]/g, "").slice(0, 40),
+    example: FREE_CHECK_URL,
+    example_filled: FREE_CHECK_EXAMPLE_URL,
+    free_check: SPOT_400_FREE_CHECK,
     ...(fix ? { mistake: fix.mistake, hint: fix.hint, fixed_example: fix.fixed_example, docs: API_ORIGIN + "/openapi.json" } : {}),
   };
 }
+// 0.51.4: a caller value is only reused in fixed_example when it is short, printable and carries nothing that looks like a
+// secret, wallet or email (same tests as ops.js sanitizeReceived); otherwise the real example is used. Never echoed raw.
+const SPOT_FIX_MAX = 300;
+function safeFixValue(v) {
+  const s = String(v == null ? "" : v).trim();
+  if (!s || s.length > SPOT_FIX_MAX || /[^\x21-\x7e]/.test(s)) return null;
+  if (/0x[0-9a-f]{16,}/i.test(s) || /[A-Za-z0-9+\/=_\-]{40,}/.test(s) || /@/.test(s)) return null;
+  return s;
+}
+const safeParamName = (k) => String(k || "").replace(/[^A-Za-z0-9_.:\-]/g, "").slice(0, 40) || "?";
 const SPOT_KNOWN_PARAMS = new Set([...SPOT_URL_ALIASES, ...SPOT_PRICE_ALIASES, "task", "client", "ref", "format", "method", "pay_to", "network", "mode", "cb", "policy_cap_usd", "policy_remaining_usd"]);
 const SPOT_ROUTE = API_ORIGIN + "/v1/products/endpoint-spot-check";
 const looksLikeUrl = (v) => typeof v === "string" && /^https?:\/\/[^\s/]+\.[^\s]+/i.test(v.trim());
@@ -1213,21 +1241,21 @@ export function spotFix(q) {
   const get = (v) => ({ method: "GET", url: SPOT_ROUTE + "?url=" + encodeURIComponent(v) });
   const post = (v) => ({ method: "POST", url: SPOT_ROUTE, headers: { "content-type": "application/json" }, body: { url: v } });
   const asPost = ctx.method === "POST";
-  const fixFor = (v) => (asPost ? post(v) : get(v));
   const real = asPost ? post(FREE_CHECK_EXAMPLE_TARGET) : { method: "GET", url: FREE_CHECK_EXAMPLE_URL };
+  const fixFor = (v) => { const sv = safeFixValue(v); return sv ? (asPost ? post(sv) : get(sv)) : real; }; // 0.51.4: no raw echo
   const unknown = (ctx.unknown || []).filter((k) => k !== "cb");
   const val = (k) => (ctx.values || {})[k];
   if (e.field === "body") {
     const form = ctx.form || {};
     const fv = SPOT_URL_ALIASES.map((k) => form[k]).find(Boolean) || Object.values(form).find(looksLikeUrl);
-    if (fv) return { mistake: "post_form_body", hint: 'Send JSON with content-type application/json: {"url":"<endpoint>"} (form bodies are not read).', fixed_example: post(fv) };
+    if (fv) return { mistake: "post_form_body", hint: 'Send JSON with content-type application/json: {"url":"<endpoint>"} (form bodies are not read).', fixed_example: fixFor(fv) };
     return { mistake: "post_invalid_json", hint: 'POST a JSON object {"url":"<endpoint>"} with content-type application/json, or use GET ?url=<endpoint>.', fixed_example: real };
   }
   if (e.field === "url" && !q.url) {
     const k = unknown.find((n) => looksLikeUrl(val(n)) || looksLikeHost(val(n)));
     if (k) {
       const v = String(val(k)).trim();
-      return { mistake: asPost ? "post_wrong_field" : "wrong_param_name", hint: `Use "url" instead of "${String(k).slice(0, 40)}"${asPost ? " in the JSON body" : ""}.`, fixed_example: fixFor(looksLikeUrl(v) ? v : "https://" + v) };
+      return { mistake: asPost ? "post_wrong_field" : "wrong_param_name", hint: `Use "url" instead of "${safeParamName(k)}"${asPost ? " in the JSON body" : ""}.`, fixed_example: fixFor(looksLikeUrl(v) ? v : "https://" + v) };
     }
     if (!ctx.keys || !ctx.keys.filter((n) => n !== "cb").length) return { mistake: "no_params", hint: "Add ?url=<the x402 endpoint you are about to pay>, URL-encoded.", fixed_example: real };
     return { mistake: asPost ? "post_missing_url" : "missing_url", hint: asPost ? 'Put the endpoint in the JSON body as {"url":"<endpoint>"}.' : "Add url=<the x402 endpoint>, URL-encoded.", fixed_example: real };
@@ -1238,7 +1266,7 @@ export function spotFix(q) {
     return { mistake: "url_not_http", hint: "url must be a full http(s) URL of the x402 endpoint, URL-encoded.", fixed_example: real };
   }
   const t = q.url && looksLikeUrl(q.url) ? q.url : FREE_CHECK_EXAMPLE_TARGET;
-  return { mistake: "bad_" + String(e.field || "param").replace(/[^a-z_]/gi, "").slice(0, 20), hint: `Fix or drop "${e.field}"; the check only needs url.`, fixed_example: fixFor(t) };
+  return { mistake: "bad_" + String(e.field || "param").replace(/[^a-z_]/gi, "").slice(0, 20), hint: `Fix or drop "${safeParamName(e.field)}"; the check only needs url.`, fixed_example: fixFor(t) };
 }
 
 // Listing facts from our self-checked crawl (/v1/receipts), by exact URL. Used as the expected pay_to / network / price
@@ -1797,7 +1825,7 @@ async function parseSpotQuery(req, url) {
   ctx.unknown = [...new Set([...p.keys(), ...Object.keys(body)])].filter((k) => !SPOT_KNOWN_PARAMS.has(k));
   if (!target) {
     const unknown = ctx.unknown;
-    errors.push({ missing: true, field: "url", problem: unknown.length ? `Missing "url" (unknown param "${String(unknown[0]).slice(0, 40).replace(/[^\x20-\x7e]/g, "")}"; use "url")` : 'Missing "url"' });
+    errors.push({ missing: true, field: "url", problem: unknown.length ? `Missing "url" (unknown param "${String(unknown[0]).replace(/[^A-Za-z0-9_.:\-]/g, "").slice(0, 40)}"; use "url")` : 'Missing "url"' });
   } else {
     let u = null;
     try { u = new URL(target); } catch (_) { u = null; }
@@ -1884,7 +1912,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const shape = spotShape(q.ctx);
   if (q.errors.length) {
     const fix = spotFix(q);
-    writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-bad-params", failReason: fix.mistake, shape }));
+    // 0.51.4: the data point carries the status actually answered (402 discovery / 200 usage / 400), not always 400.
+    const spotPoint = (status, access) => writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status, referer, access, failReason: fix.mistake, shape }));
     // 0.26.1: a GET/HEAD with no url and no misnamed param is a usage/health request (directory health probes): same help body,
     // HTTP 200. A malformed url, or a POST with bad params, stays 400.
     // 0.39.1: no url, no misnamed param, no payment header -> an x402 v2 discovery 402 (same accepts/Bazaar metadata as the real
@@ -1894,9 +1923,11 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       const help = spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem, fix);
       const body = { ...spotPaymentRequired(spotDynCfg(c, null), resourceUrl, "Missing url. Add ?url=<x402 endpoint> (or POST JSON {\"url\": ...}) to run a check.", 0, ""), hint: help.error, field: help.field, example: help.example, discovery: true };
       body.pricing = "flat $0.02 USDC per check (any target price)";
+      spotPoint(402, "spot-discovery");
       return json402c(body, 402, { "payment-required": b64encode(body) });
     }
     const usage = q.errors[0].missing && !(q.ctx.unknown || []).length && (req.method === "GET" || req.method === "HEAD"); // a misnamed param (?link=) stays 400
+    spotPoint(usage ? 200 : 400, usage ? "spot-usage" : "spot-bad-params");
     return json(spotBadRequest(API_ORIGIN, q.errors[0].field, q.errors[0].problem, fix), usage ? 200 : 400);
   }
 
@@ -1985,8 +2016,9 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   };
 
   let cd = c; // per-request priced config, set after the probe
-  const deny = (error, used, kind = "payment-required", payer = "") => {
+  const deny = (error, used, kind = "payment-required", payer = "", capHit = false) => {
     const body = spotPaymentRequired(cd, resourceUrl, error, used, q.url || "");
+    if (capHit) Object.assign(body, spotCapHitOffer(cd));
     body.pricing = typeof isRouter !== "undefined" && isRouter
       ? `router tier: $${rcfg.perCheckAtomic / 1e6} per check, billed per pack of checks in one settlement`
       : "flat $0.02 USDC per check (any target price)";
@@ -2071,7 +2103,10 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       }, 429, { "retry-after": String(retry), "cache-control": "no-store" });
     }
     freeUsed = t.used;
+    // 0.52.0 spot funnel (Analytics Engine): per-day digest of the quota key only, never the raw key/IP/wallet
+    const fdg = await funnelDigest(env.CLIENT_SALT, key, utcDay());
     if (t.free) {
+      funnelEvent(env, { event: "free_check", digest: fdg, ua, creditsRemaining: t.used === null ? 0 : Math.max(0, c.freePerDay - t.used) });
       access = {
         tier: "free",
         free_per_day: c.freePerDay,
@@ -2094,11 +2129,15 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         const usd = (rcfg.packAtomic / 1e6).toString();
         cd = { ...cd, priceAtomic: String(rcfg.packAtomic), priceUsd: usd };
         if (!hdr) {
+          funnelEvent(env, { event: "cap_hit", digest: fdg, ua }); // fired before the 402 goes out
           const res = deny(`Router tier: $${usd} USDC on Base buys ${Math.floor(rcfg.packAtomic / rcfg.perCheckAtomic)} checks ($${rcfg.perCheckAtomic / 1e6}/check): this one now, the rest prepaid for your next calls with client=${q.client}.`, t.used, "payment-required");
           return res;
         }
       }
-      if (!hdr) return deny(`Free 402xAgent checks used up for today (${c.freePerDay} per UTC day). Pay $${cd.priceUsd} USDC on Base via x402 to continue.`, t.used, "payment-required");
+      if (!hdr) {
+        funnelEvent(env, { event: "cap_hit", digest: fdg, ua }); // fired before the 402 goes out
+        return deny(`Free 402xAgent checks used up for today (${c.freePerDay} per UTC day). Pay $${cd.priceUsd} USDC on Base via x402 to continue.`, t.used, "payment-required", "", true);
+      }
       const payload = decodePaymentHeader(hdr);
       if (!payload) return deny("payment header is not valid base64 JSON x402 payload", t.used, "payment-failed");
       {
@@ -2142,6 +2181,8 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       // 0.51.0: self_test = payer is our payTo or a DRILL_WALLETS address (never self-declared); excluded from revenue + demand
       const selfPaid = String(r.settle.payer || authFrom || "").toLowerCase() === c.payTo.toLowerCase() || selfTestOf(payload, env, c.payTo);
       if (selfPaid) access.self_test = true;
+      // counted only after verify+settle AND the idempotency check: a replayed settlement (retry) is never a second sale
+      if (!r.replayed) funnelEvent(env, { event: "paid", digest: fdg, ua, amountUsd: Number(cd.priceUsd), self: !!selfPaid });
       if (isRouter && !r.replayed) { // 0.51.1: a replayed settlement never credits the pack twice
         const n = Math.floor(Number(cd.priceAtomic) / rcfg.perCheckAtomic) - 1;
         const cr = await routerCredits(env, q.client, "credit", n);
@@ -3201,6 +3242,12 @@ export const MCP_TOOLS = [
 ];
 
 class ToolInputError extends Error {}
+// 0.51.4: pay_to for endpoint_spot_check only when it is a real address: 0x + 40 hex (EVM) or a 32-44 char base58 key (Solana).
+export function mcpPayTo(v) {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return /^0x[0-9a-fA-F]{40}$/.test(s) || /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s) ? s : null;
+}
 const pyStr = (v) => (v === null ? "None" : v === true ? "True" : v === false ? "False" : String(v));
 const blank = (v) => v === undefined || v === null || v === "";
 function pyInt(v) {
@@ -3360,7 +3407,9 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         if (!args.url) return err("url is required");
         const qp = new URLSearchParams({ client: MCP_CLIENT, url: pyStr(args.url) });
         if (args.task) qp.set("task", pyStr(args.task));
-        for (const k of ["method", "pay_to", "network", "mode", "ref"]) if (args[k]) qp.set(k, pyStr(args[k]));
+        for (const k of ["method", "network", "mode", "ref"]) if (args[k]) qp.set(k, pyStr(args[k]));
+        const payTo = mcpPayTo(args.pay_to); // 0.51.4: a malformed pay_to is omitted instead of turning the check into a 400
+        if (payTo) qp.set("pay_to", payTo);
         if (!blank(args.claimed_price)) {
           const d = decStr(args.claimed_price);
           if (d === null) return err("claimed_price must be a number");
@@ -3721,6 +3770,7 @@ const routeInnerHolder = {
     if (path === "/v1/lookup/paid" && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaidLookup(req, env, ctx, url);
     if (path === "/v1/products/overnight-cos-pack" && ["GET", "HEAD", "POST"].includes(req.method)) return handleOvernightCosPack(req, env, ctx, url);
     if (path === "/v1/products/endpoint-spot-check/docs" && (req.method === "GET" || req.method === "HEAD")) return new Response(JSON.stringify(spotDocs(API_ORIGIN), null, 2), { headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });
+    if (path === "/v1/admin/funnel" && req.method === "GET") return handleFunnelAdmin(req, env);
     if (path === "/v1/products/endpoint-spot-check" && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointSpotCheck(req, env, ctx, url);
     if (path === PS_ROUTE_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaymentStatus(req, env, ctx, url);
     if (path === ER_ROUTE_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointReport(req, env, ctx, url);

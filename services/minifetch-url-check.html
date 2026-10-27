@@ -22,11 +22,11 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 10:07:18.421 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-23 14:46:08 UTC</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-27 14:53:16 UTC</td></tr>
 <tr><th scope="row">Check mode</th><td>dry-run</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>255 ms</td></tr>
+<tr><th scope="row">Latency</th><td>228 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.001 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.001</td></tr>
@@ -36,13 +36,14 @@
 <tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.001, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 1000 units of EPjFWdd5Aufq.</p>
-<p>Evidence: <a href="../results/raw/20261023T144607Z/minifetch-url-check.json">raw log for this check</a>. Machine-readable: <a href="minifetch-url-check.json">minifetch-url-check.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261027T145315Z/minifetch-url-check.json">raw log for this check</a>. Machine-readable: <a href="minifetch-url-check.json">minifetch-url-check.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: url=https://example.com. Passes if: allowed = true.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-10-23 17:51:41 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>passed (allowed = true)</td><td><a href="https://basescan.org/tx/0x16b92db948513293d07409fdc3bf92434b42d2a2d3ee1aa39aa8128610e80d97">0x16b92db9...</a></td></tr>
 <tr><td>2026-10-20 17:46:20 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>passed (allowed = true)</td><td><a href="https://basescan.org/tx/0x809cf806310acd2eebcf602aeae481f18d33cb470a6c14f5d63038ce22444361">0x809cf806...</a></td></tr>
 <tr><td>2026-10-16 17:49:07 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>passed (allowed = true)</td><td><a href="https://basescan.org/tx/0xc432aea3941664aa2729b198c57534deaa07f80cb10a411c6e6e8e042ef18655">0xc432aea3...</a></td></tr>
 <tr><td>2026-10-13 17:57:11 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>passed (allowed = true)</td><td><a href="https://basescan.org/tx/0x385972c87f5dc5ceea00ea690f56ec2cf407b1d3e7ea017026444c067bfb0d10">0x385972c8...</a></td></tr>
@@ -55,16 +56,16 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-27 14:53:16 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>228 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261027T145315Z/minifetch-url-check.json">raw log</a></td></tr>
+<tr><td>2026-10-26 15:39:11 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>221 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261026T153911Z/minifetch-url-check.json">raw log</a></td></tr>
+<tr><td>2026-10-25 14:36:31 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>244 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261025T143631Z/minifetch-url-check.json">raw log</a></td></tr>
+<tr><td>2026-10-24 14:36:50 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>219 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261024T143649Z/minifetch-url-check.json">raw log</a></td></tr>
+<tr><td>2026-10-23 17:51:41 UTC</td><td>paid</td><td>yes</td><td>402</td><td>242 ms</td><td>$0.001</td><td>yes</td><td><a href="../results/raw/20261023T175124Z/minifetch-url-check.json">raw log</a></td></tr>
 <tr><td>2026-10-23 14:46:08 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>255 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261023T144607Z/minifetch-url-check.json">raw log</a></td></tr>
 <tr><td>2026-10-22 14:42:16 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>184 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261022T144216Z/minifetch-url-check.json">raw log</a></td></tr>
 <tr><td>2026-10-21 14:41:56 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>249 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261021T144155Z/minifetch-url-check.json">raw log</a></td></tr>
 <tr><td>2026-10-20 17:46:20 UTC</td><td>paid</td><td>yes</td><td>402</td><td>155 ms</td><td>$0.001</td><td>yes</td><td><a href="../results/raw/20261020T174555Z/minifetch-url-check.json">raw log</a></td></tr>
 <tr><td>2026-10-20 14:41:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>244 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261020T144156Z/minifetch-url-check.json">raw log</a></td></tr>
-<tr><td>2026-10-19 14:44:12 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>165 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261019T144411Z/minifetch-url-check.json">raw log</a></td></tr>
-<tr><td>2026-10-18 14:34:55 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>160 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261018T143455Z/minifetch-url-check.json">raw log</a></td></tr>
-<tr><td>2026-10-17 14:34:41 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>136 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261017T143440Z/minifetch-url-check.json">raw log</a></td></tr>
-<tr><td>2026-10-16 17:49:07 UTC</td><td>paid</td><td>yes</td><td>402</td><td>125 ms</td><td>$0.001</td><td>yes</td><td><a href="../results/raw/20261016T174843Z/minifetch-url-check.json">raw log</a></td></tr>
-<tr><td>2026-10-16 14:42:23 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>129 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261016T144222Z/minifetch-url-check.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

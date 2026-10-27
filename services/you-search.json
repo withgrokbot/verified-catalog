@@ -38,13 +38,13 @@
     "facts_only": true,
     "facts_only_reason": "On 2026-09-30 the endpoint answered our x402 payment with a second HTTP 402 asking to pay again by another method (Tempo), so nothing was delivered."
   },
-  "paid_receipts": 4,
+  "paid_receipts": 5,
   "latest": {
-    "checked_at": "2026-10-23T14:46:09Z",
+    "checked_at": "2026-10-27T14:53:16Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 1031,
+    "latency_ms": 741,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.005",
@@ -56,15 +56,15 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261023T144607Z/you-search.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261023T144607Z/you-search.json"
+    "raw_log": "results/raw/20261027T145315Z/you-search.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T145315Z/you-search.json"
   },
   "history_summary": {
-    "checks": 30,
-    "reachable": 30,
-    "x402_challenge_ok": 30,
-    "paid_checks": 4,
+    "checks": 35,
+    "reachable": 35,
+    "x402_challenge_ok": 35,
+    "paid_checks": 5,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-10-23T14:46:09Z"
+    "last_checked": "2026-10-27T14:53:16Z"
   }
 }

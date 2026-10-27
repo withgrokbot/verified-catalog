@@ -22,11 +22,11 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-30 (listing last updated 2026-09-26 10:40:00 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-23 14:46:09 UTC</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-27 14:53:16 UTC</td></tr>
 <tr><th scope="row">Check mode</th><td>dry-run</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>852 ms</td></tr>
+<tr><th scope="row">Latency</th><td>181 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.001 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.001</td></tr>
@@ -36,13 +36,14 @@
 <tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.001, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 1000 units of EPjFWdd5Aufq.</p>
-<p>Evidence: <a href="../results/raw/20261023T144607Z/quartermaster-base-gas.json">raw log for this check</a>. Machine-readable: <a href="quartermaster-base-gas.json">quartermaster-base-gas.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261027T145315Z/quartermaster-base-gas.json">raw log for this check</a>. Machine-readable: <a href="quartermaster-base-gas.json">quartermaster-base-gas.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>No known-answer test for this service.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-10-23 17:52:01 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x3ce05b1a9a10411234e9ce6bf66cf528fe2b33f83f6745c55138c9553bd4350f">0x3ce05b1a...</a></td></tr>
 <tr><td>2026-10-20 17:46:43 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x16ceff4209eb008733601ea1fb73fe886f5a2c0cd6a494b082806fded6dbea1d">0x16ceff42...</a></td></tr>
 <tr><td>2026-10-16 17:49:49 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x5088b814c9f4941a22d3955391f308d34b3784c45bfabcf914f653dc4c3ea421">0x5088b814...</a></td></tr>
 <tr><td>2026-10-13 17:57:40 UTC</td><td>$0.001</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x6a925420459ba8bb6ee10d81643842951129a8809a2ae92f2c9b9f3c80e409e4">0x6a925420...</a></td></tr>
@@ -52,16 +53,16 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-27 14:53:16 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>181 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261027T145315Z/quartermaster-base-gas.json">raw log</a></td></tr>
+<tr><td>2026-10-26 15:39:13 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>786 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261026T153911Z/quartermaster-base-gas.json">raw log</a></td></tr>
+<tr><td>2026-10-25 14:36:32 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>539 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261025T143631Z/quartermaster-base-gas.json">raw log</a></td></tr>
+<tr><td>2026-10-24 14:36:51 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>717 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261024T143649Z/quartermaster-base-gas.json">raw log</a></td></tr>
+<tr><td>2026-10-23 17:52:01 UTC</td><td>paid</td><td>yes</td><td>402</td><td>826 ms</td><td>$0.001</td><td>yes</td><td><a href="../results/raw/20261023T175124Z/quartermaster-base-gas.json">raw log</a></td></tr>
 <tr><td>2026-10-23 14:46:09 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>852 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261023T144607Z/quartermaster-base-gas.json">raw log</a></td></tr>
 <tr><td>2026-10-22 14:42:18 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>1073 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261022T144216Z/quartermaster-base-gas.json">raw log</a></td></tr>
 <tr><td>2026-10-21 14:41:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>664 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261021T144155Z/quartermaster-base-gas.json">raw log</a></td></tr>
 <tr><td>2026-10-20 17:46:43 UTC</td><td>paid</td><td>yes</td><td>402</td><td>570 ms</td><td>$0.001</td><td>yes</td><td><a href="../results/raw/20261020T174555Z/quartermaster-base-gas.json">raw log</a></td></tr>
 <tr><td>2026-10-20 14:41:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>578 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261020T144156Z/quartermaster-base-gas.json">raw log</a></td></tr>
-<tr><td>2026-10-19 14:44:14 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>1096 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261019T144411Z/quartermaster-base-gas.json">raw log</a></td></tr>
-<tr><td>2026-10-18 14:34:57 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>673 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261018T143455Z/quartermaster-base-gas.json">raw log</a></td></tr>
-<tr><td>2026-10-17 14:34:42 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>441 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261017T143440Z/quartermaster-base-gas.json">raw log</a></td></tr>
-<tr><td>2026-10-16 17:49:49 UTC</td><td>paid</td><td>yes</td><td>402</td><td>967 ms</td><td>$0.001</td><td>yes</td><td><a href="../results/raw/20261016T174843Z/quartermaster-base-gas.json">raw log</a></td></tr>
-<tr><td>2026-10-16 14:42:25 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>1280 ms</td><td>$0.001</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261016T144222Z/quartermaster-base-gas.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

@@ -1,0 +1,59 @@
+{
+  "service_id": "greyridge-total-supply",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.greyridgesignals.ai/chain/total-supply?token=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 230,
+    "headers": {
+      "date": "Tue, 27 Oct 2026 14:53:17 GMT",
+      "content-type": "application/json",
+      "content-length": "1959",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://api.greyridgesignals.ai/chain/total-supply?token=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "description": "ERC-20 total supply on Base, raw + formatted with decimals and symbol. Use when an agent needs a token's circulating-supply base for market-cap or dilution math.",
+            "mimeType": "application/json",
+            "serviceName": "Chain Total Supply",
+            "tags": [
+              "onchain",
+              "base",
+              "rpc",
+              "total-supply",
+              "data"
+            ],
+            "iconUrl": "https://x402-data-api.sigrunner.workers.dev/miniapp/icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "2000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x5765ae06a52dc7A0BB71c36A11db512c7ea9ed10",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 1959,
+    "body_sha256": "6b0477a349b2f7f2486f18dd20030c5a7621ceb971de58374382b9dd289228ff",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{\"url\":\"https://api.greyridgesignals.ai/chain/total-supply?token=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"description\":\"ERC-20 total supply on Base, raw + formatted with decimals and symbol. Use when an agent needs a token's circulating-supply base for market-cap or dilution math.\",\"mimeType\":\"application/json\",\"serviceName\":\"Chain Total Supply\",\"tags\":[\"onchain\",\"base\",\"rpc\",\"total-supply\",\"data\"],\"iconUrl\":\"https://x402-data-api.sigrunner.workers.dev/miniapp/icon.png\"},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"2000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x5765ae06a52dc7A0BB71c36A11db512c7ea9ed10\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"decimals\":6}}],\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"type\":\"http\",\"method\":\"GET\",\"queryParams\":{\"token\":\"0x833589fCd6eDb6E08f4c7C32D4f71b54bdA02913\"}},\"output\":{\"type\":\"json\",\"example\":{\"token\":\"0x833589fCd6eDb6E08f4c7C32D4f71b54bdA02913\",\"symbol\":\"USDC\",\"decimals\":6,\"total_supply_raw\":\"3500000000000000\",\"total_supply\":3500000000,\"chain\":\"base\"}}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"GET\"]},\"queryParams\":{\"type\":\"object\",\"properties\":{\"token\":{\"type\":\"string\",\"description\":\"0x-prefixed ERC-20 contract address on Base\"}}}},\"required\":[\"type\",\"method\"],\"additionalProperties\":false},\"output\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\"},\"example\":{\"type\":\"object\",\"properties\":{\"token\":{\"type\":\"string\"},\"symbol\":{\"type\":\"string\"},\"decimals\":{\"type\":\"integer\"},\"total_supply_raw\":{\"type\":\"string\"},\"total_supply\":{\"type\":\"integer\"},\"chain\":{\"type\":\"string\"}},\"required\":[\"token\",\"symbol\",\"decimals\",\"total_supply_raw\",\"total_supply\",\"chain\"]}},\"required\":[\"type\"]}},\"required\":[\"input\"]}}}}"
+  },
+  "run_id": "20261027T145315Z",
+  "checked_at": "2026-10-27T14:53:17Z"
+}

@@ -39,11 +39,11 @@
   },
   "paid_receipts": 3,
   "latest": {
-    "checked_at": "2026-10-23T14:46:08Z",
+    "checked_at": "2026-10-27T14:53:16Z",
     "mode": "dry-run",
     "reachable": false,
     "http_status": null,
-    "latency_ms": 48,
+    "latency_ms": 56,
     "x402_challenge": false,
     "x402_version": null,
     "advertised_price_usd": "0.003",
@@ -55,15 +55,15 @@
     "payment_refused_reason": null,
     "error": "URLError: [Errno -2] Name or service not known",
     "quality": null,
-    "raw_log": "results/raw/20261023T144607Z/stride20k-wiki-summary.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261023T144607Z/stride20k-wiki-summary.json"
+    "raw_log": "results/raw/20261027T145315Z/stride20k-wiki-summary.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T145315Z/stride20k-wiki-summary.json"
   },
   "history_summary": {
-    "checks": 32,
+    "checks": 36,
     "reachable": 29,
     "x402_challenge_ok": 8,
     "paid_checks": 3,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-10-23T14:46:08Z"
+    "last_checked": "2026-10-27T14:53:16Z"
   }
 }

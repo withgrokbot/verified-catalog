@@ -30,13 +30,13 @@
   "added": "2026-10-06",
   "page_url": "https://withgrokbot.github.io/verified-catalog/services/hyperextend-btc-candles.html",
   "quality_test": null,
-  "paid_receipts": 4,
+  "paid_receipts": 5,
   "latest": {
-    "checked_at": "2026-10-23T14:46:08Z",
+    "checked_at": "2026-10-27T14:53:16Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 338,
+    "latency_ms": 368,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.002",
@@ -48,15 +48,15 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261023T144607Z/hyperextend-btc-candles.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261023T144607Z/hyperextend-btc-candles.json"
+    "raw_log": "results/raw/20261027T145315Z/hyperextend-btc-candles.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T145315Z/hyperextend-btc-candles.json"
   },
   "history_summary": {
-    "checks": 21,
-    "reachable": 21,
-    "x402_challenge_ok": 21,
-    "paid_checks": 4,
+    "checks": 26,
+    "reachable": 26,
+    "x402_challenge_ok": 26,
+    "paid_checks": 5,
     "first_checked": "2026-10-06T17:58:49Z",
-    "last_checked": "2026-10-23T14:46:08Z"
+    "last_checked": "2026-10-27T14:53:16Z"
   }
 }

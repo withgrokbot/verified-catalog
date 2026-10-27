@@ -22,11 +22,11 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 15:07:33.873 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-10-23 14:46:08 UTC</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-10-27 14:53:16 UTC</td></tr>
 <tr><th scope="row">Check mode</th><td>dry-run</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>401 ms</td></tr>
+<tr><th scope="row">Latency</th><td>495 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.002 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.002</td></tr>
@@ -36,13 +36,14 @@
 <tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.002, exact on eip155:42161: 2000 units of 0xaf88d065e7, exact on eip155:42161: 2000 units of 0xFd086bC7CD, exact on eip155:137: 2000 units of 0x3c499c542c, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 2000 units of EPjFWdd5Aufq, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 2000 units of Es9vMFrzaCER, exact on lnbtc:000000000019d6689c085ae165831e93: 3000 units of BTC.</p>
-<p>Evidence: <a href="../results/raw/20261023T144607Z/bitrefill-gift-card-search.json">raw log for this check</a>. Machine-readable: <a href="bitrefill-gift-card-search.json">bitrefill-gift-card-search.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261027T145315Z/bitrefill-gift-card-search.json">raw log for this check</a>. Machine-readable: <a href="bitrefill-gift-card-search.json">bitrefill-gift-card-search.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: q=amazon, country=US. Passes if: a result named &quot;Amazon...&quot;.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-10-23 17:51:28 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>passed (result named &#x27;Amazon.com USA&#x27;)</td><td><a href="https://basescan.org/tx/0x231105227dd270f4f949502779cd82467ac41b67e6803011781cc71dadbedd42">0x23110522...</a></td></tr>
 <tr><td>2026-10-20 17:46:03 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>passed (result named &#x27;Amazon.com USA&#x27;)</td><td><a href="https://basescan.org/tx/0x586eb5c1fb106ed4b330c8cedc1cb11d315ba5e23dd7ad3b20abeb426c6d94c7">0x586eb5c1...</a></td></tr>
 <tr><td>2026-10-16 17:48:50 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>passed (result named &#x27;Amazon.com USA&#x27;)</td><td><a href="https://basescan.org/tx/0x9ec790773901b2695bc084305a395b24f7e81df8c7ae88d68c164a54fceb94e4">0x9ec79077...</a></td></tr>
 <tr><td>2026-10-13 17:56:47 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>passed (result named &#x27;Amazon.com USA&#x27;)</td><td><a href="https://basescan.org/tx/0xe1f3c548e6d0753a210386e9f1f103ab62fed3e879f1ea922679764886a69f0e">0xe1f3c548...</a></td></tr>
@@ -55,16 +56,16 @@
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-10-27 14:53:16 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>495 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261027T145315Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
+<tr><td>2026-10-26 15:39:11 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>686 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261026T153911Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
+<tr><td>2026-10-25 14:36:31 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>462 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261025T143631Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
+<tr><td>2026-10-24 14:36:49 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>428 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261024T143649Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
+<tr><td>2026-10-23 17:51:28 UTC</td><td>paid</td><td>yes</td><td>402</td><td>191 ms</td><td>$0.002</td><td>yes</td><td><a href="../results/raw/20261023T175124Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
 <tr><td>2026-10-23 14:46:08 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>401 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261023T144607Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
 <tr><td>2026-10-22 14:42:16 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>490 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261022T144216Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
 <tr><td>2026-10-21 14:41:56 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>558 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261021T144155Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
 <tr><td>2026-10-20 17:46:03 UTC</td><td>paid</td><td>yes</td><td>402</td><td>539 ms</td><td>$0.002</td><td>yes</td><td><a href="../results/raw/20261020T174555Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
 <tr><td>2026-10-20 14:41:56 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>527 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261020T144156Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
-<tr><td>2026-10-19 14:44:12 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>683 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261019T144411Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
-<tr><td>2026-10-18 14:34:55 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>507 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261018T143455Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
-<tr><td>2026-10-17 14:34:41 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>693 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261017T143440Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
-<tr><td>2026-10-16 17:48:50 UTC</td><td>paid</td><td>yes</td><td>402</td><td>638 ms</td><td>$0.002</td><td>yes</td><td><a href="../results/raw/20261016T174843Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
-<tr><td>2026-10-16 14:42:23 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>798 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261016T144222Z/bitrefill-gift-card-search.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

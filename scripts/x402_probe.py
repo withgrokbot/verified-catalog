@@ -107,6 +107,7 @@ def parse_challenge(status, headers, body_bytes):
     accepts = [a for a in obj["accepts"] if isinstance(a, dict)]
     return {"valid": True, "where": where, "x402_version": obj.get("x402Version"), "accepts": accepts,
             "resource": obj.get("resource"), "error": obj.get("error"),
+            "extensions": obj.get("extensions") if isinstance(obj.get("extensions"), dict) else None,
             "other_methods": ["www-authenticate"] if hdr.get("www-authenticate") else []}
 
 
@@ -254,6 +255,9 @@ def build_payment_header(challenge, option, signer, network="base"):
     inner = {"signature": sig, "authorization": auth}
     if (challenge.get("x402_version") or 1) >= 2:
         payload = {"x402Version": 2, "resource": challenge.get("resource"), "accepted": option, "payload": inner}
+        # Echo the challenge's top-level extensions (e.g. extensions.bazaar) unchanged; omit when absent.
+        if challenge.get("extensions") is not None:
+            payload["extensions"] = challenge["extensions"]
         name = "PAYMENT-SIGNATURE"
     else:
         payload = {"x402Version": 1, "scheme": "exact", "network": option.get("network"), "payload": inner}
