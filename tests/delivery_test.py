@@ -127,5 +127,53 @@ class Upload(unittest.TestCase):
         self.assertEqual(du.norm_url("http://h.example:80"), "http://h.example/")
 
 
+
+STUB = """import json, os, sys
+a = sys.argv[1:]
+open(os.environ["STUB_LOG"], "a").write(" ".join(a) + "\\n")
+if a[:2] == ["d1", "info"]:
+    v = os.environ.get("STUB_D1_SIZE", "")
+    if v == "fail": sys.exit(1)
+    print(json.dumps({"name": "vc-spot-receipts", "num_tables": 25, "database_size": int(v)}))
+"""
+
+
+class SizeGuard(unittest.TestCase):
+    """--remote checks `wrangler d1 info --json` first; over the ceiling (or unreadable) nothing is written."""
+
+    def run_main(self, size, *extra, env_max=None):
+        import tempfile
+        d = tempfile.mkdtemp()
+        stub, log, hist = (os.path.join(d, n) for n in ("wrangler.py", "log", "history.jsonl"))
+        open(stub, "w").write(STUB); open(log, "w").close()
+        open(hist, "w").write(json.dumps({"checked_at": "2026-10-27T10:00:00Z", "paid": True, "charged_price_usd": "0.01", "delivered_status": 200,
+                                          "delivery_flag": "failed", "delivery_reason": "canned_refusal", "request": {"url": "https://seller.fixture.invalid/v1/x"}}) + "\n")
+        env = {"DELIVERY_WRANGLER": f"{sys.executable} {stub}", "STUB_LOG": log, "STUB_D1_SIZE": str(size)}
+        if env_max: env["D1_SIZE_MAX_MB"] = env_max
+        with mock.patch.dict(os.environ, env):
+            if not env_max: os.environ.pop("D1_SIZE_MAX_MB", None)
+            self.assertEqual(du.main([*extra, "--history", hist]), 0)
+        return open(log).read().splitlines()
+
+    def writes(self, calls): return [c for c in calls if "--file" in c]
+
+    def test_remote_under_limit_writes(self):
+        calls = self.run_main(399_000_000, "--remote")
+        self.assertIn("d1 info RECEIPTS_DB --json", calls)
+        self.assertEqual(len(self.writes(calls)), 1)
+
+    def test_remote_over_limit_or_unknown_skips(self):
+        self.assertEqual(self.writes(self.run_main(401_000_000, "--remote")), [])
+        self.assertEqual(self.writes(self.run_main("fail", "--remote")), [])
+
+    def test_ceiling_configurable(self):
+        self.assertEqual(len(self.writes(self.run_main(450_000_000, "--remote", "--max-mb", "500"))), 1)
+        self.assertEqual(len(self.writes(self.run_main(450_000_000, "--remote", env_max="500"))), 1)
+
+    def test_local_does_not_call_info(self):
+        calls = self.run_main(999_000_000, "--local")
+        self.assertFalse(any(c.startswith("d1 info") for c in calls))
+        self.assertEqual(len(self.writes(calls)), 1)
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
