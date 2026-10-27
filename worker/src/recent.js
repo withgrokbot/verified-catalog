@@ -24,6 +24,13 @@ export const REASON_TEXT = {
   // 0.54.0 terms freshness (freshness.js)
   terms_changed_since_quote: "live payment terms differ from the quote you were given, check again without quote to approve the new terms",
   terms_stale: "payment terms are older than our freshness limit, run the live check right before paying",
+  // 0.55.0 skip-reason tuning (transient.js)
+  rate_limited: "endpoint is rate limiting us (HTTP 429), try again later",
+  waf_challenge: "a firewall or bot challenge (HTTP 403) blocked our unpaid probe, try again later",
+  dns_error: "the endpoint's domain did not resolve (DNS, retried once), try again later",
+  rate_limited_persistent: "endpoint has only answered HTTP 429 (rate limited) for longer than our retry window (default 24 h)",
+  waf_blocked_persistent: "a firewall or bot challenge (HTTP 403) has blocked every probe for longer than our retry window (default 24 h)",
+  dns_error_persistent: "the endpoint's domain has not resolved (DNS) for longer than our retry window (default 24 h)",
 };
 export const shortReason = (code) => REASON_TEXT[code] || "see receipt";
 

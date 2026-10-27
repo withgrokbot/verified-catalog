@@ -32,6 +32,52 @@ def usd(a):
     try: v = int(str(amt(a)))
     except Exception: return None
     return round(v / 1e6, 6) if (USDC.get(n) == asset or USDC_MAINNET.get(n.lower()) == asset) else None
+# 0.55.0 skip-reason tuning (same rules as the Worker's worker/src/transient.js). New receipts carry reason_code for these.
+PERSISTENT_OF = {"rate_limited": "rate_limited_persistent", "waf_challenge": "waf_blocked_persistent", "dns_error": "dns_error_persistent"}
+STREAK_CODES = set(PERSISTENT_OF) | set(PERSISTENT_OF.values())
+PERSISTENT_TEXT = {"rate_limited_persistent": "endpoint has only answered HTTP 429 (rate limited) for longer than our retry window",
+                   "waf_blocked_persistent": "a firewall or bot challenge (HTTP 403) has blocked every probe for longer than our retry window",
+                   "dns_error_persistent": "the endpoint's domain has not resolved (DNS) for longer than our retry window"}
+def transient_skip_after_hours(env=os.environ):
+    try:
+        n = float(str(env.get("TRANSIENT_SKIP_AFTER_HOURS", "")).strip())
+        return n if 0 < n <= 24 * 365 else 24.0
+    except ValueError:
+        return 24.0
+_CF_PAGE_RE = re.compile(r"challenge-platform|cf_chl_opt|cf-chl-|<title>\s*Just a moment\.\.\.\s*</title>|Attention Required! \| Cloudflare|Sorry, you have been blocked[\s\S]{0,4000}Cloudflare Ray ID|Cloudflare Ray ID[\s\S]{0,4000}Sorry, you have been blocked", re.I)
+_AKAMAI_PAGE_RE = re.compile(r"Access Denied[\s\S]{0,2000}Reference(?:&#32;|\s)#\d+\.[0-9a-f]+", re.I)
+def waf_signature(status, headers, body_text):
+    """Conservative: only a 403 with a cf-mitigated / x-amzn-waf-action header, a Cloudflare-served challenge/block page,
+    or an AkamaiGHost Access Denied page with its Reference #. A plain 403 is None (stays skip, no x402 payment request)."""
+    if status != 403: return None
+    h = {k.lower(): v for k, v in (headers or {}).items()}
+    if "cf-mitigated" in h: return {"vendor": "cloudflare", "signal": "cf-mitigated"}
+    if "x-amzn-waf-action" in h: return {"vendor": "aws", "signal": "x-amzn-waf-action"}
+    server, body = str(h.get("server") or "").lower(), str(body_text or "")[:65536]
+    if server == "cloudflare" and _CF_PAGE_RE.search(body): return {"vendor": "cloudflare", "signal": "challenge_page"}
+    if server.startswith("akamaighost") and _AKAMAI_PAGE_RE.search(body): return {"vendor": "akamai", "signal": "access_denied_page"}
+    return None
+def _ts(s):
+    try: return datetime.datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    except Exception: return None
+def transient_guard(rec, prev, max_h=None, now=None):
+    """rec: a finished record. prev: the same id's record from the previous run (or None). A rate_limited / waf_challenge /
+    dns_error recheck carries transient_since (oldest observation of the unbroken streak across runs); once that is at
+    least max_h hours old the record becomes skip/<code>_persistent. Other records are returned unchanged."""
+    code = rec.get("reason_code")
+    if rec.get("verdict") != "recheck" or code not in PERSISTENT_OF: return rec
+    max_h = transient_skip_after_hours() if max_h is None else max_h
+    now = now or _ts(rec.get("timestamp")) or datetime.datetime.now(datetime.timezone.utc)
+    since = None
+    if prev and prev.get("reason_code") in STREAK_CODES:
+        since = prev.get("transient_since") or prev.get("timestamp")
+    t0 = _ts(since) if since else None
+    rec["transient_since"] = since if t0 else rec.get("timestamp")
+    if t0 and (now - t0).total_seconds() >= max_h * 3600:
+        p = PERSISTENT_OF[code]
+        rec.update(verdict="skip", reason_code=p, transient_code=code, reason=PERSISTENT_TEXT[p] + f" (since {since})")
+    return rec
+
 PRICE_TOLERANCE = 0.01  # 0.27.0: same as the Worker: within 1% of the listed price is a match (dynamic-pricing drift)
 
 def blocked_ip(ip):
@@ -41,10 +87,14 @@ def blocked_ip(ip):
             or ip in ipaddress.ip_network("100.64.0.0/10"))
 
 _DNS, _DNS_LOCK = {}, threading.Lock()
+DNS_RETRY_DELAY_S = float(os.environ.get("DNS_RETRY_DELAY_S", "0.3"))
 def doh(h):
     with _DNS_LOCK:
         if h in _DNS: return _DNS[h]
     v = _doh(h)
+    if v is None:  # 0.55.0: a DNS failure gets exactly one retry before it counts (then cached per host for the run)
+        time.sleep(DNS_RETRY_DELAY_S)
+        v = _doh(h)
     with _DNS_LOCK: _DNS[h] = v
     return v
 
@@ -201,9 +251,11 @@ def fetch(url, c, done):
     hdrs = {"accept": "application/json", "user-agent": "verified-catalog-spotcheck/0.11 (weekly self-checked crawl; never pays)"}
     kw = dict(json=c["body"] if c["body"] is not None else {}) if c["method"] == "POST" else {}
     try:
-        for _ in range(4):
+        for hop in range(4):
             bad = ssrf_check(url)
-            if bad == "dns_failed": return done("skip", "domain does not resolve (DNS)")
+            if bad == "dns_failed" and hop == 0:  # 0.55.0: the listed host (already retried once in doh) -> recheck/dns_error
+                rec = done("recheck", "domain did not resolve (DNS, retried once), try again later"); rec["reason_code"] = "dns_error"; return rec
+            if bad == "dns_failed": return done("skip", "domain does not resolve (DNS)")  # a redirect target, as before (Worker: ssrf_blocked)
             if bad: return done("skip", "private or local address, not checked (" + bad + ")")
             r = requests.request(c["method"] if c["method"] in ("GET", "POST") else "GET", url, headers=hdrs, timeout=TIMEOUT,
                                  allow_redirects=False, stream=True, **kw)
@@ -246,6 +298,17 @@ def judge(r, rec, lead, claimed, done):
                 n = int(rem) if rem is not None and rem.strip().isdigit() else None
                 rec["free_trial_remaining"] = n
                 return done("recheck", f"seller says a free trial is active, no price to check yet (HTTP {r.status_code}" + (f", {n} trial calls left)" if n is not None else ")"))
+            if r.status_code == 429:  # 0.55.0: rate limited is "not now", not "no paywall"
+                rec = done("recheck", "rate limited (HTTP 429), try again later"); rec["reason_code"] = "rate_limited"; return rec
+            if r.status_code == 403:  # 0.55.0: only a WAF/bot-challenge 403 is a recheck; a plain 403 stays the skip below
+                buf, t_end = b"", time.monotonic() + 8
+                while len(buf) < 65536 and time.monotonic() < t_end:
+                    chunk = r.raw.read(4096, decode_content=True)
+                    if not chunk: break
+                    buf += chunk
+                w = waf_signature(403, r.headers, buf.decode("utf-8", "replace"))
+                if w:
+                    rec = done("recheck", f"firewall or bot challenge (HTTP 403, {w['vendor']}), try again later"); rec["reason_code"] = "waf_challenge"; rec["waf"] = w; return rec
             return done("skip", f"no x402 payment request (HTTP {r.status_code})")
         buf, t_end = b"", time.monotonic() + 8  # hard wall-clock cap: a trickling server can't hold a lane
         while len(buf) < 65536 and time.monotonic() < t_end:
@@ -293,6 +356,17 @@ def judge(r, rec, lead, claimed, done):
     except requests.exceptions.RequestException as e:
         return done("recheck", "could not connect (" + type(e).__name__ + "), try again later")
 
+PREV = {}  # 0.55.0: id -> previous run's record (only the fields transient_guard reads), loaded in __main__
+def load_prev(path):
+    out = {}
+    if not path or not os.path.exists(path): return out
+    with open(path) as f:
+        for line in f:
+            try: x = json.loads(line)
+            except Exception: continue
+            if isinstance(x, dict) and x.get("id"): out[x["id"]] = {k: x.get(k) for k in ("verdict", "reason_code", "transient_since", "timestamp")}
+    return out
+
 def run_lane(cands):
     out, t_lane = [], time.monotonic() + LANE_BUDGET_S
     for c in cands:
@@ -302,7 +376,7 @@ def run_lane(cands):
                             reason="not probed this run (per-host time budget; next run)", source_list=c["source_list"], check_type="self-checked",
                             method=c["method"], timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")))
             continue
-        try: out.append(probe(c))
+        try: out.append(transient_guard(probe(c), PREV.get(rid(c["norm"]))))
         except Exception as e:  # never lose a candidate
             out.append(dict(id=rid(c["norm"]), url=c["url"], norm_url=c["norm"], also_listed_in=c["also"], verdict="recheck",
                             reason="probe error: " + type(e).__name__, source_list=c["source_list"], check_type="self-checked",
@@ -325,6 +399,7 @@ if __name__ == "__main__":
     started = datetime.datetime.now(datetime.timezone.utc)
     stamp = started.strftime("%Y%m%dT%H%M%SZ")
     prev = open(os.path.join(ROOT, "latest.txt")).read().strip() if os.path.exists(os.path.join(ROOT, "latest.txt")) else ""
+    PREV.update(load_prev(os.path.join(ROOT, prev) if prev else ""))  # 0.55.0 transient guard reads the previous run
     path = os.path.join(ROOT, f"receipts-{stamp}.jsonl")
     recs, next_report = [], 5000
     from concurrent.futures import as_completed

@@ -5,7 +5,7 @@ import { REASON_TEXT } from "./recent.js";
 import { QUALITY_CODES } from "./quality.js";
 import { REPUTATION_RULES } from "./reputation.js";
 
-export const RULES_VERSION = "2026-10-27"; // 0.37.0: + quality_codes, reputation (additive); 0.53.3: + delivery_failed (additive); 0.54.0: + terms_changed_since_quote, terms_stale (additive)
+export const RULES_VERSION = "2026-10-27"; // 0.37.0: + quality_codes, reputation (additive); 0.53.3: + delivery_failed (additive); 0.54.0: + terms_changed_since_quote, terms_stale (additive); 0.55.0: + rate_limited, waf_challenge, dns_error (recheck) and their *_persistent skips (new checks only)
 // code -> verdict it produces, and its default confidence
 export const REASON_CODES = [
   { code: "price_ok", verdict: "pay", confidence: "high", rule: "Live 402 offers canonical USDC on a supported mainnet, to the listed wallet and network, at the listed price (within 1%)." },
@@ -15,23 +15,29 @@ export const REASON_CODES = [
   { code: "network_mismatch", verdict: "skip", confidence: "high", rule: "The 402 asks for payment on a different network than listed." },
   { code: "asset_not_usdc", verdict: "skip", confidence: "high", rule: "The 402 asks for a token other than canonical USDC." },
   { code: "network_unsupported", verdict: "skip", confidence: "high", rule: "The 402 only offers a testnet or a network we do not support." },
-  { code: "ssrf_blocked", verdict: "skip", confidence: "high", rule: "Private, local or otherwise unsafe address; never fetched." },
-  { code: "no_paywall", verdict: "skip", confidence: "medium", rule: "The endpoint answered without an x402 payment request (one probe; a route may need another method or path)." },
+  { code: "ssrf_blocked", verdict: "skip", confidence: "high", rule: "Private, local or otherwise unsafe address; never fetched. (0.55.0: a host that does not resolve is dns_error, not this.)" },
+  { code: "no_paywall", verdict: "skip", confidence: "medium", rule: "The endpoint answered without an x402 payment request (one probe; a route may need another method or path). Includes a plain 403; since 0.55.0 not a 429 (rate_limited) or a WAF-challenge 403 (waf_challenge)." },
   { code: "bad_challenge", verdict: "skip", confidence: "medium", rule: "A 402 came back but its payment request has no readable USDC price." },
   { code: "challenge_expired", verdict: "skip", confidence: "high", rule: "Opt-in only (&check_expiry=1): every Base USDC option has an absolute expiry (extra.validBefore/expiresAt/expiry/deadline) at or within skew_s (default 30, max 300) of now, or maxTimeoutSeconds <= 5." },
   { code: "ambiguous", verdict: "skip", confidence: "medium", rule: "The payment request is unclear (several incompatible offers)." },
   { code: "free_trial_active", verdict: "recheck", confidence: "low", rule: "The seller says a free trial is active, so there is no price to check yet." },
   { code: "timeout", verdict: "recheck", confidence: "low", rule: "The endpoint did not answer in time." },
-  { code: "unreachable", verdict: "recheck", confidence: "low", rule: "Could not connect (DNS, TLS or network error)." },
+  { code: "unreachable", verdict: "recheck", confidence: "low", rule: "Could not connect (TLS or network error; an unresolvable host is dns_error since 0.55.0)." },
   { code: "server_error", verdict: "recheck", confidence: "low", rule: "The endpoint returned a 5xx." },
   { code: "delivery_failed", verdict: "recheck", confidence: "low", rule: "0.53.3 (DELIVERY_CHECK): the terms would pass, but our latest paid call to this endpoint (within 14 days) settled and got back a failed delivery (5xx, challenge/CAPTCHA page, sign-in/subscribe wall, canned refusal, error-only or placeholder body). Applies to new checks only; past pay/skip verdicts and receipts are never changed; endpoints without delivery data are unaffected." },
   { code: "terms_changed_since_quote", verdict: "recheck", confidence: "low", rule: "0.54.0 opt-in (&quote=<receipt id>): the live terms would pass, but the price, pay_to, network or asset differs from the quote (crawl or live receipt) the buyer was shown. Check again without quote to approve the new terms." },
+  { code: "rate_limited", verdict: "recheck", confidence: "low", rule: "0.55.0 (new checks only): HTTP 429 with no x402 terms. Was skip/no_paywall. After TRANSIENT_SKIP_AFTER_HOURS (default 24 h) of only rate_limited / waf_challenge / dns_error answers for the same URL + method: skip/rate_limited_persistent." },
+  { code: "waf_challenge", verdict: "recheck", confidence: "low", rule: "0.55.0 (new checks only): HTTP 403 with a firewall/WAF signature: a cf-mitigated or x-amzn-waf-action header, a Cloudflare-served challenge/block page (server: cloudflare plus challenge-platform / cf_chl_opt / cf-chl- markers, 'Just a moment...', 'Attention Required! | Cloudflare', or 'Sorry, you have been blocked' with a Cloudflare Ray ID), or an AkamaiGHost 'Access Denied' page with its Reference #. A plain 403 stays skip/no_paywall. Was skip/no_paywall. Persisting: skip/waf_blocked_persistent." },
+  { code: "dns_error", verdict: "recheck", confidence: "low", rule: "0.55.0 (new checks only): the host did not resolve (no A/AAAA answer or a resolver error) on the first lookup and on exactly one retry; the URL is never fetched. Was skip/ssrf_blocked (live) or skip 'domain does not resolve' (crawl). Persisting: skip/dns_error_persistent." },
+  { code: "rate_limited_persistent", verdict: "skip", confidence: "medium", rule: "0.55.0: the endpoint has answered only rate_limited / waf_challenge / dns_error for at least TRANSIENT_SKIP_AFTER_HOURS (default 24 h; from our stored checks of the same URL + method) and the latest was a 429." },
+  { code: "waf_blocked_persistent", verdict: "skip", confidence: "medium", rule: "0.55.0: as rate_limited_persistent, and the latest answer was a WAF-challenge 403." },
+  { code: "dns_error_persistent", verdict: "skip", confidence: "medium", rule: "0.55.0: as rate_limited_persistent, and the latest lookup failed DNS (after one retry)." },
   { code: "terms_stale", verdict: "recheck", confidence: "low", rule: "0.54.0 catalog/crawl answers only (discover; effective_verdict on crawl receipts, by-url, skips and lookup): the stored pay's terms are older than TERMS_MAX_AGE_HOURS (7 days in production; see each discover answer's terms_max_age_hours). Never produced by a live check, which always re-reads the 402." },
 ];
 const BY_CODE = Object.fromEntries(REASON_CODES.map((r) => [r.code, r]));
 export const CONFIDENCE_RULES = [
   "high: the verdict follows from terms we read in the live 402 and compared with the listing (or a definite safety block).",
-  "medium: one probe without readable terms (no_paywall, bad_challenge, ambiguous); or a pay with no listed price to compare; or a pay whose terms changed since the previous observation (history.drift true).",
+  "medium: one probe without readable terms (no_paywall, bad_challenge, ambiguous); a 0.55.0 *_persistent skip (rate limit, WAF or DNS for the whole retry window); or a pay with no listed price to compare; or a pay whose terms changed since the previous observation (history.drift true).",
   "low: every recheck (timeouts, 5xx, network errors, free trials), and any code not in this list.",
 ];
 

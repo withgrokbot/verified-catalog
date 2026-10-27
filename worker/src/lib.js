@@ -63,13 +63,15 @@ import { handleFeed, feedDaily, feedTick, feedOn, feedObserveOn, FEED_PRICES } f
 import { facilitatorChain, callFacilitator } from "./facilitator.js";
 import { handleFacilitatorCheck, FACIL_CHECK_PATH, FACIL_CHECK_PER_MIN, FACIL_HOST_PER_MIN, FACIL_EXAMPLE } from "./facilcheck.js";
 import { latestDelivery, applyDelivery } from "./delivery.js";
+import { applyTransientGuard, transientSkipAfterHours } from "./transient.js"; // 0.55.0
+const transientWindowText = (env) => termsWindowText(transientSkipAfterHours(env));
 import { termsWindowText, QUOTE_ID_RE, quoteTerms, applyQuote, quoteChangedText, freshnessFor, termsMaxAgeHours, ageHours } from "./freshness.js"; // 0.54.0
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.54.0";
+export const VERSION = "0.55.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1044,7 +1046,7 @@ export const SPOT_PAID_SCHEMA = {
   description: "paid response: decision plus the facts behind it",
   properties: {
     verdict: SPOT_VERDICT_SCHEMA,
-    reason: { type: "string", enum: ["price_ok", "price_below_listing", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "network_unsupported", "no_paywall", "free_trial_active", "timeout", "unreachable", "server_error", "bad_challenge", "ssrf_blocked", "delivery_failed", "terms_changed_since_quote"] },
+    reason: { type: "string", enum: ["price_ok", "price_below_listing", "price_mismatch", "network_mismatch", "pay_to_mismatch", "asset_not_usdc", "network_unsupported", "no_paywall", "free_trial_active", "timeout", "unreachable", "server_error", "bad_challenge", "ssrf_blocked", "delivery_failed", "terms_changed_since_quote", "rate_limited", "waf_challenge", "dns_error", "rate_limited_persistent", "waf_blocked_persistent", "dns_error_persistent"] },
     free_trial_remaining: { type: ["integer", "null"], description: "reason free_trial_active only: the seller's x-free-trial-remaining, when parseable" },
     quoted_price_usd: { type: ["number", "null"], description: "price in the target's live 402 challenge" },
     claimed_price_usd: { type: ["number", "null"], description: "the claimed_price you sent" },
@@ -1510,7 +1512,7 @@ export async function probeKeyHash(u, method) {
 }
 export function probeSnapshot(p) {
   if (!p) return null;
-  const keep = ["x402_version", "latency_ms", "method_used", "reachable", "http_status", "ssrf_blocked", "error", "x402_challenge", "accepts", "quoted_price_usd", "known_answer", "free_trial", "body_truncated", "quality_meta"];
+  const keep = ["x402_version", "latency_ms", "method_used", "reachable", "http_status", "ssrf_blocked", "error", "x402_challenge", "accepts", "quoted_price_usd", "known_answer", "free_trial", "dns_error", "dns_retried", "waf", "body_truncated", "quality_meta"];
   const o = {};
   for (const k of keep) if (p[k] !== undefined) o[k] = p[k];
   return o;
@@ -1993,6 +1995,9 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const buildResult = async (probe, access) => {
     const pm0 = pickPayment(probe, exp);
     let d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pm0, exp), probe, q, listing);
+    // 0.55.0: rate_limited / waf_challenge / dns_error rechecks that persisted TRANSIENT_SKIP_AFTER_HOURS (default 24) -> skip/*_persistent
+    let transient = null;
+    ({ d, transient } = await applyTransientGuard(env, d, pr.key, pr.probedAt));
     let expiryCheck = null;
     if (q.expiry) ({ d, check: expiryCheck } = applyExpiry(d, probe, expiryOpts(q.expiry))); // 0.42.0 opt-in only
     // 0.53.3 (DELIVERY_CHECK=1): a pay becomes recheck/delivery_failed if our latest paid call to this endpoint (<= 14 d)
@@ -2011,6 +2016,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const rf = reasonFields(d, exp.claimed, history);
     if (expiryCheck) rf.expiry_check = expiryCheck;
     if (quoteCheck) rf.quote_check = quoteCheck;
+    if (transient) rf.transient = transient; // 0.55.0
     // 0.37.0 (additive): quality of the unpaid 402 response + seller reputation; neither changes verdict/reason_code
     const quality = qualityFor(probe);
     await recordQuality(env, hk, hostOf(q.url), quality, pr.probedAt, !pr.cached);
@@ -2084,7 +2090,10 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   // Cheap pre-check: call spotProbe — if ssrf_blocked and no http_status and latency null-ish from immediate block, return 400 without quota.
   // Problem: safe URLs would be fetched twice if we pre-probe. So import assertSafeUrl.
   const safe = await assertSafeUrl(q.url, probeOpts);
-  if (!safe.ok) {
+  // 0.55.0: a host that does not resolve is no longer an immediate 400 skip/ssrf_blocked: the probe retries DNS exactly
+  // once (this lookup was the first try) and answers recheck/dns_error (never fetching the URL). Private/blocked stays 400.
+  if (!safe.ok && safe.dns_failed) probeOpts = { ...probeOpts, dnsFailedOnce: true };
+  else if (!safe.ok) {
     writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 400, referer, access: "spot-ssrf" }));
     return json({
       verdict: "skip",
@@ -2289,7 +2298,9 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
   const pr = await getProbe(env, q, probeOpts);
   const probe = pr.probe;
   const pmD = pickPayment(probe, exp);
-  const d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pmD, exp), probe, q, listing);
+  let d = applyNoTermsListing(applyPayment(applyExpected(decideVerdict(probe, exp.claimed), probe, exp), pmD, exp), probe, q, listing);
+  let transient = null; // 0.55.0: same guard as live checks
+  ({ d, transient } = await applyTransientGuard(env, d, pr.key, pr.probedAt));
   const hk = await historyKey(q.url);
   const history = await recordHistory(env, hk, observation(probe, pmD, d.verdict, pr.probedAt), !pr.cached);
   const quality = qualityFor(probe); // 0.37.0: metadata of the same unpaid probe; dry runs get the code + coarse band
@@ -2299,7 +2310,7 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
   const reason = spotLossReason(d, exp.claimed).replace(/, details locked$/, "");
   const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: reason, pm: null, termsHash: null, exp, checkType: exempt ? "self-checked" : "dry-run", mode: "dry-run", ref: q.ref, client: q.client || null, caller: q.dry_caller || (exempt ? "self-test" : null), probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: exempt ? "exempt" : "dry-run" });
   rec.history = history;
-  Object.assign(rec, reasonFields(d, exp.claimed, history));
+  Object.assign(rec, reasonFields(d, exp.claimed, history), transient ? { transient } : {});
   rec.receipt_v2 = await receiptV2({ probe, exp, pm0: pmD, listing, history, quality, ptc: null, method: q.method, url: q.url, normalized: safeNorm(q.url), crawlMeta: RECEIPTS_META && RECEIPTS_META.crawled_at ? String(RECEIPTS_META.crawled_at).slice(0, 10) : null });
   const lockedD = await lockedFor(env, { hk, url: q.url, history, quality, probedAt: pr.probedAt });
   if (!(await saveLiveReceipt(env, rec))) { point(503, "dry-run-store-failed"); return json({ error: "dry runs are always stored as receipts; storing failed, try again shortly", mode: "dry-run" }, 503); }
@@ -2310,6 +2321,7 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
     verdict: d.verdict,
     reason,
     ...reasonFields(d, exp.claimed, history),
+    ...(transient ? { transient } : {}),
     payment_terms_sha256: null,
     receipt_id: rid,
     receipt_url: CANON_ORIGIN + "/v1/receipts/" + rid,
@@ -2695,7 +2707,7 @@ export function openapi(origin, env = {}) {
             protocols: [{ x402: { scheme: "exact", network: spotCfg(env).network, asset: spotCfg(env).asset, payTo: spotCfg(env).payTo } }],
           },
           responses: {
-            200: { description: "No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx and network errors; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. Free tier: verdict (pay|skip|recheck), a plain-words reason, access. Paid tier: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, payment (the exact signable payment when verdict is pay), payment_terms_sha256, access (with settlement tx). Free tier also carries payment_terms_sha256", content: { "application/json": { schema: { oneOf: [SPOT_PAID_SCHEMA, SPOT_FREE_SCHEMA] }, examples: { paid: { value: SPOT_PAID_EXAMPLE }, free: { value: SPOT_FREE_EXAMPLE } } } } },
+            200: { description: `No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx, network errors and (0.55.0) HTTP 429 (rate_limited), a 403 with a firewall/WAF challenge signature (waf_challenge: cf-mitigated, x-amzn-waf-action, a Cloudflare challenge/block page or an Akamai Access Denied page) or a host that still does not resolve after one retry (dns_error); after ${transientWindowText(env)} (TRANSIENT_SKIP_AFTER_HOURS) of only those rechecks the endpoint falls back to skip (rate_limited_persistent, waf_blocked_persistent, dns_error_persistent); a plain 403 stays skip/no_paywall; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. Free tier: verdict (pay|skip|recheck), a plain-words reason, access. Paid tier: verdict, reason code, quoted_price_usd, claimed_price_usd, pay_to, network, asset, payment (the exact signable payment when verdict is pay), payment_terms_sha256, access (with settlement tx). Free tier also carries payment_terms_sha256`, content: { "application/json": { schema: { oneOf: [SPOT_PAID_SCHEMA, SPOT_FREE_SCHEMA] }, examples: { paid: { value: SPOT_PAID_EXAMPLE }, free: { value: SPOT_FREE_EXAMPLE } } } } },
             400: { description: "bad params, or SSRF-blocked URL as verdict=skip reason=ssrf_blocked (no fetch)" },
             402: { description: "free quota used: x402 v2 payment requirement ($0.02 USDC on Base, amount 20000)" },
             429: { description: "paid rate limit (per payer per UTC hour), or (0.33.0) the free-check network cap: 25 free live checks per network per UTC day across all client names; JSON points to the paid check and the router pack; Retry-After = seconds to 00:00 UTC" },
@@ -3233,7 +3245,7 @@ export const MCP_TOOLS = [
       "Decision-shaped 402xAgent check of a public URL (private, loopback and link-local addresses blocked on every redirect hop) for an x402 PAYMENT-REQUIRED / 402 challenge. " +
       "Every answer has reason_code (stable code) and confidence (high|medium|low); rules: https://402xagent.com/rules.json. History: stable_for_days, last_changed, drift. " +
       "Free: verdict (pay|skip|recheck), a plain-words reason, payment_terms_sha256 (hash of the approved payment), and access. Paid: verdict, reason code, quoted/claimed price, pay_to, network, asset, and payment = the exact {network, asset, amount_atomic, amount_usd, pay_to} a router may sign (verdict pay only), plus access with the settlement tx. " +
-      "No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx and network errors; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. " +
+      "No 402 terms is skip/no_paywall (recheck/free_trial_active when the target sends x-free-trial headers); recheck only for timeouts, 5xx, network errors and (0.55.0) HTTP 429 (rate_limited), a 403 with a firewall/WAF challenge signature (waf_challenge) or a host that still does not resolve after one retry (dns_error); after 24 h (TRANSIENT_SKIP_AFTER_HOURS) of only those rechecks the endpoint falls back to skip (*_persistent); a plain 403 stays skip/no_paywall; wrong or unsupported network, non-canonical USDC or a pay_to that differs from the listing is skip. The same normalized URL + method reuses one probe for 5 min, so consecutive calls agree. " +
       "mode=dry-run: free dry run (nothing signed or paid, stored as a public receipt, no approval hash, 50/caller/day). " +
       "Never pays the target (probe GET only). 5 free checks per client per UTC day (at most 25 per network) (client=vc-mcp), then $0.02 USDC a check on Base via x402. " +
       "Unpaid after free quota: payment instructions. Forward PAYMENT-SIGNATURE for a paid check.",
@@ -3404,7 +3416,9 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
   if (method === "tools/list") {
     // 0.54.0: the discover description states the live terms threshold (TERMS_MAX_AGE_HOURS from env)
     const win = termsWindowText(termsMaxAgeHours(env));
-    const tools = MCP_TOOLS.map((t) => (t.name === "discover" ? { ...t, description: t.description.replace("older than 7 days (TERMS_MAX_AGE_HOURS)", `older than ${win} (TERMS_MAX_AGE_HOURS)`) } : t));
+    const tw = transientWindowText(env); // 0.55.0
+    const tools = MCP_TOOLS.map((t) => (t.name === "discover" ? { ...t, description: t.description.replace("older than 7 days (TERMS_MAX_AGE_HOURS)", `older than ${win} (TERMS_MAX_AGE_HOURS)`) }
+      : t.name === "endpoint_spot_check" ? { ...t, description: t.description.replace("after 24 h (TRANSIENT_SKIP_AFTER_HOURS)", `after ${tw} (TRANSIENT_SKIP_AFTER_HOURS)`) } : t));
     return { tools: endpointReportOn(env) ? tools.concat([ER_MCP_TOOL]) : tools };
   }
   if (method === "tools/call") {

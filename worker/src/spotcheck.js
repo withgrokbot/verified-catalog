@@ -1,6 +1,7 @@
 // Endpoint spot-check: probe of a public URL (blocks private, loopback and link-local addresses on every redirect hop) for an x402 PAYMENT-REQUIRED challenge.
 // NEVER sends PAYMENT-SIGNATURE / X-PAYMENT / settles to the target. Probe only (GET/HEAD).
 import { qualityMeta } from "./quality.js";
+import { wafSignature } from "./transient.js"; // 0.55.0
 
 export const SPOT_ID = "endpoint-spot-check";
 export const SPOT_SERVICE_NAME = "402xAgent";
@@ -17,6 +18,7 @@ export const SPOT_DEFAULT_PRICE_ATOMIC = "20000"; // $0.02 USDC (0.38.0: flat; t
 export const SPOT_DEFAULT_FREE_PER_DAY = 5;
 export const SPOT_PAID_PER_HOUR = 30;
 export const SPOT_FETCH_TIMEOUT_MS = 8000;
+export const DNS_RETRY_DELAY_MS = 300; // 0.55.0: pause before the single DNS retry
 export const SPOT_MAX_BODY = 65536;
 export const SPOT_MAX_REDIRECTS = 3;
 export const SPOT_MAX_CONCURRENT = 4;
@@ -128,13 +130,14 @@ export function hostnameBlocked(host) {
 }
 
 /** Resolve A/AAAA via Cloudflare DoH. Injectable for tests. */
-export async function resolveHost(hostname, fetchImpl = fetch) {
+export async function resolveHost(hostname, fetchImpl = fetch, opts = {}) {
   const name = String(hostname).toLowerCase().replace(/\.$/, "");
   if (ipv4Parts(name)) return [name];
   if (name.includes(":")) return [name];
   const out = [];
   for (const type of ["A", "AAAA"]) {
-    const url = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`;
+    // 0.55.0: the one DNS retry adds do=false (the documented default, so the same question) to get its own edge-cache key
+    const url = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}` + (opts.retry ? "&do=false" : "");
     const want = type === "A" ? 1 : 28;
     try {
       const r = await fetchImpl(url, { headers: { accept: "application/dns-json" }, cf: { cacheTtl: 30 } });
@@ -158,7 +161,7 @@ export async function resolveHost(hostname, fetchImpl = fetch) {
  * Validate URL for outbound probe. Returns { ok, url?, reason?, ssrf_blocked? }.
  * resolveHostFn optional for tests.
  */
-export async function assertSafeUrl(raw, { resolveHostFn = resolveHost, fetchImpl = fetch } = {}) {
+export async function assertSafeUrl(raw, { resolveHostFn = resolveHost, fetchImpl = fetch, retry = false } = {}) {
   let u;
   try {
     u = new URL(String(raw || "").trim());
@@ -175,10 +178,10 @@ export async function assertSafeUrl(raw, { resolveHostFn = resolveHost, fetchImp
   if (hostnameBlocked(host)) {
     return { ok: false, ssrf_blocked: true, reason: "blocked host or private address" };
   }
-  const addrs = await resolveHostFn(host, fetchImpl);
+  const addrs = (await resolveHostFn(host, fetchImpl, retry ? { retry: true } : undefined)) || [];
   if (!addrs.length) {
-    // Fail closed when we cannot resolve (avoids blind fetch to unknown)
-    return { ok: false, ssrf_blocked: true, reason: "dns resolve failed or empty" };
+    // Fail closed when we cannot resolve (avoids blind fetch to unknown). 0.55.0: dns_failed marks it for the probe.
+    return { ok: false, ssrf_blocked: true, dns_failed: true, reason: "dns resolve failed or empty" };
   }
   for (const a of addrs) {
     if (isBlockedIp(a)) {
@@ -315,7 +318,32 @@ export async function spotProbe(rawUrl, opts = {}) {
   // 0.7.0: POST-only x402 endpoints answer GET with 404/405, so callers may ask for a POST probe (empty JSON body).
   const method = String(opts.method || "GET").toUpperCase() === "POST" ? "POST" : "GET";
 
-  const safe0 = await assertSafeUrl(rawUrl, { resolveHostFn, fetchImpl });
+  // opts.dnsFailedOnce: the caller's own SSRF gate already made the first lookup and it failed -> go straight to the retry
+  let safe0 = opts.dnsFailedOnce ? { ok: false, ssrf_blocked: true, dns_failed: true, reason: "dns resolve failed or empty" } : await assertSafeUrl(rawUrl, { resolveHostFn, fetchImpl });
+  // 0.55.0: a DNS failure gets exactly one retry. Still failing: recheck/dns_error (the URL is never fetched).
+  let dnsRetried = false;
+  if (!safe0.ok && safe0.dns_failed) {
+    dnsRetried = true;
+    const delay = opts.dnsRetryDelayMs ?? DNS_RETRY_DELAY_MS;
+    if (delay > 0) await new Promise((res) => setTimeout(res, delay));
+    safe0 = await assertSafeUrl(rawUrl, { resolveHostFn, fetchImpl, retry: true });
+    if (!safe0.ok && safe0.dns_failed) {
+      return {
+        reachable: false,
+        http_status: null,
+        latency_ms: null,
+        ssrf_blocked: false,
+        dns_error: true,
+        dns_retried: true,
+        error: "dns resolve failed (after one retry)",
+        x402_challenge: false,
+        accepts: [],
+        quoted_price_usd: null,
+        known_answer: null,
+        body_truncated: false,
+      };
+    }
+  }
   if (!safe0.ok) {
     return {
       reachable: false,
@@ -465,6 +493,8 @@ export async function spotProbe(rawUrl, opts = {}) {
         error: truncated ? "response body truncated at cap" : null,
         body_truncated: truncated,
         free_trial: freeTrialSignal(resp.headers),
+        waf: wafSignature(resp.status, resp.headers, text), // 0.55.0 (403 only; null otherwise)
+        ...(dnsRetried ? { dns_retried: true } : {}),
         ...parsed,
         quality_meta,
       };
@@ -514,13 +544,17 @@ export function freeTrialSignal(headers) {
  * - skip + ssrf_blocked
  * - recheck + timeout / unreachable (network error) / server_error (5xx without terms)
  * - recheck + free_trial_active when no terms and the seller sends x-free-trial / x-free-trial-remaining
- * - skip + no_paywall when reachable with no 402 terms (any non-5xx status, no trial headers)
+ * - 0.55.0: recheck + dns_error (host did not resolve after one retry), rate_limited (429, no terms),
+ *   waf_challenge (403 with a WAF signature, see transient.js); a plain 403 stays skip + no_paywall.
+ *   Persisting ~24 h, these fall back to skip (applyTransientGuard in transient.js).
+ * - skip + no_paywall when reachable with no 402 terms (any other non-5xx status, no trial headers)
  * - skip + bad_challenge when a challenge is present but unreadable / incomplete
  * - skip + price_mismatch when claimed and quoted differ; pay + price_ok when they match or nothing is claimed
  * (network / token / pay_to checks follow in applyExpected and applyPayment)
  */
 export function decideVerdict(probe, claimedPrice) {
   if (!probe || probe.ssrf_blocked) return { verdict: "skip", reason: "ssrf_blocked" };
+  if (!probe.reachable && probe.dns_error) return { verdict: "recheck", reason: "dns_error" };
   if (!probe.reachable) {
     const err = String(probe.error || "");
     return { verdict: "recheck", reason: /timeout/i.test(err) ? "timeout" : "unreachable" };
@@ -528,6 +562,8 @@ export function decideVerdict(probe, claimedPrice) {
   if (!probe.x402_challenge) {
     if (probe.free_trial && probe.free_trial.active) return { verdict: "recheck", reason: "free_trial_active" };
     if (probe.http_status >= 500) return { verdict: "recheck", reason: "server_error" };
+    if (probe.http_status === 429) return { verdict: "recheck", reason: "rate_limited" };
+    if (probe.http_status === 403 && probe.waf) return { verdict: "recheck", reason: "waf_challenge" };
     return { verdict: "skip", reason: "no_paywall" };
   }
   if (probe.known_answer !== true) return { verdict: "skip", reason: "bad_challenge" };
