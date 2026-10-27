@@ -192,8 +192,12 @@ class SizeGuard(unittest.TestCase):
     def test_remote_over_limit_skips_and_exits_0(self):
         self.assertEqual(self.files_applied(self.run_main(401_000_000, "--remote")), [])
 
-    def test_unreadable_size_skips(self):
-        self.assertEqual(self.files_applied(self.run_main("fail", "--remote")), [])
+    def test_unreadable_size_writes_with_warning(self):
+        import io, contextlib
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err): calls = self.run_main("fail", "--remote")
+        self.assertEqual(len(self.files_applied(calls)), 1)
+        self.assertIn('"d1_size_guard": "unknown"', err.getvalue())
 
     def test_ceiling_configurable(self):
         self.assertEqual(len(self.files_applied(self.run_main(450_000_000, "--remote", "--max-mb", "500"))), 1)
