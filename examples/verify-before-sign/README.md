@@ -24,6 +24,11 @@ equals the Worker's hash of the accepts entry (USDC exact on Base, x402 v1 and v
 consumes the approval, requires `validBefore <= now + maxTimeoutSeconds + 5 s`, and refuses a nonce it has
 already seen.
 
+**Seen nonces are bounded.** A nonce is kept only until its `validBefore` (+5 s) has passed; after
+that the token contract rejects the authorization anyway. Every check prunes expired nonces and expired approvals
+(`FileApprovals` deletes the files). `maxNonces` (default 10000) is a hard cap: when it is full of still-valid
+nonces, new signatures are denied rather than forgetting a nonce that could still be replayed.
+
 Denied:
 - a missing, expired or already-used approval;
 - a reused nonce;

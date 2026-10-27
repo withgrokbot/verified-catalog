@@ -5,8 +5,8 @@
 // The EIP-3009 nonce and validBefore are created by @x402/evm AFTER onBeforePaymentCreation runs, so they cannot
 // be part of the key. Instead the signer layer (1) consumes the approval (single use), (2) requires validBefore
 // to be no later than now + the approved maxTimeoutSeconds (+5 s clock slack), and (3) refuses a nonce it has
-// already seen.
-import { readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, openSync, closeSync } from "node:fs";
+// already seen while its validBefore has not passed (see prune()).
+import { readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, openSync, closeSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { termsKey, evmNetwork } from "../decision-gate/facilitator-gate.mjs";
@@ -30,9 +30,21 @@ export function makeApproval(req, { url, method = "GET", source, ttlMs = DEFAULT
   };
 }
 
+// Seen nonces are kept only while their authorization could still settle: an entry is pruned once
+// validBefore + SLACK_S has passed (the token contract rejects it after validBefore). checkTypedData prunes on every
+// call. maxNonces (default 10000) is a hard cap: when the store is full of still-valid nonces, new signatures are
+// denied (fail closed) rather than evicting an entry that could still be replayed.
+const nonceExpired = (validBeforeS, now) => validBeforeS + SLACK_S <= Math.floor(now / 1000);
+export const DEFAULT_MAX_NONCES = 10_000;
+
 /** In-process store (AgentKit and Turnkey wrappers). take() removes the record: single use. */
 export class MemoryApprovals {
-  constructor() { this.byKey = new Map(); this.nonces = new Set(); }
+  constructor({ maxNonces = DEFAULT_MAX_NONCES } = {}) { this.byKey = new Map(); this.nonces = new Map(); this.maxNonces = maxNonces; }
+  /** Drops expired approvals and nonces whose validBefore has passed. */
+  prune(now = Date.now()) {
+    for (const [k, l] of this.byKey) { const live = l.filter((r) => r.expires_ms > now); if (live.length) this.byKey.set(k, live); else this.byKey.delete(k); }
+    for (const [n, vb] of this.nonces) if (nonceExpired(vb, now)) this.nonces.delete(n);
+  }
   add(rec) { const l = this.byKey.get(rec.key) || []; l.push(rec); this.byKey.set(rec.key, l); }
   take(key, now = Date.now()) {
     const l = (this.byKey.get(key) || []).filter((r) => r.expires_ms > now);
@@ -40,8 +52,11 @@ export class MemoryApprovals {
     if (l.length) this.byKey.set(key, l); else this.byKey.delete(key);
     return rec;
   }
-  /** true the first time a nonce is seen, false after. */
-  markNonce(nonce) { if (this.nonces.has(nonce)) return false; this.nonces.add(nonce); return true; }
+  /** true the first time a nonce is seen; false if seen (and not yet expired) or if the store is full. */
+  markNonce(nonce, validBeforeS) {
+    if (this.nonces.has(nonce) || this.nonces.size >= this.maxNonces) return false;
+    this.nonces.set(nonce, validBeforeS); return true;
+  }
 }
 
 /**
@@ -49,7 +64,17 @@ export class MemoryApprovals {
  * take() claims a file with an atomic rename, so two signers cannot use the same approval.
  */
 export class FileApprovals {
-  constructor(dir) { this.dir = dir; mkdirSync(dir, { recursive: true, mode: 0o700 }); }
+  constructor(dir, { maxNonces = DEFAULT_MAX_NONCES } = {}) { this.dir = dir; this.maxNonces = maxNonces; mkdirSync(dir, { recursive: true, mode: 0o700 }); }
+  /** Deletes expired approval files and nonce files whose validBefore (the file's content) has passed. */
+  prune(now = Date.now()) {
+    for (const f of readdirSync(this.dir)) {
+      const p = join(this.dir, f);
+      try {
+        if (f.startsWith("nonce-")) { const t = readFileSync(p, "utf8").trim(); if (/^\d+$/.test(t) && nonceExpired(Number(t), now)) unlinkSync(p); } // "" = being written
+        else if (f.endsWith(".json") && !f.startsWith(".")) { const r = JSON.parse(readFileSync(p, "utf8")); if (!(r.expires_ms > now)) unlinkSync(p); }
+      } catch (_) {} // claimed or removed by another signer meanwhile
+    }
+  }
   add(rec) {
     const name = `${rec.key}.${rec.created_ms}.${randomBytes(6).toString("hex")}.json`;
     const tmp = join(this.dir, "." + name + ".tmp");
@@ -69,9 +94,13 @@ export class FileApprovals {
     }
     return null;
   }
-  markNonce(nonce) {
-    if (!/^0x[0-9a-f]{64}$/.test(nonce)) return false;
-    try { closeSync(openSync(join(this.dir, "nonce-" + nonce), "wx", 0o600)); return true; } catch (_) { return false; }
+  markNonce(nonce, validBeforeS) {
+    if (!/^0x[0-9a-f]{64}$/.test(nonce) || !Number.isSafeInteger(validBeforeS)) return false;
+    if (readdirSync(this.dir).filter((f) => f.startsWith("nonce-")).length >= this.maxNonces) return false;
+    let fd;
+    try { fd = openSync(join(this.dir, "nonce-" + nonce), "wx", 0o600); } catch (_) { return false; } // already seen
+    try { writeSync(fd, String(validBeforeS)); } finally { closeSync(fd); }
+    return true;
   }
 }
 
@@ -100,13 +129,14 @@ export function requirementFromTypedData(td) {
 /** Signer-side verdict for typed data: { allow, reason }. Never throws, never uses the network. */
 export function checkTypedData(store, typedData, { now = Date.now(), expectedChain } = {}) {
   try {
+    if (typeof store.prune === "function") store.prune(now);
     const req = requirementFromTypedData(typedData);
     if (!req) return { allow: false, reason: "not an EIP-3009 TransferWithAuthorization this policy can check" };
     if (expectedChain && evmNetwork(expectedChain) !== req.network) return { allow: false, reason: "typed data chainId does not match the signing chain" };
     const rec = store.take(termsKey(req), now);
     if (!rec) return { allow: false, reason: "no approval for these terms (missing, expired or already used)" };
     if (req.validBefore > Math.floor(now / 1000) + rec.maxTimeoutSeconds + SLACK_S) return { allow: false, reason: "validBefore is later than the approved timeout allows" };
-    if (!store.markNonce(req.nonce)) return { allow: false, reason: "nonce already used" };
+    if (!store.markNonce(req.nonce, req.validBefore)) return { allow: false, reason: "nonce already used (or nonce store full)" };
     return { allow: true, reason: "approved " + rec.source + " check for " + rec.url };
   } catch (e) {
     return { allow: false, reason: "policy error: " + (e && e.message) };

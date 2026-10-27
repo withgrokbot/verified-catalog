@@ -197,3 +197,29 @@ test("end to end: approved payment signs once; a changed payTo between check and
   assert.equal(await hook(ctx()), undefined);
   assert.equal(await a.signTypedData(typedData({ nowS })), "0xsig");
 });
+
+// ---- 9. seen-nonce set is bounded: pruned once validBefore has passed, hard cap fails closed ----
+test("nonces: replay inside the validity window is refused; expired entries are pruned (memory and OWS dir); cap fails closed", () => {
+  const N = (b) => "0x" + b.repeat(32);
+  for (const mk of [() => new MemoryApprovals(), () => new FileApprovals(mkdtempSync(join(tmpdir(), "vbs-nonce-")))]) {
+    const s = mk();
+    const count = () => (s instanceof MemoryApprovals ? s.nonces.size : readdirSync(s.dir).filter((f) => f.startsWith("nonce-")).length);
+    approved(s);
+    assert.equal(checkTypedData(s, typedData({ nowS: NOW_S, nonce: N("a1") }), { now: NOW }).allow, true); // validBefore = NOW_S + 60
+    approved(s, { now: NOW + 50_000 });
+    assert.match(checkTypedData(s, typedData({ nowS: NOW_S, nonce: N("a1") }), { now: NOW + 50_000 }).reason, /nonce already used/, "replay inside window");
+    assert.equal(count(), 1);
+    approved(s, { now: NOW + 66_000 });   // validBefore + 5 s slack has passed: the a1 entry is pruned on this check
+    assert.equal(checkTypedData(s, typedData({ nowS: NOW_S + 66, nonce: N("b2") }), { now: NOW + 66_000 }).allow, true);
+    assert.equal(count(), 1, "a1 pruned, only b2 left");
+    if (s instanceof FileApprovals) {
+      s.add(makeApproval(ACCEPTS, { url: RESOURCE, now: NOW }));   // expired approval file is cleaned up too
+      s.prune(NOW + 61_000);
+      assert.deepEqual(readdirSync(s.dir).filter((f) => f.endsWith(".json")), []);
+    }
+  }
+  const capped = new MemoryApprovals({ maxNonces: 1 });
+  approved(capped); approved(capped);
+  assert.equal(checkTypedData(capped, typedData({ nowS: NOW_S, nonce: N("c3") }), { now: NOW }).allow, true);
+  assert.match(checkTypedData(capped, typedData({ nowS: NOW_S, nonce: N("d4") }), { now: NOW }).reason, /store full/);
+});
