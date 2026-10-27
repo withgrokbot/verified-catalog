@@ -83,6 +83,8 @@ WATCHTOWER = "1"  # 0.47.0: Watchtower on (migration 0013 applied); Base mainnet
 EXPLAIN_LINE = "1"  # 0.49.0: explanation line on (no migration/secret)
 RECHECK = "1"  # 0.49.0: re-check window on (migration 0015 applied, secret RECHECK_PEPPER set)
 BULK_REPORT = "1"  # 0.49.0: bulk endpoint report on (1-5 URLs, min(n x $0.05, $0.20))
+FEED = "observe"  # 0.53.3: feed observe-only (migration 0018 applied): opt-ins + observations recorded, nothing served; FEED = "1" needs a separate OK
+DELIVERY_CHECK = "1"  # 0.53.3: post-payment delivery check (migration 0020 applied): a new pay -> recheck/delivery_failed only with a failed delivery row in 14 d
 # 0.48.0 ops counters (migration 0014): paywall funnel + 404 path log in D1. OPS_COUNTERS = "off" disables. Optional DRILL_WALLETS
 # (comma list of the drill wallet addresses) marks those payers as self traffic, like PAY_TO; unset = only PAY_TO is self.
 # 0.49.0 flags, all OFF by default (see docs/deploy-0.49.0.md): EXPLAIN_LINE = "1" (explanation line), RECHECK = "1" (24 h / 10 re-check
