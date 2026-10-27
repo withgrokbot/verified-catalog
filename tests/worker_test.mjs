@@ -3028,7 +3028,7 @@ test("0.38.0/0.53.4 crawl schedule copy: 'Updated weekly (last crawl Oct 27, nex
 test("0.38.0: no served page, JSON, 402 or MCP text carries the old price copy (one tenth / 1/10 / $0.01-$0.25) or a free_per_day other than 5", async () => {
   const OLD = /one tenth|tenth of the (target|endpoint)|1\/10 of|\$0\.01 ?(to|-) ?\$0\.25|0\.01-0\.25|from \$0\.01|\$0\.01\+|\$0\.001\/check|\$0\.001 per check/i;
   const e = spotEnv({ SPOT_FREE_PER_DAY: "5", SAVES_PAGE: "on" });
-  const paths = ["/", "/llms.txt", "/openapi.json", "/.well-known/x402", "/.well-known/402xagent-keys.json", "/pricing", "/docs", "/blog", "/blog/meet-402xagent-check-before-your-agent-pays", "/blog/preflight-budget-then-check", "/blog/x402-retry-double-pay-check-before-you-resign", "/blog/x402-skips-report-what-agents-almost-paid-for", "/blog/x402-spotcheck-audit-layer-budgets-ledger", "/rules", "/rules.json", "/v1/skips", "/v1/skips.json", "/bazaar", "/bazaar.json", "/saves", "/saves.json", "/health", "/v1/tasks", "/v1/products/endpoint-spot-check", "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=old-copy", "/v1/lookup/paid", "/badge/api.402rates.com"];
+  const paths = ["/", "/llms.txt", "/openapi.json", "/.well-known/x402", "/.well-known/402xagent-keys.json", "/pricing", "/docs", "/blog", "/blog/meet-402xagent-check-before-your-agent-pays", "/blog/preflight-budget-then-check", "/blog/x402-retry-double-pay-check-before-you-resign", "/blog/x402-skips-report-what-agents-almost-paid-for", "/blog/x402-spotcheck-audit-layer-budgets-ledger", "/blog/x402-endpoint-checks-compared", "/blog/check-x402-endpoint-before-agent-pays", "/rules", "/rules.json", "/v1/skips", "/v1/skips.json", "/bazaar", "/bazaar.json", "/saves", "/saves.json", "/health", "/v1/tasks", "/v1/products/endpoint-spot-check", "/v1/products/endpoint-spot-check?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=old-copy", "/v1/lookup/paid", "/badge/api.402rates.com"];
   spotTargetMode = "402";
   for (const p of paths) for (const accept of ["application/json", "text/html"]) {
     const r = await worker.fetch(new Request("https://402xagent.com" + p, { headers: { accept, "user-agent": "agent-x/1.0", "cf-connecting-ip": "203.0.113.9" } }), e.env, { waitUntil() {} });
@@ -3143,6 +3143,35 @@ test("0.39.0 blog: no personal identifiers in any post (terms from the local for
   }
 });
 
+
+test("blog 2026-10-27: /blog 200 lists both new posts; both slugs 200 with title, meta description, canonical; unknown slug 404; sitemap; internal links resolve", async () => {
+  const { BLOG_POSTS } = await import("../worker/src/blog-data.js");
+  const env = { ...mkEnv().env, SAVES_PAGE: "on" }; // production value (wrangler.toml): /saves is live
+  const get = async (p) => { const r = await worker.fetch(new Request("https://402xagent.com" + p, { headers: { accept: "text/html" } }), env, { waitUntil() {} }); return { status: r.status, t: await r.text() }; };
+  const list = await get("/blog");
+  assert.equal(list.status, 200);
+  for (const slug of ["x402-endpoint-checks-compared", "check-x402-endpoint-before-agent-pays"]) {
+    const post = BLOG_POSTS.find((p) => p.slug === slug);
+    assert.ok(post, slug + " bundled"); assert.equal(post.date, "2026-10-27");
+    assert.ok(list.t.includes(`href="/blog/${slug}"`), slug + " on /blog");
+    const r = await get("/blog/" + slug);
+    assert.equal(r.status, 200, slug);
+    assert.match(r.t, /<title>[^<]*x402[^<]*<\/title>/i, slug + " title");
+    assert.ok(r.t.includes(`<meta name="description" content="`) && post.description.length > 50, slug + " meta description");
+    assert.ok(r.t.includes(`<link rel="canonical" href="https://402xagent.com/blog/${slug}">`), slug + " canonical");
+    assert.ok(!/Alternative headlines|status: draft/.test(r.t), slug + ": editorial notes stripped");
+    // every link to 402xagent.com in the post resolves to a real route on this Worker
+    for (const m of post.html.matchAll(/href="https:\/\/402xagent\.com(\/[^"#]*)/g)) {
+      const path = m[1].replace(/&amp;/g, "&");
+      if (/^\/v1\/receipts\/(sc|ps)-/.test(path)) continue; // live receipt ids live in production D1, not the test env
+      assert.equal((await get(path)).status, 200, `${slug} links ${path}`);
+    }
+  }
+  assert.ok(BLOG_POSTS.find((p) => p.slug === "x402-endpoint-checks-compared").html.includes('href="https://402xagent.com/blog/check-x402-endpoint-before-agent-pays"'), "comparison post links the how-to slug");
+  assert.equal((await get("/blog/no-such-post-2026")).status, 404);
+  const sm = (await get("/sitemap.xml")).t;
+  for (const slug of ["x402-endpoint-checks-compared", "check-x402-endpoint-before-agent-pays"]) assert.ok(sm.includes(`https://402xagent.com/blog/${slug}</loc>`), slug + " in sitemap");
+});
 
 test("0.42.3 receipt labels: check_type matches the real mode (live / dry-run / self-checked); client stored only when given (never served publicly); same single write", async () => {
   const db = fakeD1(); const e = spotEnv({ RECEIPTS_DB: db });
