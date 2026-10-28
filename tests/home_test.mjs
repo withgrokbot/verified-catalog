@@ -38,14 +38,20 @@ test("homepage: browsers on 402xagent.com only, strict CSP, one same-origin scri
   assert.ok(!/ on[a-z]+="/i.test(t), "no inline handlers");
   assert.ok(!/agenteconomy|badge/i.test(t), "no badge");
   assert.ok(!/https?:\/\/(?!402xagent\.com|github\.com\/withgrokbot|www\.npmjs\.com\/package\/x402-spotcheck|api\.402xagent\.com|api\.402rates\.com|api\.automaton-sovereign|example\.com\/paid-endpoint)/.test(t.replace(/xmlns="[^"]+"/g, "")), "only own and named links");
-  for (const id of ["tab-products", "tab-verdicts", "tab-dev"]) assert.ok(t.includes(`id="${id}"`));
+  for (const id of ["tab-products", "tab-skips", "tab-dev"]) assert.ok(t.includes(`id="${id}"`));
   assert.match(t, /aria-selected="true" data-panel="products"/); assert.equal((t.match(/role="tabpanel"[^>]* hidden>/g) || []).length, 2);
-  for (const tab of ["products", "verdicts", "dev"]) assert.ok(t.includes(`data-tab="${tab}"`), "nav " + tab);
+  for (const tab of ["products", "skips", "dev"]) assert.ok(t.includes(`data-tab="${tab}"`), "nav " + tab);
   for (const a of ["/docs#quick-start", "/docs#endpoint-report", "/docs#payment-status", "/docs#watchtower", "/docs#facilitator-check", "/docs#hosted"]) assert.ok(t.includes(`href="${a}"`), a);
   assert.ok(t.includes("const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);"), "copy one-liner");
   for (const x of HOME_EXAMPLES) assert.ok(t.includes(`data-url="${x.url}"`));
   for (const h of ["https://api.402xagent.com"]) assert.match((await get("/", undefined, h)).headers.get("content-type"), /application\/json/, h);
   assert.match((await get("/", "application/json")).headers.get("content-type"), /application\/json/);
+});
+
+test("trust card: no raw IPs in our data", () => {
+  const t = homeHtml("https://402xagent.com", { now: NOW });
+  assert.ok(t.includes("<strong>No raw IPs in our data</strong><p>The raw IP is never written to our data stores, only a salted hash.</p>"));
+  assert.ok(!t.includes("Raw IPs are never stored"));
 });
 
 test("homepage product cards: real prices and terms from the code, flags respected", () => {
@@ -66,7 +72,7 @@ test("proof strip: live crawl numbers, hidden when missing or stale", () => {
   assert.deepEqual(homeStats({ crawled_at: "nope", endpoints_covered: 5 }, NOW).covered, null);
 });
 
-test("latest verdicts: real crawl rows only (host, verdict, plain reason, date), no wallets/amounts, empty feed shows the caption only", () => {
+test("latest skips: real crawl rows only (host, verdict, plain reason, date), no wallets/amounts, empty feed shows the caption only", () => {
   const rows = homeVerdicts(RECEIPTS, RECEIPTS_META, 6, NOW);
   assert.ok(rows.length > 0 && rows.length <= 6);
   for (const r of rows) {
@@ -76,10 +82,20 @@ test("latest verdicts: real crawl rows only (host, verdict, plain reason, date),
   }
   assert.equal(new Set(rows.map((r) => r.host)).size, rows.length, "one row per host");
   const t = homeHtml("https://402xagent.com", { now: NOW });
-  const panel = t.slice(t.indexOf('id="panel-verdicts"'), t.indexOf('id="panel-dev"'));
+  const panel = t.slice(t.indexOf('id="panel-skips"'), t.indexOf('id="panel-dev"'));
   assert.ok(!/0x[0-9a-fA-F]{40}/.test(panel) && !/tx_hash|payment_payload|payer/i.test(panel));
   const empty = homeHtml("https://402xagent.com", { now: NOW, receipts: [] });
-  const ep = empty.slice(empty.indexOf('id="panel-verdicts"'), empty.indexOf('id="panel-dev"'));
-  assert.ok(ep.includes("Live from the public crawl.") && !ep.includes('class="v-row"'));
+  const ep = empty.slice(empty.indexOf('id="panel-skips"'), empty.indexOf('id="panel-dev"'));
+  const CAP = "Recent skips from the public crawl. A mismatch often just means the listing is out of date.";
+  assert.ok(panel.includes(`<span>${CAP}</span>`), "exact caption");
+  assert.ok(ep.includes(CAP) && !ep.includes('class="v-row"'));
+  assert.ok(t.includes('data-panel="skips" type="button">Latest skips</button>') && !/Latest verdicts|panel-verdicts|tab-verdicts|data-tab="verdicts"/.test(t), "tab renamed, no stale anchors");
+  // neutral reason wording, nothing about the seller
+  assert.equal(plainReason("pays a different wallet than listed (0xabc listed, 0xdef)"), "Payment wallet differs from the listing");
+  assert.equal(plainReason("asks for payment on a different network than listed (listed eip155:84532, offers eip155:8453)"), "Payment network differs from the listing");
+  assert.equal(plainReason("asks a different price than listed (listed $0.01, asks $0.05)"), "Payment price differs from the listing");
+  for (const r of rows) assert.doesNotMatch(r.reason, /^(pays|asks|wants)\b|they |seller/i, r.reason);
+  assert.doesNotMatch(panel, /pays a different wallet|asks for payment|asks a different price/i);
+  assert.doesNotMatch(HOME_JS.slice(HOME_JS.indexOf("function homeReason")), /return "(Pays|Asks|Wants)/, "checker reasons are neutral too");
   assert.equal(plainReason("something new (0xabc)"), null, "unknown reasons are dropped, not shown raw");
 });

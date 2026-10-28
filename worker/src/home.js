@@ -3,7 +3,7 @@
 // is untouched; tests/machine_surfaces_test.mjs proves it against a 0.57.1 snapshot.
 // Strict CSP like /docs: no inline script; the behaviour is /home.js. The checker reuses the /docs Try-it core
 // (TRYIT_CORE: same validation, same free endpoint, same ref, same quota messages, same per-term comparison) and never
-// shows a price or a payTo. Stats and Latest verdicts come from the published crawl (receipts-data.js, the data behind
+// shows a price or a payTo. Stats and Latest skips come from the published crawl (receipts-data.js, the data behind
 // /v1/skips) and hide when missing or stale. No inline numbers are hand-edited; no badge; no personal names.
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { TRYIT_CORE, DOCS_TRYIT_PREFILL, DOCS_TRYIT_PLACEHOLDER, DOCS_TRYIT_REF, DOCS_TRYIT_TIMEOUT_MS, DOCS_CSP } from "./tryit.js";
@@ -38,13 +38,13 @@ export function homeStats(meta = RECEIPTS_META, now = Date.now()) {
   return { covered: num(m.endpoints_covered ?? m.total), newWeek: num(m.new_this_week), recheck: num(m.recheck), skip: num(m.skip), crawled: day(m.crawled_at) };
 }
 
-// Plain-language reasons for the table: the crawl's own reason text minus the parenthetical detail (which carries wallet
-// addresses and chain ids). Unknown shapes are dropped rather than shown raw. Neutral wording, no judgement of sellers.
+// Plain-language reasons for the table, in neutral wording about the payment terms (never about the seller): the crawl's
+// reason is matched by shape and replaced; its parenthetical detail (wallets, chain ids) is never shown. Unknown shapes are dropped.
 const PLAIN = [
-  [/^pays a different wallet than listed/i, "Pays a different wallet than the listing shows"],
-  [/^asks a different price than listed/i, "Asks a different price than listed"],
-  [/^asks for payment on a different network than listed/i, "Asks for payment on a different network than listed"],
-  [/^no x402 payment request/i, "No x402 payment request at this URL"],
+  [/^pays a different wallet than listed/i, "Payment wallet differs from the listing"],
+  [/^asks a different price than listed/i, "Payment price differs from the listing"],
+  [/^asks for payment on a different network than listed/i, "Payment network differs from the listing"],
+  [/^no x402 payment request/i, "No x402 payment request found at this URL"],
   [/^payment request matches/i, "Live terms match the listing"],
 ];
 export function plainReason(r) {
@@ -53,7 +53,7 @@ export function plainReason(r) {
   return null;
 }
 const hostOf = (u) => { try { return new URL(u).hostname; } catch (_) { return null; } };
-/** Latest verdict rows: newest first, one per host, only rows with a plain reason. Host, verdict, reason, date: nothing else. */
+/** Latest skips rows: newest first, one per host, only rows with a plain reason. Host, verdict, reason, date: nothing else. */
 export function homeVerdicts(receipts = RECEIPTS, meta = RECEIPTS_META, n = HOME_VERDICT_ROWS, now = Date.now()) {
   if (!homeStats(meta, now).crawled) return [];
   const seen = new Set(), rows = [];
@@ -237,7 +237,7 @@ export function homeHtml(origin, opts = {}) {
     st.recheck && `<div class="proof-item"><div class="proof-num">${st.recheck}</div><div class="proof-label">currently at <strong>recheck</strong>: terms not confirmed yet</div></div>`,
     st.skip && `<div class="proof-item"><div class="proof-num">${st.skip}</div><div class="proof-label">at <strong>skip</strong>: live terms differ from the listing</div></div>`,
   ].filter(Boolean);
-  const nav = [["Products", "#explore", "products"], ["Docs", "/docs", ""], ["Pricing", "/pricing", "products"], ["Blog", "/blog", ""], ["Receipts", "/v1/skips", "verdicts"], ["GitHub", GH_GUARD, "dev"]];
+  const nav = [["Products", "#explore", "products"], ["Docs", "/docs", ""], ["Pricing", "/pricing", "products"], ["Blog", "/blog", ""], ["Receipts", "/v1/skips", "skips"], ["GitHub", GH_GUARD, "dev"]];
   const navHtml = nav.map(([t, h, tab]) => `<a href="${esc(h)}"${tab ? ` data-tab="${tab}"` : ""}>${t}</a>`).join("");
   const vrows = rows.map((r) => `<div class="v-row" role="row"><div class="v-host" role="cell">${esc(r.host)}</div><div role="cell"><span class="verdict ${r.verdict}"><i></i>${r.verdict.toUpperCase()}</span></div><div class="v-reason" role="cell">${esc(r.reason)}</div><div class="v-time" role="cell">${esc(r.when)}</div></div>`).join("\n");
   return `<!doctype html>
@@ -313,7 +313,7 @@ ${stats.length ? `<div class="proof" id="proof" aria-label="Live from the public
 <div class="section-head"><div class="kicker">Explore</div><h2>Products, verdicts, and the developer docs.</h2></div>
 <div class="tabbar" role="tablist" aria-label="Explore 402xAgent">
 <button class="tab-btn" role="tab" id="tab-products" aria-controls="panel-products" aria-selected="true" data-panel="products" type="button">Products</button>
-<button class="tab-btn" role="tab" id="tab-verdicts" aria-controls="panel-verdicts" aria-selected="false" tabindex="-1" data-panel="verdicts" type="button">Latest verdicts</button>
+<button class="tab-btn" role="tab" id="tab-skips" aria-controls="panel-skips" aria-selected="false" tabindex="-1" data-panel="skips" type="button">Latest skips</button>
 <button class="tab-btn" role="tab" id="tab-dev" aria-controls="panel-dev" aria-selected="false" tabindex="-1" data-panel="dev" type="button">For developers</button>
 </div>
 <div class="tab-panel" role="tabpanel" id="panel-products" aria-labelledby="tab-products" tabindex="0">
@@ -322,13 +322,13 @@ ${stats.length ? `<div class="proof" id="proof" aria-label="Live from the public
 ${productCards(o)}
 </div>
 </div>
-<div class="tab-panel" role="tabpanel" id="panel-verdicts" aria-labelledby="tab-verdicts" tabindex="0" hidden>
-<div class="panel-intro"><h3>What the crawl is finding.</h3><p>The newest verdicts from the public crawl, one row per host, in plain words.</p></div>
-${rows.length ? `<div class="verdicts" role="table" aria-label="Latest verdicts from the public crawl">
+<div class="tab-panel" role="tabpanel" id="panel-skips" aria-labelledby="tab-skips" tabindex="0" hidden>
+<div class="panel-intro"><h3>What the crawl is finding.</h3><p>The newest skips from the public crawl, one row per host, in plain words.</p></div>
+${rows.length ? `<div class="verdicts" role="table" aria-label="Latest skips from the public crawl">
 <div class="v-row head" role="row"><div role="columnheader">Endpoint</div><div role="columnheader">Verdict</div><div role="columnheader">Reason</div><div role="columnheader" style="text-align:right">Checked</div></div>
 ${vrows}
 </div>` : ""}
-<div class="caption"><span>Live from the public crawl.</span><a href="/v1/skips">Browse all receipts &rarr;</a></div>
+<div class="caption"><span>Recent skips from the public crawl. A mismatch often just means the listing is out of date.</span><a href="/v1/skips">Browse all receipts &rarr;</a></div>
 </div>
 <div class="tab-panel" role="tabpanel" id="panel-dev" aria-labelledby="tab-dev" tabindex="0" hidden>
 <div class="dev"><div class="dev-grid">
@@ -354,7 +354,7 @@ ${vrows}
 <div class="trust-item">${ICON.shield}<strong>Payment never changes a verdict</strong><p>Free, paid and exempt checks run the same code on the same data. Paying buys access to the answer, not a different answer.</p></div>
 <div class="trust-item">${ICON.search}<strong>Probes never pay the target</strong><p>The probe is unpaid by design: it reads the 402 terms and never attaches a payment to the seller.</p></div>
 <div class="trust-item">${ICON.doc}<strong>Receipts verifiable offline</strong><p>Live-check receipts are ed25519-signed and the public keys are published, so anyone can verify one without calling us.</p></div>
-<div class="trust-item">${ICON.lock}<strong>Raw IPs are never stored</strong><p>Quotas and counters use salted hashes of the network address; the free quota's salt changes daily. The raw IP is never written to our data stores.</p></div>
+<div class="trust-item">${ICON.lock}<strong>No raw IPs in our data</strong><p>The raw IP is never written to our data stores, only a salted hash.</p></div>
 </div>
 </div>
 </section>
@@ -394,6 +394,11 @@ const HOME_RENDER = String.raw`  function show(nodes, cls) {
   // The free reason can open with the listing's price ("listed $0.01, ..."); the home card drops it, and any amount or address.
   function homeReason(r) {
     var t = uiReason(r).replace(/^(listed \$[0-9.]+|price unlisted),\s*/i, "").replace(/\$[0-9][0-9.,]*/g, "").replace(/0x[0-9a-fA-F]{6,}/g, "").replace(/\s+/g, " ").trim();
+    // neutral wording about the payment terms, never about the seller (the API keeps its own reason text unchanged)
+    var NEUTRAL = [[/^pays a different wallet than listed/i, "Payment wallet differs from the listing"], [/^asks for payment on a different network than listed/i, "Payment network differs from the listing"],
+      [/^asks a different price than listed/i, "Payment price differs from the listing"], [/^asks for a token other than USDC/i, "Payment token is not USDC"],
+      [/^wants payment on a testnet or a network we don't support/i, "Payment network is a testnet or not supported"]];
+    for (var i = 0; i < NEUTRAL.length; i++) if (NEUTRAL[i][0].test(t)) return NEUTRAL[i][1];
     return t ? t.charAt(0).toUpperCase() + t.slice(1) : "Payment request found";
   }
   function termsGrid(j) {
