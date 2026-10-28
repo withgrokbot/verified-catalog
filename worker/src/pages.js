@@ -11,26 +11,8 @@ ${body}
 </body></html>
 `;
 
-// p: { freePerDay, freePerIpDay, paidAtomic, routerPackAtomic, routerPackChecks, routerCheckAtomic, lookupFreePerDay, lookupAtomic, packAtomic, apiOrigin }
-export function pricingHtml(origin, p) {
-  const rows = [
-    ["Free check", `$0: ${p.freePerDay} live checks per client per UTC day, at most ${p.freePerIpDay} per network (IP) per day across client names. Dry runs (<code>&amp;mode=dry-run</code>) are free.`],
-    ["Paid check", `${usd(p.paidAtomic)} per check, flat, whatever the target endpoint charges. Adds full payment terms and the payment object to sign.`],
-    ["Payment status (after you pay)", `${usd(p.paidAtomic)} per lookup, flat, after the same ${p.freePerDay} free checks per day (shared with the check, same per-network cap). <code>POST /v1/products/payment-status</code>: did your Base USDC payment land, and is it safe to sign a new one? <a href="/docs#payment-status">Docs</a>.`],
-    ["Endpoint report", `$0.05 per report, flat, for everyone (no free tier): the exact committed drift history and hygiene detail behind the free check's locked teasers. <code>POST /v1/products/endpoint-report</code>${p.endpointReport ? "" : " (rolling out)"}.`],
-    ...(p.watchtower ? [["Watchtower", `$1 per watched endpoint per 30 days, prepaid via x402 (7-day free trial on the first watch per webhook domain). Hourly re-probe; Ed25519-signed webhooks on drift, down and recovery. <code>POST /v1/watch</code>`]] : []),
-    ["Hosted (integrator key)", `For routers and wallets, by arrangement: an integrator key (<code>Authorization: Bearer 402x_live_...</code>) gets 1,000 free hosted checks (once), then $0.02 per check, and $0.01 for each billable check after the first 1,000 in a calendar month (UTC). Covers the check and payment status, billed on a monthly USDC invoice instead of per-call x402. <a href="/docs#hosted">How it works</a>.`],
-    ["Router pack", `${usd(p.routerPackAtomic)} for ${p.routerPackChecks} checks (${usd(p.routerCheckAtomic)} each), paid as one x402 payment; for registered router clients.`],
-    ["Catalog lookup (<code>/v1/lookup</code>)", `${p.lookupFreePerDay} free per client per UTC day, then ${usd(p.lookupAtomic)} per call; <code>/v1/lookup/paid</code> is always ${usd(p.lookupAtomic)}.`],
-    ["Overnight chief-of-staff pack", `${usd(p.packAtomic)} (<code>/v1/products/overnight-cos-pack</code>).`],
-    ["Free to read", `Skips, receipts, Bazaar check, badges, rules, OpenAPI, MCP.`],
-  ];
-  return page("Pricing · 402xAgent", "402xAgent prices: free checks, paid checks $0.02, USDC on Base via x402.", origin, "/pricing", `<h1>Pricing</h1>
-<p>All payments are USDC on Base via x402. No account, no key. Payment buys access only; it never changes a verdict.</p>
-<table><tbody>${rows.map(([k, v]) => `<tr><th scope="row">${k}</th><td>${v}</td></tr>`).join("")}</tbody></table>
-<p>Check endpoint: <code>${esc(p.apiOrigin)}/v1/products/endpoint-spot-check?url=&lt;endpoint&gt;</code></p>
-<p>Details: <a href="/rules">rules</a> · <a href="/openapi.json">OpenAPI spec</a> · <a href="/docs">docs</a></p>`);
-}
+// 0.58.3: /pricing is the pricing table in pricing.js (homepage look, strict CSP); re-exported here for existing imports.
+export { pricingHtml } from "./pricing.js";
 
 export const VERIFY_SNIPPET = `import { createPublicKey, verify } from "node:crypto";
 const jcs = (v) => v === null || typeof v !== "object" ? JSON.stringify(v)

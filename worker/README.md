@@ -463,3 +463,13 @@ the published crawl timestamp (`RECEIPTS_META.crawled_at`) through the 0.53.4 we
 hand edits. Absolute dates only (the page is cached 5 minutes). A missing or unusable part is hidden (no valid timestamp: no
 line; a next date already past: only the last date; a last date in the future: only the next date); the line is not rendered
 when both are missing. HTML for browsers on `/` only; root JSON, llms.txt and every `/v1` surface are unchanged.
+
+## /pricing as a pricing table (0.58.3)
+
+`/pricing` (HTML for every Accept, as before; it has no JSON form) is a pricing table in the homepage's look: the homepage
+stylesheet (`HOME_CSS`), the same header and footer, the same strict CSP (`HOME_CSP`, incl. the 0.58.1 Cloudflare Web
+Analytics allowance) and no script (the small-screen menu is a `<details>` element). Rows: Free, 402xAgent Check, Endpoint
+Report, Payment Status, Watchtower, Facilitator Check, Hosted Mode. Every number is passed in from the price constants
+(sources listed at the top of `src/pricing.js`); no prepaid packs or credits are shown. At 760px and below the table becomes
+stacked cards. The homepage, `/home.js`, `/docs` and the 404 answers for `/pricing.json`-style paths are pinned byte-identical
+to 0.58.2 by `tests/machine_surfaces_test.mjs` (fixture `tests/fixtures/machine_0.58.2/extra.json`).

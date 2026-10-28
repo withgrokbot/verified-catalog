@@ -493,4 +493,6 @@ const HOME_UI = String.raw`(function () {
   });
 })();
 `;
+// 0.58.3: the same stylesheet for /pricing (pricing.js); the homepage output is unchanged.
+export const HOME_CSS = CSS;
 export const HOME_JS = HOME_HEAD + TRYIT_CORE.TABLES + TRYIT_CORE.UTIL + TRYIT_CORE.CHECK + TRYIT_CORE.REASON + HOME_RENDER + TRYIT_CORE.SUBMIT + HOME_UI;

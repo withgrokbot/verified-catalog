@@ -78,7 +78,40 @@ export async function snapshot(workerPath) {
   return out;
 }
 
-if (process.argv[2]) {
+// 0.58.3: surfaces that must stay byte-identical while /pricing (HTML for every Accept, as before) is rebuilt: the /pricing
+// machine-looking paths (none exist: /pricing.json and the rest answer 404 JSON) on every host and Accept, and the browser
+// homepage + /home.js + /docs on 402xagent.com (the homepage must not change at all). Fixture from main 714e418 (0.58.2).
+export const EXTRA_GETS = ["/pricing.json", "/pricing.txt", "/pricing/json", "/v1/pricing", "/v1/pricing.json", "/.well-known/pricing"];
+export async function snapshotExtra(workerPath) {
+  const mod = await import(pathToFileURL(resolve(workerPath)).href);
+  const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
+  const worker = mod.default, VERSION = lib.VERSION;
+  const norm = (s) => s.split(VERSION).join("<VERSION>");
+  const env = () => ({ DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01" });
+  const out = {};
+  const run = async (key, req) => {
+    const res = await worker.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
+    const body = await res.text();
+    const headers = {};
+    for (const [k, v] of [...res.headers.entries()].sort()) headers[k] = norm(v);
+    out[key] = { status: res.status, headers, sha256: createHash("sha256").update(norm(body)).digest("hex") };
+  };
+  const HTML = { accept: "text/html,application/xhtml+xml,*/*;q=0.8", "user-agent": "Mozilla/5.0", "cf-connecting-ip": "203.0.113.9" };
+  for (const h of HOSTS) for (const p of EXTRA_GETS) {
+    for (const [an, a] of Object.entries(ACCEPTS)) {
+      const [accept, ua] = a ? a.split("|") : [null, null];
+      await run(`GET ${h}${p} [${an}]`, new Request(h + p, { headers: { "cf-connecting-ip": "203.0.113.9", ...(ua ? { "user-agent": ua } : {}), ...(accept ? { accept } : {}) } }));
+    }
+    await run(`GET ${h}${p} [html]`, new Request(h + p, { headers: HTML }));
+  }
+  for (const p of ["/", "/home.js", "/docs", "/docs/try-it.js"]) await run(`GET https://402xagent.com${p} [html]`, new Request("https://402xagent.com" + p, { headers: HTML }));
+  return out;
+}
+
+if (process.argv[2] === "--extra" && process.argv[3]) {
+  process.stdout.write(JSON.stringify(await snapshotExtra(process.argv[3]), null, 1) + "\n");
+} else if (process.argv[2]) {
   const snap = await snapshot(process.argv[2]);
   process.stdout.write(JSON.stringify(snap, null, 1) + "\n");
 }

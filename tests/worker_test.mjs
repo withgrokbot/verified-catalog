@@ -2702,7 +2702,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.58.2");
+  assert.equal(VERSION, "0.58.3");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2869,7 +2869,7 @@ test("0.37.1: /receipts and /skips.json 301 to /v1 keeping the query; /pricing a
     const ph = await r.text();
     assert.match(ph, /5 live checks per client per UTC day, at most 25 per network/);
     assert.match(ph, /\$0\.02 per check, flat/);
-    assert.match(ph, /\$0\.20 for 10 checks \(\$0\.02 each\)/);
+    assert.doesNotMatch(ph, /\$0\.20 for 10 checks|router pack|prepaid|credit/i); // 0.58.3: no packs or credits on /pricing
     assert.match(ph, /\$9/); assert.match(ph, /href="\/rules"/); assert.match(ph, /href="\/openapi\.json"/);
     r = await raw("/docs", host); assert.equal(r.status, 200);
     const dh = await r.text();
@@ -3825,7 +3825,7 @@ test("0.40.0 payment-status: chain outage -> 503 (nothing charged, no free check
   assert.match(docs, /id="payment-status"/);
   assert.match(docs, /\$0\.02/); assert.match(docs, /same 5 free per day/);
   const pr = await (await worker.fetch(new Request("https://402xagent.com/pricing", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} })).text();
-  assert.match(pr, /Payment status \(after you pay\)<\/th><td>\$0\.02 per lookup, flat, after the same \d+ free checks per day \(shared with the check/);
+  assert.match(pr, /<tr id="payment-status"><th scope="row">Payment Status<\/th>[\s\S]*?\$0\.02 per lookup, flat, after the same \d+ free checks per day \(shared with the check/); // 0.58.3 table
   assert.match(pr, /href="\/docs#payment-status"/);
 });
 

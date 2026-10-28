@@ -1,0 +1,1830 @@
+{
+ "GET https://402xagent.com/pricing.json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing.json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing.json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing.json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing.json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing.json [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing.txt [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing.txt [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing.txt [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing.txt [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing.txt [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing.txt [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing/json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing/json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing/json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing/json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing/json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/pricing/json [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/v1/pricing [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/v1/pricing [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/v1/pricing [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/v1/pricing [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/v1/pricing [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/v1/pricing [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/v1/pricing.json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/v1/pricing.json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/v1/pricing.json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/v1/pricing.json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/v1/pricing.json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/v1/pricing.json [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/.well-known/pricing [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/.well-known/pricing [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/.well-known/pricing [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/.well-known/pricing [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/.well-known/pricing [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/.well-known/pricing [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing.json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing.json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing.json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing.json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing.json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing.json [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing.txt [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing.txt [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing.txt [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing.txt [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing.txt [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing.txt [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing/json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing/json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing/json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing/json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing/json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/pricing/json [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/v1/pricing [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/v1/pricing [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/v1/pricing [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/v1/pricing [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/v1/pricing [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/v1/pricing [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/v1/pricing.json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/v1/pricing.json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/v1/pricing.json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/v1/pricing.json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/v1/pricing.json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/v1/pricing.json [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/.well-known/pricing [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/.well-known/pricing [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/.well-known/pricing [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/.well-known/pricing [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/.well-known/pricing [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.402xagent.com/.well-known/pricing [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing.json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing.json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing.json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing.json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing.json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing.json [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/pricing.json",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing.txt [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing.txt [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing.txt [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing.txt [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing.txt [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing.txt [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/pricing.txt",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing/json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing/json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing/json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing/json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing/json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/pricing/json [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/pricing/json",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/pricing [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/pricing [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/pricing [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/pricing [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/pricing [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/pricing [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/v1/pricing",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/pricing.json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/pricing.json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/pricing.json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/pricing.json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/pricing.json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/pricing.json [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/v1/pricing.json",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/.well-known/pricing [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/.well-known/pricing [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/.well-known/pricing [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/.well-known/pricing [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/.well-known/pricing [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://verified-catalog-lookup.withgrokbot.workers.dev/.well-known/pricing [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing.json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing.json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing.json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing.json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing.json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing.json [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/pricing.json",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://payscout.dev/pricing.txt [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing.txt [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing.txt [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing.txt [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing.txt [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing.txt [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/pricing.txt",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://payscout.dev/pricing/json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing/json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing/json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing/json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing/json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/pricing/json [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/pricing/json",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://payscout.dev/v1/pricing [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/v1/pricing [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/v1/pricing [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/v1/pricing [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/v1/pricing [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/v1/pricing [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/v1/pricing",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://payscout.dev/v1/pricing.json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/v1/pricing.json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/v1/pricing.json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/v1/pricing.json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/v1/pricing.json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/v1/pricing.json [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/v1/pricing.json",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://payscout.dev/.well-known/pricing [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/.well-known/pricing [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/.well-known/pricing [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/.well-known/pricing [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/.well-known/pricing [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://payscout.dev/.well-known/pricing [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing.json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing.json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing.json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing.json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing.json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing.json [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/pricing.json",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://api.payscout.dev/pricing.txt [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing.txt [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing.txt [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing.txt [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing.txt [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing.txt [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/pricing.txt",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://api.payscout.dev/pricing/json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing/json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing/json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing/json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing/json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/pricing/json [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/pricing/json",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://api.payscout.dev/v1/pricing [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/v1/pricing [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/v1/pricing [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/v1/pricing [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/v1/pricing [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/v1/pricing [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/v1/pricing",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://api.payscout.dev/v1/pricing.json [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/v1/pricing.json [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/v1/pricing.json [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/v1/pricing.json [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/v1/pricing.json [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/v1/pricing.json [html]": {
+  "status": 301,
+  "headers": {
+   "cache-control": "public, max-age=3600",
+   "location": "https://402xagent.com/v1/pricing.json",
+   "vary": "accept"
+  },
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "GET https://api.payscout.dev/.well-known/pricing [none]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/.well-known/pricing [json]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/.well-known/pricing [any]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/.well-known/pricing [text]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/.well-known/pricing [curl]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://api.payscout.dev/.well-known/pricing [html]": {
+  "status": 404,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE, X-PAYMENT-RESPONSE",
+   "cache-control": "no-store",
+   "content-type": "application/json; charset=utf-8"
+  },
+  "sha256": "c6a7fdd84fdbf216ed337493e2c85483d1b0a1262f470b3eb3b92a8e8bae989c"
+ },
+ "GET https://402xagent.com/ [html]": {
+  "status": 200,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "cache-control": "public, max-age=300",
+   "content-security-policy": "default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'unsafe-inline'; connect-src 'self' https://cloudflareinsights.com; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+   "content-type": "text/html; charset=utf-8",
+   "referrer-policy": "strict-origin-when-cross-origin",
+   "vary": "accept",
+   "x-content-type-options": "nosniff"
+  },
+  "sha256": "7afb0e7b923db0a63f4e874a620d55dd9f6865638cb2bf163895445aad9b041d"
+ },
+ "GET https://402xagent.com/home.js [html]": {
+  "status": 200,
+  "headers": {
+   "cache-control": "public, max-age=300",
+   "content-type": "text/javascript; charset=utf-8",
+   "x-content-type-options": "nosniff"
+  },
+  "sha256": "2dc06808bfcb485c4bb4a7f5d514c428182d21c4598cc6af19b3a53b6d3836ab"
+ },
+ "GET https://402xagent.com/docs [html]": {
+  "status": 200,
+  "headers": {
+   "access-control-allow-origin": "*",
+   "cache-control": "public, max-age=300",
+   "content-security-policy": "default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'unsafe-inline'; connect-src 'self' https://cloudflareinsights.com; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+   "content-type": "text/html; charset=utf-8",
+   "referrer-policy": "strict-origin-when-cross-origin",
+   "x-content-type-options": "nosniff"
+  },
+  "sha256": "61af465e787b37f9605bf019e9f02dbd6e2c47f37aacb38538c16557c275d86a"
+ },
+ "GET https://402xagent.com/docs/try-it.js [html]": {
+  "status": 200,
+  "headers": {
+   "cache-control": "public, max-age=300",
+   "content-type": "text/javascript; charset=utf-8",
+   "x-content-type-options": "nosniff"
+  },
+  "sha256": "d4d58280048134a87325d75f01402b5a11dfe0e7e77ba9bdbfc51869fe0d00f7"
+ }
+}
