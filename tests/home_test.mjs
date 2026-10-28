@@ -41,7 +41,8 @@ test("homepage: browsers on 402xagent.com only, strict CSP, one same-origin scri
   for (const id of ["tab-products", "tab-skips", "tab-dev"]) assert.ok(t.includes(`id="${id}"`));
   assert.match(t, /aria-selected="true" data-panel="products"/); assert.equal((t.match(/role="tabpanel"[^>]* hidden>/g) || []).length, 2);
   for (const tab of ["products", "skips", "dev"]) assert.ok(t.includes(`data-tab="${tab}"`), "nav " + tab);
-  for (const a of ["/docs#quick-start", "/docs#endpoint-report", "/docs#payment-status", "/docs#watchtower", "/docs#facilitator-check", "/docs#hosted"]) assert.ok(t.includes(`href="${a}"`), a);
+  for (const a of ["/docs#endpoint-report", "/docs#payment-status", "/docs#watchtower", "/docs#facilitator-check", "/docs#hosted"]) assert.ok(t.includes(`href="${a}"`), a); // product cards (old anchors still resolve, 0.58.6)
+  for (const a of ["/docs/check", "/docs/endpoint-report", "/docs/payment-status", "/docs/watchtower", "/docs/facilitator-check", "/docs/hosted", "/#audit-layer"]) assert.ok(t.includes(`href="${a}"`), "footer " + a); // 0.58.6 footer
   assert.ok(t.includes("const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);"), "copy one-liner");
   for (const x of HOME_EXAMPLES) assert.ok(t.includes(`data-url="${x.url}"`));
   for (const h of ["https://api.402xagent.com"]) assert.match((await get("/", undefined, h)).headers.get("content-type"), /application\/json/, h);

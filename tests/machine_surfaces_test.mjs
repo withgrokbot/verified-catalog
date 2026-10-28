@@ -12,7 +12,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 
-import { RECEIPT_HTML_KEY } from "./helpers/machine_snapshot.mjs";
+import { RECEIPT_HTML_KEY, DOCS_PRICING_KEY, HOME_KEY, restoreHomeFooter } from "./helpers/machine_snapshot.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const want = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.57.1", "snapshot.json"), "utf8"));
 
@@ -49,7 +49,7 @@ test("0.58.3 /pricing rebuild: pricing machine paths and the homepage are byte-i
   assert.ok(Object.keys(want2).length >= 180, "extra snapshot covers the pricing paths on every host");
   assert.deepEqual(Object.keys(got).sort(), Object.keys(want2).sort(), "same request set");
   const HOME = "GET https://402xagent.com/ [html]";
-  assert.deepEqual(Object.keys(want2).filter((k) => k !== HOME && JSON.stringify(got[k]) !== JSON.stringify(want2[k])), [], "changed responses");
+  assert.deepEqual(Object.keys(want2).filter((k) => k !== HOME && !DOCS_PRICING_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want2[k])), [], "changed responses"); // 0.58.6: /docs split
   // the homepage: same status and headers; the body differs from 0.58.2 only by the two review strings (Watchtower and Hosted cards)
   assert.equal(got[HOME].status, want2[HOME].status); assert.deepEqual(got[HOME].headers, want2[HOME].headers);
   assert.notEqual(got[HOME].sha256, want2[HOME].sha256, "the two card strings did change");
@@ -63,7 +63,7 @@ test("0.58.3 review + 0.58.4: the homepage body equals 0.58.2 once the two card 
     const { snapshotHomeBody } = await import(${JSON.stringify(join(HERE, "helpers", "machine_snapshot.mjs"))});
     process.stdout.write(await snapshotHomeBody(${JSON.stringify(join(HERE, "..", "worker", "src", "index.js"))}));`], { encoding: "utf8", maxBuffer: 64 << 20 });
   assert.equal(r.status, 0, r.stderr);
-  const body = r.stdout;
+  const body = restoreHomeFooter(r.stdout); // 0.58.6: the footer's Products list is the only other change
   const SWAPS = [["Regular re-probes of an endpoint you depend on", "Hourly re-probes of an endpoint you depend on"],
     ["by arrangement: usage tracked; billed monthly by arrangement.", "by arrangement: hosted checks billed on a monthly USDC invoice instead of per call."]];
   for (const [now] of SWAPS) assert.equal(body.split(now).length, 2, now);
@@ -86,7 +86,7 @@ test("0.58.4 audit layer card: every surface byte-identical to 0.58.3; the homep
   const HOME = "GET https://402xagent.com/ [html]";
   assert.ok(Object.keys(want3).length > 1400);
   assert.deepEqual(Object.keys(got).sort(), Object.keys(want3).sort(), "same request set");
-  assert.deepEqual(Object.keys(want3).filter((k) => k !== HOME && !RECEIPT_HTML_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want3[k])), [], "changed responses"); // 0.58.5: receipt pages for browsers
+  assert.deepEqual(Object.keys(want3).filter((k) => k !== HOME && !RECEIPT_HTML_KEY.test(k) && !DOCS_PRICING_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want3[k])), [], "changed responses"); // 0.58.5 receipts, 0.58.6 docs + pricing
   for (const k of ["GET https://402xagent.com/pricing [html]", "GET https://api.402xagent.com/pricing [json]", "GET https://402xagent.com/home.js [html]", "GET https://402xagent.com/docs [html]", "GET https://402xagent.com/ [json]", "GET https://402xagent.com/llms.txt [none]", "GET https://api.402xagent.com/openapi.json [none]", "GET https://402xagent.com/.well-known/x402 [none]"])
     assert.ok(want3[k] && want3[k].status === 200, k);
   assert.deepEqual(got[HOME].headers, want3[HOME].headers);
@@ -95,7 +95,7 @@ test("0.58.4 audit layer card: every surface byte-identical to 0.58.3; the homep
     process.stdout.write(await snapshotHomeBody(${JSON.stringify(join(HERE, "..", "worker", "src", "index.js"))}));`], { encoding: "utf8", maxBuffer: 64 << 20 });
   assert.equal(b.status, 0, b.stderr);
   const { AUDIT_CARD_HTML, AUDIT_CSS } = await import("../worker/src/home.js");
-  const without = b.stdout.replace("\n" + AUDIT_CARD_HTML, "").replace(AUDIT_CSS, "");
+  const without = restoreHomeFooter(b.stdout).replace("\n" + AUDIT_CARD_HTML, "").replace(AUDIT_CSS, "");
   assert.equal(createHash("sha256").update(without).digest("hex"), want3[HOME].sha256, "homepage minus the card = 0.58.3");
 });
 
@@ -110,7 +110,7 @@ test("0.58.5 receipts HTML: every machine answer byte-identical to 0.58.4; only 
     assert.equal(r.status, 0, r.stderr);
     const got = JSON.parse(r.stdout);
     assert.deepEqual(Object.keys(got).sort(), Object.keys(want4).sort(), file + ": same request set");
-    assert.deepEqual(Object.keys(want4).filter((k) => !RECEIPT_HTML_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want4[k])), [], file + ": changed machine responses");
+    assert.deepEqual(Object.keys(want4).filter((k) => !RECEIPT_HTML_KEY.test(k) && !DOCS_PRICING_KEY.test(k) && k !== HOME_KEY && JSON.stringify(got[k]) !== JSON.stringify(want4[k])), [], file + ": changed machine responses"); // 0.58.6: docs, pricing, home footer
     const changed = Object.keys(want4).filter((k) => RECEIPT_HTML_KEY.test(k));
     for (const k of changed) {
       assert.match(got[k].headers["content-type"], /^text\/html/, k);
@@ -131,4 +131,29 @@ test("0.58.5 receipts HTML: every machine answer byte-identical to 0.58.4; only 
       assert.ok(changed.length >= 80, "browser receipt keys covered: " + changed.length);
     }
   }
+});
+
+// 0.58.6: /docs split + the audit layer on /pricing and in the footer. Against main 1d5868d (0.58.4), both fixture sets:
+// the only changed keys are the browser receipt pages (0.58.5), /docs and /pricing (same status and headers), and the
+// browser homepage, which equals 0.58.4 byte for byte once its footer Products list is put back. /docs/try-it.js, /home.js,
+// llms.txt, openapi.json, /.well-known/*, /v1/*, root JSON and /mcp are unchanged.
+test("0.58.6 docs split: only /docs, /pricing and the homepage footer change; every machine surface byte-identical to 0.58.4", async () => {
+  const W = join(HERE, "..", "worker", "src", "index.js");
+  const want4 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.4", "snapshot.json"), "utf8"));
+  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--0583", W], { encoding: "utf8", maxBuffer: 64 << 20 });
+  assert.equal(r.status, 0, r.stderr);
+  const got = JSON.parse(r.stdout);
+  const changed = Object.keys(want4).filter((k) => JSON.stringify(got[k]) !== JSON.stringify(want4[k]));
+  assert.deepEqual(changed.filter((k) => !RECEIPT_HTML_KEY.test(k) && !DOCS_PRICING_KEY.test(k) && k !== HOME_KEY), [], "nothing else changed");
+  for (const k of changed.filter((k) => DOCS_PRICING_KEY.test(k) || k === HOME_KEY)) {
+    assert.equal(got[k].status, want4[k].status, k); assert.deepEqual(got[k].headers, want4[k].headers, k + " headers");
+  }
+  for (const k of ["GET https://402xagent.com/docs/try-it.js [html]", "GET https://402xagent.com/home.js [html]", "GET https://402xagent.com/llms.txt [none]", "GET https://api.402xagent.com/openapi.json [json]", "GET https://402xagent.com/.well-known/x402 [none]", "GET https://402xagent.com/ [json]", "GET https://402xagent.com/v1/skips [html]"])
+    assert.deepEqual(got[k], want4[k], k);
+  assert.ok(changed.includes("GET https://402xagent.com/docs [html]") && changed.includes("GET https://402xagent.com/pricing [html]") && changed.includes(HOME_KEY));
+  const b = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    const { snapshotHomeBody } = await import(${JSON.stringify(join(HERE, "helpers", "machine_snapshot.mjs"))});
+    process.stdout.write(await snapshotHomeBody(${JSON.stringify(W)}));`], { encoding: "utf8", maxBuffer: 64 << 20 });
+  assert.equal(b.status, 0, b.stderr);
+  assert.equal(createHash("sha256").update(restoreHomeFooter(b.stdout)).digest("hex"), want4[HOME_KEY].sha256, "homepage = 0.58.4 except the footer Products list");
 });

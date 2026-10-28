@@ -17,15 +17,19 @@ const get = async (env = ENV, host = "https://402xagent.com", accept = "text/htm
 };
 const row = (t, id) => { const m = t.match(new RegExp(`<tr id="${id}">([\\s\\S]*?)</tr>`)); return m ? m[1].replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&rarr;/g, "").replace(/\s+/g, " ").trim() : null; };
 
-test("0.58.5 version", () => assert.equal(VERSION, "0.58.5"));
+test("0.58.6 version", () => assert.equal(VERSION, "0.58.6"));
 
-test("0.58.3 /pricing table: the seven rows, every price from its code constant", async () => {
+test("0.58.3 /pricing table (0.58.6: + audit layer): the eight rows, every price from its code constant", async () => {
   const { r, t } = await get();
   assert.equal(r.status, 200); assert.match(r.headers.get("content-type"), /text\/html/);
   assert.equal(usd(SPOT_PAID_ATOMIC), "$0.02"); assert.equal(usd(ER_PAID_ATOMIC), "$0.05"); assert.equal(usd(WATCH_PRICE_ATOMIC), "$1");
   assert.equal(usd(HOSTED_STANDARD_ATOMIC), "$0.02"); assert.equal(usd(HOSTED_VOLUME_ATOMIC), "$0.01");
   const ids = [...t.matchAll(/<tr id="([a-z-]+)">/g)].map((m) => m[1]);
-  assert.deepEqual(ids, ["free", "check", "endpoint-report", "payment-status", "watchtower", "facilitator-check", "hosted"]);
+  assert.deepEqual(ids, ["free", "check", "endpoint-report", "payment-status", "watchtower", "facilitator-check", "hosted", "audit-layer"]); // 0.58.6: + audit layer
+  assert.match(row(t, "audit-layer"), /^Audit layer Free open source \(MIT\) Runs in your agent x402-spotcheck\/audit: a per-call ceiling and a daily budget, a wallet deny list and a hash-chained audit ledger.*Not a paid check/);
+  for (const [id, href] of [["check", "/docs/check"], ["endpoint-report", "/docs/endpoint-report"], ["payment-status", "/docs/payment-status"], ["watchtower", "/docs/watchtower"], ["facilitator-check", "/docs/facilitator-check"], ["hosted", "/docs/hosted"], ["audit-layer", "https://www.npmjs.com/package/x402-spotcheck"]])
+    assert.ok(t.match(new RegExp(`<tr id="${id}">[\\s\\S]*?</tr>`))[0].includes(`class="pr-link" href="${href}"`), id + " links to its docs page");
+  assert.ok(t.includes('<li><a href="/#audit-layer">Audit layer</a></li>'), "footer audit layer");
   assert.match(row(t, "free"), /^Free 5 a day free live checks .*5 live checks per client per UTC day, at most 25 per network/);
   assert.match(row(t, "check"), /^402xAgent Check \$0\.02 per check 5 free a day \$0\.02 per check, flat/);
   assert.match(row(t, "endpoint-report"), /^Endpoint Report \$0\.05 per report No free tier \$0\.05 per report, flat, for everyone/);
