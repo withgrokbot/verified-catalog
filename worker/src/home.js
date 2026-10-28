@@ -98,6 +98,72 @@ function productCards(opts) {
   return p.map((c) => `<article class="product"><div class="product-top"><h3>${esc(c.name)}</h3><div class="price">${esc(c.price)}<small>${esc(c.unit)}</small></div></div><p>${esc(c.text)}</p><div class="product-foot"><a class="product-link" href="${esc(c.href)}"${c.href === "#checker" ? ' data-focus-checker="1"' : ""}>${esc(c.link)} <span aria-hidden="true">&rarr;</span></a>${c.tag ? `<span class="free-tag">${esc(c.tag)}</span>` : ""}</div></article>`).join("\n");
 }
 
+
+// 0.58.4: the x402-spotcheck audit layer card (Products tab). A free MIT library that runs inside the agent, not a paid
+// check. Every line is checked against the x402-spotcheck 1.6.0 tarball (npm pack x402-spotcheck@1.6.0):
+//   license MIT                      package.json:112, LICENSE:1
+//   never sees keys                  README.md:10, :303
+//   order of the checks              audit.js:344 payToDeny -> :346 perCallCeilingAtomic -> :353 daily budget (remaining),
+//                                    re-checked when the budget is reserved audit.js:277 (budget_exhausted :515) (UTC day, audit.js:20)
+//   ledger entry for both outcomes   denied: audit.js:489 (then abort :492, before a payload exists README.md:303);
+//                                    allowed: reserve :510 + "reserved" entry :512, the hook returns undefined :519 (signing goes on)
+//   hash chain                       audit.js:181-207 (seq, prev_hash, SHA-256 over canonical JSON), verify :210-219
+//   survives a restart (opt-in)      audit-sqlite.js:1-14, CHANGELOG.md 1.6.0; chain verified on open audit.js:539-540; Node >= 22.13
+//   no network calls in these steps  audit.js: fetch only in reconcile (:930) and ingestSkips (:963)
+// Optional checks the diagram leaves out (all off unless configured): network allow-list :342, network config :343,
+// skips-feed priors :632-634, payTo allow-list :345, velocity :347-349.
+const AUDIT_NPM = "https://www.npmjs.com/package/x402-spotcheck";
+const AUDIT_POSTS = [
+  ["/blog/x402-spotcheck-audit-layer-budgets-ledger", "Blog: budgets and the ledger (1.5.0)"],
+  ["/blog/x402-spotcheck-1-6-audit-layer-what-it-defends", "Blog: a ledger that survives a restart (1.6.0)"],
+];
+const FLOW = [
+  ["Agent wants to pay", "before a payload exists"],
+  ["Wallet deny list", "payToDeny"],
+  ["Per-call ceiling", "perCallCeilingAtomic"],
+  ["Daily budget", "reserved per UTC day"],
+  ["Ledger entry", "hash-chained: reserved or denied"],
+];
+const OUT = [["Allowed", "x402 client signs and pays", "#15803D", "#D8F0DE"], ["Blocked", "abort: nothing is signed", "#DC2626", "#FDE3E3"]];
+function flowSvg(vertical) {
+  const id = vertical ? "afv" : "afh";
+  const box = (x, y, w, h, [t, sub], stroke = "#D2CBC0", fill = "#FFFFFF") => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/><text x="${x + w / 2}" y="${y + h / 2 - 4}" text-anchor="middle" font-size="15" font-weight="700" fill="#111116">${esc(t)}</text><text x="${x + w / 2}" y="${y + h / 2 + 15}" text-anchor="middle" font-size="12" fill="#55555F">${esc(sub)}</text>`;
+  const arrow = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#6B6B76" stroke-width="1.6" marker-end="url(#${id}-a)"/>`;
+  const defs = `<defs><marker id="${id}-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#6B6B76"/></marker></defs>`;
+  const title = `<title id="${id}-t">Audit layer order in x402-spotcheck 1.6.0</title><desc id="${id}-d">The agent wants to pay. The wallet deny list is checked, then the per-call ceiling, then the daily budget. A hash-chained ledger entry is written either way: reserved or denied. Allowed: your x402 client signs and pays. Blocked: nothing is signed.</desc>`;
+  let g = "";
+  if (!vertical) {
+    const w = 158, h = 66, gap = 26, y = 52;
+    FLOW.forEach((f, i) => { const x = i * (w + gap); g += box(x, y, w, h, i === 4 ? [f[0], "hash-chained"] : f, i === 4 ? "#1D6FF2" : "#D2CBC0", i === 4 ? "#DCE9FE" : "#FFFFFF"); if (i < 4) g += arrow(x + w + 2, y + h / 2, x + w + gap - 2, y + h / 2); });
+    const ox = 5 * (w + gap), lx = 4 * (w + gap) + w;
+    OUT.forEach(([t, sub, st, fi], i) => { const oy = i ? 112 : 6; g += box(ox, oy, 178, 60, [t, sub], st, fi); g += arrow(lx + 2, y + h / 2, ox - 2, oy + 30); });
+    return `<svg class="flow-h" viewBox="0 0 ${ox + 182} 180" role="img" aria-labelledby="${id}-t ${id}-d" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif">${title}${defs}${g}</svg>`;
+  }
+  const w = 300, h = 60, gap = 26, x = 20;
+  FLOW.forEach((f, i) => { const y = i * (h + gap); g += box(x, y, w, h, f, i === 4 ? "#1D6FF2" : "#D2CBC0", i === 4 ? "#DCE9FE" : "#FFFFFF"); if (i < 4) g += arrow(x + w / 2, y + h + 2, x + w / 2, y + h + gap - 2); });
+  const ly = 4 * (h + gap) + h, oy = ly + 34;
+  OUT.forEach(([t, sub, st, fi], i) => { const ox = i ? 176 : 20; g += box(ox, oy, 144, 70, [t, sub.replace("x402 client ", "")], st, fi); g += arrow(x + w / 2, ly + 2, ox + 72, oy - 2); });
+  return `<svg class="flow-v" viewBox="0 0 340 ${oy + 74}" role="img" aria-labelledby="${id}-t ${id}-d" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif">${title}${defs}${g}</svg>`;
+}
+export const AUDIT_CARD_HTML = `<article class="product audit-card" id="audit-layer"><div class="product-top"><h3>Audit layer <span class="audit-pkg">x402-spotcheck/audit</span></h3><div class="price">Free<small>open source (MIT)</small></div></div>
+<div class="audit-grid"><div>
+<p><strong>Not a paid check.</strong> A library that runs inside your agent: before a payment is signed it applies your limits and writes the decision to a ledger. It never sees your keys, and these steps make no network calls.</p>
+<ul class="audit-list"><li>Per-call ceiling and a daily budget (per UTC day), reserved before signing</li><li>Wallet deny list: a listed payTo is refused</li><li>Hash-chained audit ledger (each entry carries the SHA-256 of the one before). With the opt-in SQLite store (Node 22.13+) it survives restarts and is verified when it opens.</li></ul>
+<div class="audit-links"><a class="product-link" href="${AUDIT_NPM}">npm: x402-spotcheck <span aria-hidden="true">&rarr;</span></a>${AUDIT_POSTS.map(([h, t]) => `<a class="product-link" href="${h}">${esc(t)} <span aria-hidden="true">&rarr;</span></a>`).join("")}</div>
+</div>
+<figure class="audit-flow">${flowSvg(false)}${flowSvg(true)}<figcaption>The order in x402-spotcheck 1.6.0. The first failed check writes a denied entry and stops the payment. Optional network, velocity and skips-feed checks are not shown.</figcaption></figure>
+</div></article>`;
+export const AUDIT_CSS = `
+.product.audit-card{grid-column:1/-1;border-top-color:#15803D}
+.audit-pkg{display:inline-block;font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--text-3);margin-left:6px}
+.audit-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:22px;margin-top:6px}.audit-grid>div{max-width:780px}
+.audit-list{margin:10px 0 0;padding-left:18px;color:var(--text-2);font-size:14.5px;line-height:1.55}.audit-list li{margin:4px 0}
+.audit-links{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:14px}
+.audit-flow{margin:0;min-width:0}.audit-flow svg{display:block;width:100%;height:auto}.audit-flow .flow-v{display:none}
+.audit-flow figcaption{font-size:12.5px;color:var(--text-3);margin-top:8px;line-height:1.45}
+@media(max-width:760px){.audit-flow .flow-h{display:none}.audit-flow .flow-v{display:block;max-width:360px;margin:0 auto}}
+@media(max-width:560px){.audit-pkg{display:block;margin:2px 0 0}}`;
+
 const ICON = {
   shield: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s8-3.6 8-10V5l-8-3-8 3v7c0 6.4 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>',
   search: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
@@ -279,7 +345,7 @@ export function homeHtml(origin, opts = {}) {
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(desc)}">
 <meta name="twitter:image" content="https://402xagent.com${LOGO}">
-<style>${CSS}</style>
+<style>${CSS}${AUDIT_CSS}</style>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -337,6 +403,7 @@ ${cd.text ? `<div class="crawl-dates${stats.length ? "" : " solo"}" id="crawl-da
 <div class="panel-intro"><h3>Start with a check. Stay for the proof.</h3><p>Pay per use over x402. No wallet or signup for the free tier. Full terms on <a class="product-link" href="/pricing">pricing</a>.</p></div>
 <div class="products">
 ${productCards(o)}
+${AUDIT_CARD_HTML}
 </div>
 </div>
 <div class="tab-panel" role="tabpanel" id="panel-skips" aria-labelledby="tab-skips" tabindex="0" hidden>
