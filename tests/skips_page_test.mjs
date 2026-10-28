@@ -110,3 +110,35 @@ test("0.58.7 skips page: phone layout is cards (table rows become blocks), no fi
   assert.match(css, /\.sk-payto\{[^}]*text-overflow:ellipsis/);
   assert.match(body, /<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">/);
 });
+
+// 0.58.7 review: every crawl skip reason shape (the 10 seen across all 71 published pages on 2026-10-28) has a neutral
+// HTML string; the raw reasons (with wallets, chain ids, prices) are never shown. JSON keeps the raw reason.
+const REASON_HTML = [
+  ["pays a different wallet than listed (0xAB745e5F576667037696e78ba7dA28E193E4423D listed, 0x0d25a44f74868ece53b305c97139cf4b62963410 asked)", "Payment wallet differs from the listing"],
+  ["asks a different price than listed (listed $0.002, asks $0.005)", "Payment price differs from the listing"],
+  ["asks for payment on a different network than listed (listed eip155:84532, offers eip155:8453)", "Payment network differs from the listing"],
+  ["no x402 payment request (HTTP 404)", "No x402 payment request found at this URL"],
+  ["payment request has no readable payment options", "Payment request has no readable payment options"],
+  ["price looks wrong ($40.2)", "Payment price is $0 or above $10"],
+  ["price looks wrong ($0)", "Payment price is $0 or above $10"],
+  ["asks for a token or network we can't price in USDC (bsc)", "Payment token or network can't be priced in USDC"],
+  ["wants payment on a testnet or a network we don't support (eip155:84532)", "Payment network is a testnet or not supported"],
+  ["asks for a different token than listed (listed EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v, asks USDC)", "Payment token differs from the listing"],
+  ["domain does not resolve (DNS)", "Domain does not resolve"],
+];
+test("0.58.7 review: all 10 crawl reason shapes render as neutral HTML strings (skips rows and crawl receipt pages share crawlReasonText)", () => {
+  assert.equal(new Set(REASON_HTML.map(([, t]) => t)).size, 10);
+  for (const [raw, want] of REASON_HTML) {
+    assert.equal(crawlReasonText(raw), want, raw);
+    const row = skipRowHtml({ id: "0123456789", url: "https://seller.fixture/a", method: "GET", reason: raw, timestamp: "2026-10-27T18:00:00Z", source_list: "cdp-bazaar" });
+    assert.ok(row.includes(`<div class="sk-v sk-reason">${want.replace(/'/g, "&#39;")}</div>`), raw);
+    assert.ok(!row.includes(raw), "raw reason not shown: " + raw);
+  }
+  // "$0 or above $10" is the crawler's sanity range: keep it in sync with crawl_probe.py
+  const probe = readFileSync(join(HERE, "..", "scripts", "weekly-crawl", "crawl_probe.py"), "utf8");
+  assert.match(probe, /^SANE_MAX_USD = 10\.0$/m);
+  assert.match(probe, /if not \(0 < q <= SANE_MAX_USD\): return done\("skip", f"price looks wrong/);
+  // unknown shapes still lose their detail and any address
+  assert.equal(crawlReasonText("too many redirects"), "too many redirects");
+  assert.equal(crawlReasonText("asks for a token other than USDC on eip155:8453 (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02999)"), "asks for a token other than USDC on eip155:8453");
+});

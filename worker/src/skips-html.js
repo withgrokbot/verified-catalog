@@ -3,7 +3,7 @@
 // strict CSP (script-src 'self' + Cloudflare Web Analytics only) needs no hash; the method text is a native <details>.
 // Wording reused, not new: the title and caption are the homepage's Latest skips tab (home.js), the crawl date line is
 // homeCrawlDates (home.js, 0.58.2), each row's reason is crawlReasonText (receipts-html.js: the homepage's plainReason
-// mapping, else the crawl reason without its parenthetical detail or any wallet). The "what skip / recheck mean" lines
+// mapping, then CRAWL_PLAIN for the other crawl shapes in the same neutral style, else the reason without detail or wallets). The "what skip / recheck mean" lines
 // reuse the homepage's verdict wording. The dense method block is the pre-0.58.7 page's text, unchanged, inside <details>.
 // Shown per row: endpoint (method, host, path), reason, listed and live price + network, the seller's own payTo (public
 // listing / 402 data, shortened), lists, check time, receipt link. Never rendered: any buyer data (caller, buyer wallets,
