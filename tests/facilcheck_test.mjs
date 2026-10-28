@@ -30,7 +30,7 @@ const post = (body, { ip = "198.51.100.7", raw = false, q = "" } = {}) => new Re
 });
 const run = async (body, deps, env = { CLIENT_SALT: "s", ...quota() }) => { const r = await handleFacilitatorCheck(post(body), env, deps, NOW); return { status: r.status, body: await r.json(), env }; };
 
-test("0.58.5 version", () => assert.equal(VERSION, "0.58.5"));
+test("0.58.6 version", () => assert.equal(VERSION, "0.58.6"));
 
 test("match: same terms (EVM case-insensitive payTo/asset, v1 network alias) -> settle; shape; never pays", async () => {
   const calls = [];

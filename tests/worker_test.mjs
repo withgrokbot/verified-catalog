@@ -2702,7 +2702,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.58.5");
+  assert.equal(VERSION, "0.58.6");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -3821,12 +3821,12 @@ test("0.40.0 payment-status: chain outage -> 503 (nothing charged, no free check
   assert.ok(oa.body.paths["/v1/products/payment-status"].post);
   const llms = await (await worker.fetch(new Request("https://lookup.fixture/llms.txt"), e.env, { waitUntil() {} })).text();
   assert.match(llms, /payment-status/); assert.match(llms, /safe_to_resign/);
-  const docs = await (await worker.fetch(new Request("https://402xagent.com/docs", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} })).text();
+  const docs = await (await worker.fetch(new Request("https://402xagent.com/docs/payment-status", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} })).text();
   assert.match(docs, /id="payment-status"/);
   assert.match(docs, /\$0\.02/); assert.match(docs, /same 5 free per day/);
   const pr = await (await worker.fetch(new Request("https://402xagent.com/pricing", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} })).text();
   assert.match(pr, /<tr id="payment-status"><th scope="row">Payment Status<\/th>[\s\S]*?\$0\.02 per lookup, flat, after the same \d+ free checks per day \(shared with the check/); // 0.58.3 table
-  assert.match(pr, /href="\/docs#payment-status"/);
+  assert.match(pr, /href="\/docs\/payment-status"/); // 0.58.6: the product page
 });
 
 test("0.40.0 paystatus unit: payload decode (v1 + v2), selectors/topics, rpcSources order + 'off', decide() never sets safe_to_resign without two sources", async () => {
@@ -3888,7 +3888,10 @@ test("0.42.0 opt-in check_expiry: expired 402 -> skip/challenge_expired; skew ca
   spotTargetMode = "402";
   const e2 = spotEnv();
   const html = await (await worker.fetch(new Request("https://lookup.fixture/docs", { headers: { "user-agent": "agent-x/1.0" } }), e2.env, { waitUntil() {} })).text();
-  assert.ok(html.includes('id="payment-status-example"') && html.includes("https://402xagent.com/v1/receipts/ps-65a4fdffae01d2b6") && html.includes('id="expiry-check"'));
+  assert.ok(html.includes('id="payment-status-example"') && html.includes('id="expiry-check"'), "0.58.6: the old anchors stay on /docs as pointers");
+  const psPage = await (await worker.fetch(new Request("https://lookup.fixture/docs/payment-status", { headers: { "user-agent": "agent-x/1.0" } }), e2.env, { waitUntil() {} })).text();
+  const ckPage = await (await worker.fetch(new Request("https://lookup.fixture/docs/check", { headers: { "user-agent": "agent-x/1.0" } }), e2.env, { waitUntil() {} })).text();
+  assert.ok(psPage.includes('id="payment-status-example"') && psPage.includes("https://402xagent.com/v1/receipts/ps-65a4fdffae01d2b6") && ckPage.includes('id="expiry-check"'), "0.58.6: the sections live on the product pages");
   const rj = (await send("/rules.json", { envo: spotEnv() })).body;
   assert.ok(rj.reason_codes.some((r) => r.code === "challenge_expired"));
 });
@@ -4681,7 +4684,7 @@ test("0.57.1 /docs try-it: section renders once with the prefill, label, output 
     assert.ok(sec.includes('placeholder="https://example.com/paid-endpoint"'));
     assert.ok(sec.includes('<label for="tryit-url">') && sec.includes('id="tryit-out" role="status" aria-live="polite"'));
     assert.ok(sec.includes('<script src="/docs/try-it.js" defer></script>'));
-    assert.equal((r.text.match(/<script\b/g) || []).length, 1, "only the external script");
+    assert.deepEqual((r.text.match(/<script\b[^>]*>/g) || []), ['<script src="/docs/anchors.js">', '<script src="/docs/try-it.js" defer>'], "only the two same-origin external scripts (0.58.6: + the hash forwarder)");
     assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/.test(r.text), "no inline script");
     assert.ok(!/\son[a-z]+=/i.test(sec), "no inline event handlers");
     assert.ok(sec.indexOf("try-it") < r.text.length && r.text.indexOf(sec) < r.text.indexOf('<h2 id="quick-start">'), "placed before quick start (the 402 message points below)");
@@ -4705,10 +4708,13 @@ test("0.57.1 /docs try-it: everything outside the new section is byte-identical 
     assert.equal(sha(h.replace(TRY_RE, "")), want[`docs_er${+er}_wt${+wt}`], `docs er=${er} wt=${wt} outside the section`);
     assert.equal(sha(docsHtml("https://402xagent.com", "https://api.402xagent.com", { endpointReport: er, watchtower: wt, tryIt: false })), want[`docs_er${+er}_wt${+wt}`], "tryIt:false gives the old page");
   }
-  // the served page (production flags ENDPOINT_REPORT=1, WATCHTOWER=1) minus the section == the saved 0.57.0 page, byte for byte
+  // 0.58.6: /docs is split into product pages (docs.js); the legacy generator above is what they are cut from, and
+  // tests/docs_split_test.mjs proves every block of it is re-housed. The served index still carries the legacy intro + quick start.
   const e = spotEnv({ ENDPOINT_REPORT: "1", WATCHTOWER: "1" });
   const served = (await rawGet("/docs", e)).text;
-  assert.equal(served.replace(TRY_RE, ""), readFileSync(join(FIX_DIR, "docs_er1_wt1.html"), "utf8"));
+  const old = readFileSync(join(FIX_DIR, "docs_er1_wt1.html"), "utf8");
+  const oldQuick = old.slice(old.indexOf('<h2 id="quick-start">'), old.indexOf('<h2 id="endpoint-report">'));
+  assert.ok(oldQuick.length > 50 && served.includes(oldQuick), "quick start verbatim on the index");
   assert.equal(sha(landingHtml("https://402xagent.com")), want.home, "homepage HTML unchanged");
   const home = await rawGet("/", e, "https://402xagent.com", { accept: "text/html" });
   assert.ok(!home.text.includes("try-it.js") && !home.text.includes('id="try-it"'), "no try-it / badge on the homepage");

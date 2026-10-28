@@ -44,6 +44,7 @@ import { handleWatch, watchTick, watchOn, EXAMPLE_CREATE as WATCH_EXAMPLE, WATCH
 import { PS_ID, PS_NETWORK, USDC_BASE_LC, parseRequest, readChain, decide, termsMatch, claimPointer, buildBody, newPsId, cacheKey, cacheGet, cachePut, receiptById } from "./paystatus.js";
 import { discover, DISCOVER_PER_MIN, DISCOVER_MAX } from "./discover.js";
 import { handleSkips, handleReceipts, crawlReceiptForUrl, crawlReceipt, normUrl, skipsPageRows, crawlSchedule } from "./skips.js";
+import { docsIndexHtml, docsProductHtml, DOCS_ANCHORS_PATH, DOCS_ANCHORS_JS } from "./docs.js"; // 0.58.6
 import { receiptListHtml, liveReceiptHtml, crawlReceiptHtml, receiptNotFoundHtml, crawlReasonText, RECEIPTS_PAGE_SIZE, LIVE_PAGE_SIZE } from "./receipts-html.js"; // 0.58.5
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
@@ -76,7 +77,7 @@ import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.58.5";
+export const VERSION = "0.58.6";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -4080,7 +4081,12 @@ const routeInnerHolder = {
       const post = BLOG_POSTS.find((p) => "/blog/" + p.slug === path.replace(/\/$/, ""));
       if (post) return new Response(blogPostHtml(CANON_ORIGIN, post), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
     }
-    if (path === "/docs") return new Response(docsHtml(CANON_ORIGIN, API_ORIGIN, { endpointReport: endpointReportOn(env), watchtower: watchOn(env), tryIt: { freePerDay: spotCfg(env).freePerDay } }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*", "content-security-policy": DOCS_CSP, "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin" } });
+    // 0.58.6: /docs is the index (Getting started) and each product has its own page (docs.js); same headers as before
+    const DOCS_HDRS = { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*", "content-security-policy": DOCS_CSP, "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin" };
+    const docsOpts = () => ({ endpointReport: endpointReportOn(env), watchtower: watchOn(env), tryIt: { freePerDay: spotCfg(env).freePerDay } });
+    if (path === "/docs") return new Response(docsIndexHtml(CANON_ORIGIN, API_ORIGIN, docsOpts()), { headers: DOCS_HDRS });
+    if (path === DOCS_ANCHORS_PATH && (req.method === "GET" || req.method === "HEAD")) return new Response(req.method === "HEAD" ? null : DOCS_ANCHORS_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=300", "x-content-type-options": "nosniff" } });
+    if (/^\/docs\/[a-z-]+\/?$/.test(path)) { const h = docsProductHtml(CANON_ORIGIN, API_ORIGIN, path.slice(6).replace(/\/$/, ""), docsOpts()); if (h) return new Response(h, { headers: DOCS_HDRS }); }
     // 0.57.1: the Try-it box's script (external, so /docs keeps script-src 'self'); a thin client of the free check.
     if (path === DOCS_TRYIT_SCRIPT_PATH && (req.method === "GET" || req.method === "HEAD")) return new Response(req.method === "HEAD" ? null : DOCS_TRYIT_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=300", "x-content-type-options": "nosniff" } });
     // 0.58.0: the homepage script (external, so the homepage carries the same strict CSP as /docs)

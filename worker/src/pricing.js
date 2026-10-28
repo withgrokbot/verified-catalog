@@ -11,6 +11,7 @@
 //   facilitator check    facilcheck.js:15 FACIL_CHECK_PER_MIN = 60, :17 FACIL_HOST_PER_MIN = 30 (free, POST only lib.js:3949)
 //   hosted               hosted.js:9 HOSTED_FREE_TOTAL = 1000, :10 HOSTED_VOLUME_AFTER = 1000, :11 HOSTED_STANDARD_ATOMIC = 20000,
 //                        :12 HOSTED_VOLUME_ATOMIC = 10000 (pricing hosted.js:42-45); keys issued by scripts/hosted_key.mjs
+// 0.58.6: links go to the per-product docs pages; + the audit layer row and footer entry (free, open source).
 // No prepaid packs or credits are shown (the router pack and the overnight pack stay API-only routes), no badge, no names.
 // Watchtower says "Regular re-probes", not hourly: next_probe_at = last probe + 1 h (watch.js:77, :291), but a */20 tick
 // probes at most WATCH_BATCH_DEFAULT = 100 due watches (watch.js:21, :318-319) while WATCH_MAX_DEFAULT = 500 (watch.js:15).
@@ -32,22 +33,26 @@ export function pricingRows(p) {
       href: "/#checker", link: "Run a free check" },
     { id: "check", name: "402xAgent Check", price: usd(p.paidAtomic), unit: "per check", free: `${n(p.freePerDay)} free a day`,
       terms: `${usd(p.paidAtomic)} per check, flat, whatever the target endpoint charges. Pay, skip or recheck right before your agent pays, with a signed receipt. The paid check adds the full payment terms and the payment object to sign.`,
-      href: "/docs#quick-start", link: "Quick start" },
+      href: "/docs/check", link: "Quick start" },
     p.endpointReport && { id: "endpoint-report", name: "Endpoint Report", price: usd(p.erAtomic), unit: "per report", free: "No free tier",
       terms: `${usd(p.erAtomic)} per report, flat, for everyone: the committed drift history and hygiene detail behind a free check of one endpoint, with digests you can verify.`,
-      href: "/docs#endpoint-report", link: "How it works" },
+      href: "/docs/endpoint-report", link: "How it works" },
     { id: "payment-status", name: "Payment Status", price: usd(p.paidAtomic), unit: "per lookup", free: `${n(p.freePerDay)} free a day, shared with the check`,
       terms: `${usd(p.paidAtomic)} per lookup, flat, after the same ${n(p.freePerDay)} free checks per day (shared with the check). After you pay: did the Base USDC payment land, and is it safe to sign a new one? A signed answer before your agent pays twice.`,
-      href: "/docs#payment-status", link: "How it works" },
+      href: "/docs/payment-status", link: "How it works" },
     p.watchtower && { id: "watchtower", name: "Watchtower", price: usd(p.watchAtomic), unit: `per ${n(p.watchDays)} days`, free: `${n(p.trialDays)}-day trial`,
       terms: `Per watched endpoint, paid via x402. The ${n(p.trialDays)}-day free trial is for the first watch per webhook domain. Regular re-probes, with Ed25519-signed webhooks on drift, down and recovery.`,
-      href: "/docs#watchtower", link: "Start monitoring" },
+      href: "/docs/watchtower", link: "Start monitoring" },
     { id: "facilitator-check", name: "Facilitator Check", price: "Free", unit: "rate-limited", free: "Always free",
       terms: `Up to ${n(p.facilPerMin)} per minute per network (IP) and ${n(p.facilHostPerMin)} per minute per seller host. Compares the payment requirements you are about to settle with the seller's live 402 terms; it never pays.`,
-      href: "/docs#facilitator-check", link: "Integrate" },
+      href: "/docs/facilitator-check", link: "Integrate" },
     { id: "hosted", name: "Hosted Mode", price: `${n(p.hostedFree)} free`, unit: `then ${usd(p.hostedStdAtomic)}; ${usd(p.hostedVolAtomic)} past ${n(p.hostedVolAfter)}/month`, free: `${n(p.hostedFree)} free hosted checks, once`,
       terms: `Integrator keys for routers and wallets, by arrangement. ${n(p.hostedFree)} free hosted checks per integrator, then ${usd(p.hostedStdAtomic)} per check; each billable check after the first ${n(p.hostedVolAfter)} in a UTC calendar month is ${usd(p.hostedVolAtomic)}. Covers the check and Payment Status; usage tracked; billed monthly by arrangement.`,
-      href: "/docs#hosted", link: "Integrator keys" },
+      href: "/docs/hosted", link: "Integrator keys" },
+    // 0.58.6: the audit layer (x402-spotcheck/audit), the seventh product: free, open source, runs in the buyer's agent
+    { id: "audit-layer", name: "Audit layer", price: "Free", unit: "open source (MIT)", free: "Runs in your agent",
+      terms: "x402-spotcheck/audit: a per-call ceiling and a daily budget, a wallet deny list and a hash-chained audit ledger, applied inside your agent before a payment is signed. Not a paid check: it never sees your keys and these steps make no network calls.",
+      href: NPM_GUARD, link: "npm: x402-spotcheck" },
   ].filter(Boolean);
 }
 
@@ -159,7 +164,7 @@ ${body}
 <div class="wrap">
 <div class="footer-grid">
 <div class="footer-brand"><a class="brand" href="/" aria-label="402xAgent home"><span class="footer-logo-chip"><img src="${LOGO}" alt="402xAgent" width="49" height="40"></span></a><p>Verification for the x402 economy. Ask before your agent pays, and keep the receipt.</p></div>
-<div><h4>Products</h4><ul><li><a href="/docs#quick-start">402xAgent Check</a></li>${p.endpointReport ? '<li><a href="/docs#endpoint-report">Endpoint Report</a></li>' : ""}<li><a href="/docs#payment-status">Payment Status</a></li>${p.watchtower ? '<li><a href="/docs#watchtower">Watchtower</a></li>' : ""}<li><a href="/docs#facilitator-check">Facilitator Check</a></li><li><a href="/docs#hosted">Hosted Mode</a></li></ul></div>
+<div><h4>Products</h4><ul><li><a href="/docs/check">402xAgent Check</a></li>${p.endpointReport ? '<li><a href="/docs/endpoint-report">Endpoint Report</a></li>' : ""}<li><a href="/docs/payment-status">Payment Status</a></li>${p.watchtower ? '<li><a href="/docs/watchtower">Watchtower</a></li>' : ""}<li><a href="/docs/facilitator-check">Facilitator Check</a></li><li><a href="/docs/hosted">Hosted Mode</a></li><li><a href="/#audit-layer">Audit layer</a></li></ul></div>
 <div><h4>Resources</h4><ul><li><a href="/docs">Docs</a></li><li><a href="/blog">Blog</a></li><li><a href="/v1/skips">Receipts</a></li><li><a href="/pricing">Pricing</a></li><li><a href="${GH_GUARD}">GitHub</a></li><li><a href="${NPM_GUARD}">npm: x402-spotcheck</a></li></ul></div>
 <div><h4>Company</h4><ul><li><a href="/health">Status</a></li><li><a href="${GH_REPO}/issues">Contact</a></li><li><a href="/rules">Verdict rules</a></li></ul></div>
 </div>

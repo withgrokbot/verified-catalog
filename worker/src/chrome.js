@@ -28,10 +28,14 @@ nav.main a[aria-current="page"]{color:var(--accent);font-weight:600}
 .pg-body a{color:var(--blue)}.pg-body a:hover{color:var(--blue-hover);text-decoration:underline}
 @media(max-width:760px){.pg-hero{padding:32px 0 4px}.pg-lead{font-size:16px}}`;
 
-/** Footer product links: fp = { endpointReport, watchtower, links? } (links default to the current /docs anchors). */
+/** Footer product links: fp = { endpointReport, watchtower, links?, audit? } (links default to the product docs pages). */
+// 0.58.6: product links go to the per-product docs pages, plus the audit layer (the seventh product)
+export const FOOTER_LINKS = { check: "/docs/check", report: "/docs/endpoint-report", status: "/docs/payment-status", watch: "/docs/watchtower", facil: "/docs/facilitator-check", hosted: "/docs/hosted" };
+export const AUDIT_HREF = "/#audit-layer";
+export const footerAuditLi = () => `<li><a href="${AUDIT_HREF}">Audit layer</a></li>`;
 export function footerHtml(fp = {}) {
-  const L = { check: "/docs#quick-start", report: "/docs#endpoint-report", status: "/docs#payment-status", watch: "/docs#watchtower", facil: "/docs#facilitator-check", hosted: "/docs#hosted", ...(fp.links || {}) };
-  const audit = fp.audit ? `<li><a href="${esc(fp.audit)}">Audit layer</a></li>` : "";
+  const L = { ...FOOTER_LINKS, ...(fp.links || {}) };
+  const audit = fp.audit === false ? "" : footerAuditLi();
   return `<footer>
 <div class="wrap">
 <div class="footer-grid">

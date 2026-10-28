@@ -164,6 +164,17 @@ export function fakeReceiptsD1(rows = SAMPLE) {
 /** 0.58.5: the only keys allowed to differ from the 0.58.4 fixtures: browser Accept (names text/html) on the receipt pages
  * (/v1/receipts, crawl and sc- ids) of 402xagent.com and api.402xagent.com. by-url, ps-/er-/eb- and the older hosts' 301s are excluded. */
 export const RECEIPT_HTML_KEY = /^GET https:\/\/(402xagent\.com|api\.402xagent\.com)\/v1\/receipts(\?\S*|\/(?!by-url|ps-|er-|eb-)\S*)? \[(html|htmljson)\]$/;
+/** 0.58.6: /docs (now the index of the per-product pages) and /pricing (audit layer row, product-page links, footer) on any
+ * host and Accept, plus the browser homepage, whose only change is the footer's Products list (HOME_FOOTER_* below). */
+export const DOCS_PRICING_KEY = /^GET https:\/\/[^/ ]+\/(docs|pricing) \[[a-z]+\]$/;
+export const HOME_KEY = "GET https://402xagent.com/ [html]";
+export const HOME_FOOTER_0584 = '<div><h4>Products</h4><ul><li><a href="/docs#quick-start">402xAgent Check</a></li><li><a href="/docs#endpoint-report">Endpoint Report</a></li><li><a href="/docs#payment-status">Payment Status</a></li><li><a href="/docs#watchtower">Watchtower</a></li><li><a href="/docs#facilitator-check">Facilitator Check</a></li><li><a href="/docs#hosted">Hosted Mode</a></li></ul></div>';
+export const HOME_FOOTER_0586 = '<div><h4>Products</h4><ul><li><a href="/docs/check">402xAgent Check</a></li><li><a href="/docs/endpoint-report">Endpoint Report</a></li><li><a href="/docs/payment-status">Payment Status</a></li><li><a href="/docs/watchtower">Watchtower</a></li><li><a href="/docs/facilitator-check">Facilitator Check</a></li><li><a href="/docs/hosted">Hosted Mode</a></li><li><a href="/#audit-layer">Audit layer</a></li></ul></div>';
+/** The homepage body with the 0.58.6 footer Products list put back to 0.58.4's (throws unless it occurs exactly once). */
+export function restoreHomeFooter(body) {
+  if (body.split(HOME_FOOTER_0586).length !== 2) throw new Error("0.58.6 footer list not found exactly once");
+  return body.replace(HOME_FOOTER_0586, HOME_FOOTER_0584);
+}
 export const RECEIPT_GETS = ["/v1/receipts", "/v1/receipts?page=2", "/v1/receipts?q=api.402rates.com", "/v1/receipts/44e3732d23", "/v1/receipts/44e3732d23?view=redacted", "/v1/receipts/0000000000",
   ...SAMPLE.map((r) => "/v1/receipts/" + r.id), "/v1/receipts/sc-ffffffffffffffff", "/v1/receipts/not-an-id", "/v1/receipts/by-url?url=https://api.402rates.com/v1/ping",
   "/v1/receipts?type=live", "/v1/receipts?type=live&limit=2", "/v1/receipts?type=dry-run", "/v1/receipts?type=self-checked", "/v1/receipts?type=bogus", "/v1/receipts?type=live&cursor=bad",
