@@ -30,12 +30,15 @@ export function docsTryItHtml({ prefill = DOCS_TRYIT_PREFILL, freePerDay = 5 } =
 }
 
 // Plain browser JS (no build step). Kept ES2017 so older mobile browsers run it.
-export const DOCS_TRYIT_JS = `(function () {
+// 0.58.0: the script is assembled from shared pieces (TI_CORE_*) so the homepage checker (home.js) runs the exact same
+// validation, endpoint, ref, quota handling and per-term comparison; /docs/try-it.js stays byte-identical to 0.57.1.
+const TI_HEAD_DOCS = `(function () {
   "use strict";
   var form = document.getElementById("tryit-form"), input = document.getElementById("tryit-url"), btn = document.getElementById("tryit-go"), out = document.getElementById("tryit-out");
   if (!form || !input || !btn || !out) return;
   var REF = ${JSON.stringify(DOCS_TRYIT_REF)}, TIMEOUT_MS = ${DOCS_TRYIT_TIMEOUT_MS}, EXAMPLE = ${JSON.stringify(DOCS_TRYIT_PLACEHOLDER)};
-  var NETS = { "eip155:8453": "Base", "base": "Base", "eip155:1": "Ethereum", "eip155:10": "OP Mainnet", "eip155:137": "Polygon", "eip155:42161": "Arbitrum", "eip155:43114": "Avalanche", "solana": "Solana", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "Solana" };
+`;
+const TI_CORE_TABLES = `  var NETS = { "eip155:8453": "Base", "base": "Base", "eip155:1": "Ethereum", "eip155:10": "OP Mainnet", "eip155:137": "Polygon", "eip155:42161": "Arbitrum", "eip155:43114": "Avalanche", "solana": "Solana", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "Solana" };
   var FIELD_FAIL = { price_mismatch: ["price", "differs from the listing"], pay_to_mismatch: ["payTo", "different wallet than listed"], network_mismatch: ["network", "different network than listed"], network_unsupported: ["network", "testnet or unsupported network"], asset_not_usdc: ["token", "not canonical USDC"] };
   var RECHECK_WHY = {
     timeout: "The endpoint did not answer in time.",
@@ -51,13 +54,17 @@ export const DOCS_TRYIT_JS = `(function () {
     terms_changed_since_quote: "The live terms differ from the quote you passed."
   };
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = String(text); return e; }
-  function show(nodes, cls) { var c = el("div", "ti-card " + (cls || "")); nodes.forEach(function (n) { if (n) c.appendChild(n); }); out.replaceChildren ? out.replaceChildren(c) : (out.textContent = "", out.appendChild(c)); }
-  function message(text, cls, extra) { show([el("p", null, text)].concat(extra || []), cls || "ti-msg"); }
+`;
+const TI_SHOW_DOCS = `  function show(nodes, cls) { var c = el("div", "ti-card " + (cls || "")); nodes.forEach(function (n) { if (n) c.appendChild(n); }); out.replaceChildren ? out.replaceChildren(c) : (out.textContent = "", out.appendChild(c)); }
+`;
+const TI_CORE_UTIL = `  function message(text, cls, extra) { show([el("p", null, text)].concat(extra || []), cls || "ti-msg"); }
   function shortAddr(a) { a = String(a || ""); return a.length > 14 ? a.slice(0, 6) + "\\u2026" + a.slice(-4) : a; }
   function netName(n) { n = String(n || ""); return NETS[n] || NETS[n.toLowerCase()] || (/^solana/i.test(n) ? "Solana" : n); }
   function link(href, text) { var a = el("a", null, text); a.href = href; return a; }
-  function belowLink() { var p = el("p", "ti-note"); p.appendChild(document.createTextNode("Agents: ")); p.appendChild(link("#quick-start", "quick start")); p.appendChild(document.createTextNode(" \\u00b7 ")); p.appendChild(link("/pricing", "pricing")); return p; }
-  function validate(raw) {
+`;
+const TI_BELOW_DOCS = `  function belowLink() { var p = el("p", "ti-note"); p.appendChild(document.createTextNode("Agents: ")); p.appendChild(link("#quick-start", "quick start")); p.appendChild(document.createTextNode(" \\u00b7 ")); p.appendChild(link("/pricing", "pricing")); return p; }
+`;
+const TI_CORE_CHECK = `  function validate(raw) {
     var v = String(raw || "").trim();
     if (!v) return { error: "Paste an endpoint URL first, for example " + EXAMPLE + "." };
     if (v.length > 2048) return { error: "That URL is too long (2,048 characters at most)." };
@@ -92,7 +99,8 @@ export const DOCS_TRYIT_JS = `(function () {
     }
     return st;
   }
-  function termsTable(j) {
+`;
+const TI_TERMS_DOCS = `  function termsTable(j) {
     var pm = j.payment || null, st = termStatus(j);
     var rows = [["price", "Price", pm && pm.amount && pm.amount.usd != null ? "$" + pm.amount.usd : null], ["payTo", "payTo wallet", pm && pm.pay_to ? shortAddr(pm.pay_to) : null], ["network", "Network", pm && pm.network ? netName(pm.network) : null], ["token", "Token", pm && pm.asset ? "USDC " + shortAddr(pm.asset) : null]];
     var t = el("table"), tb = el("tbody"); t.appendChild(tb);
@@ -104,14 +112,16 @@ export const DOCS_TRYIT_JS = `(function () {
     });
     return t;
   }
-  // 0.57.1 review: the UI drops API-only hints about the claimed_price parameter ("payment request found (pass claimed_price
+`;
+const TI_CORE_REASON = `  // 0.57.1 review: the UI drops API-only hints about the claimed_price parameter ("payment request found (pass claimed_price
   // to compare the price)" -> "payment request found"); the API JSON keeps its reason unchanged.
   function uiReason(r) {
     var t = String(r || "").replace(/\\s*\\([^()]*claimed[_ ]price[^()]*\\)/gi, "");
     if (/claimed[_ ]price/i.test(t)) t = t.split(/[;,]/).filter(function (c) { return !/claimed[_ ]price/i.test(c); }).join(",").replace(/\\s+/g, " ").trim();
     return t || "payment request found";
   }
-  function result(j) {
+`;
+const TI_RESULT_DOCS = `  function result(j) {
     var v = String(j.verdict || ""), head = el("p");
     var badge = el("span", "ti-v ti-" + (v === "pay" || v === "skip" || v === "recheck" ? v : "msg"), v || "?"); head.appendChild(badge);
     head.appendChild(document.createTextNode(uiReason(j.reason || j.reason_code || "")));
@@ -128,8 +138,10 @@ export const DOCS_TRYIT_JS = `(function () {
     if (a.tier === "free" && a.free_remaining_today != null) nodes.push(el("p", "ti-note", "Free checks left today: " + a.free_remaining_today + "."));
     show(nodes);
   }
-  function busy(on) { btn.disabled = on; btn.textContent = on ? "Checking\\u2026" : "Check"; input.setAttribute("aria-busy", on ? "true" : "false"); }
-  form.addEventListener("submit", function (e) {
+`;
+const TI_BUSY_DOCS = `  function busy(on) { btn.disabled = on; btn.textContent = on ? "Checking\\u2026" : "Check"; input.setAttribute("aria-busy", on ? "true" : "false"); }
+`;
+const TI_CORE_SUBMIT = `  form.addEventListener("submit", function (e) {
     e.preventDefault();
     var v = validate(input.value);
     if (v.error) { message(v.error, "ti-err"); input.focus(); return; }
@@ -158,3 +170,5 @@ export const DOCS_TRYIT_JS = `(function () {
   });
 })();
 `;
+export const TRYIT_CORE = { TABLES: TI_CORE_TABLES, UTIL: TI_CORE_UTIL, CHECK: TI_CORE_CHECK, REASON: TI_CORE_REASON, SUBMIT: TI_CORE_SUBMIT };
+export const DOCS_TRYIT_JS = TI_HEAD_DOCS + TI_CORE_TABLES + TI_SHOW_DOCS + TI_CORE_UTIL + TI_BELOW_DOCS + TI_CORE_CHECK + TI_TERMS_DOCS + TI_CORE_REASON + TI_RESULT_DOCS + TI_BUSY_DOCS + TI_CORE_SUBMIT;

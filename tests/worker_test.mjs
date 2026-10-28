@@ -1766,18 +1766,19 @@ test("landing page (0.17.0): HTML to browsers on 402xagent.com only, real counts
   assert.equal(html.status, 200);
   assert.match(html.headers.get("content-type"), /text\/html/);
   const t = await html.text();
-  for (const re of [/<h1>Check before your <span class="grad">agent pays<\/span><\/h1>/, /og:title" content="402xAgent/, /rel="canonical" href="https:\/\/402xagent.com\/"/, /og:url" content="https:\/\/402xagent.com\/"/, /id="try"/, /wrapFetchWithPayment\(spotCheckFetch\(fetch\), client\)/, /wrapAxiosWithPayment\(spotCheckAxios\(axios.create\(\)\), client\)/, /class="bigprice">5 free checks a day, from \$0\.02<\/h2>/, /\$0\.02 a check<\/b>, any target price/, /\$0\.02\/check<\/b> in packs of 10, billed as one \$0\.20/, /<details class="sample" id="resp">\s*<summary>Show response<\/summary>/, /Stops your agent paying dead, mispriced or wrong-network endpoints/, /href="\/mcp"/, /href="\/llms.txt"/, /href="\/openapi.json"/, /href="\/v1\/skips"/, /curl &quot;https:\/\/api\.402xagent\.com\/v1\/products\/endpoint-spot-check/])
+  // 0.58.0: the new human landing page (home.js); old 0.18.0 copy assertions moved to its own test below
+  for (const re of [/<h1>Ask before your<br>agent <span class="serif">pays\.<\/span><\/h1>/, /og:title" content="402xAgent/, /rel="canonical" href="https:\/\/402xagent.com\/"/, /og:url" content="https:\/\/402xagent.com\/"/, /id="checker"/, /wrapFetchWithPayment<\/span>\(<span class="f">spotCheckFetch/, /href="\/v1\/skips"/, /href="\/docs"/, /href="\/pricing"/])
     assert.match(t, re);
-  assert.ok(t.includes(`>${RECEIPTS_META.skip}</div><div class="l">skip`), "skip count is the real crawl number");
-  assert.ok(t.includes(`>${RECEIPTS_META.pay}</div><div class="l">pay`));
-  assert.doesNotMatch(t, /payscout|router-ab|client=router|<script src=|<link rel="stylesheet"|fonts\.googleapis/i, "no old brand, client ids, personal names or external assets");
-  assert.ok(LANDING_EXAMPLES.length >= 3 && LANDING_EXAMPLES.every((x) => t.includes(x.url)));
-  // 0.18.0: light theme around the logo; own assets only
-  assert.match(t, /--bg:#ffffff;--bg2:#f8fafc;--fg:#0b0b0f/);
+  assert.ok(t.includes(`<div class="proof-num">${RECEIPTS_META.skip.toLocaleString("en-US")}</div>`), "skip count is the real crawl number");
+  assert.ok(t.includes(`<div class="proof-num">${RECEIPTS_META.endpoints_covered.toLocaleString("en-US")}</div>`));
+  assert.doesNotMatch(t, /payscout|router-ab|client=router|<link rel="stylesheet"|fonts\.googleapis/i, "no old brand, client ids, personal names or external assets");
+  assert.deepEqual([...t.matchAll(/<script\b[^>]*>/g)].map((m) => m[0]), ['<script src="/home.js" defer>'], "one same-origin script, no inline script");
+  assert.equal(html.headers.get("content-security-policy"), (await import("../worker/src/tryit.js")).DOCS_CSP);
+  assert.equal(html.headers.get("x-content-type-options"), "nosniff");
   assert.match(t, /<meta name="color-scheme" content="light">/);
-  assert.match(t, /class="hero-logo" src="\/brand\/logo-light\.png\?v=\d+"/);
-  assert.match(t, /og:image" content="https:\/\/402xagent\.com\/og\.png/);
-  assert.match(t, /twitter:card" content="summary_large_image"/);
+  assert.match(t, /class="brand-logo" src="\/brand\/logo-light\.png"/);
+  assert.match(t, /rel="icon" type="image\/png" href="\/brand\/logo-light\.png"/);
+  assert.match(t, /og:image" content="https:\/\/402xagent\.com\/brand\/logo-light\.png"/);
   assert.match(t, /rel="apple-touch-icon"/);
   assert.doesNotMatch(t.split("endpoint-spot-check").join(""), /spot[- ]check|formerly/i);
   for (const [p, ct] of [["/brand/logo-light.png", "image/png"], ["/brand/logo-dark.png", "image/png"], ["/brand/mark-402.png", "image/png"], ["/og.png", "image/png"], ["/favicon.ico", "image/x-icon"], ["/apple-touch-icon.png", "image/png"], ["/brand/favicon-32.png", "image/png"]]) {
@@ -1844,9 +1845,10 @@ test("free check is the front door (0.20.0): 402s point to it, free answers carr
   const sh = await (await get("https://402xagent.com/v1/skips", { headers: { accept: "text/html" } })).text();
   assert.ok(sh.indexOf("Check your endpoint free first") > 0 && sh.indexOf("Check your endpoint free first") < sh.indexOf("endpoints covered"));
   const home = await (await get("https://402xagent.com/", { headers: { accept: "text/html" } })).text();
-  const hero = home.slice(home.indexOf('<div class="hero">'), home.indexOf('id="try"'));
-  assert.ok(hero.includes("GET " + FC.replace("<", "&lt;").replace(">", "&gt;")) && hero.includes("&quot;verdict&quot;:&quot;pay&quot;"), "hero shows the free URL + example");
-  assert.ok(hero.indexOf("endpoint-spot-check?url=") < hero.indexOf("paid check"));
+  // 0.58.0: the hero's checker runs the free check (same route as FC) through /home.js
+  const hero = home.slice(home.indexOf('<div class="wrap hero">'), home.indexOf('class="hero-note"'));
+  assert.ok(hero.includes('id="hc-form"') && hero.includes('id="hc-url"'), "hero holds the free checker");
+  assert.ok(FC.includes("/v1/products/endpoint-spot-check?url=") && (await import("../worker/src/home.js")).HOME_JS.includes('fetch("/v1/products/endpoint-spot-check?"'), "checker calls the free check");
 });
 
 test("agent-tools.cloud ownership token: per-host config only; unset serves nothing; never redirected", async () => {
@@ -2700,7 +2702,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.57.1");
+  assert.equal(VERSION, "0.58.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -2886,8 +2888,7 @@ test("0.37.2: stale free-tier text says 5/day; sitemap lists rules/bazaar/saves;
   const raw = async (path, host = "https://402xagent.com", accept = "*/*") => worker.fetch(new Request(host + path, { headers: { accept, "user-agent": "agent-x/1.0", "cf-connecting-ip": "203.0.113.7" } }), e.env, { waitUntil() {} });
   const home = await (await raw("/", "https://402xagent.com", "text/html")).text();
   assert.ok(!/1 check per client per UTC day/.test(home)); assert.ok(!/one per day per network/.test(home));
-  assert.match(home, /5 checks per client per UTC day, at most 25 per network/);
-  assert.match(home, /real free 402xAgent check: 5 per day \(at most 25 per network\)/);
+  assert.match(home, /<b>5 free checks a day<\/b>/); // 0.58.0 homepage; the per-network cap is on /pricing and /docs
   const r402 = await raw("/v1/lookup/paid?task=web-search&max_price=0.01", "https://api.402xagent.com");
   assert.equal(r402.status, 402);
   const b = await r402.json(); assert.equal(b.x402Version, 2);
@@ -2995,8 +2996,7 @@ test("0.38.0 flat $0.02: 402 amount 20000 for any quote; well-known/OpenAPI/llms
   for (const [n, t] of [["llms", llms], ["home", home], ["pricing", pricing], ["openapi", JSON.stringify(oa)], ["well-known", JSON.stringify(wk)]]) {
     assert.ok(!/one tenth|1\/10 of the target|\$0\.01 to \$0\.25|\$0\.01-\$0\.25|from \$0\.01/.test(t), n + " still has the old price copy");
   }
-  assert.match(home, /5 free checks a day, from \$0\.02/);
-  assert.match(home, /free_per_day(&quot;|"|&#34;): 5/);
+  assert.match(home, /<b>5 free checks a day<\/b>/); assert.match(home, /\$0\.02<small>per check<\/small>/); // 0.58.0 homepage
   assert.match(pricing, /\$9 \(<code>\/v1\/products\/overnight-cos-pack/);
   const b = await raw("/badge/api.402rates.com.svg"); assert.equal(b.status, 200);
   assert.ok(!/\$0\.0/.test(await b.text()), "badges carry no price");

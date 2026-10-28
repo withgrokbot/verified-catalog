@@ -424,3 +424,27 @@ same-zone 522); the placeholder is `https://example.com/paid-endpoint`.
   `tests/fixtures/docs_0.57.0/`); the homepage is unchanged. The section's style adds one mobile-only rule
   (`max-width:760px`: long `pre` blocks scroll inside their box, long inline `code` wraps) so the page fits a phone
   instead of being zoomed out to ~1,560 px by the receipt-verify snippet.
+
+## Human landing page on 402xagent.com (0.58.0)
+
+Browsers asking for `GET /` on `402xagent.com` with `Accept: text/html` get the new landing page (`src/home.js`); every
+other client keeps the exact 0.57.1 answers. Sections: sticky header (logo, Products / Docs / Pricing / Blog / Receipts /
+GitHub, "Run a free check"; hamburger under 900 px), hero with the free checker, a dark proof strip, a 3-step "How it
+works", one tabbed Explore section (Products / Latest skips / For developers), a trust row and a dark footer.
+
+- **Checker.** `/home.js` is built from the same pieces as `/docs/try-it.js` (`TRYIT_CORE` in `src/tryit.js`: validation,
+  the same-origin `GET /v1/products/endpoint-spot-check?url=...&ref=via-402xagent-site`, quota / 402 / 429 / 400 / 503 /
+  timeout messages, per-term comparison). Same free check, same quota and ref. The card shows verdict, a plain reason with
+  any listed price stripped, and how price / payTo / network / token compared. It never shows an amount or a wallet, even
+  if an answer carries the payment object. `/docs/try-it.js` is byte-identical to 0.57.1 (sha256 in `tests/home_test.mjs`).
+- **Live data only.** The proof strip (endpoints covered, new this week, at recheck, at skip) and the Latest skips table
+  (newest crawl skips, one per host: host, verdict, neutral reason about the payment terms, date) come from the published crawl (`receipts-data.js`,
+  the data behind `/v1/skips`). Each stat hides when missing. The whole strip and the table hide when the crawl is older
+  than 14 days. Unknown reason shapes are dropped, never shown raw. No wallets, amounts, client data or tx hashes.
+- **Headers.** The same strict CSP as `/docs` (`script-src 'self'`, no inline script), `nosniff`, `vary: accept`. Fonts
+  are system fonts (the CSP allows no font hosts). Favicon and OG/Twitter image are `/brand/logo-light.png`.
+- **Machine surfaces unchanged.** `tests/machine_surfaces_test.mjs` replays 1,212 requests (root on every host with no
+  Accept / JSON / `*/*` / text / curl, llms.txt, skill.md, rules.json, openapi.json, /mcp GET + JSON-RPC, every /v1 GET and
+  POST, browsers on /v1) and compares status, headers and body sha256 with `tests/fixtures/machine_0.57.1/snapshot.json`.
+  The snapshot came from main 5efdf33 through `tests/helpers/machine_snapshot.mjs`. Only the VERSION string is normalized.
+- `src/landing.js` (the 0.18.0 page) is no longer served. It stays for its exports and tests.
