@@ -1,0 +1,16 @@
+{
+  "service_id": "bilbop-summarize",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.bilbop.org/v1/summarize",
+    "json_body": {},
+    "payment_header_sent": false
+  },
+  "response": {
+    "error": "URLError: [Errno -2] Name or service not known",
+    "latency_ms": 47
+  },
+  "run_id": "20261028T145825Z",
+  "checked_at": "2026-10-28T14:58:26Z"
+}

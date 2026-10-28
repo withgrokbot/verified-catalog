@@ -40,36 +40,31 @@
   },
   "paid_receipts": 9,
   "latest": {
-    "checked_at": "2026-10-27T17:52:32Z",
-    "mode": "paid",
+    "checked_at": "2026-10-28T14:58:26Z",
+    "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 365,
+    "latency_ms": 400,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.05",
     "quoted_price_usd": "0.05",
     "price_matches_listing": true,
-    "paid": true,
-    "charged_price_usd": "0.05",
-    "delivered_valid": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
     "payment_refused_reason": null,
     "error": null,
-    "quality": {
-      "result": "pass",
-      "reason": "newest point 41.9 h old, value 1.479",
-      "facts_only": false,
-      "graded_at": "2026-10-27T17:52:34Z"
-    },
-    "raw_log": "results/raw/20261027T175205Z/glassnode-mvrv.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261027T175205Z/glassnode-mvrv.json"
+    "quality": null,
+    "raw_log": "results/raw/20261028T145825Z/glassnode-mvrv.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261028T145825Z/glassnode-mvrv.json"
   },
   "history_summary": {
-    "checks": 39,
-    "reachable": 39,
-    "x402_challenge_ok": 39,
+    "checks": 40,
+    "reachable": 40,
+    "x402_challenge_ok": 40,
     "paid_checks": 9,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-10-27T17:52:32Z"
+    "last_checked": "2026-10-28T14:58:26Z"
   }
 }
