@@ -43,7 +43,8 @@ import { signObject, receiptKeysDoc } from "./sign.js";
 import { handleWatch, watchTick, watchOn, EXAMPLE_CREATE as WATCH_EXAMPLE, WATCH_PRICE_ATOMIC, WATCH_PRICE_USD, EXAMPLE_WATCH_ID, WATCH_PERIOD_DAYS, TRIAL_DAYS as WATCH_TRIAL_DAYS } from "./watch.js";
 import { PS_ID, PS_NETWORK, USDC_BASE_LC, parseRequest, readChain, decide, termsMatch, claimPointer, buildBody, newPsId, cacheKey, cacheGet, cachePut, receiptById } from "./paystatus.js";
 import { discover, DISCOVER_PER_MIN, DISCOVER_MAX } from "./discover.js";
-import { handleSkips, handleReceipts, crawlReceiptForUrl, crawlReceipt, normUrl } from "./skips.js";
+import { handleSkips, handleReceipts, crawlReceiptForUrl, crawlReceipt, normUrl, skipsPageRows, crawlSchedule } from "./skips.js";
+import { receiptListHtml, liveReceiptHtml, crawlReceiptHtml, receiptNotFoundHtml, crawlReasonText, RECEIPTS_PAGE_SIZE, LIVE_PAGE_SIZE } from "./receipts-html.js"; // 0.58.5
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
 import { homeHtml, HOME_JS, HOME_SCRIPT_PATH, HOME_CSP } from "./home.js"; // 0.58.0: the human landing page (browsers on 402xagent.com/ only)
@@ -75,7 +76,7 @@ import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.58.4";
+export const VERSION = "0.58.5";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1738,6 +1739,21 @@ export async function latestLiveReceipt(env, url) {
   const row = await env.RECEIPTS_DB.prepare("SELECT body FROM spot_receipts WHERE url = ? ORDER BY created_at DESC LIMIT 1").bind(url).first();
   return row ? publicReceipt(env, JSON.parse(row.body)) : null;
 }
+// 0.58.5: the list query, shared by the JSON list (unchanged output) and the browser receipts page. Throws on store errors.
+export async function receiptListRows(env, { type, ref = "", cur = null, limit = 20 }) {
+  let sql = "SELECT id, created_at, body FROM spot_receipts WHERE check_type = ?";
+  const args = [type];
+  if (ref) { sql += " AND ref = ?"; args.push(ref); }
+  if (cur) { sql += " AND (created_at < ? OR (created_at = ? AND id < ?))"; args.push(cur[0], cur[0], cur[1]); }
+  sql += " ORDER BY created_at DESC, id DESC LIMIT ?";
+  args.push(limit + 1);
+  const rows = ((await env.RECEIPTS_DB.prepare(sql).bind(...args).all()) || {}).results || [];
+  const more = rows.length > limit;
+  const page = rows.slice(0, limit);
+  const last = page[page.length - 1];
+  const next = more && last ? btoa(JSON.stringify([last.created_at, last.id])).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : null;
+  return { page, next };
+}
 // GET /v1/receipts?type=dry-run|live[&ref=][&limit=1..100][&cursor=] : newest first, free to read.
 export async function handleReceiptList(env, url) {
   const p = url.searchParams;
@@ -1755,22 +1771,84 @@ export async function handleReceiptList(env, url) {
     if (!Array.isArray(cur) || cur.length !== 2 || !LIVE_RECEIPT_RE.test(String(cur[1]))) return rj({ error: "invalid cursor", field: "cursor" }, 400);
   }
   if (!env.RECEIPTS_DB) return rj({ error: "receipt store unavailable, try again shortly" }, 503);
-  let sql = "SELECT id, created_at, body FROM spot_receipts WHERE check_type = ?";
-  const args = [type];
-  if (ref) { sql += " AND ref = ?"; args.push(ref); }
-  if (cur) { sql += " AND (created_at < ? OR (created_at = ? AND id < ?))"; args.push(cur[0], cur[0], cur[1]); }
-  sql += " ORDER BY created_at DESC, id DESC LIMIT ?";
-  args.push(limit + 1);
-  let rows;
-  try { rows = ((await env.RECEIPTS_DB.prepare(sql).bind(...args).all()) || {}).results || []; } catch (_) { return rj({ error: "receipt store unavailable, try again shortly" }, 503); }
-  const more = rows.length > limit;
-  const page = rows.slice(0, limit);
-  const last = page[page.length - 1];
-  const next = more && last ? btoa(JSON.stringify([last.created_at, last.id])).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : null;
+  let got;
+  try { got = await receiptListRows(env, { type, ref, cur, limit }); } catch (_) { return rj({ error: "receipt store unavailable, try again shortly" }, 503); }
+  const { page, next } = got;
   const qs = (c) => { const n = new URLSearchParams({ type }); if (ref) n.set("ref", ref); n.set("limit", String(limit)); n.set("cursor", c); return CANON_ORIGIN + "/v1/receipts?" + n.toString(); };
   return rj({ type, ref: ref || null, limit, count: page.length, receipts: await Promise.all(page.map((r) => publicReceipt(env, JSON.parse(r.body)))), next_cursor: next, next: next ? qs(next) : null });
 }
 const rj = (o, status = 200) => new Response(JSON.stringify(o, null, 2), { status, headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": status === 200 ? "public, max-age=60" : "no-store" } });
+
+// 0.58.5: receipts for browsers. Same rule as /v1/skips: Accept names text/html and no ?format=json. Every page is rendered
+// from the JSON the machine route returns for the same URL (or the same rows the JSON list uses), so it can only show
+// public fields; receipts-html.js picks from those by allow-list. Returns null to fall through to the JSON answer
+// (by-url, ps-/er-/eb- side receipts, store errors).
+export function wantsReceiptHtml(req, url) {
+  return (req.method === "GET" || req.method === "HEAD") && /text\/html/i.test(req.headers.get("accept") || "") && url.searchParams.get("format") !== "json";
+}
+const LIST_TYPES = ["live", "dry-run", "self-checked"];
+const hostOfU = (u) => { try { return new URL(u).host.toLowerCase(); } catch (_) { return ""; } };
+export async function receiptListView(env, url) {
+  const p = url.searchParams;
+  const q = String(p.get("q") || "").trim().slice(0, 300);
+  const type = String(p.get("type") || "").toLowerCase();
+  const tab = LIST_TYPES.includes(type) ? type : "crawl";
+  const crawlRow = (r) => ({ id: r.id, verdict: r.verdict, url: r.url, reason: crawlReasonText(r.reason), time: r.timestamp });
+  const liveRow = (r) => ({ id: r.id, verdict: r.verdict, url: r.url, reason: String(r.reason_text || r.reason_code || r.reason || ""), time: r.checked_at });
+  const match = (row) => { const n = q.toLowerCase(); return String(row.url || "").toLowerCase().includes(n) || String(row.reason || "").toLowerCase().includes(n); };
+  if (/^https?:\/\/\S+$/i.test(q)) {
+    const rows = [];
+    try { const c = await crawlReceiptForUrl(env, q); if (c) rows.push(crawlRow(c)); } catch (_) {}
+    try { const l = env.RECEIPTS_DB ? await latestLiveReceipt(env, storedUrl(q)) : null; if (l) rows.push(liveRow(l)); } catch (_) {}
+    return { tab, rows, q, exact: true, note: "The latest crawl receipt and the latest live check for this exact endpoint URL (query string ignored).", jsonHref: "/v1/receipts/by-url?url=" + encodeURIComponent(q) };
+  }
+  if (tab === "crawl") {
+    const m = RECEIPTS_META, ps = m.page_size || RECEIPTS.length || 1, cps = m.skip_pages || 1;
+    const pages = Math.max(1, Math.ceil((cps * ps) / RECEIPTS_PAGE_SIZE));
+    if (q) {
+      const rows = (RECEIPTS || []).map(crawlRow).filter(match).slice(0, 100);
+      return { tab, rows, q, note: `Crawl skips on the first crawl page (${ps} rows, clearest mismatches first) whose host, path or reason contains your search, up to 100. Paste a full endpoint URL to look up any endpoint.`, jsonHref: "/v1/receipts" };
+    }
+    const n = Math.max(1, Math.min(pages, parseInt(p.get("page") || "1", 10) || 1));
+    const start = (n - 1) * RECEIPTS_PAGE_SIZE, cp = Math.floor(start / ps) + 1, off = start % ps;
+    const all = (await skipsPageRows(env, cp)) || [];
+    const rows = all.slice(off, off + RECEIPTS_PAGE_SIZE).map(crawlRow);
+    const href = (k) => (k === 1 ? "/v1/receipts" : "/v1/receipts?page=" + k);
+    return { tab, rows, page: n, pages, prevHref: n > 1 ? href(n - 1) : null, nextHref: n < pages && rows.length ? href(n + 1) : null,
+      note: `Skips from the weekly crawl${crawlSchedule(m.crawled_at) ? " (last crawl " + crawlSchedule(m.crawled_at).last + ")" : ""}, clearest mismatches first. ${Number(m.skip || 0).toLocaleString("en-US")} skips among ${Number(m.total || 0).toLocaleString("en-US")} crawl receipts.`, jsonHref: n > 1 ? "/v1/skips.json?page=" + cp : "/v1/receipts" };
+  }
+  const label = tab === "live" ? "Live checks" : tab === "dry-run" ? "Dry runs and outside checks" : "Our own self-checks";
+  let cur = null;
+  const cursor = p.get("cursor");
+  if (cursor) { try { cur = JSON.parse(atob(cursor.replace(/-/g, "+").replace(/_/g, "/"))); } catch (_) { cur = null; } if (!Array.isArray(cur) || cur.length !== 2 || !LIVE_RECEIPT_RE.test(String(cur[1]))) cur = null; }
+  const jsonHref = "/v1/receipts?type=" + tab;
+  if (!env.RECEIPTS_DB) return { tab, rows: [], q, note: label + ": the receipt store is unavailable, try again shortly.", jsonHref };
+  let got;
+  try { got = await receiptListRows(env, { type: tab, cur, limit: q ? 100 : LIVE_PAGE_SIZE }); } catch (_) { return { tab, rows: [], q, note: label + ": the receipt store is unavailable, try again shortly.", jsonHref }; }
+  let rows = (await Promise.all(got.page.map((r) => publicReceipt(env, JSON.parse(r.body))))).map(liveRow);
+  if (q) return { tab, rows: rows.filter(match), q, note: `${label}: the newest 100 whose host, path or reason contains your search. Paste a full endpoint URL to look up any endpoint.`, jsonHref };
+  return { tab, rows, cursor: !!cur, prevHref: cur ? "/v1/receipts?type=" + tab : null, nextHref: got.next ? "/v1/receipts?type=" + tab + "&cursor=" + got.next : null,
+    note: `${label}, newest first, ${LIVE_PAGE_SIZE} per page. Signed receipts can be verified offline.`, jsonHref };
+}
+async function receiptsHtml(req, env, url, path) {
+  const fp = { endpointReport: endpointReportOn(env), watchtower: watchOn(env) };
+  const H = (body, status = 200) => new Response(req.method === "HEAD" ? null : body, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": status === 200 ? "public, max-age=60" : "no-store", vary: "accept", "content-security-policy": HOME_CSP, "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "access-control-allow-origin": "*" } });
+  const pth = path.replace(/\/+$/, "") || "/";
+  if (pth === "/v1/receipts") return H(receiptListHtml(CANON_ORIGIN, await receiptListView(env, url), fp));
+  const id = pth.slice("/v1/receipts/".length);
+  if (id === "by-url" || /^(ps|er|eb)-/.test(id)) return null;
+  if (LIVE_RECEIPT_RE.test(id)) {
+    const res = await handleLiveReceipts(req, env, url, pth);
+    if (res.status === 404) return H(receiptNotFoundHtml(CANON_ORIGIN, id, fp), 404);
+    return res.status === 200 ? H(liveReceiptHtml(CANON_ORIGIN, await res.json(), fp)) : null;
+  }
+  if (/^[0-9a-f]{10}$/.test(id)) {
+    const res = await handleReceipts(url, env);
+    if (res.status === 404) return H(receiptNotFoundHtml(CANON_ORIGIN, id, fp), 404);
+    return res.status === 200 ? H(crawlReceiptHtml(CANON_ORIGIN, await res.json(), fp)) : null;
+  }
+  return H(receiptNotFoundHtml(CANON_ORIGIN, id, fp), 404);
+}
 async function handleLiveReceipts(req, env, url, path) {
   if (path === "/v1/receipts/by-url") {
     const target = String(url.searchParams.get("url") || "").trim().slice(0, 2000);
@@ -3974,6 +4052,7 @@ const routeInnerHolder = {
     if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env);
     if (path === "/v1/discover") return handleDiscover(req, env, url);
     if ((path === "/bazaar" || path === "/bazaar.json") && env.BAZAAR_PAGE !== "off") return handleBazaar(req, url, env, path, CANON_ORIGIN);
+    if ((path === "/v1/receipts" || path.startsWith("/v1/receipts/")) && wantsReceiptHtml(req, url)) { const h = await receiptsHtml(req, env, url, path); if (h) return h; } // 0.58.5
     if (path === "/v1/receipts/by-url" || /^\/v1\/receipts\/sc-/.test(path)) return handleLiveReceipts(req, env, url, path);
     if (path === "/v1/receipts" && url.searchParams.has("type")) return handleReceiptList(env, url);
     if (/^\/v1\/receipts\/(ps|er|eb)-[0-9a-f]{16}$/.test(path)) {

@@ -140,7 +140,56 @@ export async function snapshot0583(workerPath) {
   return out;
 }
 
-if (process.argv[2] === "--0583" && process.argv[3]) {
+// 0.58.5: the receipt routes with a receipt store (fake D1 holding real public receipt views sampled from production,
+// tests/fixtures/receipts_sample_2026-10-28.json) on every host and Accept, plus the bundled crawl receipts. Fixture from
+// main 1d5868d (0.58.4): non-browser answers must stay byte-identical when /v1/receipts gains HTML for browsers.
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+const SAMPLE = JSON.parse(readFileSync(fileURLToPath(new URL("../fixtures/receipts_sample_2026-10-28.json", import.meta.url)), "utf8")).rows;
+export function fakeReceiptsD1(rows = SAMPLE) {
+  const byNew = [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : a.id < b.id ? 1 : -1));
+  const q = (sql, a) => {
+    if (/FROM spot_receipts WHERE id = \?/.test(sql)) return rows.filter((r) => r.id === a[0]);
+    if (/FROM spot_receipts WHERE url = \?/.test(sql)) return byNew.filter((r) => r.url === a[0]).slice(0, 1);
+    if (/FROM spot_receipts WHERE check_type = \?/.test(sql)) {
+      let i = 1, out = byNew.filter((r) => r.check_type === a[0]);
+      if (/AND ref = \?/.test(sql)) { const ref = a[i++]; out = out.filter((r) => r.ref === ref); }
+      if (/created_at < \?/.test(sql)) { const c = a[i], cid = a[i + 2]; i += 3; out = out.filter((r) => r.created_at < c || (r.created_at === c && r.id < cid)); }
+      return out.slice(0, a[i]);
+    }
+    return [];
+  };
+  return { prepare(sql) { const st = { a: [], bind(...x) { st.a = x; return st; }, async first() { return q(sql, st.a)[0] || null; }, async all() { return { results: q(sql, st.a) }; }, async run() { return { success: true, meta: { changes: 0 } }; } }; return st; }, async batch() { return []; } };
+}
+/** 0.58.5: the only keys allowed to differ from the 0.58.4 fixtures: browser Accept (names text/html) on the receipt pages
+ * (/v1/receipts, crawl and sc- ids) of 402xagent.com and api.402xagent.com. by-url, ps-/er-/eb- and the older hosts' 301s are excluded. */
+export const RECEIPT_HTML_KEY = /^GET https:\/\/(402xagent\.com|api\.402xagent\.com)\/v1\/receipts(\?\S*|\/(?!by-url|ps-|er-|eb-)\S*)? \[(html|htmljson)\]$/;
+export const RECEIPT_GETS = ["/v1/receipts", "/v1/receipts?page=2", "/v1/receipts?q=api.402rates.com", "/v1/receipts/44e3732d23", "/v1/receipts/44e3732d23?view=redacted", "/v1/receipts/0000000000",
+  ...SAMPLE.map((r) => "/v1/receipts/" + r.id), "/v1/receipts/sc-ffffffffffffffff", "/v1/receipts/not-an-id", "/v1/receipts/by-url?url=https://api.402rates.com/v1/ping",
+  "/v1/receipts?type=live", "/v1/receipts?type=live&limit=2", "/v1/receipts?type=dry-run", "/v1/receipts?type=self-checked", "/v1/receipts?type=bogus", "/v1/receipts?type=live&cursor=bad",
+  "/v1/receipts/ps-0123456789abcdef", "/v1/receipts/er-0123456789abcdef", "/receipts"];
+export const RECEIPT_ACCEPTS = { ...ACCEPTS, html: "text/html,application/xhtml+xml,*/*;q=0.8|Mozilla/5.0", htmljson: "text/html;q=0.1,application/json|Mozilla/5.0" };
+export async function snapshotReceipts(workerPath) {
+  const mod = await import(pathToFileURL(resolve(workerPath)).href);
+  const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
+  const norm = (x) => x.split(lib.VERSION).join("<VERSION>");
+  const env = () => ({ DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", RECEIPTS_DB: fakeReceiptsD1() });
+  const out = {};
+  for (const h of HOSTS) for (const p of RECEIPT_GETS) for (const [an, a] of Object.entries(RECEIPT_ACCEPTS)) {
+    const [accept, ua] = a ? a.split("|") : [null, null];
+    const req = new Request(h + p, { headers: { "cf-connecting-ip": "203.0.113.9", ...(ua ? { "user-agent": ua } : {}), ...(accept ? { accept } : {}) } });
+    const res = await mod.default.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
+    const body = await res.text(); const hd = {};
+    for (const [k, v] of [...res.headers.entries()].sort()) hd[k] = norm(v);
+    out[`GET ${h}${p} [${an}]`] = { status: res.status, headers: hd, sha256: createHash("sha256").update(norm(body)).digest("hex") };
+  }
+  return out;
+}
+
+if (process.argv[2] === "--receipts" && process.argv[3]) {
+  process.stdout.write(JSON.stringify(await snapshotReceipts(process.argv[3]), null, 1) + "\n");
+} else if (process.argv[2] === "--0583" && process.argv[3]) {
   process.stdout.write(JSON.stringify(await snapshot0583(process.argv[3]), null, 1) + "\n");
 } else if (process.argv[2] === "--extra" && process.argv[3]) {
   process.stdout.write(JSON.stringify(await snapshotExtra(process.argv[3]), null, 1) + "\n");
