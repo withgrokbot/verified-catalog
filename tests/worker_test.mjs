@@ -2870,7 +2870,7 @@ test("0.37.1: /receipts and /skips.json 301 to /v1 keeping the query; /pricing a
     assert.match(ph, /5 live checks per client per UTC day, at most 25 per network/);
     assert.match(ph, /\$0\.02 per check, flat/);
     assert.doesNotMatch(ph, /\$0\.20 for 10 checks|router pack|prepaid|credit/i); // 0.58.3: no packs or credits on /pricing
-    assert.match(ph, /\$9/); assert.match(ph, /href="\/rules"/); assert.match(ph, /href="\/openapi\.json"/);
+    assert.doesNotMatch(ph, /\$9|overnight-cos-pack/); assert.match(ph, /href="\/rules"/); // 0.58.3: the pack route stays live, not on /pricing assert.match(ph, /href="\/openapi\.json"/);
     r = await raw("/docs", host); assert.equal(r.status, 200);
     const dh = await r.text();
     for (const l of ['href="/openapi.json"', 'href="/rules"', 'href="/llms.txt"', "/mcp", "github.com/withgrokbot/x402-spotcheck"]) assert.ok(dh.includes(l), l);
@@ -2997,7 +2997,7 @@ test("0.38.0 flat $0.02: 402 amount 20000 for any quote; well-known/OpenAPI/llms
     assert.ok(!/one tenth|1\/10 of the target|\$0\.01 to \$0\.25|\$0\.01-\$0\.25|from \$0\.01/.test(t), n + " still has the old price copy");
   }
   assert.match(home, /<b>5 free checks a day<\/b>/); assert.match(home, /\$0\.02<small>per check<\/small>/); // 0.58.0 homepage
-  assert.match(pricing, /\$9 \(<code>\/v1\/products\/overnight-cos-pack/);
+  assert.doesNotMatch(pricing, /\$9|overnight-cos-pack/); // 0.58.3: off /pricing; the route and its $9 stay (machine snapshot)
   const b = await raw("/badge/api.402rates.com.svg"); assert.equal(b.status, 200);
   assert.ok(!/\$0\.0/.test(await b.text()), "badges carry no price");
 });

@@ -37,9 +37,9 @@ test("0.58.3 /pricing table: the seven rows, every price from its code constant"
   // the exact sentence, and every dollar amount on the page is one of the code prices
   assert.ok(t.includes("All payments are USDC on Base via x402."));
   const amounts = new Set([...t.replace(/<style>[\s\S]*?<\/style>/, "").matchAll(/\$\d+(?:\.\d+)?/g)].map((m) => m[0]));
-  assert.deepEqual([...amounts].sort(), ["$0.01", "$0.02", "$0.05", "$1", "$9"]);
+  assert.deepEqual([...amounts].sort(), ["$0.01", "$0.02", "$0.05", "$1"]);
   // follows the constants, not typed-in copy
-  const alt = pricingHtml("https://402xagent.com", { freePerDay: 7, freePerIpDay: 30, paidAtomic: "30000", erAtomic: "60000", watchAtomic: "2000000", watchDays: 30, trialDays: 7, facilPerMin: 60, facilHostPerMin: 30, hostedFree: 1000, hostedVolAfter: 1000, hostedStdAtomic: 20000, hostedVolAtomic: 10000, lookupFreePerDay: 1, lookupAtomic: "10000", packAtomic: "9000000", apiOrigin: "https://api.402xagent.com", endpointReport: true, watchtower: true });
+  const alt = pricingHtml("https://402xagent.com", { freePerDay: 7, freePerIpDay: 30, paidAtomic: "30000", erAtomic: "60000", watchAtomic: "2000000", watchDays: 30, trialDays: 7, facilPerMin: 60, facilHostPerMin: 30, hostedFree: 1000, hostedVolAfter: 1000, hostedStdAtomic: 20000, hostedVolAtomic: 10000, lookupFreePerDay: 1, lookupAtomic: "10000", apiOrigin: "https://api.402xagent.com", endpointReport: true, watchtower: true });
   assert.match(row(alt, "check"), /^402xAgent Check \$0\.03 per check 7 free a day/); assert.match(row(alt, "watchtower"), /^Watchtower \$2 per 30 days/);
 });
 
@@ -69,4 +69,18 @@ test("0.58.3 /pricing: homepage look, strict CSP with the Cloudflare beacon allo
   assert.match(t, /<link rel="canonical" href="https:\/\/402xagent\.com\/pricing">/);
   assert.match(t, /@media\(max-width:760px\)\{[\s\S]*table\.pr tbody tr\{background:#fff/, "stacked cards on small screens");
   assert.match(t, /td\[data-label\]::before\{content:attr\(data-label\)/);
+});
+
+test("0.58.3 review: Hosted billing and Watchtower cadence wording on /pricing and the homepage cards; no $9 pack on /pricing", async () => {
+  const { t } = await get();
+  assert.match(row(t, "hosted"), /usage tracked; billed monthly by arrangement/);
+  assert.match(row(t, "watchtower"), /Regular re-probes/);
+  const vis = t.replace(/<style>[\s\S]*?<\/style>/, "");
+  assert.doesNotMatch(vis, /hourly|invoice|overnight|\$9/i);
+  assert.match(vis, /Catalog lookup \(<code>\/v1\/lookup<\/code>\)/);
+  const home = await (await worker.fetch(new Request("https://402xagent.com/", { headers: { accept: "text/html", "user-agent": "Mozilla/5.0" } }), ENV, { waitUntil() {} })).text();
+  assert.ok(home.includes("usage tracked; billed monthly by arrangement")); assert.ok(home.includes("Regular re-probes of an endpoint"));
+  assert.doesNotMatch(home, /monthly USDC invoice|Hourly re-probes/);
+  const pack = await worker.fetch(new Request("https://api.402xagent.com/v1/products/overnight-cos-pack", { headers: { accept: "application/json" } }), ENV, { waitUntil() {} });
+  assert.ok([200, 402].includes(pack.status), "the pack route stays live");
 });

@@ -47,7 +47,25 @@ test("0.58.3 /pricing rebuild: pricing machine paths and the homepage are byte-i
   const got = JSON.parse(r.stdout);
   assert.ok(Object.keys(want2).length >= 180, "extra snapshot covers the pricing paths on every host");
   assert.deepEqual(Object.keys(got).sort(), Object.keys(want2).sort(), "same request set");
-  assert.deepEqual(Object.keys(want2).filter((k) => JSON.stringify(got[k]) !== JSON.stringify(want2[k])), [], "changed responses");
+  const HOME = "GET https://402xagent.com/ [html]";
+  assert.deepEqual(Object.keys(want2).filter((k) => k !== HOME && JSON.stringify(got[k]) !== JSON.stringify(want2[k])), [], "changed responses");
+  // the homepage: same status and headers; the body differs from 0.58.2 only by the two review strings (Watchtower and Hosted cards)
+  assert.equal(got[HOME].status, want2[HOME].status); assert.deepEqual(got[HOME].headers, want2[HOME].headers);
+  assert.notEqual(got[HOME].sha256, want2[HOME].sha256, "the two card strings did change");
   for (const k of ["GET https://402xagent.com/ [html]", "GET https://402xagent.com/home.js [html]", "GET https://402xagent.com/docs [html]"]) assert.equal(want2[k].status, 200, k);
   for (const k of ["GET https://402xagent.com/pricing.json [json]", "GET https://api.402xagent.com/pricing.json [none]", "GET https://402xagent.com/v1/pricing [curl]"]) assert.equal(want2[k].status, 404, k);
+});
+
+test("0.58.3 review: the homepage body equals 0.58.2 once the two card strings are swapped back", async () => {
+  const want2 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.2", "extra.json"), "utf8"));
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    const { snapshotHomeBody } = await import(${JSON.stringify(join(HERE, "helpers", "machine_snapshot.mjs"))});
+    process.stdout.write(await snapshotHomeBody(${JSON.stringify(join(HERE, "..", "worker", "src", "index.js"))}));`], { encoding: "utf8", maxBuffer: 64 << 20 });
+  assert.equal(r.status, 0, r.stderr);
+  const body = r.stdout;
+  const SWAPS = [["Regular re-probes of an endpoint you depend on", "Hourly re-probes of an endpoint you depend on"],
+    ["by arrangement: usage tracked; billed monthly by arrangement.", "by arrangement: hosted checks billed on a monthly USDC invoice instead of per call."]];
+  for (const [now] of SWAPS) assert.equal(body.split(now).length, 2, now);
+  let old = body; for (const [now, was] of SWAPS) old = old.replace(now, was);
+  assert.equal(createHash("sha256").update(old).digest("hex"), want2["GET https://402xagent.com/ [html]"].sha256, "nothing else on the homepage changed");
 });

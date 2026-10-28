@@ -89,11 +89,11 @@ function productCards(opts) {
     { name: "Payment Status", price: "$0.02", unit: "per lookup", tag: `${opts.freePerDay} free / day`, href: "/docs#payment-status", link: "How it works",
       text: "A payment timed out: did it land, and is it safe to sign again? A signed answer before your agent pays twice." },
     opts.watchtower && { name: "Watchtower", price: "$1", unit: "per 30 days", tag: "7-day trial", href: "/docs#watchtower", link: "Start monitoring",
-      text: "Hourly re-probes of an endpoint you depend on, with signed webhooks on drift, down and recovery." },
+      text: "Regular re-probes of an endpoint you depend on, with signed webhooks on drift, down and recovery." },
     { name: "Facilitator Check", price: "Free", unit: "rate-limited", href: "/docs#facilitator-check", link: "Integrate",
       text: "Pre-settle verification: compares the payment requirements you are about to settle with the seller's live 402 terms." },
     { name: "Hosted Mode", price: "1,000 free", unit: "then $0.02; $0.01 past 1,000/month", href: "/docs#hosted", link: "Integrator keys",
-      text: "Integrator keys for routers and wallets, by arrangement: hosted checks billed on a monthly USDC invoice instead of per call." },
+      text: "Integrator keys for routers and wallets, by arrangement: usage tracked; billed monthly by arrangement." },
   ].filter(Boolean);
   return p.map((c) => `<article class="product"><div class="product-top"><h3>${esc(c.name)}</h3><div class="price">${esc(c.price)}<small>${esc(c.unit)}</small></div></div><p>${esc(c.text)}</p><div class="product-foot"><a class="product-link" href="${esc(c.href)}"${c.href === "#checker" ? ' data-focus-checker="1"' : ""}>${esc(c.link)} <span aria-hidden="true">&rarr;</span></a>${c.tag ? `<span class="free-tag">${esc(c.tag)}</span>` : ""}</div></article>`).join("\n");
 }

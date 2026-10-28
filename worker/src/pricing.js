@@ -11,7 +11,9 @@
 //   facilitator check    facilcheck.js:15 FACIL_CHECK_PER_MIN = 60, :17 FACIL_HOST_PER_MIN = 30 (free, POST only lib.js:3949)
 //   hosted               hosted.js:9 HOSTED_FREE_TOTAL = 1000, :10 HOSTED_VOLUME_AFTER = 1000, :11 HOSTED_STANDARD_ATOMIC = 20000,
 //                        :12 HOSTED_VOLUME_ATOMIC = 10000 (pricing hosted.js:42-45); keys issued by scripts/hosted_key.mjs
-// No prepaid packs or credits are shown (the router pack stays an API-only route), no badge, no names.
+// No prepaid packs or credits are shown (the router pack and the overnight pack stay API-only routes), no badge, no names.
+// Watchtower says "Regular re-probes", not hourly: next_probe_at = last probe + 1 h (watch.js:77, :291), but a */20 tick
+// probes at most WATCH_BATCH_DEFAULT = 100 due watches (watch.js:21, :318-319) while WATCH_MAX_DEFAULT = 500 (watch.js:15).
 import { HOME_CSS } from "./home.js";
 
 const LOGO = "/brand/logo-light.png";
@@ -38,13 +40,13 @@ export function pricingRows(p) {
       terms: `${usd(p.paidAtomic)} per lookup, flat, after the same ${n(p.freePerDay)} free checks per day (shared with the check). After you pay: did the Base USDC payment land, and is it safe to sign a new one? A signed answer before your agent pays twice.`,
       href: "/docs#payment-status", link: "How it works" },
     p.watchtower && { id: "watchtower", name: "Watchtower", price: usd(p.watchAtomic), unit: `per ${n(p.watchDays)} days`, free: `${n(p.trialDays)}-day trial`,
-      terms: `Per watched endpoint, paid via x402. The ${n(p.trialDays)}-day free trial is for the first watch per webhook domain. Hourly re-probes, with Ed25519-signed webhooks on drift, down and recovery.`,
+      terms: `Per watched endpoint, paid via x402. The ${n(p.trialDays)}-day free trial is for the first watch per webhook domain. Regular re-probes, with Ed25519-signed webhooks on drift, down and recovery.`,
       href: "/docs#watchtower", link: "Start monitoring" },
     { id: "facilitator-check", name: "Facilitator Check", price: "Free", unit: "rate-limited", free: "Always free",
       terms: `Up to ${n(p.facilPerMin)} per minute per network (IP) and ${n(p.facilHostPerMin)} per minute per seller host. Compares the payment requirements you are about to settle with the seller's live 402 terms; it never pays.`,
       href: "/docs#facilitator-check", link: "Integrate" },
     { id: "hosted", name: "Hosted Mode", price: `${n(p.hostedFree)} free`, unit: `then ${usd(p.hostedStdAtomic)}; ${usd(p.hostedVolAtomic)} past ${n(p.hostedVolAfter)}/month`, free: `${n(p.hostedFree)} free hosted checks, once`,
-      terms: `Integrator keys for routers and wallets, by arrangement. ${n(p.hostedFree)} free hosted checks per integrator, then ${usd(p.hostedStdAtomic)} per check; each billable check after the first ${n(p.hostedVolAfter)} in a UTC calendar month is ${usd(p.hostedVolAtomic)}. Covers the check and Payment Status, billed on a monthly USDC invoice instead of per call.`,
+      terms: `Integrator keys for routers and wallets, by arrangement. ${n(p.hostedFree)} free hosted checks per integrator, then ${usd(p.hostedStdAtomic)} per check; each billable check after the first ${n(p.hostedVolAfter)} in a UTC calendar month is ${usd(p.hostedVolAtomic)}. Covers the check and Payment Status; usage tracked; billed monthly by arrangement.`,
       href: "/docs#hosted", link: "Integrator keys" },
   ].filter(Boolean);
 }
@@ -92,7 +94,7 @@ table.pr td[data-label]::before{content:attr(data-label);display:block;font-size
 }`;
 
 // p: { freePerDay, freePerIpDay, paidAtomic, erAtomic, watchAtomic, watchDays, trialDays, facilPerMin, facilHostPerMin, hostedFree,
-//      hostedVolAfter, hostedStdAtomic, hostedVolAtomic, lookupFreePerDay, lookupAtomic, packAtomic, apiOrigin, endpointReport, watchtower }
+//      hostedVolAfter, hostedStdAtomic, hostedVolAtomic, lookupFreePerDay, lookupAtomic, apiOrigin, endpointReport, watchtower }
 export function pricingHtml(origin, p) {
   const rows = pricingRows(p);
   const title = "Pricing · 402xAgent";
@@ -149,7 +151,7 @@ ${body}
 <div class="pr-notes">
 <div class="pr-note"><h2>Free to read</h2><p>Skips, receipts, Bazaar check, badges, rules, OpenAPI and MCP. <a href="/v1/skips">Latest skips</a></p></div>
 <div class="pr-note"><h2>Check endpoint</h2><p><code>${esc(p.apiOrigin)}/v1/products/endpoint-spot-check?url=&lt;endpoint&gt;</code></p></div>
-<div class="pr-note"><h2>Other API routes</h2><p>Catalog lookup (<code>/v1/lookup</code>): ${n(p.lookupFreePerDay)} free per client per UTC day, then ${usd(p.lookupAtomic)} per call. Overnight chief-of-staff pack: ${usd(p.packAtomic)} (<code>/v1/products/overnight-cos-pack</code>). Details: <a href="/rules">rules</a> · <a href="/openapi.json">OpenAPI</a> · <a href="/docs">docs</a></p></div>
+<div class="pr-note"><h2>Other API routes</h2><p>Catalog lookup (<code>/v1/lookup</code>): ${n(p.lookupFreePerDay)} free per client per UTC day, then ${usd(p.lookupAtomic)} per call. Details: <a href="/rules">rules</a> · <a href="/openapi.json">OpenAPI</a> · <a href="/docs">docs</a></p></div>
 </div>
 </div>
 </main>

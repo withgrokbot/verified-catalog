@@ -109,6 +109,16 @@ export async function snapshotExtra(workerPath) {
   return out;
 }
 
+// 0.58.3 review: the normalized browser homepage body (same request and env as the extra snapshot), for the string-swap check.
+export async function snapshotHomeBody(workerPath) {
+  const mod = await import(pathToFileURL(resolve(workerPath)).href);
+  const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
+  const env = { DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01" };
+  const res = await mod.default.fetch(new Request("https://402xagent.com/", { headers: { accept: "text/html,application/xhtml+xml,*/*;q=0.8", "user-agent": "Mozilla/5.0", "cf-connecting-ip": "203.0.113.9" } }), env, { waitUntil() {}, passThroughOnException() {} });
+  return (await res.text()).split(lib.VERSION).join("<VERSION>");
+}
+
 if (process.argv[2] === "--extra" && process.argv[3]) {
   process.stdout.write(JSON.stringify(await snapshotExtra(process.argv[3]), null, 1) + "\n");
 } else if (process.argv[2]) {
