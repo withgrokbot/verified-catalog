@@ -448,3 +448,9 @@ works", one tabbed Explore section (Products / Latest skips / For developers), a
   POST, browsers on /v1) and compares status, headers and body sha256 with `tests/fixtures/machine_0.57.1/snapshot.json`.
   The snapshot came from main 5efdf33 through `tests/helpers/machine_snapshot.mjs`. Only the VERSION string is normalized.
 - `src/landing.js` (the 0.18.0 page) is no longer served. It stays for its exports and tests.
+
+## Cloudflare Web Analytics allowed by the CSP (0.58.1)
+
+The strict CSP on `/` (browsers) and `/docs` (`DOCS_CSP` in `src/tryit.js`, reused as `HOME_CSP`) now allows the
+Cloudflare Web Analytics beacon the zone injects: `script-src 'self' https://static.cloudflareinsights.com` and
+`connect-src 'self' https://cloudflareinsights.com`. Nothing else changed; machine surfaces stay byte-identical.
