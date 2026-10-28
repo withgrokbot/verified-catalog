@@ -40,14 +40,14 @@ import {
 } from "./spotcheck.js";
 
 import { signObject, receiptKeysDoc } from "./sign.js";
-import { handleWatch, watchTick, watchOn, EXAMPLE_CREATE as WATCH_EXAMPLE, WATCH_PRICE_ATOMIC, WATCH_PRICE_USD, EXAMPLE_WATCH_ID } from "./watch.js";
+import { handleWatch, watchTick, watchOn, EXAMPLE_CREATE as WATCH_EXAMPLE, WATCH_PRICE_ATOMIC, WATCH_PRICE_USD, EXAMPLE_WATCH_ID, WATCH_PERIOD_DAYS, TRIAL_DAYS as WATCH_TRIAL_DAYS } from "./watch.js";
 import { PS_ID, PS_NETWORK, USDC_BASE_LC, parseRequest, readChain, decide, termsMatch, claimPointer, buildBody, newPsId, cacheKey, cacheGet, cachePut, receiptById } from "./paystatus.js";
 import { discover, DISCOVER_PER_MIN, DISCOVER_MAX } from "./discover.js";
 import { handleSkips, handleReceipts, crawlReceiptForUrl, crawlReceipt, normUrl } from "./skips.js";
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
 import { homeHtml, HOME_JS, HOME_SCRIPT_PATH, HOME_CSP } from "./home.js"; // 0.58.0: the human landing page (browsers on 402xagent.com/ only)
-import { resolveHosted, hostedAccess, recordHosted, integratorMe } from "./hosted.js";
+import { resolveHosted, hostedAccess, recordHosted, integratorMe, HOSTED_FREE_TOTAL, HOSTED_VOLUME_AFTER, HOSTED_STANDARD_ATOMIC, HOSTED_VOLUME_ATOMIC } from "./hosted.js";
 import { expiryOpts, applyExpiry } from "./expiry.js";
 import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
 import { staleStep, STALE_REF } from "./stale.js";
@@ -75,7 +75,7 @@ import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.58.2";
+export const VERSION = "0.58.3";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -3991,9 +3991,10 @@ const routeInnerHolder = {
     // 0.37.1: legacy/guessable paths that used to 404. Redirects keep the query string; pages are static HTML.
     if (path === "/receipts" || path === "/skips.json") return new Response(null, { status: 301, headers: { location: "/v1" + path + url.search, "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" } });
     if (path === "/pricing") {
-      const sc = spotCfg(env), rc = spotRouterCfg(env), lc = cfg(env);
-      const body = pricingHtml(CANON_ORIGIN, { endpointReport: endpointReportOn(env), watchtower: watchOn(env), freePerDay: sc.freePerDay, freePerIpDay: sc.freePerIpDay, paidAtomic: SPOT_PAID_ATOMIC, routerPackAtomic: rc.packAtomic, routerPackChecks: Math.floor(rc.packAtomic / rc.perCheckAtomic), routerCheckAtomic: rc.perCheckAtomic, lookupFreePerDay: lc.freePerDay, lookupAtomic: lc.priceAtomic, packAtomic: packCfg(env).priceAtomic, apiOrigin: API_ORIGIN });
-      return new Response(body, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" } });
+      const sc = spotCfg(env), lc = cfg(env);
+      // 0.58.3: every price and term on the page comes from these constants (sources listed in pricing.js); the router pack and the overnight pack are not shown
+      const body = pricingHtml(CANON_ORIGIN, { endpointReport: endpointReportOn(env), watchtower: watchOn(env), freePerDay: sc.freePerDay, freePerIpDay: sc.freePerIpDay, paidAtomic: SPOT_PAID_ATOMIC, erAtomic: ER_PAID_ATOMIC, watchAtomic: WATCH_PRICE_ATOMIC, watchDays: WATCH_PERIOD_DAYS, trialDays: WATCH_TRIAL_DAYS, facilPerMin: FACIL_CHECK_PER_MIN, facilHostPerMin: FACIL_HOST_PER_MIN, hostedFree: HOSTED_FREE_TOTAL, hostedVolAfter: HOSTED_VOLUME_AFTER, hostedStdAtomic: HOSTED_STANDARD_ATOMIC, hostedVolAtomic: HOSTED_VOLUME_ATOMIC, lookupFreePerDay: lc.freePerDay, lookupAtomic: lc.priceAtomic, apiOrigin: API_ORIGIN });
+      return new Response(body, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*", "content-security-policy": HOME_CSP } });
     }
     if (path === "/blog" || path === "/blog/") return new Response(blogListHtml(CANON_ORIGIN, BLOG_POSTS), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
     if (path.startsWith("/blog/")) {

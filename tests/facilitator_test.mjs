@@ -41,7 +41,7 @@ const OKV = [200, { isValid: true, payer: "0xb1" }], OKS = [200, { success: true
 const run = async (env, script) => { const s = stubFetch(script); try { return { r: await verifyAndSettle(cfg(env), payload, URL_SPOT, { paidPath: false }), calls: s.calls }; } finally { s.restore(); } };
 const ops = (calls) => calls.map((c) => c.op);
 
-test("0.58.2 version", () => assert.equal(VERSION, "0.58.2"));
+test("0.58.3 version", () => assert.equal(VERSION, "0.58.3"));
 
 test("CDP JWT shape: EdDSA header {alg,kid,typ,nonce}, claims {sub,iss:cdp,nbf,exp=nbf+120,uris:[METHOD host/path]}, valid signature", async () => {
   const t = await cdpJwt({ keyId: TEST_KEY_ID, keySecret: TEST_KEY_SECRET, method: "POST", url: CDP_FACILITATOR_URL + "/verify", now: 1_800_000_000 });
