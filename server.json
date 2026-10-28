@@ -3,7 +3,7 @@
   "name": "io.github.withgrokbot/verified-catalog",
   "title": "402xAgent",
   "description": "x402 payment check for AI agents: pay/skip/recheck verdict before paying endpoints, signed receipts.",
-  "version": "0.58.1",
+  "version": "0.58.2",
   "websiteUrl": "https://402xagent.com/",
   "icons": [
     {

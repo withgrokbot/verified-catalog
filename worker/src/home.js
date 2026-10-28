@@ -6,6 +6,7 @@
 // shows a price or a payTo. Stats and Latest skips come from the published crawl (receipts-data.js, the data behind
 // /v1/skips) and hide when missing or stale. No inline numbers are hand-edited; no badge; no personal names.
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
+import { crawlSchedule } from "./skips.js";
 import { TRYIT_CORE, DOCS_TRYIT_PREFILL, DOCS_TRYIT_PLACEHOLDER, DOCS_TRYIT_REF, DOCS_TRYIT_TIMEOUT_MS, DOCS_CSP } from "./tryit.js";
 
 export const HOME_SCRIPT_PATH = "/home.js";
@@ -36,6 +37,19 @@ export function homeStats(meta = RECEIPTS_META, now = Date.now()) {
   const t = Date.parse(m.crawled_at || "");
   if (!Number.isFinite(t) || now - t > HOME_STATS_MAX_AGE_DAYS * 86400000 || t - now > 86400000) return { covered: null, newWeek: null, recheck: null, skip: null, crawled: null };
   return { covered: num(m.endpoints_covered ?? m.total), newWeek: num(m.new_this_week), recheck: num(m.recheck), skip: num(m.skip), crawled: day(m.crawled_at) };
+}
+
+/** 0.58.2: "Last crawl Oct 27 · next crawl Nov 3" under the proof strip, from the crawl timestamp and the 0.53.4 weekly
+ * schedule (crawlSchedule: next = the first Tuesday after the last crawl's UTC date). Absolute dates only (the page is cached
+ * 5 min). Each part is null when missing: no valid crawled_at -> no last (and no next); a next date already in the past
+ * (a missed crawl) is hidden rather than shown wrong. Both null -> the line is not rendered. */
+export function homeCrawlDates(meta = RECEIPTS_META, now = Date.now()) {
+  const s = crawlSchedule((meta || {}).crawled_at);
+  if (!s) return { last: null, next: null, text: null };
+  const last = Date.parse(s.last_iso) <= now + 86400000 ? s.last : null; // a crawl date in the future is bad data
+  const next = Date.parse(s.next_iso) + 86400000 > now ? s.next : null; // still today or later (UTC)
+  const parts = [last && "Last crawl " + last, next && (last ? "next crawl " : "Next crawl ") + next].filter(Boolean);
+  return { last, next, text: parts.length ? parts.join(" \u00b7 ") : null };
 }
 
 // Plain-language reasons for the table, in neutral wording about the payment terms (never about the seller): the crawl's
@@ -158,6 +172,7 @@ h1 .serif{font-family:"Source Serif 4","Source Serif Pro",Georgia,"Times New Rom
 .proof-num{font-size:30px;font-weight:800;letter-spacing:-.04em;line-height:1;color:#FF9E2C}
 .proof-item:nth-child(2) .proof-num{color:#6BA8FF}.proof-item:nth-child(3) .proof-num{color:#FCD34D}.proof-item:nth-child(4) .proof-num{color:#fff}
 .proof-label{font-size:13.5px;color:#C9C9D1;margin-top:7px;line-height:1.45}.proof-label strong{color:#fff}
+.crawl-dates{background:var(--forest);color:#C9C9D1;font-size:13px;line-height:1.4;padding:0 0 14px;border-top:1px solid rgba(255,255,255,.16)}.crawl-dates .wrap{padding-top:12px}.crawl-dates .wrap>span{display:block;padding:0 22px}.crawl-dates.solo{margin-top:56px;border-top:none}
 section{padding:52px 0}section.tight{padding:40px 0}
 .section-head{max-width:640px;margin-bottom:24px}.section-head.center{margin-left:auto;margin-right:auto;text-align:center}
 .kicker{display:inline-block;font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);background:var(--accent-light);padding:5px 10px;border-radius:999px;margin-bottom:12px}
@@ -222,13 +237,14 @@ footer h4{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#FF
 footer ul{list-style:none;margin:0;padding:0;display:grid;gap:9px}footer ul a{font-size:14.5px;color:#DCDCE2}footer ul a:hover{color:#fff;text-decoration:underline}
 .footer-bottom{border-top:1px solid rgba(255,255,255,.16);margin-top:36px;padding-top:20px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#8E8E99;font-size:13.5px}
 @media(max-width:900px){nav.main{display:none}.menu-btn{display:grid}.proof-grid{grid-template-columns:1fr 1fr}.proof-item:nth-child(3){border-left:none}.proof-item{border-top:1px solid rgba(255,255,255,.16)}.proof-item:nth-child(-n+2){border-top:none}.products{grid-template-columns:1fr 1fr}.step{padding:14px}.dev-grid{grid-template-columns:1fr}.trust{grid-template-columns:1fr 1fr}.footer-grid{grid-template-columns:1fr 1fr}.v-row{grid-template-columns:1fr auto}.v-row.head{display:none}.v-reason{grid-column:1/-1}.v-time{display:none}.result-grid{grid-template-columns:1fr 1fr}}
-@media(max-width:560px){.wrap{padding:0 18px}.hero{padding-top:44px}section{padding:40px 0}section.tight{padding:32px 0}.checker-form{flex-direction:column}.check-btn{width:100%;padding:13px}.steps{grid-template-columns:1fr}.products{gap:10px}.product{padding:14px}.product-top{flex-direction:column;gap:4px}.price{text-align:left}.product p{font-size:13.5px}.trust{gap:10px}.trust-item{padding:14px}.footer-grid{grid-template-columns:1fr 1fr}.footer-brand{grid-column:1/-1}.tab-btn{padding:11px 12px;font-size:14.5px}.proof-num{font-size:23px}.proof-item{padding:22px 14px}.dev{padding:26px 20px;border-radius:16px}.result-top{flex-direction:column}.header-actions .btn-primary{display:none}}
+@media(max-width:560px){.wrap{padding:0 18px}.hero{padding-top:44px}section{padding:40px 0}section.tight{padding:32px 0}.checker-form{flex-direction:column}.check-btn{width:100%;padding:13px}.steps{grid-template-columns:1fr}.products{gap:10px}.product{padding:14px}.product-top{flex-direction:column;gap:4px}.price{text-align:left}.product p{font-size:13.5px}.trust{gap:10px}.trust-item{padding:14px}.footer-grid{grid-template-columns:1fr 1fr}.footer-brand{grid-column:1/-1}.tab-btn{padding:11px 12px;font-size:14.5px}.proof-num{font-size:23px}.proof-item{padding:22px 14px}.crawl-dates .wrap>span{padding:0 14px}.dev{padding:26px 20px;border-radius:16px}.result-top{flex-direction:column}.header-actions .btn-primary{display:none}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}`;
 
 export function homeHtml(origin, opts = {}) {
   const o = { freePerDay: 5, endpointReport: true, watchtower: true, meta: RECEIPTS_META, receipts: RECEIPTS, now: Date.now(), ...opts };
   const st = homeStats(o.meta, o.now);
   const rows = homeVerdicts(o.receipts, o.meta, HOME_VERDICT_ROWS, o.now);
+  const cd = homeCrawlDates(o.meta, o.now);
   const title = "402xAgent: ask before your agent pays";
   const desc = "402xAgent checks an x402 endpoint right before your agent pays: pay, skip, or recheck, with a signed receipt you can verify offline. The probe never pays the target.";
   const stats = [
@@ -297,7 +313,8 @@ export function homeHtml(origin, opts = {}) {
 <p class="hero-note"><span><b>${esc(o.freePerDay)} free checks a day</b></span><span aria-hidden="true">·</span><span>No wallet, no signup</span><span aria-hidden="true">·</span><span>The probe never pays the target</span></p>
 </div>
 ${stats.length ? `<div class="proof" id="proof" aria-label="Live from the public crawl${st.crawled ? ", " + esc(st.crawled) : ""}"><div class="wrap proof-grid">${stats.join("")}</div></div>` : ""}
-<section id="how" class="tight"${stats.length ? "" : ' style="margin-top:56px"'}>
+${cd.text ? `<div class="crawl-dates${stats.length ? "" : " solo"}" id="crawl-dates"><div class="wrap"><span>${esc(cd.text)}</span></div></div>` : ""}
+<section id="how" class="tight"${stats.length || cd.text ? "" : ' style="margin-top:56px"'}>
 <div class="wrap">
 <div class="section-head"><div class="kicker">How it works</div><h2>One unpaid probe. One signed verdict.</h2>
 <p>Your agent asks before it pays. 402xAgent reads the endpoint's live terms, compares them with what was listed, and answers pay, skip, or recheck.</p></div>

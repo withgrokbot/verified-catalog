@@ -454,3 +454,12 @@ works", one tabbed Explore section (Products / Latest skips / For developers), a
 The strict CSP on `/` (browsers) and `/docs` (`DOCS_CSP` in `src/tryit.js`, reused as `HOME_CSP`) now allows the
 Cloudflare Web Analytics beacon the zone injects: `script-src 'self' https://static.cloudflareinsights.com` and
 `connect-src 'self' https://cloudflareinsights.com`. Nothing else changed; machine surfaces stay byte-identical.
+
+## Crawl dates on the homepage (0.58.2)
+
+A short line directly under the homepage proof strip: "Last crawl Oct 27 · next crawl Nov 3" (example). Both dates come from
+the published crawl timestamp (`RECEIPTS_META.crawled_at`) through the 0.53.4 weekly schedule (`crawlSchedule` in
+`skips.js`: next = the first Tuesday after the last crawl's UTC date), so the line moves after each Tuesday crawl with no
+hand edits. Absolute dates only (the page is cached 5 minutes). A missing or unusable part is hidden (no valid timestamp: no
+line; a next date already past: only the last date; a last date in the future: only the next date); the line is not rendered
+when both are missing. HTML for browsers on `/` only; root JSON, llms.txt and every `/v1` surface are unchanged.
