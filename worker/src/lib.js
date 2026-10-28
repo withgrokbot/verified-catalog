@@ -77,7 +77,7 @@ import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.58.6";
+export const VERSION = "0.58.7";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -4050,7 +4050,7 @@ const routeInnerHolder = {
       return json({ error: "not found", method: req.method.slice(0, 10), openapi: OPENAPI_URL, skill: SKILL_URL }, 404);
     }
     if (path === "/skill.md") return new Response(skillMd(), { headers: { "content-type": "text/markdown; charset=utf-8", "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" } });
-    if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env);
+    if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env, { endpointReport: endpointReportOn(env), watchtower: watchOn(env) }); // 0.58.7: footer flags for the HTML page
     if (path === "/v1/discover") return handleDiscover(req, env, url);
     if ((path === "/bazaar" || path === "/bazaar.json") && env.BAZAAR_PAGE !== "off") return handleBazaar(req, url, env, path, CANON_ORIGIN);
     if ((path === "/v1/receipts" || path.startsWith("/v1/receipts/")) && wantsReceiptHtml(req, url)) { const h = await receiptsHtml(req, env, url, path); if (h) return h; } // 0.58.5
