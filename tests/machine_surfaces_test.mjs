@@ -12,6 +12,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 
+import { RECEIPT_HTML_KEY } from "./helpers/machine_snapshot.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const want = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.57.1", "snapshot.json"), "utf8"));
 
@@ -21,7 +22,7 @@ test("0.58.0 machine surfaces: byte-identical to the 0.57.1 snapshot (status, he
   const got = JSON.parse(r.stdout);
   assert.ok(Object.keys(want).length > 1000, "snapshot covers the surfaces");
   assert.deepEqual(Object.keys(got).sort(), Object.keys(want).sort(), "same request set");
-  const diff = Object.keys(want).filter((k) => JSON.stringify(got[k]) !== JSON.stringify(want[k]));
+  const diff = Object.keys(want).filter((k) => !RECEIPT_HTML_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want[k])); // 0.58.5: receipt pages for browsers
   assert.deepEqual(diff, [], "changed machine responses");
   // spot checks that the snapshot really covers what matters
   for (const k of ["GET https://402xagent.com/ [none]", "GET https://402xagent.com/ [json]", "GET https://402xagent.com/ [curl]", "GET https://api.402xagent.com/ [html]",
@@ -85,7 +86,7 @@ test("0.58.4 audit layer card: every surface byte-identical to 0.58.3; the homep
   const HOME = "GET https://402xagent.com/ [html]";
   assert.ok(Object.keys(want3).length > 1400);
   assert.deepEqual(Object.keys(got).sort(), Object.keys(want3).sort(), "same request set");
-  assert.deepEqual(Object.keys(want3).filter((k) => k !== HOME && JSON.stringify(got[k]) !== JSON.stringify(want3[k])), [], "changed responses");
+  assert.deepEqual(Object.keys(want3).filter((k) => k !== HOME && !RECEIPT_HTML_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want3[k])), [], "changed responses"); // 0.58.5: receipt pages for browsers
   for (const k of ["GET https://402xagent.com/pricing [html]", "GET https://api.402xagent.com/pricing [json]", "GET https://402xagent.com/home.js [html]", "GET https://402xagent.com/docs [html]", "GET https://402xagent.com/ [json]", "GET https://402xagent.com/llms.txt [none]", "GET https://api.402xagent.com/openapi.json [none]", "GET https://402xagent.com/.well-known/x402 [none]"])
     assert.ok(want3[k] && want3[k].status === 200, k);
   assert.deepEqual(got[HOME].headers, want3[HOME].headers);
@@ -96,4 +97,38 @@ test("0.58.4 audit layer card: every surface byte-identical to 0.58.3; the homep
   const { AUDIT_CARD_HTML, AUDIT_CSS } = await import("../worker/src/home.js");
   const without = b.stdout.replace("\n" + AUDIT_CARD_HTML, "").replace(AUDIT_CSS, "");
   assert.equal(createHash("sha256").update(without).digest("hex"), want3[HOME].sha256, "homepage minus the card = 0.58.3");
+});
+
+// 0.58.5: receipts get HTML for browsers. Against main 1d5868d (0.58.4): the full snapshot (incl. the extra set and /pricing)
+// is byte-identical except the browser receipt keys, and the receipt routes with a store of real sampled public receipts
+// (fake D1) are byte-identical for every non-browser Accept; browsers get text/html with the strict CSP and vary: accept.
+test("0.58.5 receipts HTML: every machine answer byte-identical to 0.58.4; only browser receipt pages change", () => {
+  const W = join(HERE, "..", "worker", "src", "index.js");
+  for (const [flag, file] of [["--0583", "snapshot.json"], ["--receipts", "receipts.json"]]) {
+    const want4 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.4", file), "utf8"));
+    const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), flag, W], { encoding: "utf8", maxBuffer: 64 << 20 });
+    assert.equal(r.status, 0, r.stderr);
+    const got = JSON.parse(r.stdout);
+    assert.deepEqual(Object.keys(got).sort(), Object.keys(want4).sort(), file + ": same request set");
+    assert.deepEqual(Object.keys(want4).filter((k) => !RECEIPT_HTML_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want4[k])), [], file + ": changed machine responses");
+    const changed = Object.keys(want4).filter((k) => RECEIPT_HTML_KEY.test(k));
+    for (const k of changed) {
+      assert.match(got[k].headers["content-type"], /^text\/html/, k);
+      assert.equal(got[k].headers.vary, "accept", k);
+      assert.match(got[k].headers["content-security-policy"], /default-src 'none'; script-src 'self' https:\/\/static\.cloudflareinsights\.com;/, k);
+    }
+    if (file === "receipts.json") {
+      // the sampled real receipts are covered as JSON for every non-browser Accept on every host
+      for (const id of ["44e3732d23", "sc-85c8963fb57e7b25", "sc-9841a8498462c4b0"]) for (const a of ["none", "json", "any", "text", "curl"]) for (const h of ["https://402xagent.com", "https://api.402xagent.com"]) {
+        const k = `GET ${h}/v1/receipts/${id} [${a}]`;
+        assert.equal(want4[k].status, 200, k); assert.match(want4[k].headers["content-type"], /application\/json/, k);
+      }
+      for (const a of ["none", "json", "any", "text", "curl"]) assert.match(want4[`GET https://402xagent.com/v1/receipts [${a}]`].headers["content-type"], /application\/json/);
+      assert.equal(want4["GET https://402xagent.com/v1/receipts?type=live [json]"].status, 200);
+      // left alone for browsers too: by-url, side receipts, the older hosts' 301
+      for (const k of ["GET https://402xagent.com/v1/receipts/by-url?url=https://api.402rates.com/v1/ping [html]", "GET https://402xagent.com/v1/receipts/ps-0123456789abcdef [html]", "GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/receipts [html]"])
+        assert.deepEqual(got[k], want4[k], k);
+      assert.ok(changed.length >= 80, "browser receipt keys covered: " + changed.length);
+    }
+  }
 });

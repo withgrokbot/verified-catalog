@@ -120,6 +120,8 @@ export function skipsSummary(origin, env = {}, now = Date.now()) {
   };
 }
 
+// 0.58.5: also read by the browser receipts page (lib.js receiptListView)
+export async function skipsPageRows(env, n) { return skipsPage(env, n); }
 async function skipsPage(env, n) {
   if (n === 1) return RECEIPTS;
   return (await kvJson(env, "s:" + n)) || null;

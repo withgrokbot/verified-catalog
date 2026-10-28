@@ -17,7 +17,7 @@ const get = async (env = ENV, host = "https://402xagent.com", accept = "text/htm
 };
 const row = (t, id) => { const m = t.match(new RegExp(`<tr id="${id}">([\\s\\S]*?)</tr>`)); return m ? m[1].replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&rarr;/g, "").replace(/\s+/g, " ").trim() : null; };
 
-test("0.58.4 version", () => assert.equal(VERSION, "0.58.4"));
+test("0.58.5 version", () => assert.equal(VERSION, "0.58.5"));
 
 test("0.58.3 /pricing table: the seven rows, every price from its code constant", async () => {
   const { r, t } = await get();
