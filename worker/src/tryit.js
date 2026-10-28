@@ -8,7 +8,8 @@ export const DOCS_TRYIT_PLACEHOLDER = "https://example.com/paid-endpoint";
 export const DOCS_TRYIT_SCRIPT_PATH = "/docs/try-it.js";
 export const DOCS_TRYIT_REF = "via-402xagent-site"; // same ref as the homepage try-it box (own-ref list in recent.js, demand_weekly.py)
 export const DOCS_TRYIT_TIMEOUT_MS = 15000; // client-side AbortController cap; the server's own probe budget is PROBE_TIMEOUT_MS (8 s) + a short confirm, so 15 s only trips on a stuck request
-export const DOCS_CSP = "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+// 0.58.1: Cloudflare Web Analytics (the zone injects beacon.min.js from static.cloudflareinsights.com; it reports to cloudflareinsights.com)
+export const DOCS_CSP = "default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'unsafe-inline'; connect-src 'self' https://cloudflareinsights.com; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 

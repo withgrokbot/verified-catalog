@@ -99,3 +99,16 @@ test("latest skips: real crawl rows only (host, verdict, plain reason, date), no
   assert.doesNotMatch(HOME_JS.slice(HOME_JS.indexOf("function homeReason")), /return "(Pays|Asks|Wants)/, "checker reasons are neutral too");
   assert.equal(plainReason("something new (0xabc)"), null, "unknown reasons are dropped, not shown raw");
 });
+
+test("0.58.1 CSP allows Cloudflare Web Analytics on the homepage and /docs, nothing else changed", async () => {
+  const want = "default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'unsafe-inline'; connect-src 'self' https://cloudflareinsights.com; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+  assert.equal(DOCS_CSP, want); assert.equal(HOME_CSP, want);
+  for (const p of ["/", "/docs"]) {
+    const csp = (await get(p)).headers.get("content-security-policy");
+    assert.equal(csp, want, p);
+    const dir = Object.fromEntries(csp.split(/;\s*/).map((d) => { const [k, ...v] = d.split(" "); return [k, v]; }));
+    assert.deepEqual(dir["script-src"], ["'self'", "https://static.cloudflareinsights.com"], p);
+    assert.deepEqual(dir["connect-src"], ["'self'", "https://cloudflareinsights.com"], p);
+    assert.ok(!/unsafe-(inline|eval)/.test(dir["script-src"].join(" ")), p);
+  }
+});

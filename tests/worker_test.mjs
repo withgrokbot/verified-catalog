@@ -2702,7 +2702,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.58.0");
+  assert.equal(VERSION, "0.58.1");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -4689,7 +4689,7 @@ test("0.57.1 /docs try-it: section renders once with the prefill, label, output 
     // strict CSP on /docs: no inline script, same-origin fetch only
     const csp = r.headers.get("content-security-policy");
     assert.equal(csp, T.DOCS_CSP);
-    assert.match(csp, /script-src 'self'(;|$)/); assert.ok(!/script-src[^;]*unsafe/.test(csp)); assert.match(csp, /connect-src 'self'/); assert.match(csp, /frame-ancestors 'none'/);
+    assert.match(csp, /script-src 'self' https:\/\/static\.cloudflareinsights\.com(;|$)/); // 0.58.1: + Cloudflare Web Analytics only assert.ok(!/script-src[^;]*unsafe/.test(csp)); assert.match(csp, /connect-src 'self'/); assert.match(csp, /frame-ancestors 'none'/);
     assert.equal(r.headers.get("x-content-type-options"), "nosniff");
     assert.match(r.headers.get("content-type"), /text\/html/);
   }
