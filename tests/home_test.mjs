@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import worker from "../worker/src/index.js";
-import { homeHtml, homeStats, homeVerdicts, plainReason, HOME_JS, HOME_CSP, HOME_REF, HOME_EXAMPLES } from "../worker/src/home.js";
+import { homeHtml, homeCrawlDates, homeStats, homeVerdicts, plainReason, HOME_JS, HOME_CSP, HOME_REF, HOME_EXAMPLES } from "../worker/src/home.js";
 import { DOCS_TRYIT_JS, DOCS_CSP, DOCS_TRYIT_REF } from "../worker/src/tryit.js";
 import { RECEIPTS, RECEIPTS_META } from "../worker/src/receipts-data.js";
 
@@ -111,4 +111,31 @@ test("0.58.1 CSP allows Cloudflare Web Analytics on the homepage and /docs, noth
     assert.deepEqual(dir["connect-src"], ["'self'", "https://cloudflareinsights.com"], p);
     assert.ok(!/unsafe-(inline|eval)/.test(dir["script-src"].join(" ")), p);
   }
+});
+
+test("0.58.2 crawl dates line under the proof strip: absolute dates from the crawl data, each part hidden when missing", () => {
+  const H = (meta, now) => homeHtml("https://402xagent.com", { now, meta });
+  const T = Date.parse("2026-10-28T17:00:00Z");
+  const m = (crawled_at) => ({ ...RECEIPTS_META, crawled_at });
+  // Tuesday crawl -> next Tuesday; dates follow the data, not hardcoded
+  assert.deepEqual(homeCrawlDates(m("2026-10-27T17:36:57Z"), T), { last: "Oct 27", next: "Nov 3", text: "Last crawl Oct 27 \u00b7 next crawl Nov 3" });
+  assert.equal(homeCrawlDates(m("2026-11-03T14:00:00Z"), Date.parse("2026-11-04T00:00:00Z")).text, "Last crawl Nov 3 \u00b7 next crawl Nov 10");
+  assert.equal(homeCrawlDates(m("2026-12-29T14:00:00Z"), Date.parse("2026-12-30T00:00:00Z")).text, "Last crawl Dec 29 \u00b7 next crawl Jan 5");
+  // rendered directly after the proof strip, absolute dates only
+  const t = H(m("2026-10-27T17:36:57Z"), T);
+  assert.match(t, /<\/div><\/div>\n<div class="crawl-dates" id="crawl-dates"><div class="wrap"><span>Last crawl Oct 27 · next crawl Nov 3<\/span><\/div><\/div>/);
+  assert.ok(t.indexOf('id="proof"') < t.indexOf('id="crawl-dates"') && t.indexOf('id="crawl-dates"') < t.indexOf('id="how"'));
+  assert.ok(!/crawl-dates[^<]*<div class="wrap"><span>[^<]*(ago|today|yesterday|tomorrow|in \d)/i.test(t));
+  // next date already past (a missed crawl): only the last part
+  assert.deepEqual(homeCrawlDates(m("2026-10-13T17:00:00Z"), T), { last: "Oct 13", next: null, text: "Last crawl Oct 13" });
+  assert.match(H(m("2026-10-13T17:00:00Z"), T), /<div class="crawl-dates solo" id="crawl-dates"><div class="wrap"><span>Last crawl Oct 13<\/span><\/div><\/div>/); // strip hidden (stale), line alone
+  // last date unusable (in the future): only the next part
+  assert.deepEqual(homeCrawlDates(m("2026-11-10T17:00:00Z"), T), { last: null, next: "Nov 17", text: "Next crawl Nov 17" });
+  // both missing: no line at all
+  for (const bad of [undefined, null, "", "not a date"]) {
+    assert.deepEqual(homeCrawlDates(m(bad), T), { last: null, next: null, text: null });
+    const h = H(m(bad), T);
+    assert.ok(!h.includes('id="crawl-dates"') && !/Last crawl|Next crawl|next crawl/.test(h.replace(/<style>[\s\S]*?<\/style>/, "")));
+  }
+  assert.equal(homeCrawlDates(null, T).text, null);
 });
