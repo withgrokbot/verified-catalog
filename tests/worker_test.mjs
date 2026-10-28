@@ -4771,6 +4771,27 @@ test("0.57.1 prefill self-probe: a spot-check of the exact prefill URL is served
   } finally { globalThis.fetch = ofetch; }
 });
 
+test("0.57.1 review: the try-it UI never shows the claimed_price hint; the API JSON keeps it unchanged", async () => {
+  const T = await import("../worker/src/tryit.js");
+  const e = spotEnv({ SPOT_FREE_PER_DAY: "5" });
+  spotTargetMode = "402";
+  // API: an unlisted pay still carries the hint, byte for byte as before
+  const api = await send("/v1/products/endpoint-spot-check?" + new URLSearchParams({ url: "https://spot.target.fixture/unlisted-hint", ref: "via-402xagent-site" }), { envo: e, ua: "Mozilla/5.0", ip: "198.51.100.79" });
+  assert.equal(api.status, 200); assert.equal(api.body.verdict, "pay");
+  assert.equal(api.body.reason, "payment request found (pass claimed_price to compare the price)");
+  // UI: the script's uiReason (the only path from reason to the page) drops any claimed_price hint
+  const src = T.DOCS_TRYIT_JS.match(/function uiReason[\s\S]*?\n  }\n/);
+  assert.ok(src, "uiReason present");
+  assert.ok(T.DOCS_TRYIT_JS.includes("document.createTextNode(uiReason(j.reason || j.reason_code || \"\"))"), "reason only reaches the page through uiReason");
+  const uiReason = new Function(src[0] + "; return uiReason;")();
+  assert.equal(uiReason(api.body.reason), "payment request found");
+  for (const r of ["payment request found (pass claimed_price to compare the price)", "payment request found (add &claimed_price=0.01 to compare)", "price unlisted; pass claimed_price to compare", "payment request found (pass Claimed Price to compare)"]) {
+    const u = uiReason(r); assert.ok(!/claimed[_ ]price/i.test(u), r + " -> " + u); assert.ok(u.length > 0);
+  }
+  for (const r of ["listed $0.02, payment request matches the listed price", "price unlisted, the endpoint returned a server error, try again later"]) assert.equal(uiReason(r), r, "other reasons unchanged");
+  assert.ok(!/claimed_price/.test(T.docsTryItHtml()), "no hint in the static section either");
+});
+
 let passed = 0, skipped = 0;
 const SKIP = Symbol("skip");
 for (const [name, fn] of T) {

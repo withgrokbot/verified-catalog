@@ -104,10 +104,17 @@ export const DOCS_TRYIT_JS = `(function () {
     });
     return t;
   }
+  // 0.57.1 review: the UI drops API-only hints about the claimed_price parameter ("payment request found (pass claimed_price
+  // to compare the price)" -> "payment request found"); the API JSON keeps its reason unchanged.
+  function uiReason(r) {
+    var t = String(r || "").replace(/\\s*\\([^()]*claimed[_ ]price[^()]*\\)/gi, "");
+    if (/claimed[_ ]price/i.test(t)) t = t.split(/[;,]/).filter(function (c) { return !/claimed[_ ]price/i.test(c); }).join(",").replace(/\\s+/g, " ").trim();
+    return t || "payment request found";
+  }
   function result(j) {
     var v = String(j.verdict || ""), head = el("p");
     var badge = el("span", "ti-v ti-" + (v === "pay" || v === "skip" || v === "recheck" ? v : "msg"), v || "?"); head.appendChild(badge);
-    head.appendChild(document.createTextNode(String(j.reason || j.reason_code || "")));
+    head.appendChild(document.createTextNode(uiReason(j.reason || j.reason_code || "")));
     var nodes = [head];
     if (v === "recheck") nodes.push(el("p", "ti-note", (RECHECK_WHY[j.reason_code] || "We couldn't confirm the terms right now.") + " Recheck means nothing is approved yet: don't pay on this answer; check again in a minute."));
     else if (v === "skip") nodes.push(el("p", "ti-note", "Skip means don't pay this endpoint as it stands."));
