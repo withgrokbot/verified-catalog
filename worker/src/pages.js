@@ -1,4 +1,5 @@
 // 0.37.1: small static HTML pages for /pricing and /docs, built from the real price constants (no KV, no I/O).
+import { docsTryItHtml } from "./tryit.js"; // 0.57.1: the free Try-it box on /docs (one new section; the rest of /docs is unchanged)
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const usd = (atomic) => "$" + (Number(atomic) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, "").replace(/(\.\d)$/, "$10"); // $0.20, $9, $0.001
 const page = (title, desc, origin, path, body) => `<!doctype html>
@@ -56,7 +57,7 @@ export function docsHtml(origin, apiOrigin, opts = {}) {
 <ul>${links.map(([h, t, d]) => `<li><a href="${h}">${t}</a>: ${esc(d)}</li>`).join("")}
 <li>MCP: <code>POST ${esc(apiOrigin)}/mcp</code> (JSON-RPC, tools listed by <code>tools/list</code>)</li>
 <li>Client guard for @x402/fetch and @x402/axios: <a href="https://github.com/withgrokbot/x402-spotcheck">github.com/withgrokbot/x402-spotcheck</a></li></ul>
-<h2 id="quick-start">Quick start</h2>
+${opts.tryIt === false ? "" : docsTryItHtml(opts.tryIt || {})}<h2 id="quick-start">Quick start</h2>
 <p>Free check, no signup: <code>GET ${esc(apiOrigin)}/v1/products/endpoint-spot-check?url=&lt;endpoint&gt;&amp;mode=dry-run</code></p>
 <h2 id="endpoint-report">Endpoint report ($0.05): what the locked teasers hide</h2>
 <p>${opts.endpointReport ? "Live." : "Rolling out: the route answers 404 until it is switched on; the free teasers and commitments below are already live."} Every free check answer carries a <code>locked</code> block with two teasers: <b>drift</b> (for example "2 changes in 30d": a count only, never which terms or when) and <b>hygiene</b> (a grade: A = quality_ok, C = bad content type, D = schema mismatch, F = bad status or unreachable, "–" plus a reason when there is nothing to validate). Next to it, <code>locked_commitments</code> holds one <code>sha256:</code> digest per locked item (<code>drift_history</code>, <code>hygiene_detail</code>) and a <code>ref</code> (cm-…), valid for 30 days.</p>
