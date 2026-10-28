@@ -119,7 +119,7 @@ const stored = (db, id) => JSON.parse(db.raw.prepare("SELECT body FROM spot_rece
 const hitsOf = (host) => sellerHits.filter((h) => h.startsWith(host + "/")).length;
 
 test("knobs: MULTIPROBE_COUNT default 2 (1 = off, max 3), MULTIPROBE_GAP_MS default 250 (0-2000); worst case = PROBE_TIMEOUT_MS + (count-1)*(gap+1500)", () => {
-  assert.equal(VERSION, "0.57.0");
+  assert.equal(VERSION, "0.57.1");
   const c = M.multiprobeCfg({});
   assert.deepEqual([c.enabled, c.count, c.gapMs, c.minConfirmMs], [true, 2, 250, 1500]);
   assert.equal(M.multiprobeCfg({ MULTIPROBE_COUNT: "1" }).enabled, false);

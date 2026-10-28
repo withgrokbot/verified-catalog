@@ -397,3 +397,30 @@ D1 table. Code: `src/multiprobe.js` (+ `getProbe` / `wouldPayFor` in `src/lib.js
 | --- | --- | --- |
 | `MULTIPROBE_COUNT` | 2 | integer 1-3 (1 = off) |
 | `MULTIPROBE_GAP_MS` | 250 | integer 0-2000 |
+
+## Free "Try it" box on /docs (0.57.1)
+
+One input on `/docs` (section `#try-it`, before Quick start): paste an x402 endpoint URL, press Check, see the verdict and
+reason, a per-term table (price, payTo wallet, network, token: matched / differs / no listing, from the free answer's
+`explain` line and `reason_code`), the signed receipt link and the free checks left. Prefilled with our own
+`https://api.402xagent.com/v1/lookup/paid` (the probe serves our own hosts in-process since 0.42.1, so there is no
+same-zone 522); the placeholder is `https://example.com/paid-endpoint`.
+
+- **Thin client, no new paid path.** The script (`/docs/try-it.js`, `src/tryit.js`) sends the normal same-origin
+  `GET /v1/products/endpoint-spot-check?url=...&ref=via-402xagent-site` (the homepage box's ref, already on the own-ref list).
+  No client id, no new header or origin: it is the same free check, counted on the same per-client key (salted IP hash
+  without `client=`) and the same per-network cap, then the same $0.02 x402 402. Free answers keep their shape, so the
+  exact amount and payTo wallet are still only in the paid check.
+- **States.** 200: verdict, reason, terms, receipt (same-site `/v1/receipts/<id>` only). 402: "You've used today's 5 free
+  checks. Agents can keep checking for $0.02 each over x402; see below." (the docs placeholder 402 gets "That's an example
+  address"). 429: per-network cap message. 400: the server's reason (private/local addresses: SSRF message). Client-side
+  validation for empty, non-http(s), malformed or example URLs (no request sent). A 15 s AbortController timeout ("This
+  endpoint is slow to respond, try again in a moment.") and a network-error message; the Check button is disabled while a
+  check runs. A client timeout does not cancel the server-side check, which may still count as a free check.
+- **Safety.** No innerHTML: every server string goes in through `textContent`. Never renders IPs, buyer wallets, payment
+  proofs or tx hashes. `/docs` now sends `content-security-policy: default-src 'none'; script-src 'self'; style-src
+  'unsafe-inline'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`.
+- **Unchanged.** Outside the new section `/docs` is byte-identical to 0.57.0 (tests compare against
+  `tests/fixtures/docs_0.57.0/`); the homepage is unchanged. The section's style adds one mobile-only rule
+  (`max-width:760px`: long `pre` blocks scroll inside their box, long inline `code` wraps) so the page fits a phone
+  instead of being zoomed out to ~1,560 px by the receipt-verify snippet.

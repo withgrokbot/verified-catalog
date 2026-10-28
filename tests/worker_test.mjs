@@ -2700,7 +2700,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.57.0");
+  assert.equal(VERSION, "0.57.1");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -4656,6 +4656,140 @@ test("0.57.0 review: the confirm probe runs only after access is granted: an unp
 test("0.57.0 /docs says checks read Base and Solana terms, and paying 402xAgent is USDC on Base only", async () => {
   const { docsHtml } = await import("../worker/src/pages.js");
   assert.match(docsHtml("https://402xagent.com", "https://api.402xagent.com"), /<p>Checks read target terms on Base and Solana; paying 402xAgent itself is USDC on Base only\.<\/p>/);
+});
+
+// ---------------------------------------------------------------- 0.57.1: free Try-it box on /docs
+const FIX_DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "docs_0.57.0");
+const sha = (s) => createHash("sha256").update(s).digest("hex");
+const TRY_RE = /<section id="try-it" aria-labelledby="try-it-h">[\s\S]*?<\/section>\n/;
+const rawGet = async (path, e, host = "https://402xagent.com", headers = {}) => {
+  const res = await worker.fetch(new Request(host + path, { headers: { "user-agent": "Mozilla/5.0 test", "cf-connecting-ip": "203.0.113.9", ...headers } }), e.env, { waitUntil() {} });
+  return { status: res.status, headers: res.headers, text: await res.text() };
+};
+
+test("0.57.1 /docs try-it: section renders once with the prefill, label, output region and the external script; no inline script", async () => {
+  const T = await import("../worker/src/tryit.js");
+  const e = spotEnv({ SPOT_FREE_PER_DAY: "5" });
+  for (const host of ["https://402xagent.com", "https://api.402xagent.com"]) {
+    const r = await rawGet("/docs", e, host);
+    assert.equal(r.status, 200);
+    const m = r.text.match(TRY_RE); assert.ok(m, "section present on " + host);
+    assert.equal(r.text.match(/id="try-it"/g).length, 1);
+    const sec = m[0];
+    assert.equal(T.DOCS_TRYIT_PREFILL, "https://api.402xagent.com/v1/lookup/paid");
+    assert.ok(sec.includes('value="https://api.402xagent.com/v1/lookup/paid"'), "prefill");
+    assert.ok(sec.includes('placeholder="https://example.com/paid-endpoint"'));
+    assert.ok(sec.includes('<label for="tryit-url">') && sec.includes('id="tryit-out" role="status" aria-live="polite"'));
+    assert.ok(sec.includes('<script src="/docs/try-it.js" defer></script>'));
+    assert.equal((r.text.match(/<script\b/g) || []).length, 1, "only the external script");
+    assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/.test(r.text), "no inline script");
+    assert.ok(!/\son[a-z]+=/i.test(sec), "no inline event handlers");
+    assert.ok(sec.indexOf("try-it") < r.text.length && r.text.indexOf(sec) < r.text.indexOf('<h2 id="quick-start">'), "placed before quick start (the 402 message points below)");
+    assert.match(sec, /5 a day, then \$0\.02 per check over x402/);
+    // strict CSP on /docs: no inline script, same-origin fetch only
+    const csp = r.headers.get("content-security-policy");
+    assert.equal(csp, T.DOCS_CSP);
+    assert.match(csp, /script-src 'self'(;|$)/); assert.ok(!/script-src[^;]*unsafe/.test(csp)); assert.match(csp, /connect-src 'self'/); assert.match(csp, /frame-ancestors 'none'/);
+    assert.equal(r.headers.get("x-content-type-options"), "nosniff");
+    assert.match(r.headers.get("content-type"), /text\/html/);
+  }
+});
+
+test("0.57.1 /docs try-it: everything outside the new section is byte-identical to 0.57.0 (all flag combos); homepage unchanged", async () => {
+  const { docsHtml } = await import("../worker/src/pages.js");
+  const { landingHtml } = await import("../worker/src/landing.js");
+  const want = JSON.parse(readFileSync(join(FIX_DIR, "sha256.json"), "utf8"));
+  for (const er of [false, true]) for (const wt of [false, true]) {
+    const h = docsHtml("https://402xagent.com", "https://api.402xagent.com", { endpointReport: er, watchtower: wt, tryIt: { freePerDay: 5 } });
+    assert.ok(TRY_RE.test(h));
+    assert.equal(sha(h.replace(TRY_RE, "")), want[`docs_er${+er}_wt${+wt}`], `docs er=${er} wt=${wt} outside the section`);
+    assert.equal(sha(docsHtml("https://402xagent.com", "https://api.402xagent.com", { endpointReport: er, watchtower: wt, tryIt: false })), want[`docs_er${+er}_wt${+wt}`], "tryIt:false gives the old page");
+  }
+  // the served page (production flags ENDPOINT_REPORT=1, WATCHTOWER=1) minus the section == the saved 0.57.0 page, byte for byte
+  const e = spotEnv({ ENDPOINT_REPORT: "1", WATCHTOWER: "1" });
+  const served = (await rawGet("/docs", e)).text;
+  assert.equal(served.replace(TRY_RE, ""), readFileSync(join(FIX_DIR, "docs_er1_wt1.html"), "utf8"));
+  assert.equal(sha(landingHtml("https://402xagent.com")), want.home, "homepage HTML unchanged");
+  const home = await rawGet("/", e, "https://402xagent.com", { accept: "text/html" });
+  assert.ok(!home.text.includes("try-it.js") && !home.text.includes('id="try-it"'), "no try-it / badge on the homepage");
+});
+
+test("0.57.1 /docs/try-it.js: served as JS, parses, no innerHTML / eval, same-origin GET of the free check with the site ref, every state handled", async () => {
+  const T = await import("../worker/src/tryit.js");
+  const e = spotEnv();
+  const r = await rawGet("/docs/try-it.js", e);
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get("content-type"), /^text\/javascript/);
+  assert.equal(r.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(r.text, T.DOCS_TRYIT_JS);
+  new Function(r.text); // syntax check
+  for (const bad of ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"]) assert.ok(!r.text.includes(bad), bad);
+  assert.ok(r.text.includes('fetch("/v1/products/endpoint-spot-check?"'), "relative same-origin URL");
+  assert.ok(r.text.includes('credentials: "same-origin"'));
+  assert.ok(r.text.includes('"via-402xagent-site"'), "same ref as the homepage try-it box (own-ref list)");
+  assert.ok(!/payment-signature|x-payment|client=/i.test(r.text), "never sends a payment header or a client id");
+  for (const s of ["x.status === 402", "x.status === 429", "x.status === 400", "timedOut", "Couldn't reach 402xAgent", "You've used today's", "free checks. Agents can keep checking for $0.02 each over x402; see below.", "This endpoint is slow to respond, try again in a moment.", "TIMEOUT_MS = 15000", "ctl.abort()", "btn.disabled = on"]) assert.ok(r.text.includes(s), s);
+  assert.equal(T.DOCS_TRYIT_TIMEOUT_MS, 15000);
+  // never renders buyer-side data: tx hashes, payer, proofs, IPs
+  for (const k of ["access.tx", ".payer", "basescan", "settle", "cf-connecting-ip"]) assert.ok(!r.text.includes(k), k);
+  assert.equal((await rawGet("/docs/try-it.js", e, "https://api.402xagent.com")).status, 200);
+  const post = await worker.fetch(new Request("https://402xagent.com/docs/try-it.js", { method: "POST" }), e.env, { waitUntil() {} });
+  assert.equal(post.status, 405);
+});
+
+test("0.57.1 try-it requests are the normal free check: same quota (free, then the $0.02 402), same 400 for a bad url; no pricing change", async () => {
+  const e = spotEnv();
+  spotTargetMode = "402";
+  const U = (u) => "/v1/products/endpoint-spot-check?" + new URLSearchParams({ url: u, ref: "via-402xagent-site" });
+  const first = await send(U("https://spot.target.fixture/api"), { envo: e, ua: "Mozilla/5.0", ip: "198.51.100.77" });
+  assert.equal(first.status, 200); assert.equal(first.body.access.tier, "free");
+  assert.ok(!("payment" in first.body), "free shape unchanged: no exact terms");
+  let last = first;
+  for (let i = 0; i < 30 && last.status === 200; i++) last = await send(U("https://spot.target.fixture/api"), { envo: e, ua: "Mozilla/5.0", ip: "198.51.100.77" });
+  assert.equal(last.status, 402);
+  assert.equal(last.body.accepts[0].amount, "20000"); assert.equal(last.body.price_usd, "0.02");
+  const bad = await send(U("not a url"), { envo: e, ua: "Mozilla/5.0", ip: "198.51.100.77" });
+  assert.equal(bad.status, 400); assert.ok(bad.body.error);
+});
+
+test("0.57.1 prefill self-probe: a spot-check of the exact prefill URL is served in-process (no same-zone fetch) and returns the real $0.02 402 terms", async () => {
+  const T = await import("../worker/src/tryit.js");
+  const e = spotEnv();
+  const ofetch = globalThis.fetch; const outer = [];
+  // a same-zone subrequest in production does not reach the Worker (522): make any outbound fetch to our hosts fail loudly
+  globalThis.fetch = async (u, init) => { const s = String(u && u.url ? u.url : u); let h = ""; try { h = new URL(s).hostname; } catch (_) {} if (/(^|\.)402xagent\.com$/.test(h)) { outer.push(s); return new Response("same-zone", { status: 522 }); } return ofetch(u, init); };
+  try {
+    const s = await send("/v1/products/endpoint-spot-check?" + new URLSearchParams({ url: T.DOCS_TRYIT_PREFILL, ref: "via-402xagent-site" }), { envo: e, ua: "Mozilla/5.0", ip: "198.51.100.78" });
+    assert.equal(s.status, 200, JSON.stringify(s.body).slice(0, 300));
+    assert.equal(s.body.verdict, "pay", JSON.stringify(s.body).slice(0, 300));
+    assert.notEqual(s.body.reason_code, "server_error");
+    // the exact terms the probe read in-process (exempt self-test client gets the paid shape): our real $0.02 USDC-on-Base 402
+    const x = await send("/v1/products/endpoint-spot-check?" + new URLSearchParams({ url: T.DOCS_TRYIT_PREFILL, client: "withgrokbot-selftest" }), { envo: e });
+    assert.equal(x.body.verdict, "pay", JSON.stringify(x.body).slice(0, 300));
+    assert.deepEqual([x.body.payment.network, x.body.payment.amount.atomic, x.body.payment.pay_to.toLowerCase()], ["eip155:8453", "20000", PAY_TO.toLowerCase()]);
+    assert.deepEqual(outer, [], "never fetched our own zone over the network");
+  } finally { globalThis.fetch = ofetch; }
+});
+
+test("0.57.1 review: the try-it UI never shows the claimed_price hint; the API JSON keeps it unchanged", async () => {
+  const T = await import("../worker/src/tryit.js");
+  const e = spotEnv({ SPOT_FREE_PER_DAY: "5" });
+  spotTargetMode = "402";
+  // API: an unlisted pay still carries the hint, byte for byte as before
+  const api = await send("/v1/products/endpoint-spot-check?" + new URLSearchParams({ url: "https://spot.target.fixture/unlisted-hint", ref: "via-402xagent-site" }), { envo: e, ua: "Mozilla/5.0", ip: "198.51.100.79" });
+  assert.equal(api.status, 200); assert.equal(api.body.verdict, "pay");
+  assert.equal(api.body.reason, "payment request found (pass claimed_price to compare the price)");
+  // UI: the script's uiReason (the only path from reason to the page) drops any claimed_price hint
+  const src = T.DOCS_TRYIT_JS.match(/function uiReason[\s\S]*?\n  }\n/);
+  assert.ok(src, "uiReason present");
+  assert.ok(T.DOCS_TRYIT_JS.includes("document.createTextNode(uiReason(j.reason || j.reason_code || \"\"))"), "reason only reaches the page through uiReason");
+  const uiReason = new Function(src[0] + "; return uiReason;")();
+  assert.equal(uiReason(api.body.reason), "payment request found");
+  for (const r of ["payment request found (pass claimed_price to compare the price)", "payment request found (add &claimed_price=0.01 to compare)", "price unlisted; pass claimed_price to compare", "payment request found (pass Claimed Price to compare)"]) {
+    const u = uiReason(r); assert.ok(!/claimed[_ ]price/i.test(u), r + " -> " + u); assert.ok(u.length > 0);
+  }
+  for (const r of ["listed $0.02, payment request matches the listed price", "price unlisted, the endpoint returned a server error, try again later"]) assert.equal(uiReason(r), r, "other reasons unchanged");
+  assert.ok(!/claimed_price/.test(T.docsTryItHtml()), "no hint in the static section either");
 });
 
 let passed = 0, skipped = 0;

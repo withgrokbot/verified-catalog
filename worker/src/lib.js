@@ -20,6 +20,7 @@
 // plus the User-Agent, salted with a secret that changes every ISO week.
 // No runtime dependencies.
 import { pricingHtml, docsHtml, blogListHtml, blogPostHtml } from "./pages.js";
+import { DOCS_TRYIT_JS, DOCS_TRYIT_SCRIPT_PATH, DOCS_CSP } from "./tryit.js";
 import { BLOG_POSTS } from "./blog-data.js";
 import { REASON_TEXT, publishable, publishRecent } from "./recent.js";
 import {
@@ -73,7 +74,7 @@ import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.57.0";
+export const VERSION = "0.57.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -3998,7 +3999,9 @@ const routeInnerHolder = {
       const post = BLOG_POSTS.find((p) => "/blog/" + p.slug === path.replace(/\/$/, ""));
       if (post) return new Response(blogPostHtml(CANON_ORIGIN, post), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
     }
-    if (path === "/docs") return new Response(docsHtml(CANON_ORIGIN, API_ORIGIN, { endpointReport: endpointReportOn(env), watchtower: watchOn(env) }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" } });
+    if (path === "/docs") return new Response(docsHtml(CANON_ORIGIN, API_ORIGIN, { endpointReport: endpointReportOn(env), watchtower: watchOn(env), tryIt: { freePerDay: spotCfg(env).freePerDay } }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*", "content-security-policy": DOCS_CSP, "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin" } });
+    // 0.57.1: the Try-it box's script (external, so /docs keeps script-src 'self'); a thin client of the free check.
+    if (path === DOCS_TRYIT_SCRIPT_PATH && (req.method === "GET" || req.method === "HEAD")) return new Response(req.method === "HEAD" ? null : DOCS_TRYIT_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=300", "x-content-type-options": "nosniff" } });
     if (path === "/rules.json") return json(rulesJson(CANON_ORIGIN), 200, { "cache-control": "public, max-age=300" });
     if (path === "/rules") return new Response(rulesHtml(CANON_ORIGIN), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" } });
     if (path === "/.well-known/402index-verify.txt") {
@@ -4068,7 +4071,7 @@ const routeInnerHolder = {
   },
 };
 const GET_ROUTES = new Set(["/", "/v1/skips", "/v1/skips.json", "/v1/discover", "/bazaar", "/bazaar.json", "/v1/receipts", "/v1/receipts/by-url", "/v1/lookup", "/.well-known/x402",
-  "/.well-known/402xagent-keys.json", "/.well-known/402xagent-receipt-key.json", "/saves", "/saves.json", "/receipts", "/skips.json", "/pricing", "/blog", "/docs", "/rules.json", "/rules",
+  "/.well-known/402xagent-keys.json", "/.well-known/402xagent-receipt-key.json", "/saves", "/saves.json", "/receipts", "/skips.json", "/pricing", "/blog", "/docs", "/docs/try-it.js", "/rules.json", "/rules",
   "/.well-known/402index-verify.txt", "/.well-known/agent-tools-verify.txt", "/v1/tasks", "/openapi.json", "/health", "/robots.txt", "/sitemap.xml", "/llms.txt", "/skill.md", "/v1/integrators/me", "/v1/hygiene"]);
 export function isGetRoute(path) {
   return GET_ROUTES.has(path) || Object.prototype.hasOwnProperty.call(BRAND_ASSETS, path) || /^\/(v1\/receipts|badge|reputation|blog)\/./.test(path);
