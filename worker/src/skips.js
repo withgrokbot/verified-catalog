@@ -5,9 +5,9 @@ import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { freshnessFor, termsMaxAgeHours } from "./freshness.js"; // 0.54.0
 import { recentChecks, RECENT_MAX } from "./recent.js";
 import { CANON_ORIGIN, API_ORIGIN, SPOT_SERVICE_NAME, FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE } from "./spotcheck.js";
+import { skipsHtml } from "./skips-html.js"; // 0.58.7
+import { DOCS_CSP as HOME_CSP } from "./tryit.js"; // = home.js HOME_CSP (strict: script-src 'self' + Cloudflare Web Analytics)
 
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-const usd = (v) => (v === null || v === undefined ? "—" : "$" + Number(v).toString());
 const hdrs = (type) => ({ "content-type": type, "access-control-allow-origin": "*", "cache-control": "public, max-age=300", vary: "accept" });
 const j = (o, s = 200) => new Response(JSON.stringify(o, null, 2), { status: s, headers: hdrs("application/json; charset=utf-8") });
 
@@ -127,7 +127,7 @@ async function skipsPage(env, n) {
   return (await kvJson(env, "s:" + n)) || null;
 }
 
-export async function handleSkips(req, url, env = {}) {
+export async function handleSkips(req, url, env = {}, fp = {}) {
   const origin = CANON_ORIGIN;
   const m = RECEIPTS_META;
   const pages = m.skip_pages || 1;
@@ -149,34 +149,11 @@ export async function handleSkips(req, url, env = {}) {
       recent_checks_note: `latest ${RECENT_MAX} outside free checks with a clear verdict; one per endpoint per UTC day; query strings removed`,
       recent_checks: await recentChecks(env, origin),
     });
-  const rows = skips
-    .map((r) => {
-      const f = r.id === m.featured_id;
-      return `<tr id="${esc(r.id)}"${f ? ' class="featured"' : ""}><td><a href="/v1/receipts/${esc(r.id)}">${esc(r.id)}</a>${f ? " ★" : ""}</td><td class="u">${esc(r.method)} ${esc(r.url)}</td><td>${esc(usd(r.claimed_price_usd))}${r.listed_network ? "<br><small>" + esc(r.listed_network) + "</small>" : ""}</td><td>${esc(usd(r.quoted_price_usd))}${r.network ? "<br><small>" + esc(r.network) + "</small>" : ""}</td><td class="u">${esc(r.pay_to || "—")}</td><td>${esc(r.reason)}</td><td>${esc([r.source_list, ...(r.also_listed_in || [])].join(", "))}</td><td>${esc(r.timestamp)}</td></tr>`;
-    })
-    .join("\n");
-  const fr = page === 1 ? RECEIPTS.find((r) => r.id === m.featured_id) : null;
-  const cov = coverage();
-  const pager = pages > 1 ? `<p>Page ${page} of ${pages} (${m.page_size} skips per page, clearest mismatches first) · ${page > 1 ? `<a href="/v1/skips?page=${page - 1}">← prev</a>` : ""} ${page < pages ? `<a href="/v1/skips?page=${page + 1}">next →</a>` : ""}</p>` : "";
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>402xAgent skips: self-checked x402 receipts</title>
-<link rel="icon" href="/favicon.ico?v=18" sizes="any"><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=18">
-<link rel="canonical" href="${CANON_ORIGIN}/v1/skips${page > 1 ? "?page=" + page : ""}">
-<style>body{font:14px/1.45 system-ui,sans-serif;margin:1.5rem;max-width:1200px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:4px 6px;vertical-align:top;text-align:left}.u{word-break:break-all;font-family:ui-monospace,monospace;font-size:12px}tr:target,.featured{background:#fff6d5}header p{margin:.3rem 0}code{background:#f3f3f3;padding:1px 4px}.cov{font-size:16px}</style></head><body>
-<header><p><a href="/">402xAgent</a> · <a href="/pricing">Pricing</a> · <a href="/docs">Docs</a> · <a href="/blog">Blog</a></p><h1>402xAgent skips: self-checked x402 receipts</h1>
-<div class="free" style="border:1px solid #fde2c4;background:#fffaf3;border-radius:8px;padding:10px 12px;margin:0 0 12px"><b>Check your endpoint free first:</b> <code class="u">GET ${esc(FREE_CHECK_URL)}</code><br><small>Real example: <a class="u" href="${esc(FREE_CHECK_EXAMPLE_URL)}">${esc(FREE_CHECK_EXAMPLE_URL)}</a> → <code class="u">${esc(JSON.stringify(FREE_CHECK_EXAMPLE))}</code>. 5 free per day (25 per network), free dry runs with &amp;mode=dry-run. Then, only for the full payment terms, the paid check (HTTP 402).</small></div>
-<p><small>402xAgent · <a href="${CANON_ORIGIN}">402xagent.com</a></small></p>
-<p class="cov"><b>${cov.endpoints_covered}</b> endpoints covered · <b>${cov.new_this_week ?? "—"}</b> new this week${cov.previous_run ? "" : " (first full crawl)"} · ${esc(crawlScheduleText(m.crawled_at))}</p>
-<p><b>${m.skip}</b> skip · ${m.pay} pay · ${m.recheck} recheck · lists: ${esc(Object.entries(m.listed_in || m.lists).map(([k, v]) => k + " " + v).join(", "))}</p>
-<p>${esc(spotHowTo(origin))}</p>
-<p><small>Self-checked: ${esc(m.method)} Deduped by ${esc(m.dedupe || "URL")}. Skip = no paywall (no 402), a malformed 402, price mismatch, wrong or unsupported network, a token other than canonical USDC, or a payTo that differs from the listing. Recheck = transient (timeout, network error, 5xx) or a free trial in use. JSON: <a href="/v1/skips.json">/v1/skips.json</a> · one receipt: /v1/receipts/&lt;id&gt; · by URL: /v1/receipts/by-url?url=&lt;endpoint&gt;. Facts only, not endorsements.</small></p>
-${fr ? `<p>★ Featured mismatch <a href="#${esc(fr.id)}">#${esc(fr.id)}</a> (<a href="/v1/receipts/${esc(fr.id)}">permalink</a>): listed ${esc(usd(fr.claimed_price_usd))} on ${esc(fr.listed_network)}, 402 asks ${esc(usd(fr.quoted_price_usd))} on ${esc(fr.network)} → skip.</p>` : ""}
-${pager}
-</header>
-<table><thead><tr><th>id</th><th>endpoint</th><th>claimed (listing)</th><th>402 price</th><th>402 payTo</th><th>reason</th><th>lists</th><th>checked (UTC)</th></tr></thead><tbody>
-${rows}
-</tbody></table>${pager}</body></html>`;
-  return new Response(html, { status: 200, headers: hdrs("text/html; charset=utf-8") });
+  // 0.58.7: the human page (skips-html.js): shared chrome, plain reasons, cards on phones, method text in <details>, no
+  // featured callout, no script. Same rows, same ?page=N paging. The JSON above is unchanged byte for byte
+  // (tests/skips_page_test.mjs, tests/fixtures/machine_0.58.6/skips.json).
+  const html = skipsHtml(origin, { meta: m, skips, page, pages, now: Date.now(), freeCheck: { url: FREE_CHECK_URL, exampleUrl: FREE_CHECK_EXAMPLE_URL, example: FREE_CHECK_EXAMPLE }, spotHowTo: spotHowTo(origin), scheduleText: crawlScheduleText(m.crawled_at) }, fp);
+  return new Response(html, { status: 200, headers: { ...hdrs("text/html; charset=utf-8"), "content-security-policy": HOME_CSP, "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin" } });
 }
 
 export async function handleReceipts(url, env = {}) {

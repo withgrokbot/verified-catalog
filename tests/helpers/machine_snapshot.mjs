@@ -198,7 +198,56 @@ export async function snapshotReceipts(workerPath) {
   return out;
 }
 
-if (process.argv[2] === "--receipts" && process.argv[3]) {
+// 0.58.7: the skips surfaces (/v1/skips, /v1/skips.json, /skips.json, ?format=json, ?page=N incl. out-of-range and junk)
+// on every host and Accept, with a store holding a real published skip page 2 (crawl_store s:2, 40 real rows) and real
+// public recent_checks rows (tests/fixtures/skips_sample_2026-10-28.json), so page 2 and recent_checks are non-empty.
+// Fixture from main 17342a1 (0.58.6): every non-browser answer must stay byte-identical when /v1/skips HTML is redesigned.
+const SKIPS_SAMPLE = JSON.parse(readFileSync(fileURLToPath(new URL("../fixtures/skips_sample_2026-10-28.json", import.meta.url)), "utf8"));
+export function fakeSkipsD1(sample = SKIPS_SAMPLE) {
+  const store = { "s:2": JSON.stringify(sample.s2) };
+  const sha = (t) => createHash("sha256").update(t).digest("hex");
+  const recent = [...sample.recent].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : a.id < b.id ? 1 : -1));
+  const q = (sql, a) => {
+    if (/FROM crawl_store WHERE key = \?/.test(sql)) { const v = store[a[0]]; return v === undefined ? [] : [{ part: 0, parts: 1, sha256: sha(v), value: v }]; }
+    if (/FROM spot_receipts WHERE pub_url IS NOT NULL/.test(sql)) return recent.slice(0, a[0]);
+    return [];
+  };
+  return { prepare(sql) { const st = { a: [], bind(...x) { st.a = x; return st; }, async first() { return q(sql, st.a)[0] || null; }, async all() { return { results: q(sql, st.a) }; }, async run() { return { success: true, meta: { changes: 0 } }; } }; return st; }, async batch() { return []; } };
+}
+export const SKIPS_GETS = ["/v1/skips", "/v1/skips/", "/v1/skips.json", "/skips.json", "/v1/skips?format=json", "/v1/skips?page=1", "/v1/skips?page=2", "/v1/skips?page=2&format=json",
+  "/v1/skips.json?page=2", "/v1/skips.json?page=2&format=json", "/v1/skips?page=3", "/v1/skips.json?page=3", "/v1/skips?page=999", "/v1/skips?page=0", "/v1/skips?page=abc", "/v1/skips?format=html", "/skips.json?page=2"];
+/** 0.58.7: the only keys allowed to differ from the 0.58.6 skips fixture: browser Accept (names text/html) on /v1/skips
+ * (not /v1/skips.json, not /skips.json, not ?format=json). */
+export const SKIPS_HTML_KEY = /^GET https:\/\/(402xagent\.com|api\.402xagent\.com)\/v1\/skips\/?(\?(?!\S*format=json)\S*)? \[(html|htmljson)\]$/;
+export async function snapshotSkips(workerPath) {
+  const mod = await import(pathToFileURL(resolve(workerPath)).href);
+  const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
+  const norm = (x) => x.split(lib.VERSION).join("<VERSION>");
+  const env = () => ({ DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", TERMS_MAX_AGE_HOURS: "168", RECEIPTS_DB: fakeSkipsD1() });
+  const out = {};
+  for (const h of HOSTS) for (const p of SKIPS_GETS) for (const [an, a] of Object.entries(RECEIPT_ACCEPTS)) {
+    const [accept, ua] = a ? a.split("|") : [null, null];
+    const req = new Request(h + p, { headers: { "cf-connecting-ip": "203.0.113.9", ...(ua ? { "user-agent": ua } : {}), ...(accept ? { accept } : {}) } });
+    const res = await mod.default.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
+    const body = await res.text(); const hd = {};
+    for (const [k, v] of [...res.headers.entries()].sort()) hd[k] = norm(v);
+    out[`GET ${h}${p} [${an}]`] = { status: res.status, headers: hd, sha256: createHash("sha256").update(norm(body)).digest("hex"), length: body.length };
+  }
+  return out;
+}
+/** The raw body of one skips request (same env as snapshotSkips), for the tests' content checks. */
+export async function skipsBody(workerPath, url, accept) {
+  const mod = await import(pathToFileURL(resolve(workerPath)).href);
+  const env = { DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", TERMS_MAX_AGE_HOURS: "168", RECEIPTS_DB: fakeSkipsD1() };
+  const res = await mod.default.fetch(new Request(url, { headers: { "cf-connecting-ip": "203.0.113.9", "user-agent": "Mozilla/5.0", ...(accept ? { accept } : {}) } }), env, { waitUntil() {}, passThroughOnException() {} });
+  return { status: res.status, headers: Object.fromEntries(res.headers.entries()), body: await res.text() };
+}
+
+if (process.argv[2] === "--skips" && process.argv[3]) {
+  process.stdout.write(JSON.stringify(await snapshotSkips(process.argv[3]), null, 1) + "\n");
+} else if (process.argv[2] === "--receipts" && process.argv[3]) {
   process.stdout.write(JSON.stringify(await snapshotReceipts(process.argv[3]), null, 1) + "\n");
 } else if (process.argv[2] === "--0583" && process.argv[3]) {
   process.stdout.write(JSON.stringify(await snapshot0583(process.argv[3]), null, 1) + "\n");

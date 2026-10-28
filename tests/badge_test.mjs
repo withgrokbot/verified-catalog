@@ -7,7 +7,7 @@ import { VERSION } from "../worker/src/lib.js";
 
 const COPY = "Independently tracked by agenteconomy.report";
 
-test("version (0.49.3 badge, now 0.58.6)", () => assert.equal(VERSION, "0.58.6"));
+test("version (0.49.3 badge, now 0.58.7)", () => assert.equal(VERSION, "0.58.7"));
 
 test("homepage badge: text link only until graded, no img", () => {
   const html = landingHtml("https://402xagent.com");

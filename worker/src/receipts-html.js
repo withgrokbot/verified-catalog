@@ -71,9 +71,26 @@ const chip = (v) => { const s = String(v || ""); return V.has(s) ? `<span class=
 const hostPath = (u) => { try { const x = new URL(u); return { host: x.host, path: x.pathname }; } catch (_) { return { host: String(u || ""), path: "" }; } };
 const utc = (t) => { const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(:\d{2})?/.exec(String(t || "")); return m ? `${m[1]} ${m[2]} UTC` : (t ? String(t) : "—"); };
 const WALLET = /0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44}/g;
-/** Crawl reason in plain words; unknown shapes lose their parenthetical detail and any address. */
+// 0.58.7: neutral wording for the crawl skip reasons the homepage mapping (plainReason) does not cover, in the same style.
+// Each matches the shape scripts/weekly-crawl/crawl_probe.py emits and says only what that branch checked:
+//   "payment request has no readable payment options": a 402 whose accepts decode to nothing (decode_402 empty)
+//   "price looks wrong ($q)": the USDC price is not in (0, SANE_MAX_USD = 10.0], i.e. $0 or above $10
+//   "asks for a token or network we can't price in USDC (net)": usd() is None (not that network's USDC, or no integer amount)
+//   "wants payment on a testnet or a network we don't support (net)": the network is not in USDC_MAINNET
+//   "asks for a different token than listed (...)": no accept on the listed network has the listed asset
+//   "domain does not resolve (DNS)": a redirect target's host did not resolve (kept as is, already neutral)
+export const CRAWL_PLAIN = [
+  [/^payment request has no readable payment options/i, "Payment request has no readable payment options"],
+  [/^price looks wrong/i, "Payment price is $0 or above $10"],
+  [/^asks for a token or network we can't price in USDC/i, "Payment token or network can't be priced in USDC"],
+  [/^wants payment on a testnet or a network we don't support/i, "Payment network is a testnet or not supported"],
+  [/^asks for a different token than listed/i, "Payment token differs from the listing"],
+  [/^domain does not resolve/i, "Domain does not resolve"],
+];
+/** Crawl reason in plain words: the homepage mapping, then CRAWL_PLAIN; other shapes lose their parenthetical detail and any address. */
 export function crawlReasonText(r) {
-  return plainReason(r) || String(r || "").replace(/\s*\([^)]*\)\s*$/, "").replace(WALLET, "a wallet").trim() || "—";
+  const s = String(r || "").trim();
+  return plainReason(r) || (CRAWL_PLAIN.find(([re]) => re.test(s)) || [])[1] || s.replace(/\s*\([^)]*\)\s*$/, "").replace(WALLET, "a wallet").trim() || "—";
 }
 const liveReason = (r) => String(r.reason_text || r.reason_code || r.reason || "—");
 const usdOf = (v) => (v === null || v === undefined || v === "" ? null : "$" + Number(v).toString());

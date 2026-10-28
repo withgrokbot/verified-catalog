@@ -1717,7 +1717,7 @@ test("402xAgent rebrand (0.17.0): every host serves the same API; 402 resource f
   assert.equal(init.body.result.serverInfo.title, "402xAgent + verified x402 catalog");
   const sk = await worker.fetch(new Request("https://402xagent.com/v1/skips", { headers: { accept: "text/html" } }), e.env, { waitUntil() {} });
   const skT = await sk.text();
-  assert.match(skT, /<title>402xAgent skips/);
+  assert.match(skT, /<title>Latest skips · 402xAgent<\/title>/); // 0.58.7: the redesigned page (skips-html.js)
   assert.doesNotMatch(skT, /payscout/i);
 });
 
@@ -1843,7 +1843,10 @@ test("free check is the front door (0.20.0): 402s point to it, free answers carr
   const sj = await (await get("https://api.402xagent.com/v1/skips.json")).json();
   assert.equal(Object.keys(sj)[0], "free_check"); assert.equal(sj.free_check.url, FC);
   const sh = await (await get("https://402xagent.com/v1/skips", { headers: { accept: "text/html" } })).text();
-  assert.ok(sh.indexOf("Check your endpoint free first") > 0 && sh.indexOf("Check your endpoint free first") < sh.indexOf("endpoints covered"));
+  // 0.58.7: the free check stays first in the page: the shared header's "Run a free check" (/#checker) comes before the
+  // counts and the rows; the original free-check box is kept verbatim inside the method <details>.
+  assert.ok(sh.indexOf('href="/#checker">Run a free check') > 0 && sh.indexOf('href="/#checker">Run a free check') < sh.indexOf("endpoints covered"));
+  const md = sh.indexOf('<details class="sk-method"'); assert.ok(md > 0 && sh.indexOf("Check your endpoint free first") > md && sh.indexOf("Check your endpoint free first") < sh.indexOf("</details>", md));
   const home = await (await get("https://402xagent.com/", { headers: { accept: "text/html" } })).text();
   // 0.58.0: the hero's checker runs the free check (same route as FC) through /home.js
   const hero = home.slice(home.indexOf('<div class="wrap hero">'), home.indexOf('class="hero-note"'));
@@ -2702,7 +2705,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.58.6");
+  assert.equal(VERSION, "0.58.7");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)

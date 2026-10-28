@@ -91,7 +91,7 @@ async function callAs(env, path, ip, headers = {}) {
 const spot = (url, extra = "") => "/v1/products/endpoint-spot-check?url=" + encodeURIComponent(url) + extra;
 
 test("knobs: PROBE_TIMEOUT_MS default 8000 (1000-30000), BREAKER_FAILS 3 / WINDOW 10 min / COOLDOWN 15 min, BREAKER_FAILS=0 turns it off", () => {
-  assert.equal(VERSION, "0.58.6");
+  assert.equal(VERSION, "0.58.7");
   assert.equal(B.probeTimeoutMs({}), 8000); assert.equal(B.probeTimeoutMs({ PROBE_TIMEOUT_MS: "5000" }), 5000);
   for (const bad of ["", "abc", "999", "30001", "-1", "2500.5"]) assert.equal(B.probeTimeoutMs({ PROBE_TIMEOUT_MS: bad }), 8000, bad);
   const c = B.breakerCfg({});
