@@ -119,7 +119,30 @@ export async function snapshotHomeBody(workerPath) {
   return (await res.text()).split(lib.VERSION).join("<VERSION>");
 }
 
-if (process.argv[2] === "--extra" && process.argv[3]) {
+// 0.58.4: everything at once against 0.58.3 (main 139fed1): the full machine snapshot, the extra set, /pricing on every host
+// and Accept (HTML), and the homepage body hash. Only the homepage HTML is expected to differ (the audit layer card).
+export async function snapshot0583(workerPath) {
+  const out = { ...(await snapshot(workerPath)), ...(await snapshotExtra(workerPath)) };
+  const mod = await import(pathToFileURL(resolve(workerPath)).href);
+  const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
+  const norm = (x) => x.split(lib.VERSION).join("<VERSION>");
+  const env = { DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01" };
+  const HTML = { accept: "text/html,application/xhtml+xml,*/*;q=0.8", "user-agent": "Mozilla/5.0", "cf-connecting-ip": "203.0.113.9" };
+  for (const h of HOSTS) for (const [an, a] of [...Object.entries(ACCEPTS), ["html", null]]) {
+    const [accept, ua] = a ? a.split("|") : [null, null];
+    const headers = an === "html" ? HTML : { "cf-connecting-ip": "203.0.113.9", ...(ua ? { "user-agent": ua } : {}), ...(accept ? { accept } : {}) };
+    const res = await mod.default.fetch(new Request(h + "/pricing", { headers }), env, { waitUntil() {}, passThroughOnException() {} });
+    const body = await res.text(); const hd = {};
+    for (const [k, v] of [...res.headers.entries()].sort()) hd[k] = norm(v);
+    out[`GET ${h}/pricing [${an}]`] = { status: res.status, headers: hd, sha256: createHash("sha256").update(norm(body)).digest("hex") };
+  }
+  return out;
+}
+
+if (process.argv[2] === "--0583" && process.argv[3]) {
+  process.stdout.write(JSON.stringify(await snapshot0583(process.argv[3]), null, 1) + "\n");
+} else if (process.argv[2] === "--extra" && process.argv[3]) {
   process.stdout.write(JSON.stringify(await snapshotExtra(process.argv[3]), null, 1) + "\n");
 } else if (process.argv[2]) {
   const snap = await snapshot(process.argv[2]);

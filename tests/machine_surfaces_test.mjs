@@ -56,7 +56,7 @@ test("0.58.3 /pricing rebuild: pricing machine paths and the homepage are byte-i
   for (const k of ["GET https://402xagent.com/pricing.json [json]", "GET https://api.402xagent.com/pricing.json [none]", "GET https://402xagent.com/v1/pricing [curl]"]) assert.equal(want2[k].status, 404, k);
 });
 
-test("0.58.3 review: the homepage body equals 0.58.2 once the two card strings are swapped back", async () => {
+test("0.58.3 review + 0.58.4: the homepage body equals 0.58.2 once the two card strings are swapped back and the audit card is removed", async () => {
   const want2 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.2", "extra.json"), "utf8"));
   const r = spawnSync(process.execPath, ["--input-type=module", "-e", `
     const { snapshotHomeBody } = await import(${JSON.stringify(join(HERE, "helpers", "machine_snapshot.mjs"))});
@@ -66,6 +66,34 @@ test("0.58.3 review: the homepage body equals 0.58.2 once the two card strings a
   const SWAPS = [["Regular re-probes of an endpoint you depend on", "Hourly re-probes of an endpoint you depend on"],
     ["by arrangement: usage tracked; billed monthly by arrangement.", "by arrangement: hosted checks billed on a monthly USDC invoice instead of per call."]];
   for (const [now] of SWAPS) assert.equal(body.split(now).length, 2, now);
-  let old = body; for (const [now, was] of SWAPS) old = old.replace(now, was);
+  // 0.58.4: the only other homepage change is the audit layer card (its HTML in the Products grid and its own CSS)
+  const { AUDIT_CARD_HTML, AUDIT_CSS } = await import("../worker/src/home.js");
+  assert.equal(body.split(AUDIT_CARD_HTML).length, 2, "the card once"); assert.equal(body.split(AUDIT_CSS).length, 2, "its CSS once");
+  let old = body.replace("\n" + AUDIT_CARD_HTML, "").replace(AUDIT_CSS, "");
+  for (const [now, was] of SWAPS) old = old.replace(now, was);
   assert.equal(createHash("sha256").update(old).digest("hex"), want2["GET https://402xagent.com/ [html]"].sha256, "nothing else on the homepage changed");
+});
+
+// 0.58.4: the audit layer card. Against a full 0.58.3 snapshot (main 139fed1: every machine surface, root JSON, llms.txt,
+// openapi.json, /.well-known/*, /v1/*, /mcp, /home.js, /docs, /pricing on every host and Accept, the /pricing.json-style
+// 404s): everything is byte-identical except the browser homepage, and the homepage minus the card equals 0.58.3 exactly.
+test("0.58.4 audit layer card: every surface byte-identical to 0.58.3; the homepage only gains the card", async () => {
+  const want3 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.3", "snapshot.json"), "utf8"));
+  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--0583", join(HERE, "..", "worker", "src", "index.js")], { encoding: "utf8", maxBuffer: 64 << 20 });
+  assert.equal(r.status, 0, r.stderr);
+  const got = JSON.parse(r.stdout);
+  const HOME = "GET https://402xagent.com/ [html]";
+  assert.ok(Object.keys(want3).length > 1400);
+  assert.deepEqual(Object.keys(got).sort(), Object.keys(want3).sort(), "same request set");
+  assert.deepEqual(Object.keys(want3).filter((k) => k !== HOME && JSON.stringify(got[k]) !== JSON.stringify(want3[k])), [], "changed responses");
+  for (const k of ["GET https://402xagent.com/pricing [html]", "GET https://api.402xagent.com/pricing [json]", "GET https://402xagent.com/home.js [html]", "GET https://402xagent.com/docs [html]", "GET https://402xagent.com/ [json]", "GET https://402xagent.com/llms.txt [none]", "GET https://api.402xagent.com/openapi.json [none]", "GET https://402xagent.com/.well-known/x402 [none]"])
+    assert.ok(want3[k] && want3[k].status === 200, k);
+  assert.deepEqual(got[HOME].headers, want3[HOME].headers);
+  const b = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    const { snapshotHomeBody } = await import(${JSON.stringify(join(HERE, "helpers", "machine_snapshot.mjs"))});
+    process.stdout.write(await snapshotHomeBody(${JSON.stringify(join(HERE, "..", "worker", "src", "index.js"))}));`], { encoding: "utf8", maxBuffer: 64 << 20 });
+  assert.equal(b.status, 0, b.stderr);
+  const { AUDIT_CARD_HTML, AUDIT_CSS } = await import("../worker/src/home.js");
+  const without = b.stdout.replace("\n" + AUDIT_CARD_HTML, "").replace(AUDIT_CSS, "");
+  assert.equal(createHash("sha256").update(without).digest("hex"), want3[HOME].sha256, "homepage minus the card = 0.58.3");
 });
