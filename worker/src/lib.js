@@ -42,7 +42,7 @@ import {
 import { signObject, receiptKeysDoc } from "./sign.js";
 import { VERIFY_PATH, VERIFY_SCRIPT_PATH, VERIFY_STANDALONE_PATH, VERIFY_NODE_PATH, verifyPageHtml, verifyPageJs, verifyStandaloneHtml, verifyNodeScript, VERIFY_SCRIPT_HEADERS } from "./verify.js"; // 0.59.0
 import { handleWatch, watchTick, watchOn, EXAMPLE_CREATE as WATCH_EXAMPLE, WATCH_PRICE_ATOMIC, WATCH_PRICE_USD, EXAMPLE_WATCH_ID, WATCH_PERIOD_DAYS, TRIAL_DAYS as WATCH_TRIAL_DAYS } from "./watch.js";
-import { PS_ID, PS_NETWORK, USDC_BASE_LC, parseRequest, readChain, decide, termsMatch, claimPointer, buildBody, newPsId, cacheKey, cacheGet, cachePut, receiptById } from "./paystatus.js";
+import { PS_ID, PS_NETWORK, USDC_BASE_LC, parseRequest, readChain, decide, termsMatch, claimPointer, buildBody, newPsId, cacheKey, cacheGet, cachePut, receiptById, readSource, rpcSources } from "./paystatus.js";
 import { discover, DISCOVER_PER_MIN, DISCOVER_MAX } from "./discover.js";
 import { handleSkips, handleReceipts, crawlReceiptForUrl, crawlReceipt, normUrl, skipsPageRows, crawlSchedule } from "./skips.js";
 import { docsIndexHtml, docsProductHtml, DOCS_ANCHORS_PATH, DOCS_ANCHORS_JS } from "./docs.js"; // 0.58.6
@@ -78,7 +78,7 @@ import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.59.2";
+export const VERSION = "0.59.3";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -433,6 +433,8 @@ export function cfg(env) {
     facilitatorChain: (path) => facilitatorChain(env, path, String(env.FACILITATOR_URL || paymentPreset(env).facilitator || DEFAULTS.FACILITATOR_URL).replace(/\/+$/, "")),
     // 0.51.1: settlement idempotency store (function: never serialised). null = no replay protection (old behaviour).
     settleStore: () => (env && env.RECEIPTS_DB) || null,
+    // 0.59.2: read-only on-chain check of an EIP-3009 authorization nonce (function: never serialised)
+    chainCheck: (q) => nonceOnChain(env, q),
   };
 }
 
@@ -912,7 +914,7 @@ async function handleOvernightCosPack(req, env, ctx, url) {
     charged_usd: c.priceUsd,
     asset: "USDC on Base",
     tx: r.settle.transaction,
-    basescan_url: "https://basescan.org/tx/" + r.settle.transaction,
+    basescan_url: (r.settle.transaction ? "https://basescan.org/tx/" + r.settle.transaction : null),
     payer: r.settle.payer || null,
     facilitator: r.facilitator || null, // 0.51.0
     settlement: r.settle,
@@ -2162,13 +2164,16 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const internal = selfChecked && (q.ref === BAZAAR_REF || q.ref === STALE_REF || q.ref === DAILY_REF);
     const reputation = internal ? null : await hostReputation(env, hostOf(q.url), historyKey);
     const v2 = await receiptV2({ probe, exp, pm0, listing, history, quality, ptc, method: q.method, url: q.url, normalized: safeNorm(q.url), crawlMeta: RECEIPTS_META && RECEIPTS_META.crawled_at ? String(RECEIPTS_META.crawled_at).slice(0, 10) : null });
+    let saved = false;
     const receiptFields = { receipt_id: rid, receipt_url: rid ? CANON_ORIGIN + "/v1/receipts/" + rid : null, pay_to_changed: ptc.pay_to_changed, history };
     if (rid) {
       const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked || (access && access.self_test) ? "self-test" : null, client: q.client || null, checkType: access && access.self_test ? "self-checked" : checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && (q.ref === STALE_REF || q.ref === DAILY_REF) ? "auto" : (access && access.tier) || null });
       Object.assign(rec, ptc, { history }, rf, { receipt_v2: v2 });
       if (access && (access.tier === "paid" || access.tier === "router-pack")) rec.payment_received = paymentReceived(access, cd.priceAtomic, cd); // 0.40.1
       if (access && access.tier === "hosted") { const { tier: _t, ...hv } = access; rec.hosted = hv; } // 0.41.0: signed with the receipt
-      await saveLiveReceipt(env, rec); // awaited: the next call's cache lookup must see it
+      // 0.59.2: awaited (the next call's cache lookup must see it), retried once; receipt_url only after a confirmed save
+      saved = (await saveLiveReceipt(env, rec)) || (await saveLiveReceipt(env, rec));
+      if (!saved) Object.assign(receiptFields, { receipt_id: null, receipt_url: null, receipt_saved: false, receipt_error: RECEIPT_SAVE_ERROR });
     }
     // Free tier: verdict + plain reason + a hash of the approved terms (enough for x402-spotcheck to refuse a
     // different payment); the terms themselves, quoted/claimed price and pay-to are behind the paid 402.
@@ -2178,7 +2183,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       Object.assign(rf, lk, q.policy ? { policy: q.policy } : {});
       // 0.25.0: an outside free check with a clear verdict is listed in /v1/skips.json recent_checks (URL path only)
       const pub = probe.host_unstable ? null : publishable({ tier: "free", verdict: d.verdict, botTag: spotExcluded, client: q.client, ref: q.ref, url: q.url }); // 0.56.0: breaker answers are not public observations
-      if (pub && rid) await publishRecent(env, rid, pub);
+      if (pub && rid && saved) await publishRecent(env, rid, pub);
       // 0.49.0 (EXPLAIN_LINE): redacted line (field names + the public teasers only), response-only, not in the signed receipt
       const ex = explainOn(env) && !probe.host_unstable ? { explain: explainFree({ diffFields: (v2.diff || []).map((x) => x.field), compared: comparedFields(exp, probe, pm0), driftCount: lk.locked.drift.count_30d, grade: lk.locked.hygiene.grade }), explain_v: EXPLAIN_V } : {};
       return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), ...ex, ...rf, payment_terms_sha256: termsHash, ...receiptFields, quality: qualityPublic(quality), reputation: reputationPublic(reputation), prior_checks: PRIOR_CHECKS, upsell: FREE_UPSELL, access };
@@ -2384,6 +2389,10 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         paidPath: false,
         description: `${SPOT_SERVICE_NAME}: one probe. $${cd.priceUsd} USDC on Base.`,
       });
+      if (!r.ok && r.pending) { // 0.59.2: settle answer lost and the chain could not confirm either way: never a 402 (a 402 makes clients sign again)
+        writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 503, referer, access: "payment-pending", freeUsed: t.used, paidBy: signerOf(payload), failReason: r.reason, shape }));
+        return json(paymentPendingBody(r), 503, { "retry-after": "15", "cache-control": "no-store" });
+      }
       if (!r.ok) return deny("payment rejected: " + r.reason, t.used, "payment-failed", signerOf(payload));
       const enc = b64encode(r.settle);
       extraHeaders["payment-response"] = enc;
@@ -2393,7 +2402,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         charged_usd: cd.priceUsd,
         asset: "USDC on Base",
         tx: r.settle.transaction,
-        basescan_url: "https://basescan.org/tx/" + r.settle.transaction,
+        basescan_url: (r.settle.transaction ? "https://basescan.org/tx/" + r.settle.transaction : null),
         payer: r.settle.payer || null,
     facilitator: r.facilitator || null, // 0.51.0
       };
@@ -2412,6 +2421,10 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         access.credits_remaining = cr.balance;
       }
       const out = await buildResult(probe, access);
+      if (out.receipt_saved === false) { // 0.59.2: settled, but no receipt could be stored (one retry): an honest error, never a dead receipt link
+        writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: selfPaid ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 503, referer, access: "paid-unstored", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed, verdict: out.verdict, shape, failReason: "receipt-store-failed" }));
+        return json(receiptUnstoredBody(r, access), 503, { ...extraHeaders, "retry-after": "15", "cache-control": "no-store" });
+      }
       writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: selfPaid ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "paid", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed , verdict: out.verdict, shape, failReason: q.ctx.mistake || "" }));
       return json(out, 200, extraHeaders);
     }
@@ -2610,25 +2623,109 @@ export async function settlementKey(c, payload) {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode([net, String(c.asset || "").toLowerCase(), from, nonce].join("|")));
   return "st-" + [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+// 0.59.2: a settle whose answer was lost (timeout, facilitator error, Worker crash after settle) is resolved before any
+// denial. A PENDING settled_payments row is written before settle; on an uncertain outcome the authorization nonce is
+// read on chain (read-only eth_call authorizationState + the AuthorizationUsed log). Used on chain = settled: the paid
+// flow finishes. Unknown = 503 "payment pending" with a stable payment_ref (never a 402, which makes clients re-sign).
+export const RECEIPT_SAVE_ERROR = "the receipt could not be stored (tried twice), so no receipt link is returned";
+export const SETTLE_UNCERTAIN = /facilitator unreachable \(settle\)|nonce_already_used|settlement_pending|settle threw/;
+// 0.59.3 review: nonce state true but no AuthorizationUsed/Canceled event found (or a log error): the row is marked
+// 'review' and one structured log line is written; the buyer keeps the 503 + payment_ref. Never auto-finished as paid.
+async function markReview(db, key, ref, why) {
+  try { console.log(JSON.stringify({ event: "settlement_review", payment_ref: ref, why })); } catch (_) {}
+  try { await db.prepare("UPDATE settled_payments SET state = 'review', updated_at = ? WHERE key = ? AND (state = 'pending' OR state IS NULL OR state = 'review')").bind(new Date().toISOString(), key).run(); } catch (_) {}
+}
+export function paymentRef(key) { return key ? "pay-" + key.slice(3, 23) : null; }
+export function paymentPendingBody(r) {
+  return { error: "payment pending: the settlement answer was lost and the chain does not confirm it yet. Do not sign a new payment: retry this request with the same PAYMENT-SIGNATURE header.", payment_ref: r.ref || null, charged: "unknown", retry_same_payment: true, retry_after_s: 15 };
+}
+export function receiptUnstoredBody(r, access) {
+  return { error: "your payment settled but " + RECEIPT_SAVE_ERROR + ". Retry this request with the same PAYMENT-SIGNATURE header: you will not be charged again.", payment_ref: r.ref || null, charged: true, tx: (r.settle && r.settle.transaction) || null, retry_same_payment: true, retry_after_s: 15, access };
+}
+export async function nonceOnChain(env, q) {
+  if (!/^0x[0-9a-f]{40}$/.test(q.from || "") || !/^0x[0-9a-f]{64}$/.test(q.nonce || "")) return { unknown: true };
+  if (String(q.network) !== "eip155:8453" || String(q.asset || "").toLowerCase() !== "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913") return { unknown: true };
+  let usedNoTx = false;
+  for (const src of rpcSources(env || {})) {
+    try {
+      // 0.59.2 review: the log window is anchored at the authorization's validBefore (a settle must land before it), so
+      // an old pending payment is still found; every source is tried before "tx not found"
+      const v = await readSource(src, { from: q.from, nonce: q.nonce, valid_before: q.valid_before ?? null });
+      if (v.state === false) return { settled: false };
+      if (v.state === true && v.event === "canceled") return { settled: false, canceled: true }; // no money moved: a refusal
+      if (v.state === true && v.event === "used" && v.event_tx) return { settled: true, tx: v.event_tx }; // the only positive "paid" signal
+      // authorizationState is true for used AND canceled authorizations: true with no event in the window, or a log
+      // error, proves nothing either way. Never paid on that; try the next source, then pending + manual review.
+      if (v.state === true) usedNoTx = true;
+    } catch (_) { /* next source */ }
+  }
+  return usedNoTx ? { review: true } : { unknown: true };
+}
+async function settleRow(db, key) {
+  try { return await db.prepare("SELECT resource, amount, settle, facilitator, state, created_at FROM settled_payments WHERE key = ?").bind(key).first(); }
+  catch (_) { try { return await db.prepare("SELECT resource, amount, settle, facilitator FROM settled_payments WHERE key = ?").bind(key).first(); } catch (_e) { return null; } }
+}
+async function markSettled(db, key, resource, amount, settle, facilitator, hadPending) {
+  const now = new Date().toISOString();
+  try {
+    if (hadPending) { const u = await db.prepare("UPDATE settled_payments SET settle = ?, facilitator = ?, state = 'settled', updated_at = ? WHERE key = ?").bind(JSON.stringify(settle), facilitator || null, now, key).run(); if (u && u.meta && u.meta.changes) return; }
+    await db.prepare("INSERT OR IGNORE INTO settled_payments (key, resource, amount, settle, facilitator, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(key, resource, String(amount), JSON.stringify(settle), facilitator || null, now).run();
+  } catch (_) { /* best effort: the on-chain nonce still prevents a re-settle, and a pending row is resolved on chain */ }
+}
 export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
   const db = typeof c.settleStore === "function" ? c.settleStore() : null;
   const key = db ? await settlementKey(c, payload) : null;
+  const ref = paymentRef(key);
   const resource = (() => { try { const u = new URL(url.toString()); return u.origin + u.pathname; } catch (_) { return String(url); } })();
+  const auth = (payload && payload.payload && payload.payload.authorization) || {};
+  const chainQ = { valid_before: /^[0-9]{1,12}$/.test(String(auth.validBefore ?? "")) ? Number(auth.validBefore) : null, from: String(auth.from || "").toLowerCase(), nonce: String(auth.nonce || "").toLowerCase(), network: String((payload.accepted || {}).network || payload.network || c.network || ""), asset: c.asset };
+  const onChain = async () => { try { return typeof c.chainCheck === "function" ? await c.chainCheck(chainQ) : { unknown: true }; } catch (_) { return { unknown: true }; } };
+  let pending = false;
   if (key) {
-    let row = null;
-    try { row = await db.prepare("SELECT resource, amount, settle, facilitator FROM settled_payments WHERE key = ?").bind(key).first(); } catch (_) { row = null; }
+    const row = await settleRow(db, key);
     if (row) {
-      if (row.resource !== resource || String(row.amount) !== String(c.priceAtomic)) return { ok: false, reason: "this payment already settled for another resource or amount", replay_refused: true };
+      if (row.resource !== resource || String(row.amount) !== String(c.priceAtomic)) return { ok: false, reason: "this payment already settled for another resource or amount", replay_refused: true, ref };
       let settle = null;
       try { settle = JSON.parse(row.settle); } catch (_) { settle = null; }
-      if (settle && settle.transaction) return { ok: true, settle, facilitator: row.facilitator || null, replayed: true };
+      if (row.state !== "pending" && settle && (settle.transaction || row.state === "settled")) return { ok: true, settle, facilitator: row.facilitator || null, replayed: true, ref };
+      pending = true; // an earlier attempt wrote PENDING and never finished: resolve on chain first
+      const s = await onChain();
+      if (s.settled && s.tx) {
+        const st = { success: true, transaction: s.tx, network: chainQ.network || c.network, payer: chainQ.from };
+        await markSettled(db, key, resource, c.priceAtomic, st, row.facilitator, true);
+        return { ok: true, settle: st, facilitator: row.facilitator || null, recovered: true, ref };
+      }
+      if (s.canceled) { try { await db.prepare("DELETE FROM settled_payments WHERE key = ? AND (state = 'pending' OR state IS NULL OR state = 'review')").bind(key).run(); } catch (_) {} return { ok: false, reason: "payment authorization was canceled on chain (nothing was charged)", canceled: true, ref }; }
+      if (s.review) { await markReview(db, key, ref, "nonce state true, no used/canceled event found"); return { ok: false, pending: true, review: true, reason: "payment pending (nonce state set on chain, no settlement event found yet; under review)", ref }; }
+      if (s.unknown) return { ok: false, pending: true, reason: "payment pending (chain state unknown)", ref };
+      // nonce unused on chain: nothing moved, settle again below (the on-chain nonce still prevents a double charge)
+    } else {
+      try {
+        const ins = await db.prepare("INSERT OR IGNORE INTO settled_payments (key, resource, amount, settle, facilitator, created_at, state, updated_at) VALUES (?, ?, ?, '{}', NULL, ?, 'pending', ?)").bind(key, resource, String(c.priceAtomic), new Date().toISOString(), new Date().toISOString()).run();
+        pending = true;
+        // 0.59.2 review: a concurrent request with the same payment inserted first: it owns the settle, this one waits
+        if (ins && ins.meta && ins.meta.changes === 0) return { ok: false, pending: true, reason: "payment pending (the same payment is being settled by a concurrent request)", ref };
+      } catch (_) { pending = false; } // 0022 not applied: the 0.51.1 behaviour
     }
   }
-  const r = await verifyAndSettleOnce(c, payload, url, paidPathOrOpts);
-  if (key && r.ok && r.settle && r.settle.transaction) {
-    try { await db.prepare("INSERT OR IGNORE INTO settled_payments (key, resource, amount, settle, facilitator, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(key, resource, String(c.priceAtomic), JSON.stringify(r.settle), r.facilitator || null, new Date().toISOString()).run(); } catch (_) { /* best effort: the on-chain nonce still prevents a re-settle */ }
+  let r;
+  try { r = await verifyAndSettleOnce(c, payload, url, paidPathOrOpts); } catch (_) { r = { ok: false, reason: "settle threw" }; }
+  if (key && r.ok && r.settle && r.settle.transaction) { await markSettled(db, key, resource, c.priceAtomic, r.settle, r.facilitator, pending); return { ...r, ref }; }
+  if (!key || r.ok) return r;
+  if (SETTLE_UNCERTAIN.test(String(r.reason || ""))) {
+    const s = await onChain();
+    if (s.settled && s.tx) {
+      const st = { success: true, transaction: s.tx, network: chainQ.network || c.network, payer: chainQ.from };
+      await markSettled(db, key, resource, c.priceAtomic, st, r.facilitator, pending);
+      return { ok: true, settle: st, facilitator: r.facilitator || null, recovered: true, ref };
+    }
+    if (s.canceled) { if (pending) { try { await db.prepare("DELETE FROM settled_payments WHERE key = ? AND state = 'pending'").bind(key).run(); } catch (_) {} } return { ok: false, reason: "payment authorization was canceled on chain (nothing was charged)", canceled: true, ref }; }
+    if (s.review) { await markReview(db, key, ref, "nonce state true, no used/canceled event found"); return { ok: false, pending: true, review: true, reason: "payment pending (" + r.reason + "; under review)", ref, facilitator: r.facilitator }; }
+    if (s.settled || s.unknown || /unreachable|threw|pending/.test(r.reason)) return { ok: false, pending: true, reason: "payment pending (" + r.reason + ")", ref, facilitator: r.facilitator };
   }
-  return r;
+  // definitive refusal and nothing used on chain: drop our PENDING row so the payload is not held
+  if (pending) { try { await db.prepare("DELETE FROM settled_payments WHERE key = ? AND state = 'pending'").bind(key).run(); } catch (_) {} }
+  return { ...r, ref };
 }
 // verify, then settle. Returns {ok, settle?, reason, facilitator, fallback_from?}. Default chain [payai] = the 0.50.2 path.
 async function verifyAndSettleOnce(c, payload, url, paidPathOrOpts = false) {
@@ -3158,7 +3255,7 @@ async function handleLookup(req, env, ctx, url) {
         charged_usd: c.priceUsd,
         asset: "USDC on Base",
         tx: r.settle.transaction,
-        basescan_url: "https://basescan.org/tx/" + r.settle.transaction,
+        basescan_url: (r.settle.transaction ? "https://basescan.org/tx/" + r.settle.transaction : null),
         payer: r.settle.payer || null,
     facilitator: r.facilitator || null, // 0.51.0
       };
@@ -3210,7 +3307,7 @@ async function handlePaidLookup(req, env, ctx, url) {
   const r = await verifyAndSettle(c, payload, resourceUrl, true);
   if (!r.ok) return deny("payment rejected: " + r.reason, "payment-failed", signerOf(payload));
   const enc = b64encode(r.settle);
-  const access = { tier: "paid", charged_usd: c.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null, facilitator: r.facilitator || null };
+  const access = { tier: "paid", charged_usd: c.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: (r.settle.transaction ? "https://basescan.org/tx/" + r.settle.transaction : null), payer: r.settle.payer || null, facilitator: r.facilitator || null };
   point({ status: 200, access: "paid", amountUsd: Number(c.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer });
   return json(lookupBody(q, data, out, access), 200, { "payment-response": enc, "x-payment-response": enc });
 }
@@ -4412,7 +4509,7 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
     const enc = b64encode(r.settle);
     extraHeaders["payment-response"] = enc;
     extraHeaders["x-payment-response"] = enc;
-    access = { tier: "paid", charged_usd: cd.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null, facilitator: r.facilitator || null };
+    access = { tier: "paid", charged_usd: cd.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: (r.settle.transaction ? "https://basescan.org/tx/" + r.settle.transaction : null), payer: r.settle.payer || null, facilitator: r.facilitator || null };
   }
   if (access.tier === "paid" || access.tier === "hosted") {
     // 0.40.1: every PAID call gets its own signed receipt (new ps- id, own D1 row) carrying who paid, how much and the
