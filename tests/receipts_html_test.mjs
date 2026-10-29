@@ -42,7 +42,7 @@ test("0.58.5 signed live-check receipt: verdict, compared terms, signature block
   assert.match(text, /<span class="verdict pay"><i><\/i>pay<\/span>/);
   assert.match(text, /What was compared/); assert.match(text, /<th scope="row">Pay to<\/th>/); assert.match(text, /seller&rsquo;s wallet/);
   assert.ok(text.includes(b.kid) && text.includes(b.signature), "kid + signature shown");
-  assert.match(text, /href="\/docs#receipt-signatures">Verify offline/);
+  assert.match(text, /href="\/verify\?id=sc-85c8963fb57e7b25">Verify offline/); // 0.59.0: the offline verifier (was /docs#receipt-signatures)
   assert.ok(text.includes("sc-85c8963fb57e7b25") && text.includes("2026-10-20 17:52 UTC"));
   // public-JSON fields that are never rendered
   for (const v of [b.norm_key, b.approved_payment.deadline, JSON.parse(SAMPLE.find((r) => r.id === "sc-9841a8498462c4b0").body).receipt_v2.request_sha256, '"maxTimeoutSeconds"', "[![402xAgent status]", "redacted_v2", "payment_received"]) assert.ok(!text.includes(v), "not shown: " + v);
