@@ -14,6 +14,23 @@ export const LEGACY_ORIGIN = "https://verified-catalog-lookup.withgrokbot.worker
 // Older hosts (internal list, never printed): browser page views 301 to 402xagent.com, API/x402/MCP keep answering.
 export const OLD_HOSTNAMES = ["payscout.dev", "api.payscout.dev", "verified-catalog-lookup.withgrokbot.workers.dev"];
 export const SPOT_TAGS = ["x402", "402xagent", "pre-payment-check", "probe", "catalog", "agents"];
+// 0.58.9: Bazaar service metadata on the resource object of every 402xAgent check-family 402 (x402 v2 specs/extensions/
+// bazaar.md "Service Metadata on resource": serviceName <= 32 printable ASCII, tags <= 5 entries, iconUrl absolute http(s),
+// PNG/JPG/WebP/GIF). One serviceName for the whole host so directories group the routes as one service. The x402 spec has
+// no category or provider/website field; directories (Agentic.Market) fill those from their own enrichment.
+export const BAZAAR_SERVICE_NAME = "402xAgent Check";
+export const BAZAAR_ICON_URL = "https://402xagent.com/apple-touch-icon.png";
+export const BAZAAR_META = Object.freeze({
+  spot: { tags: ["x402", "pre-payment-check", "payment-verification", "signed-receipts", "infra"],
+    description: (c) => `Unpaid probe of an x402 URL: pay, skip or recheck verdict on its live terms (payTo, network, asset, price), with an Ed25519-signed receipt. Never pays the target. $${c.priceUsd} USDC on Base after ${c.freePerDay} free checks per UTC day.` },
+  lookup: { tags: ["x402", "catalog", "reliability", "receipts", "infra"] },
+  paymentStatus: { tags: ["x402", "payments", "reconcile", "base", "usdc"] },
+  report: { tags: ["x402", "reports", "drift", "receipts", "base"] },
+  watch: { tags: ["x402", "monitoring", "webhooks", "drift", "base"] },
+  feed: { tags: ["x402", "data-feed", "drift", "monitoring", "base"] },
+});
+/** 0.58.9: serviceName + tags + iconUrl for a resource object (kind = a BAZAAR_META key). */
+export const bazaarServiceMeta = (kind) => ({ serviceName: BAZAAR_SERVICE_NAME, tags: [...BAZAAR_META[kind].tags], iconUrl: BAZAAR_ICON_URL });
 export const SPOT_DEFAULT_PRICE_ATOMIC = "20000"; // $0.02 USDC (0.38.0: flat; the per-request price is SPOT_PAID_ATOMIC)
 export const SPOT_DEFAULT_FREE_PER_DAY = 5;
 export const SPOT_PAID_PER_HOUR = 30;

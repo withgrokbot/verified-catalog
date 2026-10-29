@@ -29,7 +29,7 @@ import {
   PACK_PROMPTS, PACK_TEMPLATES,
 } from "./pack/overnight-cos-data.js";
 import {
-  SPOT_ID, SPOT_SERVICE_NAME, SPOT_TAGS, BRAND, BRAND_HOSTS, LEGACY_ORIGIN, CANON_ORIGIN, API_ORIGIN, OLD_HOSTNAMES, SPOT_DEFAULT_PRICE_ATOMIC, SPOT_DEFAULT_FREE_PER_DAY,
+  SPOT_ID, SPOT_SERVICE_NAME, SPOT_TAGS, BAZAAR_META, bazaarServiceMeta, BRAND, BRAND_HOSTS, LEGACY_ORIGIN, CANON_ORIGIN, API_ORIGIN, OLD_HOSTNAMES, SPOT_DEFAULT_PRICE_ATOMIC, SPOT_DEFAULT_FREE_PER_DAY,
   SPOT_PAID_PER_HOUR, SPOT_QUOTA_COUNTER, SPOT_RATE_COUNTER,
   spotProbe, priceMatchesClaimed, decideVerdict, utcHour, assertSafeUrl,
   FREE_CHECK_URL,
@@ -77,7 +77,7 @@ import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.58.7";
+export const VERSION = "0.58.9";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -728,8 +728,7 @@ export function paidPaymentRequired(c, resourceUrl, error) {
       url: resourceUrl,
       description: `Verified catalog reliability lookup: x402 endpoints for a task at or under a price, with our own paid receipts and known-answer pass/fail. $${c.priceUsd} USDC on Base per call.`,
       mimeType: "application/json",
-      serviceName: SERVICE_NAME,
-      tags: SERVICE_TAGS,
+      ...bazaarServiceMeta("lookup"), // 0.58.9 (was serviceName SERVICE_NAME, tags SERVICE_TAGS)
     },
     accepts: [paymentRequirements(c, resourceUrl, 2, true)],
     extensions: { bazaar: bazaarExtension() },
@@ -1172,10 +1171,9 @@ export function spotPaymentRequired(c, resourceUrl, error, used, target = "") {
     error: error + ` The free check (${c.freePerDay}/day, resets 00:00 UTC) is ${FREE_CHECK_URL}; a free dry run works now: add &mode=dry-run.`,
     resource: {
       url: resourceUrl,
-      description: `${SPOT_SERVICE_NAME}: probe of a public URL (blocks private, loopback and link-local addresses on every redirect hop) for an x402 PAYMENT-REQUIRED challenge. Never pays the target. $${c.priceUsd} USDC on Base after ${c.freePerDay} free checks per UTC day.`,
+      description: BAZAAR_META.spot.description(c), // 0.58.9
       mimeType: "application/json",
-      serviceName: SPOT_SERVICE_NAME,
-      tags: SPOT_TAGS,
+      ...bazaarServiceMeta("spot"), // 0.58.9 (was serviceName SPOT_SERVICE_NAME, tags SPOT_TAGS: 6 tags, the spec keeps 5)
     },
     accepts: [paymentRequirements(c, resourceUrl, 2, {
       paidPath: false,
@@ -2519,6 +2517,7 @@ export function paymentRequired(c, url, error, used) {
       url: resource,
       description: `Verified catalog reliability lookup ($${c.priceUsd} USDC on Base per call after ${c.freePerDay} free calls per UTC day)`,
       mimeType: "application/json",
+      ...bazaarServiceMeta("lookup"), // 0.58.9
     },
     accepts: [paymentRequirements(c, resource, 2)],
     extensions: {},
@@ -4253,8 +4252,7 @@ export function psPaymentRequired(c, resourceUrl, error, used, extra = {}) {
       url: resourceUrl,
       description: `402xAgent payment status: did an x402 USDC payment on Base land, and is it safe to sign a new one? $${c.priceUsd} USDC after ${c.freePerDay} free checks per UTC day (shared with the check).`,
       mimeType: "application/json",
-      serviceName: "402xAgent payment status",
-      tags: ["x402", "payments", "reconcile", "base", "usdc"],
+      ...bazaarServiceMeta("paymentStatus"), // 0.58.9 (was serviceName "402xAgent payment status")
     },
     accepts: [paymentRequirements(c, resourceUrl, 2, { paidPath: false, description: `402xAgent payment status: one on-chain lookup after the ${c.freePerDay} free checks per UTC day. $${c.priceUsd} USDC on Base.` })],
     extensions: { bazaar: psBazaarExtension() },
@@ -4471,7 +4469,7 @@ export function erPaymentRequired(cd, resourceUrl, error, extra = {}) {
   return {
     x402Version: 2,
     error,
-    resource: { url: resourceUrl, description: `402xAgent endpoint report: the exact committed drift history and hygiene detail behind the free check's locked teasers. $0.05 USDC on ${erNet(cd)}.`, mimeType: "application/json", serviceName: "402xAgent endpoint report", tags: ["x402", "reports", "drift", "receipts", "base"] },
+    resource: { url: resourceUrl, description: `402xAgent endpoint report: the exact committed drift history and hygiene detail behind the free check's locked teasers. $0.05 USDC on ${erNet(cd)}.`, mimeType: "application/json", ...bazaarServiceMeta("report") }, // 0.58.9 (was serviceName "402xAgent endpoint report")
     accepts: [paymentRequirements(cd, resourceUrl, 2, { paidPath: true, description: `402xAgent endpoint report: $0.05 USDC on ${erNet(cd)} per report (no free tier).` })],
     extensions: { bazaar: erBazaarExtension() },
     price_usd: ER_PRICE_USD,
@@ -4635,7 +4633,7 @@ function bulkCfg(env, n) { const a = bulkAtomic(n); return { ...spotCfg(env), pr
 export function bulkPaymentRequired(cd, resourceUrl, error, n, extra = {}) {
   return {
     x402Version: 2, error,
-    resource: { url: resourceUrl, description: `402xAgent bulk endpoint report: up to ${BULK_MAX} endpoints in one call, $0.05 each, capped at $0.20 (USDC on ${erNet(cd)}).`, mimeType: "application/json", serviceName: "402xAgent bulk endpoint report" },
+    resource: { url: resourceUrl, description: `402xAgent bulk endpoint report: up to ${BULK_MAX} endpoints in one call, $0.05 each, capped at $0.20 (USDC on ${erNet(cd)}).`, mimeType: "application/json", ...bazaarServiceMeta("report") }, // 0.58.9 (was serviceName "402xAgent bulk endpoint report", no tags)
     accepts: [paymentRequirements(cd, resourceUrl, 2, { paidPath: true, description: `402xAgent bulk endpoint report: ${n} endpoint${n === 1 ? "" : "s"}, $${cd.priceUsd} USDC on ${erNet(cd)}.` })],
     extensions: { bazaar: bulkBazaarExtension() },
     price_usd: cd.priceUsd, pricing: "min(n x $0.05, $0.20) per call, n = 1-5 distinct endpoints", urls_count: n, asset: `USDC on ${erNet(cd)} (${cd.network})`,
