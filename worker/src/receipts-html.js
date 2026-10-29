@@ -12,7 +12,7 @@ import { plainReason } from "./home.js";
 
 export const RECEIPTS_PAGE_SIZE = 50; // crawl rows per HTML page
 export const LIVE_PAGE_SIZE = 25;
-export const VERIFY_HREF = "/verify"; // 0.59.0: the offline verifier (verify.js); was /docs#receipt-signatures (instructions only)
+export const VERIFY_HREF = "/docs#receipt-signatures";
 export const KEYS_HREF = "/.well-known/402xagent-keys.json";
 export const TABS = [["crawl", "Crawl skips"], ["live", "Live checks"], ["dry-run", "Dry runs"], ["self-checked", "Self-checked"]];
 
@@ -126,7 +126,7 @@ function sigBlock(r) {
 <p class="rc-note">Signed by 402xAgent with Ed25519 over the RFC 8785 (JCS) form of the receipt JSON without its <code>signature</code> field.</p>
 <dl class="rc-dl"><dt>Key id (kid)</dt><dd><code>${esc(r.kid)}</code></dd></dl>
 <div class="rc-sig">${esc(r.signature)}</div>
-<div class="rc-actions"><a href="${VERIFY_HREF}?id=${esc(r.id)}">Verify offline &rarr;</a><a href="${KEYS_HREF}">Public keys</a></div></section>`;
+<div class="rc-actions"><a href="${VERIFY_HREF}">Verify offline &rarr;</a><a href="${KEYS_HREF}">Public keys</a></div></section>`;
   return `<section class="rc-card rc-unsigned" id="signature"><h2>Unsigned</h2><p class="rc-note">This live-check receipt was stored before receipts were signed, so it carries no signature.</p></section>`;
 }
 function termsRow(label, listed, live) {

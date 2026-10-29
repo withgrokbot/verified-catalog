@@ -18,7 +18,6 @@ export function receiptKeysDoc() {
     algorithm: "Ed25519 (EdDSA), signature base64url, 64 bytes",
     signed_bytes: "RFC 8785 (JCS) canonical JSON of the receipt with only the signature field removed (kid is signed)",
     verify: "npm x402-spotcheck >= 1.1.0: verifyReceipt(receipt); or see /docs#receipt-signatures",
-    offline_verifier: "https://402xagent.com/verify (0.59.0: keys pinned in the page; standalone file /verify/402xagent-verifier.html, Node script /verify/verify-receipt.mjs)",
     keys: publishedKeys().map((k) => ({ kty: "OKP", crv: "Ed25519", alg: "EdDSA", use: "sig", kid: k.kid, x: k.x, ...(k.created ? { created: k.created } : {}) })),
   };
 }
