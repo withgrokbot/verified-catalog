@@ -2629,9 +2629,12 @@ export async function settlementKey(c, payload) {
 // flow finishes. Unknown = 503 "payment pending" with a stable payment_ref (never a 402, which makes clients re-sign).
 export const RECEIPT_SAVE_ERROR = "the receipt could not be stored (tried twice), so no receipt link is returned";
 export const SETTLE_UNCERTAIN = /facilitator unreachable \(settle\)|nonce_already_used|settlement_pending|settle threw/;
-// 0.59.2 review: a nonce used on chain whose transaction no source can find stays pending at most this long after the
-// PENDING row; then the paid flow finishes with transaction null (tx_unconfirmed), so a buyer is never stuck at 503.
-export const PENDING_MAX_AGE_S = 1800;
+// 0.59.3 review: nonce state true but no AuthorizationUsed/Canceled event found (or a log error): the row is marked
+// 'review' and one structured log line is written; the buyer keeps the 503 + payment_ref. Never auto-finished as paid.
+async function markReview(db, key, ref, why) {
+  try { console.log(JSON.stringify({ event: "settlement_review", payment_ref: ref, why })); } catch (_) {}
+  try { await db.prepare("UPDATE settled_payments SET state = 'review', updated_at = ? WHERE key = ? AND (state = 'pending' OR state IS NULL OR state = 'review')").bind(new Date().toISOString(), key).run(); } catch (_) {}
+}
 export function paymentRef(key) { return key ? "pay-" + key.slice(3, 23) : null; }
 export function paymentPendingBody(r) {
   return { error: "payment pending: the settlement answer was lost and the chain does not confirm it yet. Do not sign a new payment: retry this request with the same PAYMENT-SIGNATURE header.", payment_ref: r.ref || null, charged: "unknown", retry_same_payment: true, retry_after_s: 15 };
@@ -2650,11 +2653,13 @@ export async function nonceOnChain(env, q) {
       const v = await readSource(src, { from: q.from, nonce: q.nonce, valid_before: q.valid_before ?? null });
       if (v.state === false) return { settled: false };
       if (v.state === true && v.event === "canceled") return { settled: false, canceled: true }; // no money moved: a refusal
-      if (v.state === true && v.event === "used" && v.event_tx) return { settled: true, tx: v.event_tx };
+      if (v.state === true && v.event === "used" && v.event_tx) return { settled: true, tx: v.event_tx }; // the only positive "paid" signal
+      // authorizationState is true for used AND canceled authorizations: true with no event in the window, or a log
+      // error, proves nothing either way. Never paid on that; try the next source, then pending + manual review.
       if (v.state === true) usedNoTx = true;
     } catch (_) { /* next source */ }
   }
-  return usedNoTx ? { settled: true, tx: null } : { unknown: true };
+  return usedNoTx ? { review: true } : { unknown: true };
 }
 async function settleRow(db, key) {
   try { return await db.prepare("SELECT resource, amount, settle, facilitator, state, created_at FROM settled_payments WHERE key = ?").bind(key).first(); }
@@ -2690,14 +2695,9 @@ export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
         await markSettled(db, key, resource, c.priceAtomic, st, row.facilitator, true);
         return { ok: true, settle: st, facilitator: row.facilitator || null, recovered: true, ref };
       }
-      if (s.canceled) { try { await db.prepare("DELETE FROM settled_payments WHERE key = ? AND (state = 'pending' OR state IS NULL)").bind(key).run(); } catch (_) {} return { ok: false, reason: "payment authorization was canceled on chain (nothing was charged)", canceled: true, ref }; }
-      const age = (Date.now() - Date.parse(row.created_at || "")) / 1000;
-      if (s.settled && Number.isFinite(age) && age > PENDING_MAX_AGE_S) { // used on chain, tx never found: finish paid, unconfirmed
-        const st = { success: true, transaction: null, tx_unconfirmed: true, network: chainQ.network || c.network, payer: chainQ.from };
-        await markSettled(db, key, resource, c.priceAtomic, st, row.facilitator, true);
-        return { ok: true, settle: st, facilitator: row.facilitator || null, recovered: true, ref };
-      }
-      if (s.settled || s.unknown) return { ok: false, pending: true, reason: "payment pending (" + (s.settled ? "nonce used on chain, transaction not found yet" : "chain state unknown") + ")", ref };
+      if (s.canceled) { try { await db.prepare("DELETE FROM settled_payments WHERE key = ? AND (state = 'pending' OR state IS NULL OR state = 'review')").bind(key).run(); } catch (_) {} return { ok: false, reason: "payment authorization was canceled on chain (nothing was charged)", canceled: true, ref }; }
+      if (s.review) { await markReview(db, key, ref, "nonce state true, no used/canceled event found"); return { ok: false, pending: true, review: true, reason: "payment pending (nonce state set on chain, no settlement event found yet; under review)", ref }; }
+      if (s.unknown) return { ok: false, pending: true, reason: "payment pending (chain state unknown)", ref };
       // nonce unused on chain: nothing moved, settle again below (the on-chain nonce still prevents a double charge)
     } else {
       try {
@@ -2720,6 +2720,7 @@ export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
       return { ok: true, settle: st, facilitator: r.facilitator || null, recovered: true, ref };
     }
     if (s.canceled) { if (pending) { try { await db.prepare("DELETE FROM settled_payments WHERE key = ? AND state = 'pending'").bind(key).run(); } catch (_) {} } return { ok: false, reason: "payment authorization was canceled on chain (nothing was charged)", canceled: true, ref }; }
+    if (s.review) { await markReview(db, key, ref, "nonce state true, no used/canceled event found"); return { ok: false, pending: true, review: true, reason: "payment pending (" + r.reason + "; under review)", ref, facilitator: r.facilitator }; }
     if (s.settled || s.unknown || /unreachable|threw|pending/.test(r.reason)) return { ok: false, pending: true, reason: "payment pending (" + r.reason + ")", ref, facilitator: r.facilitator };
   }
   // definitive refusal and nothing used on chain: drop our PENDING row so the payload is not held

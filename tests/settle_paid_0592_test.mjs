@@ -35,7 +35,7 @@ function world({ loseSettleAnswer = false, chain = "up" } = {}) {
       const r = (result) => Response.json({ jsonrpc: "2.0", id: 1, result });
       if (b.method === "eth_getBlockByNumber") return r({ number: "0x1000", timestamp: "0x6700000" });
       if (b.method === "eth_call") return r(w.used.has("0x" + b.params[0].data.slice(-64)) ? "0x" + "0".repeat(63) + "1" : "0x" + "0".repeat(64));
-      if (b.method === "eth_getLogs") { const n = b.params[0].topics[2]; if (!w.used.has(n) || w.logs === "none") return r([]); return r([{ topics: [w.logs === "canceled" ? "0x1cdd46ff242716cdaa72d159d339a485b3438398348d68f09d7c8c0a59353d81" : "0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5", b.params[0].topics[1], n], transactionHash: TX, blockNumber: "0xff0" }]); }
+      if (b.method === "eth_getLogs") { const n = b.params[0].topics[2]; if (w.logs === "error") return Response.json({ jsonrpc: "2.0", id: 1, error: { code: -32005, message: "range too large" } }); if (!w.used.has(n) || w.logs === "none") return r([]); return r([{ topics: [w.logs === "canceled" ? "0x1cdd46ff242716cdaa72d159d339a485b3438398348d68f09d7c8c0a59353d81" : "0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5", b.params[0].topics[1], n], transactionHash: TX, blockNumber: "0xff0" }]); }
       if (b.method === "eth_getTransactionReceipt") return r(null);
       return r(null);
     }
@@ -100,16 +100,31 @@ test("0.59.2 review: an authorization canceled on chain is a refusal (no money m
   assert.equal(r.ok, false); assert.ok(!r.pending, "must not be pending"); assert.equal(r.canceled, true); assert.match(r.reason, /canceled/);
   assert.equal(db.raw.prepare("SELECT COUNT(*) n FROM settled_payments").get().n, 0);
 });
-test("0.59.2 review: nonce used on chain but its tx not found -> pending only up to PENDING_MAX_AGE_S, then the paid flow finishes (tx_unconfirmed)", async () => {
+test("0.59.3 review: nonce state true but NO event (could be a cancel outside the window) -> 503 pending + 'review', never paid, even when old", async () => {
   const db = d1(); const w = world(); w.logs = "none";
   const c = mkc(db), p = payload("16"), q = payload("17"); w.used.add(p.payload.authorization.nonce); w.used.add(q.payload.authorization.nonce);
-  await pendingRow(db, c, p, 5); await pendingRow(db, c, q, 31);
-  const young = await verifyAndSettle(c, p, SPOT);
-  assert.equal(young.pending, true);
-  const old = await verifyAndSettle(c, q, SPOT);
-  assert.equal(old.ok, true, String(old.reason)); assert.equal(old.settle.transaction, null); assert.equal(old.settle.tx_unconfirmed, true);
-  const again = await verifyAndSettle(c, q, SPOT);
-  assert.equal(again.ok, true); assert.equal(again.replayed, true, "settled row replays");
+  await pendingRow(db, c, p, 5); await pendingRow(db, c, q, 120);
+  const logs = []; const real = console.log; console.log = (x) => logs.push(String(x));
+  let young, old; try { young = await verifyAndSettle(c, p, SPOT); old = await verifyAndSettle(c, q, SPOT); } finally { console.log = real; }
+  for (const r of [young, old]) { assert.equal(r.ok, false); assert.equal(r.pending, true); assert.match(r.ref, /^pay-/); }
+  assert.deepEqual(db.raw.prepare("SELECT DISTINCT state FROM settled_payments").all().map((x) => x.state), ["review"]);
+  assert.ok(logs.some((l) => /"event":"settlement_review"/.test(l)), "structured review log line");
+  assert.ok(!logs.join("\n").includes("00000000000000000000000000000000000000b1"), "no wallet in the log");
+});
+test("0.59.3 review: a getLogs error (state true) -> 503 pending, never paid", async () => {
+  const db = d1(); const w = world(); w.logs = "error";
+  const c = mkc(db), p = payload("19"); w.used.add(p.payload.authorization.nonce);
+  await pendingRow(db, c, p, 60);
+  const real = console.log; console.log = () => {};
+  let r; try { r = await verifyAndSettle(c, p, SPOT); } finally { console.log = real; }
+  assert.equal(r.ok, false); assert.equal(r.pending, true);
+});
+test("0.59.3 review: a positive AuthorizationUsed log -> paid with that tx", async () => {
+  const db = d1(); const w = world();
+  const c = mkc(db), p = payload("1a"); w.used.add(p.payload.authorization.nonce);
+  await pendingRow(db, c, p, 60);
+  const r = await verifyAndSettle(c, p, SPOT);
+  assert.equal(r.ok, true); assert.equal(r.settle.transaction, TX);
 });
 test("0.59.2 review: the losing concurrent request (INSERT OR IGNORE changed 0 rows) goes to the 503 pending path", async () => {
   const db = d1(); const w = world();
