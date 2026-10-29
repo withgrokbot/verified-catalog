@@ -78,7 +78,7 @@ import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.59.0";
+export const VERSION = "0.59.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1617,6 +1617,10 @@ export async function saveLiveReceipt(env, r) {
   try {
     const signed = await signObject(env, scrubView(normReceipt(JSON.parse(JSON.stringify(r)))).view); // 0.45.6: buyer data never signed into the public view
     if (signed) r = { ...r, signed_view: signed };
+    // 0.59.1: without a signature (no RECEIPT_SIGNING_KEY, or signing failed) the public view is frozen the same way, as
+    // frozen_view (unsigned), so later view-code changes (brand rewrites, redaction, read-time notes) can't change what an
+    // unsigned new receipt says. Signed rows already freeze via signed_view (0.38.0). Older rows have neither: unchanged.
+    else r = { ...r, frozen_view: scrubView(normReceipt(JSON.parse(JSON.stringify(r)))).view };
   } catch (_) {}
   try {
     await env.RECEIPTS_DB.prepare("INSERT INTO spot_receipts (id, url, created_at, verdict, reason, check_type, ref, norm_key, probed_at, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
@@ -1631,6 +1635,7 @@ export function normReceipt(r) {
   if (!r) return r;
   if (!r.signed_view && "client" in r) { r = { ...r }; delete r.client; } // 0.42.4: client is stored, never served
   if (r.signed_view && typeof r.signed_view.signature === "string") return r.signed_view; // 0.38.0: signed = served as signed
+  if (!r.signed_view && r.frozen_view && typeof r.frozen_view === "object" && !Array.isArray(r.frozen_view)) return r.frozen_view; // 0.59.1: unsigned, frozen at write
   // 0.18.0: copy stored under earlier names reads with the current brand (URLs and route paths untouched).
   try {
     const t = JSON.stringify(r);
