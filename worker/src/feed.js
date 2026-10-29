@@ -10,6 +10,7 @@
 // FEED=1 records observations only when FEED_OBSERVE=1 is also set (unchanged from 0.52.0).
 // FEED_MAINNET=1 takes paid tiers on the main payment preset; default (off) = Base Sepolia testnet USDC.
 import { normUrl } from "./skips.js";
+import { bazaarServiceMeta } from "./spotcheck.js"; // 0.58.9
 import { canonicalize, signObject } from "./sign.js";
 import { d1WriteAllowed } from "./d1size.js";
 
@@ -349,7 +350,7 @@ export function feedCfg(env, deps, priceKey) {
 const describe = (c, k) => `402xAgent Watchtower data feed: $${FEED_PRICES[k].usd} USDC on ${c.label || "Base"} for ${FEED_PRICES[k].what}. Facts only (liveness, payment terms, drift events); payment never changes the data.`;
 function paymentRequired(c, deps, resourceUrl, k, error, extra = {}) {
   const desc = describe(c, k);
-  const body = { x402Version: 2, error, resource: { url: resourceUrl, description: desc, mimeType: "application/json" },
+  const body = { x402Version: 2, error, resource: { url: resourceUrl, description: desc, mimeType: "application/json", ...bazaarServiceMeta("feed") }, // 0.58.9
     accepts: [deps.paymentRequirements(c, resourceUrl, 2, { paidPath: true, description: desc })],
     product: "watchtower-feed", tier: k, price_usd: FEED_PRICES[k].usd, network: c.network, testnet: c.network !== "eip155:8453",
     how_to_pay: "Retry the same request with a PAYMENT-SIGNATURE header (x402 v2; X-PAYMENT also accepted) for the amount and payTo above.",

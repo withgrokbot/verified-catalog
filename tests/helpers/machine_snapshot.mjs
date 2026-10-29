@@ -47,7 +47,7 @@ const POSTS = [
   ["/v1/watch", { url: "https://alpha.fixture/api" }],
 ];
 
-export async function snapshot(workerPath) {
+export async function snapshot(workerPath, onResponse = null) { // 0.58.9: optional onResponse(key, res, body) tap (bodies402.mjs)
   const mod = await import(pathToFileURL(resolve(workerPath)).href);
   const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
   const worker = mod.default, VERSION = lib.VERSION;
@@ -61,6 +61,7 @@ export async function snapshot(workerPath) {
     const headers = {};
     for (const [k, v] of [...res.headers.entries()].sort()) headers[k] = norm(v);
     out[key] = { status: res.status, headers, sha256: createHash("sha256").update(norm(body)).digest("hex") };
+    if (onResponse) onResponse(key, res, body);
   };
   for (const h of HOSTS) for (const p of GETS) for (const [an, a] of Object.entries(ACCEPTS)) {
     const [accept, ua] = a ? a.split("|") : [null, null];
@@ -264,7 +265,11 @@ if (process.argv[2] === "--skips" && process.argv[3]) {
   process.stdout.write(JSON.stringify(await snapshot0583(process.argv[3]), null, 1) + "\n");
 } else if (process.argv[2] === "--extra" && process.argv[3]) {
   process.stdout.write(JSON.stringify(await snapshotExtra(process.argv[3]), null, 1) + "\n");
-} else if (process.argv[2]) {
+} else if (process.argv[2] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) { // 0.58.9: not when imported (bodies402.mjs)
   const snap = await snapshot(process.argv[2]);
   process.stdout.write(JSON.stringify(snap, null, 1) + "\n");
 }
+
+// 0.58.9: every key that answered 402 in the 0.58.7 snapshot (tests/fixtures/machine_0.58.7/bodies402.json). Their only
+// allowed change is the Bazaar service metadata on resource; bazaar_meta_test.mjs checks that field by field.
+export const META402_KEYS = new Set(Object.keys(JSON.parse(readFileSync(fileURLToPath(new URL("../fixtures/machine_0.58.7/bodies402.json", import.meta.url)), "utf8")).bodies));

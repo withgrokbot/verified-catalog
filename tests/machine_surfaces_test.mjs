@@ -12,7 +12,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 
-import { RECEIPT_HTML_KEY, DOCS_PRICING_KEY, HOME_KEY, restoreHomeFooter, SKIPS_HTML_KEY } from "./helpers/machine_snapshot.mjs";
+import { RECEIPT_HTML_KEY, DOCS_PRICING_KEY, HOME_KEY, restoreHomeFooter, SKIPS_HTML_KEY, META402_KEYS } from "./helpers/machine_snapshot.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BLOG0587 = { ...process.env, SNAP_BLOG_AS_0587: "1" }; // 0.58.8: older fixtures predate the two Oct 29 blog changes (see helper)
 const want = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.57.1", "snapshot.json"), "utf8"));
@@ -23,7 +23,7 @@ test("0.58.0 machine surfaces: byte-identical to the 0.57.1 snapshot (status, he
   const got = JSON.parse(r.stdout);
   assert.ok(Object.keys(want).length > 1000, "snapshot covers the surfaces");
   assert.deepEqual(Object.keys(got).sort(), Object.keys(want).sort(), "same request set");
-  const diff = Object.keys(want).filter((k) => !RECEIPT_HTML_KEY.test(k) && !SKIPS_HTML_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want[k])); // 0.58.7: browser /v1/skips // 0.58.5: receipt pages for browsers
+  const diff = Object.keys(want).filter((k) => !RECEIPT_HTML_KEY.test(k) && !SKIPS_HTML_KEY.test(k) && !META402_KEYS.has(k) && JSON.stringify(got[k]) !== JSON.stringify(want[k])); // 0.58.7: browser /v1/skips // 0.58.5: receipt pages for browsers
   assert.deepEqual(diff, [], "changed machine responses");
   // spot checks that the snapshot really covers what matters
   for (const k of ["GET https://402xagent.com/ [none]", "GET https://402xagent.com/ [json]", "GET https://402xagent.com/ [curl]", "GET https://api.402xagent.com/ [html]",
@@ -50,7 +50,7 @@ test("0.58.3 /pricing rebuild: pricing machine paths and the homepage are byte-i
   assert.ok(Object.keys(want2).length >= 180, "extra snapshot covers the pricing paths on every host");
   assert.deepEqual(Object.keys(got).sort(), Object.keys(want2).sort(), "same request set");
   const HOME = "GET https://402xagent.com/ [html]";
-  assert.deepEqual(Object.keys(want2).filter((k) => k !== HOME && !DOCS_PRICING_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want2[k])), [], "changed responses"); // 0.58.6: /docs split
+  assert.deepEqual(Object.keys(want2).filter((k) => k !== HOME && !DOCS_PRICING_KEY.test(k) && !META402_KEYS.has(k) && JSON.stringify(got[k]) !== JSON.stringify(want2[k])), [], "changed responses"); // 0.58.6: /docs split
   // the homepage: same status and headers; the body differs from 0.58.2 only by the two review strings (Watchtower and Hosted cards)
   assert.equal(got[HOME].status, want2[HOME].status); assert.deepEqual(got[HOME].headers, want2[HOME].headers);
   assert.notEqual(got[HOME].sha256, want2[HOME].sha256, "the two card strings did change");
@@ -87,7 +87,7 @@ test("0.58.4 audit layer card: every surface byte-identical to 0.58.3; the homep
   const HOME = "GET https://402xagent.com/ [html]";
   assert.ok(Object.keys(want3).length > 1400);
   assert.deepEqual(Object.keys(got).sort(), Object.keys(want3).sort(), "same request set");
-  assert.deepEqual(Object.keys(want3).filter((k) => k !== HOME && !RECEIPT_HTML_KEY.test(k) && !DOCS_PRICING_KEY.test(k) && !SKIPS_HTML_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want3[k])), [], "changed responses"); // 0.58.5 receipts, 0.58.6 docs + pricing
+  assert.deepEqual(Object.keys(want3).filter((k) => k !== HOME && !RECEIPT_HTML_KEY.test(k) && !DOCS_PRICING_KEY.test(k) && !SKIPS_HTML_KEY.test(k) && !META402_KEYS.has(k) && JSON.stringify(got[k]) !== JSON.stringify(want3[k])), [], "changed responses"); // 0.58.5 receipts, 0.58.6 docs + pricing
   for (const k of ["GET https://402xagent.com/pricing [html]", "GET https://api.402xagent.com/pricing [json]", "GET https://402xagent.com/home.js [html]", "GET https://402xagent.com/docs [html]", "GET https://402xagent.com/ [json]", "GET https://402xagent.com/llms.txt [none]", "GET https://api.402xagent.com/openapi.json [none]", "GET https://402xagent.com/.well-known/x402 [none]"])
     assert.ok(want3[k] && want3[k].status === 200, k);
   assert.deepEqual(got[HOME].headers, want3[HOME].headers);
@@ -111,7 +111,7 @@ test("0.58.5 receipts HTML: every machine answer byte-identical to 0.58.4; only 
     assert.equal(r.status, 0, r.stderr);
     const got = JSON.parse(r.stdout);
     assert.deepEqual(Object.keys(got).sort(), Object.keys(want4).sort(), file + ": same request set");
-    assert.deepEqual(Object.keys(want4).filter((k) => !RECEIPT_HTML_KEY.test(k) && !DOCS_PRICING_KEY.test(k) && !SKIPS_HTML_KEY.test(k) && k !== HOME_KEY && JSON.stringify(got[k]) !== JSON.stringify(want4[k])), [], file + ": changed machine responses"); // 0.58.6: docs, pricing, home footer
+    assert.deepEqual(Object.keys(want4).filter((k) => !RECEIPT_HTML_KEY.test(k) && !DOCS_PRICING_KEY.test(k) && !SKIPS_HTML_KEY.test(k) && k !== HOME_KEY && !META402_KEYS.has(k) && JSON.stringify(got[k]) !== JSON.stringify(want4[k])), [], file + ": changed machine responses"); // 0.58.6: docs, pricing, home footer
     const changed = Object.keys(want4).filter((k) => RECEIPT_HTML_KEY.test(k));
     for (const k of changed) {
       assert.match(got[k].headers["content-type"], /^text\/html/, k);
@@ -144,7 +144,7 @@ test("0.58.6 docs split: only /docs, /pricing and the homepage footer change; ev
   const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--0583", W], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
   assert.equal(r.status, 0, r.stderr);
   const got = JSON.parse(r.stdout);
-  const changed = Object.keys(want4).filter((k) => JSON.stringify(got[k]) !== JSON.stringify(want4[k]));
+  const changed = Object.keys(want4).filter((k) => !META402_KEYS.has(k) && JSON.stringify(got[k]) !== JSON.stringify(want4[k]));
   assert.deepEqual(changed.filter((k) => !RECEIPT_HTML_KEY.test(k) && !DOCS_PRICING_KEY.test(k) && !SKIPS_HTML_KEY.test(k) && k !== HOME_KEY), [], "nothing else changed");
   for (const k of changed.filter((k) => DOCS_PRICING_KEY.test(k) || k === HOME_KEY)) {
     assert.equal(got[k].status, want4[k].status, k); assert.deepEqual(got[k].headers, want4[k].headers, k + " headers");
@@ -173,7 +173,7 @@ test("0.58.7 skips page: /v1/skips.json, /skips.json and non-browser /v1/skips J
   const got = JSON.parse(r.stdout);
   assert.deepEqual(Object.keys(got).sort(), Object.keys(want6).sort(), "same request set");
   assert.ok(Object.keys(want6).length >= 595, "every host x path x Accept");
-  const changed = Object.keys(want6).filter((k) => JSON.stringify(got[k]) !== JSON.stringify(want6[k]));
+  const changed = Object.keys(want6).filter((k) => !META402_KEYS.has(k) && JSON.stringify(got[k]) !== JSON.stringify(want6[k]));
   assert.deepEqual(changed.filter((k) => !SKIPS_HTML_KEY.test(k)), [], "changed machine responses");
   const html = Object.keys(want6).filter((k) => SKIPS_HTML_KEY.test(k));
   assert.equal(html.length, 36, "browser keys: 2 hosts x 9 paths x 2 Accepts");
@@ -205,7 +205,7 @@ test("0.58.7 skips page: every other surface (homepage, /pricing, /docs, receipt
     assert.equal(r.status, 0, r.stderr);
     const got = JSON.parse(r.stdout);
     assert.deepEqual(Object.keys(got).sort(), Object.keys(want6).sort(), file + ": same request set");
-    const changed = Object.keys(want6).filter((k) => JSON.stringify(got[k]) !== JSON.stringify(want6[k]));
+    const changed = Object.keys(want6).filter((k) => !META402_KEYS.has(k) && JSON.stringify(got[k]) !== JSON.stringify(want6[k]));
     assert.deepEqual(changed.filter((k) => !SKIPS_HTML_KEY.test(k)), [], file + ": nothing but browser /v1/skips changed");
     assert.equal(changed.length, n, file);
     for (const k of [HOME_KEY, "GET https://402xagent.com/pricing [html]", "GET https://402xagent.com/docs [html]", "GET https://402xagent.com/home.js [html]"]) if (want6[k]) assert.deepEqual(got[k], want6[k], k);
@@ -222,8 +222,8 @@ test("0.58.8 blog posts: only llms.txt changes on machine surfaces, by exactly t
   const got = JSON.parse(r.stdout);
   const changed = Object.keys(want).filter((k) => !RECEIPT_HTML_KEY.test(k) && !SKIPS_HTML_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want[k]));
   assert.ok(changed.length > 0);
-  assert.deepEqual(changed.filter((k) => !/\/llms\.txt \[/.test(k)), [], "only llms.txt");
-  for (const k of changed) { assert.equal(got[k].status, want[k].status, k); assert.deepEqual(got[k].headers, want[k].headers, k); }
+  assert.deepEqual(changed.filter((k) => !/\/llms\.txt \[/.test(k) && !META402_KEYS.has(k)), [], "only llms.txt (and the 0.58.9 402 metadata, checked in bazaar_meta_test.mjs)");
+  for (const k of changed.filter((k) => /\/llms\.txt \[/.test(k))) { assert.equal(got[k].status, want[k].status, k); assert.deepEqual(got[k].headers, want[k].headers, k); }
   const worker = (await import(W)).default;
   const txt = await (await worker.fetch(new Request("https://402xagent.com/llms.txt"), {}, { waitUntil() {}, passThroughOnException() {} })).text();
   assert.match(txt, /\n  - What x402 Verification Actually Means \(and What It Can't Tell You\): https:\/\/402xagent\.com\/blog\/what-is-x402-verification\n/);

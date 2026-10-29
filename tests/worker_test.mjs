@@ -533,7 +533,7 @@ test("paid path: every unpaid call (no params, GET or POST, first call of the da
   const b = (await send(PQ, { envo: e })).body;
   assert.equal(b.x402Version, 2);
   assert.equal(b.resource.url, "https://lookup.fixture/v1/lookup/paid", "resource is the path without the query");
-  assert.equal(b.resource.serviceName, "Verified Catalog Lookup");
+  assert.equal(b.resource.serviceName, "402xAgent Check"); // 0.58.9 (was "Verified Catalog Lookup")
   assert.ok(b.resource.serviceName.length <= 32 && b.resource.tags.length <= 5);
   assert.deepEqual(b.accepts, [{ scheme: "exact", network: "eip155:8453", amount: "20000", asset: USDC, payTo: PAY_TO, maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" } }]);
   const bz = b.extensions.bazaar;
@@ -2705,7 +2705,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.58.8");
+  assert.equal(VERSION, "0.58.9");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)

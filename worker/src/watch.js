@@ -2,7 +2,7 @@
 // baseline, Ed25519-signed webhooks on drift / down / recovery (plus flapping, paused, resumed). API only. Flag WATCHTOWER.
 // Privacy (0.45.6): no payer wallet, tx hash, payment payload or client IP is stored or returned. The watch secret and
 // all trial / rate-limit keys are stored only as hashes. Plan: docs/plan-watchtower.md.
-import { assertSafeUrl, resolveHost, parseX402Challenge, readBodyCapped } from "./spotcheck.js";
+import { assertSafeUrl, resolveHost, parseX402Challenge, readBodyCapped, bazaarServiceMeta } from "./spotcheck.js";
 import { canonicalize, signObject, signBytes } from "./sign.js";
 import { noteD1Size } from "./d1size.js";
 import { feedObserveOn, feedStatementsForWatch, feedOptOut, optInAllowed, optInMax, isOptedIn, setOptIn } from "./feed.js";
@@ -354,7 +354,7 @@ function paymentRequired(cd, deps, resourceUrl, error, extra = {}) {
   const desc = `402xAgent Watchtower: $1 USDC on ${net} per watch per 30 days (hourly re-probe, signed webhooks).`;
   const body = {
     x402Version: 2, error,
-    resource: { url: resourceUrl, description: desc, mimeType: "application/json" },
+    resource: { url: resourceUrl, description: desc, mimeType: "application/json", ...bazaarServiceMeta("watch") }, // 0.58.9
     accepts: [deps.paymentRequirements(cd, resourceUrl, 2, { paidPath: true, description: desc })],
     extensions: { bazaar: watchBazaarExtension() },
     price_usd: WATCH_PRICE_USD, period_days: WATCH_PERIOD_DAYS, asset: `USDC on ${net} (${cd.network})`, product: "watchtower",
