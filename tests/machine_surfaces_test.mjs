@@ -14,10 +14,11 @@ import { createHash } from "node:crypto";
 
 import { RECEIPT_HTML_KEY, DOCS_PRICING_KEY, HOME_KEY, restoreHomeFooter, SKIPS_HTML_KEY, META402_KEYS } from "./helpers/machine_snapshot.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
+const BLOG0587 = { ...process.env, SNAP_BLOG_AS_0587: "1" }; // 0.58.8: older fixtures predate the two Oct 29 blog changes (see helper)
 const want = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.57.1", "snapshot.json"), "utf8"));
 
 test("0.58.0 machine surfaces: byte-identical to the 0.57.1 snapshot (status, headers, body)", () => {
-  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), join(HERE, "..", "worker", "src", "index.js")], { encoding: "utf8", maxBuffer: 64 << 20 });
+  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), join(HERE, "..", "worker", "src", "index.js")], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
   assert.equal(r.status, 0, r.stderr);
   const got = JSON.parse(r.stdout);
   assert.ok(Object.keys(want).length > 1000, "snapshot covers the surfaces");
@@ -43,7 +44,7 @@ test("0.58.0 snapshot helper is deterministic and normalizes only the version", 
 // llms.txt, skill.md, openapi.json, /mcp and every /v1 route (llms.txt and openapi.json mention /pricing; both unchanged).
 test("0.58.3 /pricing rebuild: pricing machine paths and the homepage are byte-identical to 0.58.2", () => {
   const want2 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.2", "extra.json"), "utf8"));
-  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--extra", join(HERE, "..", "worker", "src", "index.js")], { encoding: "utf8", maxBuffer: 64 << 20 });
+  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--extra", join(HERE, "..", "worker", "src", "index.js")], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
   assert.equal(r.status, 0, r.stderr);
   const got = JSON.parse(r.stdout);
   assert.ok(Object.keys(want2).length >= 180, "extra snapshot covers the pricing paths on every host");
@@ -61,7 +62,7 @@ test("0.58.3 review + 0.58.4: the homepage body equals 0.58.2 once the two card 
   const want2 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.2", "extra.json"), "utf8"));
   const r = spawnSync(process.execPath, ["--input-type=module", "-e", `
     const { snapshotHomeBody } = await import(${JSON.stringify(join(HERE, "helpers", "machine_snapshot.mjs"))});
-    process.stdout.write(await snapshotHomeBody(${JSON.stringify(join(HERE, "..", "worker", "src", "index.js"))}));`], { encoding: "utf8", maxBuffer: 64 << 20 });
+    process.stdout.write(await snapshotHomeBody(${JSON.stringify(join(HERE, "..", "worker", "src", "index.js"))}));`], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
   assert.equal(r.status, 0, r.stderr);
   const body = restoreHomeFooter(r.stdout); // 0.58.6: the footer's Products list is the only other change
   const SWAPS = [["Regular re-probes of an endpoint you depend on", "Hourly re-probes of an endpoint you depend on"],
@@ -80,7 +81,7 @@ test("0.58.3 review + 0.58.4: the homepage body equals 0.58.2 once the two card 
 // 404s): everything is byte-identical except the browser homepage, and the homepage minus the card equals 0.58.3 exactly.
 test("0.58.4 audit layer card: every surface byte-identical to 0.58.3; the homepage only gains the card", async () => {
   const want3 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.3", "snapshot.json"), "utf8"));
-  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--0583", join(HERE, "..", "worker", "src", "index.js")], { encoding: "utf8", maxBuffer: 64 << 20 });
+  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--0583", join(HERE, "..", "worker", "src", "index.js")], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
   assert.equal(r.status, 0, r.stderr);
   const got = JSON.parse(r.stdout);
   const HOME = "GET https://402xagent.com/ [html]";
@@ -92,7 +93,7 @@ test("0.58.4 audit layer card: every surface byte-identical to 0.58.3; the homep
   assert.deepEqual(got[HOME].headers, want3[HOME].headers);
   const b = spawnSync(process.execPath, ["--input-type=module", "-e", `
     const { snapshotHomeBody } = await import(${JSON.stringify(join(HERE, "helpers", "machine_snapshot.mjs"))});
-    process.stdout.write(await snapshotHomeBody(${JSON.stringify(join(HERE, "..", "worker", "src", "index.js"))}));`], { encoding: "utf8", maxBuffer: 64 << 20 });
+    process.stdout.write(await snapshotHomeBody(${JSON.stringify(join(HERE, "..", "worker", "src", "index.js"))}));`], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
   assert.equal(b.status, 0, b.stderr);
   const { AUDIT_CARD_HTML, AUDIT_CSS } = await import("../worker/src/home.js");
   const without = restoreHomeFooter(b.stdout).replace("\n" + AUDIT_CARD_HTML, "").replace(AUDIT_CSS, "");
@@ -106,7 +107,7 @@ test("0.58.5 receipts HTML: every machine answer byte-identical to 0.58.4; only 
   const W = join(HERE, "..", "worker", "src", "index.js");
   for (const [flag, file] of [["--0583", "snapshot.json"], ["--receipts", "receipts.json"]]) {
     const want4 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.4", file), "utf8"));
-    const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), flag, W], { encoding: "utf8", maxBuffer: 64 << 20 });
+    const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), flag, W], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
     assert.equal(r.status, 0, r.stderr);
     const got = JSON.parse(r.stdout);
     assert.deepEqual(Object.keys(got).sort(), Object.keys(want4).sort(), file + ": same request set");
@@ -140,7 +141,7 @@ test("0.58.5 receipts HTML: every machine answer byte-identical to 0.58.4; only 
 test("0.58.6 docs split: only /docs, /pricing and the homepage footer change; every machine surface byte-identical to 0.58.4", async () => {
   const W = join(HERE, "..", "worker", "src", "index.js");
   const want4 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.4", "snapshot.json"), "utf8"));
-  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--0583", W], { encoding: "utf8", maxBuffer: 64 << 20 });
+  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--0583", W], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
   assert.equal(r.status, 0, r.stderr);
   const got = JSON.parse(r.stdout);
   const changed = Object.keys(want4).filter((k) => !META402_KEYS.has(k) && JSON.stringify(got[k]) !== JSON.stringify(want4[k]));
@@ -153,7 +154,7 @@ test("0.58.6 docs split: only /docs, /pricing and the homepage footer change; ev
   assert.ok(changed.includes("GET https://402xagent.com/docs [html]") && changed.includes("GET https://402xagent.com/pricing [html]") && changed.includes(HOME_KEY));
   const b = spawnSync(process.execPath, ["--input-type=module", "-e", `
     const { snapshotHomeBody } = await import(${JSON.stringify(join(HERE, "helpers", "machine_snapshot.mjs"))});
-    process.stdout.write(await snapshotHomeBody(${JSON.stringify(W)}));`], { encoding: "utf8", maxBuffer: 64 << 20 });
+    process.stdout.write(await snapshotHomeBody(${JSON.stringify(W)}));`], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
   assert.equal(b.status, 0, b.stderr);
   assert.equal(createHash("sha256").update(restoreHomeFooter(b.stdout)).digest("hex"), want4[HOME_KEY].sha256, "homepage = 0.58.4 except the footer Products list");
 });
@@ -167,7 +168,7 @@ test("0.58.6 docs split: only /docs, /pricing and the homepage footer change; ev
 test("0.58.7 skips page: /v1/skips.json, /skips.json and non-browser /v1/skips JSON byte-identical to 0.58.6; only browser /v1/skips changes", () => {
   const W = join(HERE, "..", "worker", "src", "index.js");
   const want6 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.6", "skips.json"), "utf8"));
-  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--skips", W], { encoding: "utf8", maxBuffer: 64 << 20 });
+  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--skips", W], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
   assert.equal(r.status, 0, r.stderr);
   const got = JSON.parse(r.stdout);
   assert.deepEqual(Object.keys(got).sort(), Object.keys(want6).sort(), "same request set");
@@ -200,7 +201,7 @@ test("0.58.7 skips page: every other surface (homepage, /pricing, /docs, receipt
   const W = join(HERE, "..", "worker", "src", "index.js");
   for (const [flag, file, n] of [["--0583", "snapshot.json", 4], ["--receipts", "receipts.json", 0]]) {
     const want6 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.6", file), "utf8"));
-    const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), flag, W], { encoding: "utf8", maxBuffer: 64 << 20 });
+    const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), flag, W], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
     assert.equal(r.status, 0, r.stderr);
     const got = JSON.parse(r.stdout);
     assert.deepEqual(Object.keys(got).sort(), Object.keys(want6).sort(), file + ": same request set");
@@ -209,4 +210,23 @@ test("0.58.7 skips page: every other surface (homepage, /pricing, /docs, receipt
     assert.equal(changed.length, n, file);
     for (const k of [HOME_KEY, "GET https://402xagent.com/pricing [html]", "GET https://402xagent.com/docs [html]", "GET https://402xagent.com/home.js [html]"]) if (want6[k]) assert.deepEqual(got[k], want6[k], k);
   }
+});
+
+// 0.58.8: two blog posts (the updated comparison post and /blog/what-is-x402-verification). The only machine surface that
+// lists blog posts is llms.txt: against the full 0.57.1 snapshot with the live blog, the changed keys are exactly the
+// llms.txt answers, and the new body is the 0.58.7 one plus the new post line and the retitled comparison line.
+test("0.58.8 blog posts: only llms.txt changes on machine surfaces, by exactly the two blog lines", async () => {
+  const W = join(HERE, "..", "worker", "src", "index.js");
+  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), W], { encoding: "utf8", maxBuffer: 64 << 20 });
+  assert.equal(r.status, 0, r.stderr);
+  const got = JSON.parse(r.stdout);
+  const changed = Object.keys(want).filter((k) => !RECEIPT_HTML_KEY.test(k) && !SKIPS_HTML_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want[k]));
+  assert.ok(changed.length > 0);
+  assert.deepEqual(changed.filter((k) => !/\/llms\.txt \[/.test(k)), [], "only llms.txt");
+  for (const k of changed) { assert.equal(got[k].status, want[k].status, k); assert.deepEqual(got[k].headers, want[k].headers, k); }
+  const worker = (await import(W)).default;
+  const txt = await (await worker.fetch(new Request("https://402xagent.com/llms.txt"), {}, { waitUntil() {}, passThroughOnException() {} })).text();
+  assert.match(txt, /\n  - What x402 Verification Actually Means \(and What It Can't Tell You\): https:\/\/402xagent\.com\/blog\/what-is-x402-verification\n/);
+  assert.match(txt, /\n  - x402 Endpoint Checks Compared: Seven Ways to Look Before Your Agent Pays: https:\/\/402xagent\.com\/blog\/x402-endpoint-checks-compared\n/);
+  assert.doesNotMatch(txt, /Six Ways|UPDATE/);
 });
