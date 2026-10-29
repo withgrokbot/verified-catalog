@@ -376,7 +376,7 @@ test("price and free tier unchanged ($0.02 = 20000 atomic, 5 free a day; the ove
   const rc = REASON_CODES.find((x) => x.code === "terms_unstable");
   assert.equal(rc.verdict, "recheck"); assert.equal(rc.confidence, "low"); assert.ok(REASON_TEXT.terms_unstable);
   assert.match(RULES_VERSION, /^2026-/);
-  assert.equal(MIG_FILES[MIG_FILES.length - 1], "0021_breaker_events.sql", "0.57.0 adds no migration");
+  assert.ok(MIG_FILES.includes("0021_breaker_events.sql") && MIG_FILES.filter((f) => f.slice(0, 4) > "0021").every((f) => /^002[2-9]_settle/.test(f)), "0.57.0 adds no migration (0.59.2+: settlement migrations only)");
 });
 
 test("review 1: amounts use the existing 1% tolerance (priceMatchesClaimed / PRICE_TOLERANCE): +0.9% and -0.9% match, +1.1% is terms_unstable (diff_fields amount)", async () => {

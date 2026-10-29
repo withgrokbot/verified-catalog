@@ -4475,7 +4475,8 @@ test("0.52.0 funnel: a replayed settlement (retry of the same payload) is never 
   const rows = new Map();
   const db = { prepare(sql) { let a = []; return { bind(...x) { a = x; return this; },
     async first() { if (/FROM settled_payments/.test(sql)) return rows.get(a[0]) || null; return null; },
-    async run() { if (/INTO settled_payments/.test(sql) && !rows.has(a[0])) rows.set(a[0], { resource: a[1], amount: a[2], settle: a[3], facilitator: a[4] }); return { meta: { changes: 1 } }; },
+    async run() { if (/INTO settled_payments/.test(sql) && !rows.has(a[0])) rows.set(a[0], { resource: a[1], amount: a[2], settle: a[3], facilitator: a[4], state: /'pending'/.test(sql) ? "pending" : null });
+      if (/^UPDATE settled_payments/.test(sql) && rows.has(a[3])) Object.assign(rows.get(a[3]), { settle: a[0], facilitator: a[1], state: "settled" }); return { meta: { changes: 1 } }; }, // 0.59.2: pending row, then settled
     async all() { return { results: [] }; } }; }, async batch(s) { return Promise.all(s.map((x) => x.run())); } };
   const e = spotEnv({ RECEIPTS_DB: db });
   const fpts = [];
@@ -4490,6 +4491,31 @@ test("0.52.0 funnel: a replayed settlement (retry of the same payload) is never 
   assert.equal(a.status, 200);
   assert.equal(b.status, 200, "the retry is answered from the stored settlement");
   assert.equal(fpts.filter((p) => p.blobs[0] === "paid").length, 1);
+});
+
+test("0.59.2 replay D: a receipt that cannot be stored (tried twice) is never linked; a paid check answers an honest 503 with a stable payment_ref", async () => {
+  const rows = new Map(); let inserts = 0;
+  const db = { prepare(sql) { let a = []; return { bind(...x) { a = x; return this; },
+    async first() { if (/FROM settled_payments/.test(sql)) return rows.get(a[0]) || null; return null; },
+    async run() { if (/INTO spot_receipts/.test(sql)) { inserts++; throw new Error("D1 write failed"); }
+      if (/INTO settled_payments/.test(sql) && !rows.has(a[0])) rows.set(a[0], { resource: a[1], amount: a[2], settle: a[3], facilitator: a[4], state: /'pending'/.test(sql) ? "pending" : null });
+      if (/^UPDATE settled_payments/.test(sql) && rows.has(a[3])) Object.assign(rows.get(a[3]), { settle: a[0], facilitator: a[1], state: "settled" });
+      return { meta: { changes: 1 } }; },
+    async all() { return { results: [] }; } }; }, async batch(s) { return Promise.all(s.map((x) => x.run())); } };
+  const e = spotEnv({ RECEIPTS_DB: db });
+  spotTargetMode = "402"; facMode = "ok";
+  const target = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=store-fail-1";
+  const free = await send(target, { envo: e });
+  assert.equal(free.status, 200);
+  assert.equal(free.body.receipt_url, null, "free answer: no link to a receipt that does not exist");
+  assert.equal(free.body.receipt_saved, false);
+  assert.equal(inserts, 2, "one retry");
+  for (let i = 0; i < 6; i++) await send(target, { envo: e }); // use up the free checks
+  const paid = await send(target, { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
+  assert.equal(paid.status, 503, JSON.stringify(paid.body).slice(0, 300));
+  assert.ok(!("receipt_url" in paid.body));
+  assert.match(paid.body.payment_ref, /^pay-[0-9a-f]{20}$/);
+  assert.equal(paid.body.charged, true); assert.equal(paid.body.retry_same_payment, true);
 });
 
 test("0.52.0 funnel: our own wallet's payments are flagged self-test (excluded by the admin query)", async () => {

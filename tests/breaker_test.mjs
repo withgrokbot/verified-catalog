@@ -363,7 +363,7 @@ test("a stored host_unstable answer is never reused as the 5-min probe cache; ru
   assert.match(llms, /host_unstable/); assert.match(llms, /PROBE_TIMEOUT_MS/);
   const toml = readFileSync(join(ROOT, "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /SPOT_FREE_PER_DAY = "5"/); assert.equal(SPOT_PAID_ATOMIC, "20000");
-  assert.deepEqual(readdirSync(MIG_DIR).filter((f) => /^002[1-9]/.test(f)), ["0021_breaker_events.sql"], "0.56.0 adds exactly one migration");
+  assert.deepEqual(readdirSync(MIG_DIR).filter((f) => /^002[1-9]/.test(f)), ["0021_breaker_events.sql", "0022_settlement_pending.sql"], "0.56.0 adds exactly one migration (0.59.2: 0022 settlement state)");
   const sql = readFileSync(join(MIG_DIR, "0021_breaker_events.sql"), "utf8").replace(/--.*$/gm, "");
   assert.ok(!/\b(ALTER|DROP|DELETE|UPDATE)\b/i.test(sql), "additive only"); assert.match(sql, /CREATE TABLE IF NOT EXISTS breaker_events/);
 });

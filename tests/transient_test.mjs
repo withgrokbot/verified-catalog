@@ -229,7 +229,7 @@ test("guard SQL uses the existing (norm_key, probed_at) index; no migration need
   assert.match(plan, /spot_receipts_probe_cache/, plan);
   assert.equal(MIGS.length, readdirSync(MIG_DIR).filter((f) => f.endsWith(".sql")).length);
   // 0.55.0 added no migration; 0.56.0 adds exactly 0021_breaker_events.sql (breaker audit, not used by this guard)
-  assert.deepEqual(readdirSync(MIG_DIR).filter((f) => /^002[1-9]/.test(f)), ["0021_breaker_events.sql"]);
+  assert.deepEqual(readdirSync(MIG_DIR).filter((f) => /^002[1-9]/.test(f)), ["0021_breaker_events.sql", "0022_settlement_pending.sql"]); // 0.59.2: 0022
 });
 
 async function callAs(env, path, ip, headers = {}) {
