@@ -7,7 +7,7 @@
 // fills the text box; checking is the same local code either way. No KV, no D1, nothing stored.
 import { chromePage, esc } from "./chrome.js";
 import { RECEIPT_PUBLIC_KEYS } from "./sign.js";
-import { verifierCore } from "./verify-core.js";
+import { VERIFIER_CORE_SRC } from "./verify-core-src.js"; // static string, see scripts/gen-verify-core.mjs
 
 export const VERIFY_PATH = "/verify";
 export const VERIFY_SCRIPT_PATH = "/verify.js";
@@ -18,7 +18,7 @@ export const VERIFY_EXAMPLE_ID = "sc-7cf5080faccbc6ee";
 
 /** The pinned keys: public part only, exactly the published {kid, x}. */
 export const pinnedKeys = () => RECEIPT_PUBLIC_KEYS.map((k) => ({ kid: k.kid, x: k.x }));
-const coreSrc = () => `const V402 = (${verifierCore.toString()})(${JSON.stringify(pinnedKeys())});`;
+const coreSrc = () => `const V402 = (${VERIFIER_CORE_SRC})(${JSON.stringify(pinnedKeys())});`;
 
 // UI glue shared by the page script and the standalone file. Uses textContent / attributes only (never innerHTML).
 // `allowFetch` is true only on the hosted page (same-origin fill-in convenience); the standalone file never fetches.
