@@ -195,6 +195,7 @@ test("read-time freshness: by-url and crawl receipts carry it; stored rows uncha
   const row = db.raw.prepare("SELECT body FROM spot_receipts WHERE id = ?").get(a.receipt_id);
   const b = JSON.parse(row.body); const old = iso(Date.now() - 30 * H);
   b.checked_at = old; b.probe.probed_at = old;
+  delete b.frozen_view; // 0.59.1: an aged row stands in for a pre-0.59.1 row (read-time view); a frozen view ignores body edits by design
   db.raw.prepare("UPDATE spot_receipts SET body = ?, created_at = ?, probed_at = ? WHERE id = ?").run(JSON.stringify(b), old, old, a.receipt_id);
   const before = JSON.stringify(db.raw.prepare("SELECT * FROM spot_receipts WHERE id = ?").get(a.receipt_id));
   const bu = (await call(env, "/v1/receipts/by-url?url=" + encodeURIComponent(SELLER_URL))).body;
