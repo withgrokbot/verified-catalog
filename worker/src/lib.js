@@ -78,7 +78,7 @@ import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.59.4";
+export const VERSION = "0.59.5";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1653,7 +1653,7 @@ export function normReceipt(r) {
 // 0.24.0: receipts from OUTSIDE free checks and dry runs show verdict + reason only; the 402 terms (network, asset,
 // amount, pay_to), the approved payment and the cached probe are what the paid check sells. Paid (paid, router-prepaid)
 // and our own exempt/self-checked receipts stay full. Rows stored before 0.24.0 carry no tier: full only when self.
-const FULL_TIERS = new Set(["paid", "router-prepaid", "exempt", "hosted"]);
+const FULL_TIERS = new Set(["paid", "router-pack", "router-prepaid", "exempt", "hosted"]); // 0.59.5: router-pack (a paid router settlement) is a paid receipt too
 // 0.27.0: did the wallet move since the previous receipt for this URL? One indexed read (url, created_at DESC).
 // true = the last receipt's 402 offered other wallet(s) on this network; false = same wallet; null = nothing to compare.
 // A flag only: the verdict is unchanged. Never breaks an answer.
