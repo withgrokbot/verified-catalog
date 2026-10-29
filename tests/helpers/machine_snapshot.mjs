@@ -245,6 +245,17 @@ export async function skipsBody(workerPath, url, accept) {
   return { status: res.status, headers: Object.fromEntries(res.headers.entries()), body: await res.text() };
 }
 
+// 0.58.8: the blog list in llms.txt is the one place a blog change reaches a machine surface. SNAP_BLOG_AS_0587=1 puts
+// BLOG_POSTS back to its 0.58.7 titles and slugs (drops /blog/what-is-x402-verification, "Seven" -> "Six") so the older
+// fixtures still prove every other machine byte is unchanged; tests/machine_surfaces_test.mjs checks the llms.txt delta itself.
+export const BLOG_0588_NEW = "what-is-x402-verification";
+export async function blogAs0587(workerPath) {
+  const { BLOG_POSTS } = await import(pathToFileURL(resolve(workerPath, "..", "blog-data.js")).href);
+  const i = BLOG_POSTS.findIndex((p) => p.slug === BLOG_0588_NEW);
+  if (i >= 0) BLOG_POSTS.splice(i, 1);
+  for (const p of BLOG_POSTS) if (p.slug === "x402-endpoint-checks-compared") p.title = p.title.replace("Seven Ways", "Six Ways");
+}
+if (process.env.SNAP_BLOG_AS_0587 === "1" && process.argv[2]) await blogAs0587(process.argv[process.argv.length - 1]);
 if (process.argv[2] === "--skips" && process.argv[3]) {
   process.stdout.write(JSON.stringify(await snapshotSkips(process.argv[3]), null, 1) + "\n");
 } else if (process.argv[2] === "--receipts" && process.argv[3]) {
