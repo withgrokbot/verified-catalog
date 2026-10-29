@@ -32,11 +32,11 @@
   "quality_test": null,
   "paid_receipts": 0,
   "latest": {
-    "checked_at": "2026-10-28T14:58:27Z",
+    "checked_at": "2026-10-29T15:00:35Z",
     "mode": "dry-run",
     "reachable": false,
     "http_status": null,
-    "latency_ms": 52,
+    "latency_ms": 23,
     "x402_challenge": false,
     "x402_version": null,
     "advertised_price_usd": "0.5",
@@ -48,15 +48,15 @@
     "payment_refused_reason": null,
     "error": "URLError: [Errno -2] Name or service not known",
     "quality": null,
-    "raw_log": "results/raw/20261028T145825Z/bilbop-brand-feedback.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261028T145825Z/bilbop-brand-feedback.json"
+    "raw_log": "results/raw/20261029T150033Z/bilbop-brand-feedback.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261029T150033Z/bilbop-brand-feedback.json"
   },
   "history_summary": {
-    "checks": 3,
+    "checks": 4,
     "reachable": 0,
     "x402_challenge_ok": 0,
     "paid_checks": 0,
     "first_checked": "2026-10-27T14:53:17Z",
-    "last_checked": "2026-10-28T14:58:27Z"
+    "last_checked": "2026-10-29T15:00:35Z"
   }
 }

@@ -40,11 +40,11 @@
   },
   "paid_receipts": 9,
   "latest": {
-    "checked_at": "2026-10-28T14:58:26Z",
+    "checked_at": "2026-10-29T15:00:34Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 221,
+    "latency_ms": 231,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001",
@@ -56,15 +56,15 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261028T145825Z/minifetch-url-check.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261028T145825Z/minifetch-url-check.json"
+    "raw_log": "results/raw/20261029T150033Z/minifetch-url-check.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261029T150033Z/minifetch-url-check.json"
   },
   "history_summary": {
-    "checks": 41,
-    "reachable": 41,
-    "x402_challenge_ok": 41,
+    "checks": 42,
+    "reachable": 42,
+    "x402_challenge_ok": 42,
     "paid_checks": 9,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-10-28T14:58:26Z"
+    "last_checked": "2026-10-29T15:00:34Z"
   }
 }

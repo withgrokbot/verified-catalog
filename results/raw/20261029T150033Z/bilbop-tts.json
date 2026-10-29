@@ -1,0 +1,16 @@
+{
+  "service_id": "bilbop-tts",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.bilbop.org/v1/tts",
+    "json_body": {},
+    "payment_header_sent": false
+  },
+  "response": {
+    "error": "URLError: [Errno -2] Name or service not known",
+    "latency_ms": 14
+  },
+  "run_id": "20261029T150033Z",
+  "checked_at": "2026-10-29T15:00:35Z"
+}

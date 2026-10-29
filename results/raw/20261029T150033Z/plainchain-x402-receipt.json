@@ -1,0 +1,50 @@
+{
+  "service_id": "plainchain-x402-receipt",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://plainchain.appin60.com/v1/x402/receipt?chain=base&hash=0x0000000000000000000000000000000000000000000000000000000000000000",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 493,
+    "headers": {
+      "date": "Thu, 29 Oct 2026 15:00:35 GMT",
+      "content-type": "application/json",
+      "content-length": "2277",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://plainchain.appin60.com/v1/x402/receipt?chain=base&hash=0x0000000000000000000000000000000000000000000000000000000000000000",
+            "description": "Verify an x402 or USDC payment on-chain from its transaction hash: payer, recipient, amount and token, whether it was an EIP-3009 transferWithAuthorization (x402 exact scheme), the settling facilitator, confirmations, and optional match checks against an expected payTo and minimum amount. Use to prove a payment before delivering, or to audit receipts.",
+            "mimeType": "application/json"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "2942",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0xB442daCAE60C07bb5dB8f33C8a6c1572d8F24e83",
+              "maxTimeoutSeconds": 120,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 2277,
+    "body_sha256": "22d93a3d05b4df7173d2815d58789d4c2f93a5e2f3474616b75b536f2e8a953a",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{\"url\":\"https://plainchain.appin60.com/v1/x402/receipt?chain=base&hash=0x0000000000000000000000000000000000000000000000000000000000000000\",\"description\":\"Verify an x402 or USDC payment on-chain from its transaction hash: payer, recipient, amount and token, whether it was an EIP-3009 transferWithAuthorization (x402 exact scheme), the settling facilitator, confirmations, and optional match checks against an expected payTo and minimum amount. Use to prove a payment before delivering, or to audit receipts.\",\"mimeType\":\"application/json\"},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"2942\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0xB442daCAE60C07bb5dB8f33C8a6c1572d8F24e83\",\"maxTimeoutSeconds\":120,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}],\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"type\":\"http\",\"queryParams\":{\"chain\":\"base\",\"hash\":\"0x6863ff402c188f6d652c300cf815cdfdf96553a89dfe8457e1099ffc9199582d\",\"payTo\":\"0x36c37d1b47737ba2b2a2cf1b5bc38509516b222f\",\"amount\":\"0.01\"},\"method\":\"GET\"},\"output\":{\"type\":\"json\",\"example\":{\"verified\":true,\"scheme\":\"EIP-3009 transferWithAuthorization (x402 exact)\",\"payment\":{\"payer\":\"0x4c29...\",\"payTo\":\"0x36c3...\",\"amount\":\"0.01\",\"symbol\":\"USDC\"},\"checks\":{\"payToMatches\":true,\"amountMatches\":true},\"confirmations\":3820001}}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"GET\"]},\"queryParams\":{\"type\":\"object\",\"properties\":{\"chain\":{\"type\":\"string\",\"description\":\"base (default), arbitrum, ethereum or optimism; chain ids 8453, 42161, 1, 10 also work\"},\"hash\":{\"type\":\"string\",\"pattern\":\"^0x[0-9a-fA-F]{64}$\",\"description\":\"settlement transaction hash\"},\"payTo\":{\"type\":\"string\",\"pattern\":\"^0x[0-9a-fA-F]{40}$\",\"description\":\"optional expected recipient\"},\"amount\":{\"type\":\"string\",\"description\":\"optional minimum expected amount in token units, e.g. 0.01\"}},\"required\":[\"hash\"]}},\"required\":[\"type\",\"method\"],\"additionalProperties\":false},\"output\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\"},\"example\":{\"type\":\"object\"}},\"required\":[\"type\"]}},\"required\":[\"input\"]}}}}"
+  },
+  "run_id": "20261029T150033Z",
+  "checked_at": "2026-10-29T15:00:35Z"
+}

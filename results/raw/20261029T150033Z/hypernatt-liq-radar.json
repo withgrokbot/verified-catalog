@@ -1,0 +1,16 @@
+{
+  "service_id": "hypernatt-liq-radar",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://hypernatt.com/api/m2m/liq-radar",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "error": "URLError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1010)",
+    "latency_ms": 221
+  },
+  "run_id": "20261029T150033Z",
+  "checked_at": "2026-10-29T15:00:35Z"
+}

@@ -31,31 +31,31 @@
   "quality_test": null,
   "paid_receipts": 6,
   "latest": {
-    "checked_at": "2026-10-28T14:58:26Z",
+    "checked_at": "2026-10-29T15:00:35Z",
     "mode": "dry-run",
-    "reachable": true,
-    "http_status": 402,
-    "latency_ms": 408,
-    "x402_challenge": true,
-    "x402_version": 2,
+    "reachable": false,
+    "http_status": null,
+    "latency_ms": 221,
+    "x402_challenge": false,
+    "x402_version": null,
     "advertised_price_usd": "0.001",
-    "quoted_price_usd": "0.001",
-    "price_matches_listing": true,
+    "quoted_price_usd": null,
+    "price_matches_listing": null,
     "paid": false,
     "charged_price_usd": null,
     "delivered_valid": null,
     "payment_refused_reason": null,
-    "error": null,
+    "error": "URLError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1010)",
     "quality": null,
-    "raw_log": "results/raw/20261028T145825Z/hypernatt-liq-radar.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261028T145825Z/hypernatt-liq-radar.json"
+    "raw_log": "results/raw/20261029T150033Z/hypernatt-liq-radar.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261029T150033Z/hypernatt-liq-radar.json"
   },
   "history_summary": {
-    "checks": 28,
+    "checks": 29,
     "reachable": 28,
     "x402_challenge_ok": 28,
     "paid_checks": 6,
     "first_checked": "2026-10-06T17:58:51Z",
-    "last_checked": "2026-10-28T14:58:26Z"
+    "last_checked": "2026-10-29T15:00:35Z"
   }
 }
