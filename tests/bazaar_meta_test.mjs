@@ -68,7 +68,7 @@ test("0.58.9 each 0.58.7 402 differs only in resource serviceName/tags/iconUrl (
 
 test("0.58.9 every non-402 surface byte-identical to 0.58.7 (status, headers, body sha256)", async () => {
   const want = fx("snapshot.json"), got = await snapshot(W), old = fx("bodies402.json").bodies;
-  const diff = Object.keys(want).filter((k) => !(k in old) && JSON.stringify(got[k]) !== JSON.stringify(want[k]));
+  const diff = Object.keys(want).filter((k) => !(k in old) && !/\/llms\.txt \[/.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want[k])); // llms.txt: 0.58.8 blog lines (machine_surfaces_test "0.58.8 blog posts")
   assert.deepEqual(diff, []);
   assert.deepEqual(Object.keys(got).sort(), Object.keys(want).sort());
 });

@@ -222,8 +222,8 @@ test("0.58.8 blog posts: only llms.txt changes on machine surfaces, by exactly t
   const got = JSON.parse(r.stdout);
   const changed = Object.keys(want).filter((k) => !RECEIPT_HTML_KEY.test(k) && !SKIPS_HTML_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want[k]));
   assert.ok(changed.length > 0);
-  assert.deepEqual(changed.filter((k) => !/\/llms\.txt \[/.test(k)), [], "only llms.txt");
-  for (const k of changed) { assert.equal(got[k].status, want[k].status, k); assert.deepEqual(got[k].headers, want[k].headers, k); }
+  assert.deepEqual(changed.filter((k) => !/\/llms\.txt \[/.test(k) && !META402_KEYS.has(k)), [], "only llms.txt (and the 0.58.9 402 metadata, checked in bazaar_meta_test.mjs)");
+  for (const k of changed.filter((k) => /\/llms\.txt \[/.test(k))) { assert.equal(got[k].status, want[k].status, k); assert.deepEqual(got[k].headers, want[k].headers, k); }
   const worker = (await import(W)).default;
   const txt = await (await worker.fetch(new Request("https://402xagent.com/llms.txt"), {}, { waitUntil() {}, passThroughOnException() {} })).text();
   assert.match(txt, /\n  - What x402 Verification Actually Means \(and What It Can't Tell You\): https:\/\/402xagent\.com\/blog\/what-is-x402-verification\n/);
