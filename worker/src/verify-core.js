@@ -1,0 +1,132 @@
+// 0.59.0: the offline receipt verifier core. ONE self-contained function: no imports, no module-scope references, no
+// network. It is (a) imported by the tests, and (b) emitted verbatim via Function.prototype.toString() into /verify.js,
+// the downloadable standalone HTML file and the Node script (verify.js), with the pinned public keys passed in as data.
+// Verification = Ed25519 (RFC 8032) over RFC 8785 (JCS) canonical JSON of the receipt with only `signature` removed,
+// against a key from the pinned list (matched by `kid`). WebCrypto Ed25519 is used when the runtime has it; otherwise a
+// small pure-JS fallback (BigInt Ed25519 + SHA-512, verify only) gives the same answer. Never fetches anything.
+export function verifierCore(PINNED_KEYS) {
+  "use strict";
+  const enc = (s) => new TextEncoder().encode(s);
+  function jcs(v) {
+    if (v === null || typeof v === "boolean" || typeof v === "string") return JSON.stringify(v);
+    if (typeof v === "number") { if (!Number.isFinite(v)) throw new TypeError("non-finite number"); return JSON.stringify(v); }
+    if (Array.isArray(v)) return "[" + v.map((x) => (x === undefined || typeof x === "function" ? "null" : jcs(x))).join(",") + "]";
+    if (typeof v === "object") {
+      const ks = Object.keys(v).filter((k) => v[k] !== undefined && typeof v[k] !== "function").sort();
+      return "{" + ks.map((k) => JSON.stringify(k) + ":" + jcs(v[k])).join(",") + "}";
+    }
+    throw new TypeError("unsupported type " + typeof v);
+  }
+  function b64u(s) {
+    if (typeof s !== "string" || !/^[A-Za-z0-9_-]*$/.test(s)) return null;
+    const t = s.replace(/-/g, "+").replace(/_/g, "/"); const p = t + "===".slice((t.length + 3) % 4);
+    try { const bin = atob(p); const o = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) o[i] = bin.charCodeAt(i); return o; } catch (_) { return null; }
+  }
+  const hex = (u8) => Array.from(u8, (b) => b.toString(16).padStart(2, "0")).join("");
+  // ---- pure-JS fallback: SHA-512 (FIPS 180-4) with BigInt words ----
+  const M64 = (1n << 64n) - 1n;
+  const K512 = ["428a2f98d728ae22","7137449123ef65cd","b5c0fbcfec4d3b2f","e9b5dba58189dbbc","3956c25bf348b538","59f111f1b605d019","923f82a4af194f9b","ab1c5ed5da6d8118","d807aa98a3030242","12835b0145706fbe","243185be4ee4b28c","550c7dc3d5ffb4e2","72be5d74f27b896f","80deb1fe3b1696b1","9bdc06a725c71235","c19bf174cf692694","e49b69c19ef14ad2","efbe4786384f25e3","0fc19dc68b8cd5b5","240ca1cc77ac9c65","2de92c6f592b0275","4a7484aa6ea6e483","5cb0a9dcbd41fbd4","76f988da831153b5","983e5152ee66dfab","a831c66d2db43210","b00327c898fb213f","bf597fc7beef0ee4","c6e00bf33da88fc2","d5a79147930aa725","06ca6351e003826f","142929670a0e6e70","27b70a8546d22ffc","2e1b21385c26c926","4d2c6dfc5ac42aed","53380d139d95b3df","650a73548baf63de","766a0abb3c77b2a8","81c2c92e47edaee6","92722c851482353b","a2bfe8a14cf10364","a81a664bbc423001","c24b8b70d0f89791","c76c51a30654be30","d192e819d6ef5218","d69906245565a910","f40e35855771202a","106aa07032bbd1b8","19a4c116b8d2d0c8","1e376c085141ab53","2748774cdf8eeb99","34b0bcb5e19b48a8","391c0cb3c5c95a63","4ed8aa4ae3418acb","5b9cca4f7763e373","682e6ff3d6b2b8a3","748f82ee5defb2fc","78a5636f43172f60","84c87814a1f0ab72","8cc702081a6439ec","90befffa23631e28","a4506cebde82bde9","bef9a3f7b2c67915","c67178f2e372532b","ca273eceea26619c","d186b8c721c0c207","eada7dd6cde0eb1e","f57d4f7fee6ed178","06f067aa72176fba","0a637dc5a2c898a6","113f9804bef90dae","1b710b35131c471b","28db77f523047d84","32caab7b40c72493","3c9ebe0a15c9bebc","431d67c49c100d4c","4cc5d4becb3e42b6","597f299cfc657e2a","5fcb6fab3ad6faec","6c44198c4a475817"].map((h) => BigInt("0x" + h));
+  const rotr = (x, n) => ((x >> BigInt(n)) | (x << BigInt(64 - n))) & M64;
+  function sha512js(msg) {
+    const H = ["6a09e667f3bcc908","bb67ae8584caa73b","3c6ef372fe94f82b","a54ff53a5f1d36f1","510e527fade682d1","9b05688c2b3e6c1f","1f83d9abfb41bd6b","5be0cd19137e2179"].map((h) => BigInt("0x" + h));
+    const L = msg.length, padLen = ((L + 17 + 127) >> 7) << 7, p = new Uint8Array(padLen);
+    p.set(msg); p[L] = 0x80; let bits = BigInt(L) * 8n; for (let i = 0; i < 16; i++) { p[padLen - 1 - i] = Number(bits & 0xffn); bits >>= 8n; }
+    const W = new Array(80);
+    for (let off = 0; off < padLen; off += 128) {
+      for (let t = 0; t < 16; t++) { let w = 0n; for (let j = 0; j < 8; j++) w = (w << 8n) | BigInt(p[off + t * 8 + j]); W[t] = w; }
+      for (let t = 16; t < 80; t++) {
+        const s0 = rotr(W[t - 15], 1) ^ rotr(W[t - 15], 8) ^ (W[t - 15] >> 7n), s1 = rotr(W[t - 2], 19) ^ rotr(W[t - 2], 61) ^ (W[t - 2] >> 6n);
+        W[t] = (W[t - 16] + s0 + W[t - 7] + s1) & M64;
+      }
+      let [a, b, c, d, e, f, g, h] = H;
+      for (let t = 0; t < 80; t++) {
+        const S1 = rotr(e, 14) ^ rotr(e, 18) ^ rotr(e, 41), ch = (e & f) ^ (~e & M64 & g), T1 = (h + S1 + ch + K512[t] + W[t]) & M64;
+        const S0 = rotr(a, 28) ^ rotr(a, 34) ^ rotr(a, 39), mj = (a & b) ^ (a & c) ^ (b & c), T2 = (S0 + mj) & M64;
+        h = g; g = f; f = e; e = (d + T1) & M64; d = c; c = b; b = a; a = (T1 + T2) & M64;
+      }
+      const v = [a, b, c, d, e, f, g, h]; for (let i = 0; i < 8; i++) H[i] = (H[i] + v[i]) & M64;
+    }
+    const out = new Uint8Array(64); for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) out[i * 8 + j] = Number((H[i] >> BigInt(56 - 8 * j)) & 0xffn);
+    return out;
+  }
+  // ---- pure-JS fallback: Ed25519 verify (RFC 8032 section 5.1.7, cofactorless like OpenSSL / WebCrypto) ----
+  const P = (1n << 255n) - 19n, Lq = (1n << 252n) + 27742317777372353535851937790883648493n;
+  const mod = (a, m = P) => { const r = a % m; return r >= 0n ? r : r + m; };
+  const pow = (b, e, m = P) => { let r = 1n; b = mod(b, m); while (e > 0n) { if (e & 1n) r = (r * b) % m; b = (b * b) % m; e >>= 1n; } return r; };
+  const inv = (a) => pow(a, P - 2n);
+  const D = mod(-121665n * inv(121666n)), D2 = mod(2n * D), SQRTM1 = pow(2n, (P - 1n) / 4n);
+  const leInt = (u8) => { let r = 0n; for (let i = u8.length - 1; i >= 0; i--) r = (r << 8n) | BigInt(u8[i]); return r; };
+  function decode(u8) {
+    if (!u8 || u8.length !== 32) return null;
+    const b = Uint8Array.from(u8), sign = b[31] >> 7; b[31] &= 0x7f; const y = leInt(b);
+    if (y >= P) return null;
+    const y2 = (y * y) % P, u = mod(y2 - 1n), v = mod(D * y2 + 1n);
+    let x = mod(u * pow(v, 3n) % P * pow(u * pow(v, 7n), (P - 5n) / 8n));
+    const vx2 = mod(v * x * x);
+    if (vx2 !== u) { if (vx2 === mod(-u)) x = mod(x * SQRTM1); else return null; }
+    if (x === 0n && sign) return null;
+    if (Number(x & 1n) !== sign) x = P - x;
+    return [x, y, 1n, mod(x * y)];
+  }
+  function add(p, q) {
+    const [X1, Y1, Z1, T1] = p, [X2, Y2, Z2, T2] = q;
+    const A = mod((Y1 - X1) * (Y2 - X2)), B = mod((Y1 + X1) * (Y2 + X2)), C = mod(T1 * D2 * T2), Dd = mod(Z1 * 2n * Z2);
+    const E = B - A, F = Dd - C, G = Dd + C, H = B + A;
+    return [mod(E * F), mod(G * H), mod(F * G), mod(E * H)];
+  }
+  function mul(s, p) { let r = [0n, 1n, 1n, 0n], q = p; while (s > 0n) { if (s & 1n) r = add(r, q); q = add(q, q); s >>= 1n; } return r; }
+  const BY = mod(4n * inv(5n)), BASE = (() => { const b = new Uint8Array(32); let y = BY; for (let i = 0; i < 32; i++) { b[i] = Number(y & 0xffn); y >>= 8n; } return decode(b); })();
+  function ed25519VerifyJs(pub, sig, msg) {
+    if (!pub || pub.length !== 32 || !sig || sig.length !== 64) return false;
+    const A = decode(pub), R = decode(sig.subarray(0, 32)); if (!A || !R) return false;
+    const s = leInt(sig.subarray(32)); if (s >= Lq) return false;
+    const hin = new Uint8Array(64 + msg.length); hin.set(sig.subarray(0, 32)); hin.set(pub, 32); hin.set(msg, 64);
+    const h = mod(leInt(sha512js(hin)), Lq);
+    const l = mul(s, BASE), r = add(R, mul(h, A));
+    return mod(l[0] * r[2]) === mod(r[0] * l[2]) && mod(l[1] * r[2]) === mod(r[1] * l[2]);
+  }
+  async function ed25519Verify(pub, sig, msg, opts) {
+    const subtle = !(opts && opts.forceFallback) && typeof crypto !== "undefined" && crypto && crypto.subtle;
+    if (subtle) {
+      try {
+        const key = await subtle.importKey("raw", pub, { name: "Ed25519" }, false, ["verify"]);
+        return { ok: await subtle.verify({ name: "Ed25519" }, key, sig, msg), engine: "WebCrypto Ed25519" };
+      } catch (_) { /* no Ed25519 in this runtime: fall through */ }
+    }
+    return { ok: ed25519VerifyJs(pub, sig, msg), engine: "built-in JavaScript Ed25519" };
+  }
+  async function sha256Hex(u8) {
+    try { return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", u8))); } catch (_) { return null; }
+  }
+  /** Verify one receipt object (already parsed). Returns { status, title, detail, ... }; never throws, never fetches.
+   *  status: "valid" | "invalid" | "unsigned-crawl" | "unsigned-live" | "unknown-key" | "not-a-receipt" */
+  async function verifyReceipt(r, opts) {
+    const keys = (opts && opts.keys) || PINNED_KEYS || [];
+    if (!r || typeof r !== "object" || Array.isArray(r)) return { status: "not-a-receipt", title: "Not a receipt", detail: "Paste the receipt JSON object (a {...} with id and verdict)." };
+    const id = typeof r.id === "string" ? r.id : null;
+    const base = { id, verdict: typeof r.verdict === "string" ? r.verdict : null, url: typeof r.url === "string" ? r.url : null, kid: typeof r.kid === "string" ? r.kid : null };
+    const hasSig = Object.prototype.hasOwnProperty.call(r, "signature") && r.signature != null;
+    if (!hasSig && r.kid == null) {
+      if (id && /^sc-/.test(id)) return { ...base, status: "unsigned-live", title: "Unsigned (older live-check record)", detail: "This live-check receipt has no signature: it was stored before signing started (Oct 15, 2026). There is nothing to verify; it is neither valid nor invalid." };
+      return { ...base, status: "unsigned-crawl", title: "Unsigned (crawl record)", detail: "Crawl receipts are not signed. This is a record of what the weekly crawl saw, not a signed statement, so there is nothing to verify: it is neither valid nor invalid." };
+    }
+    if (typeof r.kid !== "string" || !r.kid) return { ...base, status: "unknown-key", title: "Unknown key", detail: "The receipt has a signature but no key id (kid), so no pinned key can be chosen." };
+    const k = keys.find((x) => x && x.kid === r.kid);
+    if (!k) return { ...base, status: "unknown-key", title: "Unknown key", detail: "Key id " + r.kid + " is not one of the keys pinned in this verifier, so it cannot be checked here. Get a newer copy of the verifier; this does not mean the receipt is invalid." };
+    const sig = b64u(r.signature), pub = b64u(k.x);
+    if (!sig || sig.length !== 64 || !pub || pub.length !== 32) return { ...base, status: "invalid", title: "INVALID", detail: "The signature is not a 64-byte base64url Ed25519 signature." };
+    let msg;
+    try { const { signature, ...rest } = r; void signature; msg = enc(jcs(rest)); } catch (e) { return { ...base, status: "invalid", title: "INVALID", detail: "The receipt cannot be canonicalized (RFC 8785): " + String(e && e.message || e) }; }
+    const v = await ed25519Verify(pub, sig, msg, opts);
+    const extra = { engine: v.engine, signed_bytes: msg.length, signed_sha256: await sha256Hex(msg) };
+    return v.ok
+      ? { ...base, ...extra, status: "valid", title: "VALID", detail: "The Ed25519 signature matches key " + r.kid + " over the RFC 8785 canonical JSON. 402xAgent issued this receipt and it has not been changed since." }
+      : { ...base, ...extra, status: "invalid", title: "INVALID", detail: "The signature does not match. The receipt was changed after signing (or the signature is not ours). Do not rely on it." };
+  }
+  /** Parse pasted text, then verify. */
+  async function verifyText(text, opts) {
+    let r; try { r = JSON.parse(String(text || "")); } catch (e) { return { status: "not-a-receipt", title: "Not valid JSON", detail: "The pasted text is not JSON: " + String(e && e.message || e).slice(0, 120) }; }
+    return verifyReceipt(r, opts);
+  }
+  return { verifyReceipt, verifyText, jcs, keys: PINNED_KEYS, _ed25519VerifyJs: ed25519VerifyJs, _sha512js: sha512js };
+}
