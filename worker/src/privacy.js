@@ -11,6 +11,8 @@ const PATHS = [
   ["query", ["from", "nonce", "tx_hash"]],
   ["authorization", ["from", "nonce"]],
   ["tx", ["hash", "submitter", "transfer", "basescan_url"]],
+  ["access", ["payer", "tx", "basescan_url"]], // 0.59.2: a receipt that carries the paid access block never shows the buyer
+  ["hosted", ["payer"]],
 ];
 const TOP = ["payment_payload", "payment_signature", "payment_header", "x_payment", "paymentPayload", "client", "client_ip", "ip", "cf_connecting_ip", "payer"];
 const MASK = "<redacted>";
