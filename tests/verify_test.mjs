@@ -26,7 +26,7 @@ const env = { DATA_BASE_URL: "https://data.fixture/vc/" };
 const get = async (p, headers = {}) => { const r = await worker.fetch(new Request("https://402xagent.com" + p, { headers }), env, { waitUntil() {}, passThroughOnException() {} }); return { r, text: await r.text() }; };
 const keysIn = (src) => JSON.parse(/\}\)\((\[\{"kid".*?\}\])\);/.exec(src)[1]);
 
-test("0.59.0 version", () => assert.equal(VERSION, "0.59.3"));
+test("0.59.0 version", () => assert.equal(VERSION, "0.59.4"));
 
 test("0.59.0 pinned keys = the published keys doc (kid + x), in the page script, the standalone file and the Node script", () => {
   const published = receiptKeysDoc().keys.map((k) => ({ kid: k.kid, x: k.x }));

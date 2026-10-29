@@ -17,7 +17,7 @@ function fakeDb() {
     bind(...a) { args = a; return this; },
     async first() { if (/^SELECT .* FROM settled_payments/.test(sql)) return rows.get(args[0]) || null; throw new Error("unexpected " + sql); },
     async run() { if (/^INSERT OR IGNORE INTO settled_payments/.test(sql)) { if (!rows.has(args[0])) rows.set(args[0], { resource: args[1], amount: args[2], settle: /'pending'/.test(sql) ? "{}" : args[3], facilitator: /'pending'/.test(sql) ? null : args[4], state: /'pending'/.test(sql) ? "pending" : null }); return { meta: { changes: 1 } }; }
-      if (/^UPDATE settled_payments SET settle/.test(sql)) { const r = rows.get(args[3]); if (r) Object.assign(r, { settle: args[0], facilitator: args[1], state: "settled" }); return { meta: { changes: r ? 1 : 0 } }; } // 0.59.2
+      if (/^UPDATE settled_payments SET settle/.test(sql)) { const r = rows.get(args[args.length - 1]); if (r) Object.assign(r, { settle: args[0], facilitator: args[1], state: "settled" }); return { meta: { changes: r ? 1 : 0 } }; } // 0.59.2
       if (/^DELETE FROM settled_payments/.test(sql)) { if (rows.get(args[0]) && rows.get(args[0]).state === "pending") rows.delete(args[0]); return { meta: { changes: 1 } }; } throw new Error("unexpected " + sql); },
   }; } };
 }
