@@ -27,7 +27,7 @@ const payload = (n) => ({ x402Version: 2, accepted: { scheme: "exact", network: 
   payload: { signature: "0xsig", authorization: { from: "0x00000000000000000000000000000000000000b1", to: PAY_TO, value: "20000", nonce: "0x" + n.repeat(32) } } });
 // facilitator + chain stub: `used` is the on-chain nonce set (shared truth); chain = "up" | "down" (RPC unreachable)
 function world({ loseSettleAnswer = false, chain = "up" } = {}) {
-  const w = { used: new Set(), loseSettleAnswer, chain, settles: 0 };
+  const w = { used: new Set(), loseSettleAnswer, chain, settles: 0, logs: "used" };
   globalThis.fetch = async (u, init = {}) => {
     const b = JSON.parse(init.body || "{}");
     if (b.jsonrpc) { // read-only RPC: eth_getBlockByNumber, eth_call authorizationState, eth_getLogs, receipt
@@ -35,7 +35,7 @@ function world({ loseSettleAnswer = false, chain = "up" } = {}) {
       const r = (result) => Response.json({ jsonrpc: "2.0", id: 1, result });
       if (b.method === "eth_getBlockByNumber") return r({ number: "0x1000", timestamp: "0x6700000" });
       if (b.method === "eth_call") return r(w.used.has("0x" + b.params[0].data.slice(-64)) ? "0x" + "0".repeat(63) + "1" : "0x" + "0".repeat(64));
-      if (b.method === "eth_getLogs") { const n = b.params[0].topics[2]; return r(w.used.has(n) ? [{ topics: ["0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5", b.params[0].topics[1], n], transactionHash: TX, blockNumber: "0xff0" }] : []); }
+      if (b.method === "eth_getLogs") { const n = b.params[0].topics[2]; if (!w.used.has(n) || w.logs === "none") return r([]); return r([{ topics: [w.logs === "canceled" ? "0x1cdd46ff242716cdaa72d159d339a485b3438398348d68f09d7c8c0a59353d81" : "0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5", b.params[0].topics[1], n], transactionHash: TX, blockNumber: "0xff0" }]); }
       if (b.method === "eth_getTransactionReceipt") return r(null);
       return r(null);
     }
@@ -87,4 +87,36 @@ test("0.59.2 a definitive refusal (nonce unused on chain) leaves no pending row 
   const r = await verifyAndSettle(mkc(db), payload("14"), SPOT);
   assert.equal(r.ok, false); assert.ok(!r.pending); assert.match(r.reason, /insufficient_funds/);
   assert.equal(db.raw.prepare("SELECT COUNT(*) n FROM settled_payments").get().n, 0);
+});
+
+async function pendingRow(db, c, p, ageMin) {
+  db.raw.prepare("INSERT INTO settled_payments (key, resource, amount, settle, facilitator, created_at, state) VALUES (?, ?, '20000', '{}', NULL, ?, 'pending')").run(await settlementKey(c, p), SPOT.origin + SPOT.pathname, new Date(Date.now() - ageMin * 60000).toISOString());
+}
+test("0.59.2 review: an authorization canceled on chain is a refusal (no money moved), not pending; the pending row is dropped", async () => {
+  const db = d1(); const w = world(); w.logs = "canceled";
+  const c = mkc(db), p = payload("15"); w.used.add(p.payload.authorization.nonce);
+  await pendingRow(db, c, p, 1);
+  const r = await verifyAndSettle(c, p, SPOT);
+  assert.equal(r.ok, false); assert.ok(!r.pending, "must not be pending"); assert.equal(r.canceled, true); assert.match(r.reason, /canceled/);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) n FROM settled_payments").get().n, 0);
+});
+test("0.59.2 review: nonce used on chain but its tx not found -> pending only up to PENDING_MAX_AGE_S, then the paid flow finishes (tx_unconfirmed)", async () => {
+  const db = d1(); const w = world(); w.logs = "none";
+  const c = mkc(db), p = payload("16"), q = payload("17"); w.used.add(p.payload.authorization.nonce); w.used.add(q.payload.authorization.nonce);
+  await pendingRow(db, c, p, 5); await pendingRow(db, c, q, 31);
+  const young = await verifyAndSettle(c, p, SPOT);
+  assert.equal(young.pending, true);
+  const old = await verifyAndSettle(c, q, SPOT);
+  assert.equal(old.ok, true, String(old.reason)); assert.equal(old.settle.transaction, null); assert.equal(old.settle.tx_unconfirmed, true);
+  const again = await verifyAndSettle(c, q, SPOT);
+  assert.equal(again.ok, true); assert.equal(again.replayed, true, "settled row replays");
+});
+test("0.59.2 review: the losing concurrent request (INSERT OR IGNORE changed 0 rows) goes to the 503 pending path", async () => {
+  const db = d1(); const w = world();
+  const real = db.prepare; let first = true;
+  db.prepare = (sql) => { const st = real(sql); if (/^SELECT .* FROM settled_payments/.test(sql) && first) { first = false; return { bind: () => ({ first: async () => null }) }; } return st; };
+  const c = mkc(db), p = payload("18");
+  await pendingRow(db, c, p, 0); // the winner's row, inserted between our read and our insert
+  const r = await verifyAndSettle(c, p, SPOT);
+  assert.equal(r.pending, true); assert.match(r.reason, /concurrent/); assert.equal(w.settles, 0, "the loser never calls settle");
 });

@@ -914,7 +914,7 @@ async function handleOvernightCosPack(req, env, ctx, url) {
     charged_usd: c.priceUsd,
     asset: "USDC on Base",
     tx: r.settle.transaction,
-    basescan_url: "https://basescan.org/tx/" + r.settle.transaction,
+    basescan_url: (r.settle.transaction ? "https://basescan.org/tx/" + r.settle.transaction : null),
     payer: r.settle.payer || null,
     facilitator: r.facilitator || null, // 0.51.0
     settlement: r.settle,
@@ -2402,7 +2402,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         charged_usd: cd.priceUsd,
         asset: "USDC on Base",
         tx: r.settle.transaction,
-        basescan_url: "https://basescan.org/tx/" + r.settle.transaction,
+        basescan_url: (r.settle.transaction ? "https://basescan.org/tx/" + r.settle.transaction : null),
         payer: r.settle.payer || null,
     facilitator: r.facilitator || null, // 0.51.0
       };
@@ -2629,6 +2629,9 @@ export async function settlementKey(c, payload) {
 // flow finishes. Unknown = 503 "payment pending" with a stable payment_ref (never a 402, which makes clients re-sign).
 export const RECEIPT_SAVE_ERROR = "the receipt could not be stored (tried twice), so no receipt link is returned";
 export const SETTLE_UNCERTAIN = /facilitator unreachable \(settle\)|nonce_already_used|settlement_pending|settle threw/;
+// 0.59.2 review: a nonce used on chain whose transaction no source can find stays pending at most this long after the
+// PENDING row; then the paid flow finishes with transaction null (tx_unconfirmed), so a buyer is never stuck at 503.
+export const PENDING_MAX_AGE_S = 1800;
 export function paymentRef(key) { return key ? "pay-" + key.slice(3, 23) : null; }
 export function paymentPendingBody(r) {
   return { error: "payment pending: the settlement answer was lost and the chain does not confirm it yet. Do not sign a new payment: retry this request with the same PAYMENT-SIGNATURE header.", payment_ref: r.ref || null, charged: "unknown", retry_same_payment: true, retry_after_s: 15 };
@@ -2639,14 +2642,19 @@ export function receiptUnstoredBody(r, access) {
 export async function nonceOnChain(env, q) {
   if (!/^0x[0-9a-f]{40}$/.test(q.from || "") || !/^0x[0-9a-f]{64}$/.test(q.nonce || "")) return { unknown: true };
   if (String(q.network) !== "eip155:8453" || String(q.asset || "").toLowerCase() !== "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913") return { unknown: true };
+  let usedNoTx = false;
   for (const src of rpcSources(env || {})) {
     try {
-      const v = await readSource(src, { from: q.from, nonce: q.nonce });
+      // 0.59.2 review: the log window is anchored at the authorization's validBefore (a settle must land before it), so
+      // an old pending payment is still found; every source is tried before "tx not found"
+      const v = await readSource(src, { from: q.from, nonce: q.nonce, valid_before: q.valid_before ?? null });
       if (v.state === false) return { settled: false };
-      if (v.state === true) return { settled: true, tx: v.event === "used" ? v.event_tx || null : null, canceled: v.event === "canceled" };
+      if (v.state === true && v.event === "canceled") return { settled: false, canceled: true }; // no money moved: a refusal
+      if (v.state === true && v.event === "used" && v.event_tx) return { settled: true, tx: v.event_tx };
+      if (v.state === true) usedNoTx = true;
     } catch (_) { /* next source */ }
   }
-  return { unknown: true };
+  return usedNoTx ? { settled: true, tx: null } : { unknown: true };
 }
 async function settleRow(db, key) {
   try { return await db.prepare("SELECT resource, amount, settle, facilitator, state, created_at FROM settled_payments WHERE key = ?").bind(key).first(); }
@@ -2665,7 +2673,7 @@ export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
   const ref = paymentRef(key);
   const resource = (() => { try { const u = new URL(url.toString()); return u.origin + u.pathname; } catch (_) { return String(url); } })();
   const auth = (payload && payload.payload && payload.payload.authorization) || {};
-  const chainQ = { from: String(auth.from || "").toLowerCase(), nonce: String(auth.nonce || "").toLowerCase(), network: String((payload.accepted || {}).network || payload.network || c.network || ""), asset: c.asset };
+  const chainQ = { valid_before: /^[0-9]{1,12}$/.test(String(auth.validBefore ?? "")) ? Number(auth.validBefore) : null, from: String(auth.from || "").toLowerCase(), nonce: String(auth.nonce || "").toLowerCase(), network: String((payload.accepted || {}).network || payload.network || c.network || ""), asset: c.asset };
   const onChain = async () => { try { return typeof c.chainCheck === "function" ? await c.chainCheck(chainQ) : { unknown: true }; } catch (_) { return { unknown: true }; } };
   let pending = false;
   if (key) {
@@ -2674,7 +2682,7 @@ export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
       if (row.resource !== resource || String(row.amount) !== String(c.priceAtomic)) return { ok: false, reason: "this payment already settled for another resource or amount", replay_refused: true, ref };
       let settle = null;
       try { settle = JSON.parse(row.settle); } catch (_) { settle = null; }
-      if (row.state !== "pending" && settle && settle.transaction) return { ok: true, settle, facilitator: row.facilitator || null, replayed: true, ref };
+      if (row.state !== "pending" && settle && (settle.transaction || row.state === "settled")) return { ok: true, settle, facilitator: row.facilitator || null, replayed: true, ref };
       pending = true; // an earlier attempt wrote PENDING and never finished: resolve on chain first
       const s = await onChain();
       if (s.settled && s.tx) {
@@ -2682,12 +2690,21 @@ export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
         await markSettled(db, key, resource, c.priceAtomic, st, row.facilitator, true);
         return { ok: true, settle: st, facilitator: row.facilitator || null, recovered: true, ref };
       }
+      if (s.canceled) { try { await db.prepare("DELETE FROM settled_payments WHERE key = ? AND (state = 'pending' OR state IS NULL)").bind(key).run(); } catch (_) {} return { ok: false, reason: "payment authorization was canceled on chain (nothing was charged)", canceled: true, ref }; }
+      const age = (Date.now() - Date.parse(row.created_at || "")) / 1000;
+      if (s.settled && Number.isFinite(age) && age > PENDING_MAX_AGE_S) { // used on chain, tx never found: finish paid, unconfirmed
+        const st = { success: true, transaction: null, tx_unconfirmed: true, network: chainQ.network || c.network, payer: chainQ.from };
+        await markSettled(db, key, resource, c.priceAtomic, st, row.facilitator, true);
+        return { ok: true, settle: st, facilitator: row.facilitator || null, recovered: true, ref };
+      }
       if (s.settled || s.unknown) return { ok: false, pending: true, reason: "payment pending (" + (s.settled ? "nonce used on chain, transaction not found yet" : "chain state unknown") + ")", ref };
       // nonce unused on chain: nothing moved, settle again below (the on-chain nonce still prevents a double charge)
     } else {
       try {
-        await db.prepare("INSERT OR IGNORE INTO settled_payments (key, resource, amount, settle, facilitator, created_at, state, updated_at) VALUES (?, ?, ?, '{}', NULL, ?, 'pending', ?)").bind(key, resource, String(c.priceAtomic), new Date().toISOString(), new Date().toISOString()).run();
+        const ins = await db.prepare("INSERT OR IGNORE INTO settled_payments (key, resource, amount, settle, facilitator, created_at, state, updated_at) VALUES (?, ?, ?, '{}', NULL, ?, 'pending', ?)").bind(key, resource, String(c.priceAtomic), new Date().toISOString(), new Date().toISOString()).run();
         pending = true;
+        // 0.59.2 review: a concurrent request with the same payment inserted first: it owns the settle, this one waits
+        if (ins && ins.meta && ins.meta.changes === 0) return { ok: false, pending: true, reason: "payment pending (the same payment is being settled by a concurrent request)", ref };
       } catch (_) { pending = false; } // 0022 not applied: the 0.51.1 behaviour
     }
   }
@@ -2702,6 +2719,7 @@ export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
       await markSettled(db, key, resource, c.priceAtomic, st, r.facilitator, pending);
       return { ok: true, settle: st, facilitator: r.facilitator || null, recovered: true, ref };
     }
+    if (s.canceled) { if (pending) { try { await db.prepare("DELETE FROM settled_payments WHERE key = ? AND state = 'pending'").bind(key).run(); } catch (_) {} } return { ok: false, reason: "payment authorization was canceled on chain (nothing was charged)", canceled: true, ref }; }
     if (s.settled || s.unknown || /unreachable|threw|pending/.test(r.reason)) return { ok: false, pending: true, reason: "payment pending (" + r.reason + ")", ref, facilitator: r.facilitator };
   }
   // definitive refusal and nothing used on chain: drop our PENDING row so the payload is not held
@@ -3236,7 +3254,7 @@ async function handleLookup(req, env, ctx, url) {
         charged_usd: c.priceUsd,
         asset: "USDC on Base",
         tx: r.settle.transaction,
-        basescan_url: "https://basescan.org/tx/" + r.settle.transaction,
+        basescan_url: (r.settle.transaction ? "https://basescan.org/tx/" + r.settle.transaction : null),
         payer: r.settle.payer || null,
     facilitator: r.facilitator || null, // 0.51.0
       };
@@ -3288,7 +3306,7 @@ async function handlePaidLookup(req, env, ctx, url) {
   const r = await verifyAndSettle(c, payload, resourceUrl, true);
   if (!r.ok) return deny("payment rejected: " + r.reason, "payment-failed", signerOf(payload));
   const enc = b64encode(r.settle);
-  const access = { tier: "paid", charged_usd: c.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null, facilitator: r.facilitator || null };
+  const access = { tier: "paid", charged_usd: c.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: (r.settle.transaction ? "https://basescan.org/tx/" + r.settle.transaction : null), payer: r.settle.payer || null, facilitator: r.facilitator || null };
   point({ status: 200, access: "paid", amountUsd: Number(c.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer });
   return json(lookupBody(q, data, out, access), 200, { "payment-response": enc, "x-payment-response": enc });
 }
@@ -4490,7 +4508,7 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
     const enc = b64encode(r.settle);
     extraHeaders["payment-response"] = enc;
     extraHeaders["x-payment-response"] = enc;
-    access = { tier: "paid", charged_usd: cd.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: "https://basescan.org/tx/" + r.settle.transaction, payer: r.settle.payer || null, facilitator: r.facilitator || null };
+    access = { tier: "paid", charged_usd: cd.priceUsd, asset: "USDC on Base", tx: r.settle.transaction, basescan_url: (r.settle.transaction ? "https://basescan.org/tx/" + r.settle.transaction : null), payer: r.settle.payer || null, facilitator: r.facilitator || null };
   }
   if (access.tier === "paid" || access.tier === "hosted") {
     // 0.40.1: every PAID call gets its own signed receipt (new ps- id, own D1 row) carrying who paid, how much and the
