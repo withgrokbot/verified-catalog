@@ -47,6 +47,19 @@ const POSTS = [
   ["/v1/watch", { url: "https://alpha.fixture/api" }],
 ];
 
+// 0.59.0: the offline verifier adds exactly one llms.txt line and one keys-doc field (offline_verifier). Unless
+// SNAP_KEEP_0590=1, the snapshot removes exactly those two additions, so every older fixture still proves every other
+// machine byte is unchanged; tests/verify_test.mjs checks the two deltas themselves against the 0.58.9 snapshot.
+export const LLMS_0590_LINE = /\n- Offline receipt verifier \(0\.59\.0; [^\n]*(?=\n)/;
+export const KEYS_0590_FIELD = /,\n  "offline_verifier": "https:\/\/402xagent\.com\/verify \(0\.59\.0: [^"\n]*"/;
+export const RECEIPT_0590_LINK = /<a href="\/verify\?id=sc-[0-9a-f]{16}">Verify offline/; // receipt pages: only the link target
+export function as0589(key, body) {
+  if (process.env.SNAP_KEEP_0590 === "1" || typeof body !== "string") return body;
+  if (/\/llms\.txt \[/.test(key)) return body.replace(LLMS_0590_LINE, "");
+  if (/\/\.well-known\/402xagent-(keys|receipt-key)\.json \[/.test(key)) return body.replace(KEYS_0590_FIELD, "");
+  if (/\/v1\/receipts\/sc-/.test(key)) return body.replace(RECEIPT_0590_LINK, '<a href="/docs#receipt-signatures">Verify offline');
+  return body;
+}
 export async function snapshot(workerPath, onResponse = null) { // 0.58.9: optional onResponse(key, res, body) tap (bodies402.mjs)
   const mod = await import(pathToFileURL(resolve(workerPath)).href);
   const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
@@ -57,7 +70,7 @@ export async function snapshot(workerPath, onResponse = null) { // 0.58.9: optio
   const out = {};
   const run = async (key, req) => {
     const res = await worker.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
-    const body = res.status === 204 || req.method === "HEAD" ? "" : await res.text();
+    const body = as0589(key, res.status === 204 || req.method === "HEAD" ? "" : await res.text());
     const headers = {};
     for (const [k, v] of [...res.headers.entries()].sort()) headers[k] = norm(v);
     out[key] = { status: res.status, headers, sha256: createHash("sha256").update(norm(body)).digest("hex") };
@@ -192,7 +205,7 @@ export async function snapshotReceipts(workerPath) {
     const [accept, ua] = a ? a.split("|") : [null, null];
     const req = new Request(h + p, { headers: { "cf-connecting-ip": "203.0.113.9", ...(ua ? { "user-agent": ua } : {}), ...(accept ? { accept } : {}) } });
     const res = await mod.default.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
-    const body = await res.text(); const hd = {};
+    const body = as0589(`GET ${h}${p} [${an}]`, await res.text()); const hd = {};
     for (const [k, v] of [...res.headers.entries()].sort()) hd[k] = norm(v);
     out[`GET ${h}${p} [${an}]`] = { status: res.status, headers: hd, sha256: createHash("sha256").update(norm(body)).digest("hex") };
   }
