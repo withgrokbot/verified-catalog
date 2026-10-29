@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 // Unit tests for worker/src/index.js with a stubbed fetch and a stubbed Analytics Engine binding.
 // All data here is synthetic. Run: node tests/worker_test.mjs   (Node 18+; no dependencies)
+import { sqliteD1 } from "./helpers/sqlite_d1.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
@@ -2705,7 +2706,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.59.3");
+  assert.equal(VERSION, "0.59.4");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -4475,8 +4476,10 @@ test("0.52.0 funnel: a replayed settlement (retry of the same payload) is never 
   const rows = new Map();
   const db = { prepare(sql) { let a = []; return { bind(...x) { a = x; return this; },
     async first() { if (/FROM settled_payments/.test(sql)) return rows.get(a[0]) || null; return null; },
-    async run() { if (/INTO settled_payments/.test(sql) && !rows.has(a[0])) rows.set(a[0], { resource: a[1], amount: a[2], settle: a[3], facilitator: a[4], state: /'pending'/.test(sql) ? "pending" : null });
-      if (/^UPDATE settled_payments/.test(sql) && rows.has(a[3])) Object.assign(rows.get(a[3]), { settle: a[0], facilitator: a[1], state: "settled" }); return { meta: { changes: 1 } }; }, // 0.59.2: pending row, then settled
+    async run() { if (/INTO settled_payments/.test(sql) && !rows.has(a[0])) rows.set(a[0], /'pending'/.test(sql) ? { resource: a[1], amount: a[2], settle: "{}", state: "pending", created_at: a[3], target: a[5], method: a[6] } : { resource: a[1], amount: a[2], settle: a[3], facilitator: a[4] });
+      if (/^UPDATE settled_payments SET settle/.test(sql) && rows.has(a[a.length - 1])) Object.assign(rows.get(a[a.length - 1]), { settle: a[0], facilitator: a[1], state: "settled" }); // 0.59.2: pending row, then settled
+      if (/^UPDATE settled_payments SET receipt_id/.test(sql) && rows.has(a[3])) Object.assign(rows.get(a[3]), { receipt_id: a[0], response: a[1] }); // 0.59.3: the original answer
+      return { meta: { changes: 1 } }; },
     async all() { return { results: [] }; } }; }, async batch(s) { return Promise.all(s.map((x) => x.run())); } };
   const e = spotEnv({ RECEIPTS_DB: db });
   const fpts = [];
@@ -4518,6 +4521,113 @@ test("0.59.2 replay D: a receipt that cannot be stored (tried twice) is never li
   assert.equal(paid.body.charged, true); assert.equal(paid.body.retry_same_payment, true);
 });
 
+// 0.59.3 regression (statechart replay B): one $0.02 payment must not buy unlimited checks on any URL.
+function bindDb(opts) {
+  const db = sqliteD1(opts);
+  Object.defineProperty(db, "receipts", { get: () => db.raw.prepare("SELECT id, body FROM spot_receipts").all().map((r) => ({ id: r.id, body: JSON.parse(r.body) })) });
+  Object.defineProperty(db, "rows", { get: () => new Map(db.raw.prepare("SELECT * FROM settled_payments").all().map((r) => [r.key, r])) });
+  return db;
+}
+async function paidSetup(client, dbOpts) {
+  const db = bindDb(dbOpts); const e = spotEnv({ RECEIPTS_DB: db });
+  spotTargetMode = "402"; facMode = "ok";
+  const t = (u, extra = "") => SPOT + "?url=" + encodeURIComponent(u) + "&client=" + client + extra;
+  for (let i = 0; i < 6; i++) await send(t("https://spot.target.fixture/api"), { envo: e }); // free checks used up
+  const paidReceipts = () => db.receipts.filter((r) => r.body.payment_received);
+  return { db, e, t, paidReceipts, pay: spotPayment({ amount: "20000" }) };
+}
+test("0.59.3 replay B: the same request retried with the same payment gets the ORIGINAL answer; one paid receipt", async () => {
+  const s = await paidSetup("bind-1");
+  const a = await send(s.t("https://spot.target.fixture/api"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  const b = await send(s.t("https://spot.target.fixture/api"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  const c = await send(s.t("https://spot.target.fixture/api"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  assert.equal(a.status, 200); assert.equal(b.status, 200); assert.equal(c.status, 200);
+  const orig = JSON.parse(JSON.stringify(a.body)); delete orig.access.payer; // 0.59.3 review: payer is not stored with the answer
+  assert.deepEqual(b.body, orig, "the original answer (minus access.payer)"); assert.deepEqual(c.body, orig);
+  assert.ok(!JSON.stringify(s.db.raw.prepare("SELECT response FROM settled_payments").get().response).includes(String(a.body.access.payer)), "payer not stored");
+  assert.equal(b.body.receipt_id, a.body.receipt_id);
+  assert.equal(s.paidReceipts().length, 1, "one payment, one paid receipt");
+});
+test("0.59.3 replay B: the same payment on a different target URL or HTTP method is refused (409), no second paid receipt", async () => {
+  const s = await paidSetup("bind-2");
+  const a = await send(s.t("https://spot.target.fixture/api"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  assert.equal(a.status, 200);
+  const other = await send(s.t("https://spot.target.fixture/other"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  assert.equal(other.status, 409, JSON.stringify(other.body).slice(0, 200)); assert.equal(other.body.reason_code, "payment_already_used");
+  const post = await send(s.t("https://spot.target.fixture/api", "&method=POST"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  assert.equal(post.status, 409); assert.match(post.body.error, /another target URL or HTTP method/);
+  assert.equal(s.paidReceipts().length, 1);
+});
+test("0.59.3 replay B: a retry after the 10-minute window is refused with a clear error", async () => {
+  const s = await paidSetup("bind-3");
+  const a = await send(s.t("https://spot.target.fixture/api"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  assert.equal(a.status, 200);
+  s.db.raw.prepare("UPDATE settled_payments SET created_at = ?, updated_at = ?").run(new Date(Date.now() - 11 * 60 * 1000).toISOString(), new Date(Date.now() - 11 * 60 * 1000).toISOString());
+  const late = await send(s.t("https://spot.target.fixture/api"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  assert.equal(late.status, 409); assert.match(late.body.error, /10-minute retry window has passed/);
+  assert.equal(s.paidReceipts().length, 1);
+});
+
+test("0.59.3 review 1: a settled payment WITHOUT a stored answer, retried after 10 min for the same request, is answered (not 409); refusals never say charged:false", async () => {
+  const s = await paidSetup("bind-r1");
+  // the first paid answer was never stored (e.g. receipt store failed / crash): settled row, no response
+  const a = await send(s.t("https://spot.target.fixture/api"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  assert.equal(a.status, 200);
+  s.db.raw.prepare("UPDATE settled_payments SET response = NULL, receipt_id = NULL, created_at = ?, updated_at = ?").run(new Date(Date.now() - 20 * 60000).toISOString(), new Date(Date.now() - 20 * 60000).toISOString());
+  s.db.raw.prepare("DELETE FROM spot_receipts").run();
+  const late = await send(s.t("https://spot.target.fixture/api"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  assert.equal(late.status, 200, JSON.stringify(late.body).slice(0, 200));
+  assert.equal(s.paidReceipts().length, 1);
+  const other = await send(s.t("https://spot.target.fixture/other"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  assert.equal(other.status, 409); assert.notEqual(other.body.charged, false, "a settled payment is never reported as not charged");
+});
+test("0.59.3 review 1: a PENDING row older than 10 min whose payment settled on chain finishes paid for the same request (not 409)", async () => {
+  const s = await paidSetup("bind-r1b");
+  const { verifyAndSettle: _v, settlementKey: sk, spotCfg: _c } = await import("../worker/src/lib.js");
+  const pl = JSON.parse(atob(s.pay));
+  const key = await sk({ network: "eip155:8453", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" }, pl);
+  const old = new Date(Date.now() - 20 * 60000).toISOString();
+  s.db.raw.prepare("INSERT INTO settled_payments (key, resource, amount, settle, created_at, updated_at, state, target, method) VALUES (?, ?, '20000', '{}', ?, ?, 'pending', ?, 'GET')").run(key, "https://lookup.fixture" + SPOT, old, old, "https://spot.target.fixture/api");
+  s.e.env.PAYSTATUS_PUBLIC_RPC = "https://rpc.chain.fixture"; s.e.env.PAYSTATUS_PUBLIC_RPC2 = "off"; s.e.env.RPC2_BASE_URL = "off";
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (u, init) => { if (String(u) !== "https://rpc.chain.fixture") return realFetch(u, init); const b = JSON.parse(init.body); const res = (result) => Response.json({ jsonrpc: "2.0", id: 1, result });
+    if (b.method === "eth_getBlockByNumber") return res({ number: "0x1000", timestamp: "0x6700000" });
+    if (b.method === "eth_call") return res("0x" + "0".repeat(63) + "1"); // nonce used: the payment settled
+    if (b.method === "eth_getLogs") return res([{ topics: ["0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5", b.params[0].topics[1], b.params[0].topics[2]], transactionHash: "0x" + "cd".repeat(32), blockNumber: "0xff0" }]);
+    return res(null); };
+  let r; try { r = await send(s.t("https://spot.target.fixture/api"), { envo: s.e, headers: { "payment-signature": s.pay } }); } finally { globalThis.fetch = realFetch; }
+  assert.equal(r.status, 200, "pending is resolved before any reuse rule: " + JSON.stringify(r.body).slice(0, 200));
+  assert.equal(r.body.access.tx, "0x" + "cd".repeat(32));
+  assert.equal(s.paidReceipts().length, 1);
+});
+test("0.59.3 review 2: when the pending insert failed, the settled row is still bound, so the same-request retry replays (not 409)", async () => {
+  const s = await paidSetup("bind-r2");
+  const real = s.db.prepare; s.db.prepare = (sql) => (/'pending'/.test(sql) ? { bind: () => ({ run: async () => { throw new Error("D1 busy"); } }) } : real(sql));
+  const a = await send(s.t("https://spot.target.fixture/api"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  const b = await send(s.t("https://spot.target.fixture/api"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  assert.equal(a.status, 200); assert.equal(b.status, 200, JSON.stringify(b.body).slice(0, 200));
+  assert.equal(s.db.raw.prepare("SELECT target FROM settled_payments").get().target, "https://spot.target.fixture/api");
+});
+test("0.59.3 review: a trivially different spelling of the same target URL is the same request (safeNorm), not a 409", async () => {
+  const s = await paidSetup("bind-r4");
+  const a = await send(s.t("https://spot.target.fixture/api"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  const b = await send(s.t("HTTPS://SPOT.target.fixture:443/api"), { envo: s.e, headers: { "payment-signature": s.pay } });
+  assert.equal(a.status, 200); assert.equal(b.status, 200, JSON.stringify(b.body).slice(0, 200));
+});
+test("0.59.4 review: a replayed router payment that is re-probed keeps tier router-pack with credits_added 0 (no second credit)", async () => {
+  const db = bindDb(); const e = spotEnv({ RECEIPTS_DB: db, SPOT_ROUTER_CLIENTS: "router-rp-1", SPOT_PARTNER_CLIENTS: "router-rp-1:1" });
+  facMode = "ok"; spotTargetMode = "402";
+  const T = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&client=router-rp-1";
+  await send(T, { envo: e }); await send(T, { envo: e });
+  const pay = spotPayment({ amount: "200000" });
+  const paid = await send(T, { envo: e, headers: { "payment-signature": pay } });
+  assert.equal(paid.body.access.tier, "router-pack"); assert.equal(paid.body.access.credits_added, 9);
+  for (let i = 0; i < 9; i++) assert.equal((await send(T, { envo: e })).body.access.tier, "router-prepaid");
+  db.raw.prepare("UPDATE settled_payments SET response = NULL").run(); // no stored answer: the replay is re-probed
+  const again = await send(T, { envo: e, headers: { "payment-signature": pay } });
+  assert.equal(again.status, 200, JSON.stringify(again.body).slice(0, 200));
+  assert.equal(again.body.access.tier, "router-pack"); assert.equal(again.body.access.credits_added, 0);
+});
 test("0.52.0 funnel: our own wallet's payments are flagged self-test (excluded by the admin query)", async () => {
   const e = spotEnv();
   const fpts = [];

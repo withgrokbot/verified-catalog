@@ -78,7 +78,7 @@ import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.59.3";
+export const VERSION = "0.59.4";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -2120,6 +2120,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const quote = q.quote && q.mode !== "dry-run" ? await loadQuote(env, q.quote, q.url) : null; // 0.54.0 opt-in
   const selfChecked = isExempt(qLike, env);
   const checkType = selfChecked ? "self-checked" : "live"; // 0.42.3: a live check is "live", never "dry-run"
+  let paidRid = null; // 0.59.3: set by the paid path (derived from the payment), else a random id
   const buildResult = async (probe, access) => {
     // 0.57.0 multi-probe before pay (review): the confirm probe runs HERE, i.e. only after access was granted (free check
     // taken, payment verified + settled, router credit spent, hosted key, partner, exempt). Every path that reaches
@@ -2147,7 +2148,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const payment = paymentObject(pm, pr.probedAt);
     // 0.56.0 review: a breaker answer (host_unstable) stores NO receipt: anyone could repeat it for free, so it must not
     // cost a D1 write. The breaker's transitions are audited once each in breaker_events instead (breaker.js).
-    const rid = env.RECEIPTS_DB && !probe.host_unstable ? newReceiptId() : null;
+    const rid = env.RECEIPTS_DB && !probe.host_unstable ? paidRid || newReceiptId() : null;
     const ptc = rid ? await payToChanged(env, q.url, pm0) : { pay_to_changed: null };
     const hk = await historyKey(q.url);
     const fresh = !pr.cached && !probe.host_unstable; // 0.56.0: a breaker answer fetched nothing, so it is not an observation
@@ -2173,6 +2174,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       if (access && access.tier === "hosted") { const { tier: _t, ...hv } = access; rec.hosted = hv; } // 0.41.0: signed with the receipt
       // 0.59.2: awaited (the next call's cache lookup must see it), retried once; receipt_url only after a confirmed save
       saved = (await saveLiveReceipt(env, rec)) || (await saveLiveReceipt(env, rec));
+      if (!saved && paidRid) { try { saved = !!(await env.RECEIPTS_DB.prepare("SELECT 1 AS x FROM spot_receipts WHERE id = ?").bind(rid).first()); } catch (_) {} } // 0.59.3: this payment's receipt already exists (crash after save)
       if (!saved) Object.assign(receiptFields, { receipt_id: null, receipt_url: null, receipt_saved: false, receipt_error: RECEIPT_SAVE_ERROR });
     }
     // Free tier: verdict + plain reason + a hash of the approved terms (enough for x402-spotcheck to refuse a
@@ -2388,7 +2390,17 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       const r = await verifyAndSettle(cd, payload, resourceUrl, {
         paidPath: false,
         description: `${SPOT_SERVICE_NAME}: one probe. $${cd.priceUsd} USDC on Base.`,
+        bind: { target: safeNorm(q.url), method: q.method || "GET" }, // 0.59.3: one payment = one request (route + target + method)
       });
+      if (!r.ok && r.reuse_refused) { // 0.59.3: never a 402 here (the payment is spent); never a second paid receipt
+        writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 409, referer, access: "payment-reused", freeUsed: t.used, paidBy: signerOf(payload), failReason: "payment-reused", shape }));
+        return json({ error: r.reason, reason_code: "payment_already_used", payment_ref: r.ref || null, charged: true, charged_for_this_request: false, retry_window_s: SETTLE_REUSE_TTL_S }, 409, { "cache-control": "no-store" });
+      }
+      if (r.ok && r.replayed && r.response) { // 0.59.3: the same request retried in the window: the ORIGINAL answer, byte for byte
+        const enc0 = b64encode(r.settle);
+        return json(r.response, 200, { ...extraHeaders, "payment-response": enc0, "x-payment-response": enc0, "x-402-replayed": "1" });
+      }
+      paidRid = r.ref ? "sc-" + r.ref.slice(4, 20) : null; // 0.59.3: one deterministic receipt id per payment: a second paid receipt cannot be inserted
       if (!r.ok && r.pending) { // 0.59.2: settle answer lost and the chain could not confirm either way: never a 402 (a 402 makes clients sign again)
         writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: spotExcluded, candidates: 0, ua, returnedPayTo: [], status: 503, referer, access: "payment-pending", freeUsed: t.used, paidBy: signerOf(payload), failReason: r.reason, shape }));
         return json(paymentPendingBody(r), 503, { "retry-after": "15", "cache-control": "no-store" });
@@ -2412,19 +2424,22 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       if (selfPaid) access.self_test = true;
       // counted only after verify+settle AND the idempotency check: a replayed settlement (retry) is never a second sale
       if (!r.replayed) funnelEvent(env, { event: "paid", digest: fdg, ua, amountUsd: Number(cd.priceUsd), self: !!selfPaid });
-      if (isRouter && !r.replayed) { // 0.51.1: a replayed settlement never credits the pack twice
-        const n = Math.floor(Number(cd.priceAtomic) / rcfg.perCheckAtomic) - 1;
-        const cr = await routerCredits(env, q.client, "credit", n);
+      if (isRouter) { // 0.51.1: a replayed settlement never credits the pack twice; 0.59.3 review: a re-probed replay keeps router-pack
         access.tier = "router-pack";
         access.price_per_check_usd = rcfg.perCheckAtomic / 1e6;
-        access.credits_added = n;
-        access.credits_remaining = cr.balance;
+        if (!r.replayed) {
+          const n = Math.floor(Number(cd.priceAtomic) / rcfg.perCheckAtomic) - 1;
+          const cr = await routerCredits(env, q.client, "credit", n);
+          access.credits_added = n;
+          access.credits_remaining = cr.balance;
+        } else access.credits_added = 0;
       }
       const out = await buildResult(probe, access);
       if (out.receipt_saved === false) { // 0.59.2: settled, but no receipt could be stored (one retry): an honest error, never a dead receipt link
         writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: selfPaid ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 503, referer, access: "paid-unstored", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed, verdict: out.verdict, shape, failReason: "receipt-store-failed" }));
         return json(receiptUnstoredBody(r, access), 503, { ...extraHeaders, "retry-after": "15", "cache-control": "no-store" });
       }
+      if (r.key) await recordPaidAnswer(cd, r.ref, r.key, out.receipt_id || null, out); // 0.59.3: the answer a same-request retry gets back
       writePoint(env, dataPoint({ product: "spot", cid, q: qLike, excluded: selfPaid ? "self" : spotExcluded, candidates: 1, ua, returnedPayTo: [], status: 200, referer, access: "paid", amountUsd: Number(cd.priceUsd), tx: r.settle.transaction, paidBy: r.settle.payer, freeUsed , verdict: out.verdict, shape, failReason: q.ctx.mistake || "" }));
       return json(out, 200, extraHeaders);
     }
@@ -2662,17 +2677,51 @@ export async function nonceOnChain(env, q) {
   return usedNoTx ? { review: true } : { unknown: true };
 }
 async function settleRow(db, key) {
+  try { return await db.prepare("SELECT resource, amount, settle, facilitator, state, created_at, updated_at, target, method, receipt_id, response FROM settled_payments WHERE key = ?").bind(key).first(); }
+  catch (_) {}
   try { return await db.prepare("SELECT resource, amount, settle, facilitator, state, created_at FROM settled_payments WHERE key = ?").bind(key).first(); }
   catch (_) { try { return await db.prepare("SELECT resource, amount, settle, facilitator FROM settled_payments WHERE key = ?").bind(key).first(); } catch (_e) { return null; } }
 }
-async function markSettled(db, key, resource, amount, settle, facilitator, hadPending) {
+async function markSettled(db, key, resource, amount, settle, facilitator, hadPending, bind = null) {
   const now = new Date().toISOString();
+  const tg = bind ? String(bind.target) : null, me = bind ? String(bind.method || "GET").toUpperCase() : null;
   try {
-    if (hadPending) { const u = await db.prepare("UPDATE settled_payments SET settle = ?, facilitator = ?, state = 'settled', updated_at = ? WHERE key = ?").bind(JSON.stringify(settle), facilitator || null, now, key).run(); if (u && u.meta && u.meta.changes) return; }
-    await db.prepare("INSERT OR IGNORE INTO settled_payments (key, resource, amount, settle, facilitator, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(key, resource, String(amount), JSON.stringify(settle), facilitator || null, now).run();
-  } catch (_) { /* best effort: the on-chain nonce still prevents a re-settle, and a pending row is resolved on chain */ }
+    if (hadPending) {
+      // 0.59.3 review: a row without a binding is bound to the request that settled it
+      const u = await db.prepare("UPDATE settled_payments SET settle = ?, facilitator = ?, state = 'settled', updated_at = ?, target = COALESCE(target, ?), method = COALESCE(method, ?) WHERE key = ?").bind(JSON.stringify(settle), facilitator || null, now, tg, me, key).run();
+      if (u && u.meta && u.meta.changes) return;
+    }
+  } catch (_) {}
+  try { // no pending row (insert failed earlier): write the settled row WITH its binding
+    await db.prepare("INSERT OR IGNORE INTO settled_payments (key, resource, amount, settle, facilitator, created_at, state, updated_at, target, method) VALUES (?, ?, ?, ?, ?, ?, 'settled', ?, ?, ?)").bind(key, resource, String(amount), JSON.stringify(settle), facilitator || null, now, now, tg, me).run();
+    return;
+  } catch (_) {}
+  try { await db.prepare("INSERT OR IGNORE INTO settled_payments (key, resource, amount, settle, facilitator, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(key, resource, String(amount), JSON.stringify(settle), facilitator || null, now).run(); }
+  catch (_) { /* best effort: the on-chain nonce still prevents a re-settle, and a pending row is resolved on chain */ }
+}
+// 0.59.3: a payment is bound to route + target URL (normalised) + HTTP method. The same request retried within this long
+// after settle gets the ORIGINAL stored answer (no second probe, no second paid receipt). Other targets/methods are
+// refused; the window is enforced only on settled rows that have a stored answer (a settled payment without one is
+// re-answered, under the same payment-derived receipt id). The refusal says the payment WAS charged.
+export const SETTLE_REUSE_TTL_S = 600;
+export const REUSE_OTHER_REQUEST = "this payment already paid for a different request (another target URL or HTTP method); one payment pays for one check: sign a new payment for this one";
+export const REUSE_WINDOW_PASSED = `this payment already paid for this check, and its ${SETTLE_REUSE_TTL_S / 60}-minute retry window has passed; sign a new payment for a new check`;
+const sameBind = (row, bind) => row.target === bind.target && String(row.method || "").toUpperCase() === String(bind.method || "GET").toUpperCase();
+const rowAgeS = (row) => (Date.now() - Date.parse(row.updated_at || row.created_at || "")) / 1000;
+export function reuseRefusal(row, bind) {
+  if (row.target != null && !sameBind(row, bind)) return REUSE_OTHER_REQUEST;
+  if (row.response != null) { const a = rowAgeS(row); if (!Number.isFinite(a) || a > SETTLE_REUSE_TTL_S) return REUSE_WINDOW_PASSED; }
+  return null;
+}
+export async function recordPaidAnswer(c, ref, key, receiptId, response) {
+  const db = typeof c.settleStore === "function" ? c.settleStore() : null;
+  if (!db || !key) return false;
+  const stored = JSON.parse(JSON.stringify(response));
+  if (stored.access) delete stored.access.payer; // 0.59.3 review: the payer wallet is never stored with the answer
+  try { const u = await db.prepare("UPDATE settled_payments SET receipt_id = ?, response = ?, updated_at = ? WHERE key = ? AND response IS NULL").bind(receiptId || null, JSON.stringify(stored), new Date().toISOString(), key).run(); return !!(u && u.meta && u.meta.changes); } catch (_) { return false; }
 }
 export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
+  const bind = paidPathOrOpts && typeof paidPathOrOpts === "object" && paidPathOrOpts.bind ? paidPathOrOpts.bind : null;
   const db = typeof c.settleStore === "function" ? c.settleStore() : null;
   const key = db ? await settlementKey(c, payload) : null;
   const ref = paymentRef(key);
@@ -2680,6 +2729,9 @@ export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
   const auth = (payload && payload.payload && payload.payload.authorization) || {};
   const chainQ = { valid_before: /^[0-9]{1,12}$/.test(String(auth.validBefore ?? "")) ? Number(auth.validBefore) : null, from: String(auth.from || "").toLowerCase(), nonce: String(auth.nonce || "").toLowerCase(), network: String((payload.accepted || {}).network || payload.network || c.network || ""), asset: c.asset };
   const onChain = async () => { try { return typeof c.chainCheck === "function" ? await c.chainCheck(chainQ) : { unknown: true }; } catch (_) { return { unknown: true }; } };
+  const spent = (why) => ({ ok: false, reason: why, replay_refused: true, reuse_refused: true, ref });
+  // after a pending row resolves to settled: the money moved for the request the row is bound to
+  const recovered = (row, st, fac) => (bind && row && row.target != null && !sameBind(row, bind) ? spent(REUSE_OTHER_REQUEST) : { ok: true, settle: st, facilitator: fac || null, recovered: true, ref, key });
   let pending = false;
   if (key) {
     const row = await settleRow(db, key);
@@ -2687,13 +2739,28 @@ export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
       if (row.resource !== resource || String(row.amount) !== String(c.priceAtomic)) return { ok: false, reason: "this payment already settled for another resource or amount", replay_refused: true, ref };
       let settle = null;
       try { settle = JSON.parse(row.settle); } catch (_) { settle = null; }
-      if (row.state !== "pending" && settle && (settle.transaction || row.state === "settled")) return { ok: true, settle, facilitator: row.facilitator || null, replayed: true, ref };
+      if (row.state !== "pending" && settle && (settle.transaction || row.state === "settled")) {
+        // settled: only now is reuse judged (0.59.3 review: pending/chain resolution always comes first)
+        if (bind) {
+          if (row.target == null) {
+            const a = rowAgeS(row);
+            if (!Number.isFinite(a) || a > SETTLE_REUSE_TTL_S) return spent(REUSE_WINDOW_PASSED); // pre-0.59.3 row, long settled
+            try { // unbound but fresh: bind it to this request (first come)
+              const u = await db.prepare("UPDATE settled_payments SET target = ?, method = ? WHERE key = ? AND target IS NULL").bind(String(bind.target), String(bind.method || "GET").toUpperCase(), key).run();
+              if (u && u.meta && u.meta.changes === 0) { const r2 = await settleRow(db, key); if (r2 && r2.target != null && !sameBind(r2, bind)) return spent(REUSE_OTHER_REQUEST); }
+            } catch (_) {}
+          } else { const why = reuseRefusal(row, bind); if (why) return spent(why); }
+        }
+        let response = null;
+        try { response = row.response ? JSON.parse(row.response) : null; } catch (_) { response = null; }
+        return { ok: true, settle, facilitator: row.facilitator || null, replayed: true, ref, key, response, receipt_id: row.receipt_id || null };
+      }
       pending = true; // an earlier attempt wrote PENDING and never finished: resolve on chain first
       const s = await onChain();
       if (s.settled && s.tx) {
         const st = { success: true, transaction: s.tx, network: chainQ.network || c.network, payer: chainQ.from };
-        await markSettled(db, key, resource, c.priceAtomic, st, row.facilitator, true);
-        return { ok: true, settle: st, facilitator: row.facilitator || null, recovered: true, ref };
+        await markSettled(db, key, resource, c.priceAtomic, st, row.facilitator, true, bind);
+        return recovered(row, st, row.facilitator);
       }
       if (s.canceled) { try { await db.prepare("DELETE FROM settled_payments WHERE key = ? AND (state = 'pending' OR state IS NULL OR state = 'review')").bind(key).run(); } catch (_) {} return { ok: false, reason: "payment authorization was canceled on chain (nothing was charged)", canceled: true, ref }; }
       if (s.review) { await markReview(db, key, ref, "nonce state true, no used/canceled event found"); return { ok: false, pending: true, review: true, reason: "payment pending (nonce state set on chain, no settlement event found yet; under review)", ref }; }
@@ -2701,23 +2768,26 @@ export async function verifyAndSettle(c, payload, url, paidPathOrOpts = false) {
       // nonce unused on chain: nothing moved, settle again below (the on-chain nonce still prevents a double charge)
     } else {
       try {
-        const ins = await db.prepare("INSERT OR IGNORE INTO settled_payments (key, resource, amount, settle, facilitator, created_at, state, updated_at) VALUES (?, ?, ?, '{}', NULL, ?, 'pending', ?)").bind(key, resource, String(c.priceAtomic), new Date().toISOString(), new Date().toISOString()).run();
+        const now = new Date().toISOString();
+        const ins = bind
+          ? await db.prepare("INSERT OR IGNORE INTO settled_payments (key, resource, amount, settle, facilitator, created_at, state, updated_at, target, method) VALUES (?, ?, ?, '{}', NULL, ?, 'pending', ?, ?, ?)").bind(key, resource, String(c.priceAtomic), now, now, String(bind.target), String(bind.method || "GET").toUpperCase()).run()
+          : await db.prepare("INSERT OR IGNORE INTO settled_payments (key, resource, amount, settle, facilitator, created_at, state, updated_at) VALUES (?, ?, ?, '{}', NULL, ?, 'pending', ?)").bind(key, resource, String(c.priceAtomic), now, now).run();
         pending = true;
         // 0.59.2 review: a concurrent request with the same payment inserted first: it owns the settle, this one waits
         if (ins && ins.meta && ins.meta.changes === 0) return { ok: false, pending: true, reason: "payment pending (the same payment is being settled by a concurrent request)", ref };
-      } catch (_) { pending = false; } // 0022 not applied: the 0.51.1 behaviour
+      } catch (_) { pending = false; } // 0022/0023 not applied: the 0.51.1 behaviour
     }
   }
   let r;
   try { r = await verifyAndSettleOnce(c, payload, url, paidPathOrOpts); } catch (_) { r = { ok: false, reason: "settle threw" }; }
-  if (key && r.ok && r.settle && r.settle.transaction) { await markSettled(db, key, resource, c.priceAtomic, r.settle, r.facilitator, pending); return { ...r, ref }; }
+  if (key && r.ok && r.settle && r.settle.transaction) { await markSettled(db, key, resource, c.priceAtomic, r.settle, r.facilitator, pending, bind); return { ...r, ref, key }; }
   if (!key || r.ok) return r;
   if (SETTLE_UNCERTAIN.test(String(r.reason || ""))) {
     const s = await onChain();
     if (s.settled && s.tx) {
       const st = { success: true, transaction: s.tx, network: chainQ.network || c.network, payer: chainQ.from };
-      await markSettled(db, key, resource, c.priceAtomic, st, r.facilitator, pending);
-      return { ok: true, settle: st, facilitator: r.facilitator || null, recovered: true, ref };
+      await markSettled(db, key, resource, c.priceAtomic, st, r.facilitator, pending, bind);
+      return { ok: true, settle: st, facilitator: r.facilitator || null, recovered: true, ref, key };
     }
     if (s.canceled) { if (pending) { try { await db.prepare("DELETE FROM settled_payments WHERE key = ? AND state = 'pending'").bind(key).run(); } catch (_) {} } return { ok: false, reason: "payment authorization was canceled on chain (nothing was charged)", canceled: true, ref }; }
     if (s.review) { await markReview(db, key, ref, "nonce state true, no used/canceled event found"); return { ok: false, pending: true, review: true, reason: "payment pending (" + r.reason + "; under review)", ref, facilitator: r.facilitator }; }
