@@ -57,7 +57,7 @@ export async function snapshot(workerPath) {
   const out = {};
   const run = async (key, req) => {
     const res = await worker.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
-    const body = res.status === 204 || req.method === "HEAD" ? "" : await res.text();
+    const body = restoreBlogList(req.url, res.status === 204 || req.method === "HEAD" ? "" : await res.text()); // 0.58.8
     const headers = {};
     for (const [k, v] of [...res.headers.entries()].sort()) headers[k] = norm(v);
     out[key] = { status: res.status, headers, sha256: createHash("sha256").update(norm(body)).digest("hex") };
@@ -171,6 +171,16 @@ export const HOME_KEY = "GET https://402xagent.com/ [html]";
 export const HOME_FOOTER_0584 = '<div><h4>Products</h4><ul><li><a href="/docs#quick-start">402xAgent Check</a></li><li><a href="/docs#endpoint-report">Endpoint Report</a></li><li><a href="/docs#payment-status">Payment Status</a></li><li><a href="/docs#watchtower">Watchtower</a></li><li><a href="/docs#facilitator-check">Facilitator Check</a></li><li><a href="/docs#hosted">Hosted Mode</a></li></ul></div>';
 export const HOME_FOOTER_0586 = '<div><h4>Products</h4><ul><li><a href="/docs/check">402xAgent Check</a></li><li><a href="/docs/endpoint-report">Endpoint Report</a></li><li><a href="/docs/payment-status">Payment Status</a></li><li><a href="/docs/watchtower">Watchtower</a></li><li><a href="/docs/facilitator-check">Facilitator Check</a></li><li><a href="/docs/hosted">Hosted Mode</a></li><li><a href="/#audit-layer">Audit layer</a></li></ul></div>';
 /** The homepage body with the 0.58.6 footer Products list put back to 0.58.4's (throws unless it occurs exactly once). */
+// 0.58.8: llms.txt lists every blog post (generated from BLOG_POSTS), so a blog-only release changes that list and nothing
+// else. Before hashing, the list is put back to the one every fixture holds (main 89da67f, 0.58.7); the rest of llms.txt
+// must stay byte-identical. tests/blog_0588_test.mjs checks the new list itself.
+export const LLMS_BLOG_LIST_0587 = "  - x402 Endpoint Checks Compared: Six Ways to Look Before Your Agent Pays: https://402xagent.com/blog/x402-endpoint-checks-compared\n  - Check an x402 Endpoint Before Your Agent Pays (One Free curl): https://402xagent.com/blog/check-x402-endpoint-before-agent-pays\n  - A Budget Your x402 Agent Can't Overrun: The Audit Layer in x402-spotcheck 1.5.0: https://402xagent.com/blog/x402-spotcheck-audit-layer-budgets-ledger\n  - x402-spotcheck 1.6.0: An Audit Ledger That Survives a Restart: https://402xagent.com/blog/x402-spotcheck-1-6-audit-layer-what-it-defends\n  - 32,084 Skips: What Your x402 Agent Almost Paid For: https://402xagent.com/blog/x402-skips-report-what-agents-almost-paid-for\n  - Your x402 Call Timed Out After Signing. Don't Re-Sign Yet.: https://402xagent.com/blog/x402-retry-double-pay-check-before-you-resign\n  - Preflight, Budget, Then Check: Where 402xAgent Fits: https://402xagent.com/blog/preflight-budget-then-check\n  - Meet 402xAgent: Ask Before Your Agent Pays: https://402xagent.com/blog/meet-402xagent-check-before-your-agent-pays\n";
+export function restoreBlogList(url, body) {
+  if (!/\/llms\.txt$/.test(new URL(url).pathname)) return body;
+  const re = /(- Blog: https:\/\/402xagent\.com\/blog\n)((?:  - [^\n]*\n)*)/;
+  if (!re.test(body)) return body;
+  return body.replace(re, (_, head) => head + LLMS_BLOG_LIST_0587);
+}
 export function restoreHomeFooter(body) {
   if (body.split(HOME_FOOTER_0586).length !== 2) throw new Error("0.58.6 footer list not found exactly once");
   return body.replace(HOME_FOOTER_0586, HOME_FOOTER_0584);
