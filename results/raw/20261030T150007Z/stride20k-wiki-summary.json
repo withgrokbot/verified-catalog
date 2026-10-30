@@ -1,0 +1,16 @@
+{
+  "service_id": "stride20k-wiki-summary",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://gateway.stride20k.com/knowledge/wiki/Alan%20Turing",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "error": "URLError: [Errno -3] Temporary failure in name resolution",
+    "latency_ms": 10006
+  },
+  "run_id": "20261030T150007Z",
+  "checked_at": "2026-10-30T15:00:18Z"
+}

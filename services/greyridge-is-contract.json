@@ -34,11 +34,11 @@
   "quality_test": null,
   "paid_receipts": 0,
   "latest": {
-    "checked_at": "2026-10-29T15:00:36Z",
+    "checked_at": "2026-10-30T15:00:10Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 1153,
+    "latency_ms": 101,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.002",
@@ -50,15 +50,15 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261029T150033Z/greyridge-is-contract.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261029T150033Z/greyridge-is-contract.json"
+    "raw_log": "results/raw/20261030T150007Z/greyridge-is-contract.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261030T150007Z/greyridge-is-contract.json"
   },
   "history_summary": {
-    "checks": 4,
-    "reachable": 4,
-    "x402_challenge_ok": 4,
+    "checks": 5,
+    "reachable": 5,
+    "x402_challenge_ok": 5,
     "paid_checks": 0,
     "first_checked": "2026-10-27T14:53:17Z",
-    "last_checked": "2026-10-29T15:00:36Z"
+    "last_checked": "2026-10-30T15:00:10Z"
   }
 }
