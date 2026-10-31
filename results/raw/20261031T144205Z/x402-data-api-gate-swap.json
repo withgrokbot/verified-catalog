@@ -1,0 +1,59 @@
+{
+  "service_id": "x402-data-api-gate-swap",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://x402-data-api.sigrunner.workers.dev/gate/swap?token=0x4200000000000000000000000000000000000006&side=buy&notional_usd=100",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 1250,
+    "headers": {
+      "date": "Sat, 31 Oct 2026 14:42:08 GMT",
+      "content-type": "application/json",
+      "content-length": "3663",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://x402-data-api.sigrunner.workers.dev/gate/swap?token=0x4200000000000000000000000000000000000006&side=buy&notional_usd=100",
+            "description": "Is this Base token safe to swap right now? GO / HOLD / BLOCK pre-trade safety gate for an autonomous trading agent: is it a honeypot, can you sell it, is your trade too big for the pool? Pass token, side (buy|sell), notional_usd; get a one-word decision + reason in one fast call. Combines honeypot/sellability simulation, admin-control checks and Uniswap v3 WETH-pool liquidity vs. trade size (price-impact guard). Use when a trading agent needs a GO/HOLD/BLOCK check right before a Base swap.",
+            "mimeType": "application/json",
+            "serviceName": "Base Token Safety Swap Gate",
+            "tags": [
+              "token-safety",
+              "honeypot",
+              "pre-trade",
+              "base",
+              "swap-gate"
+            ],
+            "iconUrl": "https://x402-data-api.sigrunner.workers.dev/miniapp/icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "8000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x5765ae06a52dc7A0BB71c36A11db512c7ea9ed10",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 3663,
+    "body_sha256": "79dc8b995f5e7386928ec8bb4adba9aa2497207d183ced52c979f952e3ce8aac",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{\"url\":\"https://x402-data-api.sigrunner.workers.dev/gate/swap?token=0x4200000000000000000000000000000000000006&side=buy&notional_usd=100\",\"description\":\"Is this Base token safe to swap right now? GO / HOLD / BLOCK pre-trade safety gate for an autonomous trading agent: is it a honeypot, can you sell it, is your trade too big for the pool? Pass token, side (buy|sell), notional_usd; get a one-word decision + reason in one fast call. Combines honeypot/sellability simulation, admin-control checks and Uniswap v3 WETH-pool liquidity vs. trade size (price-impact guard). Use when a trading agent needs a GO/HOLD/BLOCK check right before a Base swap.\",\"mimeType\":\"application/json\",\"serviceName\":\"Base Token Safety Swap Gate\",\"tags\":[\"token-safety\",\"honeypot\",\"pre-trade\",\"base\",\"swap-gate\"],\"iconUrl\":\"https://x402-data-api.sigrunner.workers.dev/miniapp/icon.png\"},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"8000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x5765ae06a52dc7A0BB71c36A11db512c7ea9ed10\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"decimals\":6}}],\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"type\":\"http\",\"method\":\"GET\",\"queryParams\":{\"token\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"side\":\"buy\",\"notional_usd\":\"500\"}},\"output\":{\"type\":\"json\",\"example\":{\"token\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"side\":\"buy\",\"notional_usd\":500,\"decision\":\"go\",\"reason\":\"token passes safety checks\",\"verdict\":\"SAFE\",\"risk_score\":25,\"liquidity_usd\":158115578,\"impact_pct_of_pool\":0.0003,\"flags\":[\"no honeypot, deep liquidity, no high-risk admin controls detected\"],\"token_meta\":{\"symbol\":\"USDC\",\"name\":\"USD Coin\",\"decimals\":6},\"analyzed_at\":\"2026-10-20T21:45:00.000Z\",\"disclaimer\":\"Heuristic risk signal, not financial advice or a guarantee.\",\"note\":null}}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"GET\"]},\"queryParams\":{\"type\":\"object\",\"required\":[\"token\"],\"properties\":{\"token\":{\"type\":\"string\",\"description\":\"0x-prefixed ERC-20 contract on Base mainnet (only required param)\"},\"side\":{\"type\":\"string\",\"description\":\"buy or sell (optional, default buy)\"},\"notional_usd\":{\"type\":\"string\",\"description\":\"intended trade size in USD (optional, default 100)\"}}}},\"required\":[\"type\",\"method\"],\"additionalProperties\":false},\"output\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\"},\"example\":{\"type\":\"object\",\"properties\":{\"token\":{\"type\":\"string\"},\"side\":{\"type\":\"string\"},\"notional_usd\":{\"type\":\"integer\"},\"decision\":{\"type\":\"string\"},\"reason\":{\"type\":\"string\"},\"verdict\":{\"type\":\"string\"},\"risk_score\":{\"type\":\"integer\"},\"liquidity_usd\":{\"type\":\"integer\"},\"impact_pct_of_pool\":{\"type\":\"number\"},\"flags\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"token_meta\":{\"type\":\"object\",\"properties\":{\"symbol\":{\"type\":\"string\"},\"name\":{\"type\":\"string\"},\"decimals\":{\"type\":\"integer\"}},\"required\":[\"symbol\",\"name\",\"decimals\"]},\"analyzed_at\":{\"type\":\"string\"},\"disclaimer\":{\"type\":\"string\"},\"note\":{\"type\":\"null\"}},\"required\":[\"token\",\"side\",\"notional_usd\",\"decision\",\"reason\",\"verdict\",\"risk_score\",\"liquidity_usd\",\"impact_pct_of_pool\",\"flags\",\"token_meta\",\"analyzed_at\",\"disclaimer\",\"note\"]}},\"required\":[\"type\"]}},\"required\":[\"input\"]}},\"greyridge\":{\"see_also\":[{\"resource\":\"https://api.greyridgesignals.ai/defi/yields\",\"price_usdc\":\"0.001\",\"description\":\"Top DeFi lending/LP yields \u2014 project, chain, symbol, pool id, APY breakdown + 1d/7d/30d APY trend, IL risk (incl.\"}]}}}"
+  },
+  "run_id": "20261031T144205Z",
+  "checked_at": "2026-10-31T14:42:08Z"
+}

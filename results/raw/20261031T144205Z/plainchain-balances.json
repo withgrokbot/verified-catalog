@@ -1,0 +1,50 @@
+{
+  "service_id": "plainchain-balances",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://plainchain.appin60.com/v1/balances?chain=base&address=0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 513,
+    "headers": {
+      "date": "Sat, 31 Oct 2026 14:42:07 GMT",
+      "content-type": "application/json",
+      "content-length": "1897",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://plainchain.appin60.com/v1/balances?chain=base&address=0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+            "description": "Wallet balances with USD values on Base, Arbitrum, Ethereum or Optimism: native ETH plus USDC, USDT, WETH and the chain's major tokens, plus up to 10 extra token addresses you pass. Returns a USD total. Use before paying, bridging or reporting a portfolio.",
+            "mimeType": "application/json"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1942",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0xB442daCAE60C07bb5dB8f33C8a6c1572d8F24e83",
+              "maxTimeoutSeconds": 120,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 1897,
+    "body_sha256": "e8aa4a63707f67f547f6f09fd5f8ba8dcdc6a42ec4d2945ceb3eb11d903177f5",
+    "body_excerpt": "{\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{\"url\":\"https://plainchain.appin60.com/v1/balances?chain=base&address=0xd8da6bf26964af9d7eed9e03e53415d37aa96045\",\"description\":\"Wallet balances with USD values on Base, Arbitrum, Ethereum or Optimism: native ETH plus USDC, USDT, WETH and the chain's major tokens, plus up to 10 extra token addresses you pass. Returns a USD total. Use before paying, bridging or reporting a portfolio.\",\"mimeType\":\"application/json\"},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1942\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0xB442daCAE60C07bb5dB8f33C8a6c1572d8F24e83\",\"maxTimeoutSeconds\":120,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}}],\"extensions\":{\"bazaar\":{\"info\":{\"input\":{\"type\":\"http\",\"queryParams\":{\"chain\":\"base\",\"address\":\"0xB442daCAE60C07bb5dB8f33C8a6c1572d8F24e83\"},\"method\":\"GET\"},\"output\":{\"type\":\"json\",\"example\":{\"chain\":\"Base\",\"address\":\"0x...\",\"native\":{\"symbol\":\"ETH\",\"balance\":\"0.0123\",\"usd\":31.08},\"tokens\":[{\"symbol\":\"USDC\",\"token\":\"0x8335...\",\"balance\":\"152.4\",\"usd\":152.4}],\"totalUsd\":183.48}}},\"schema\":{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\",\"properties\":{\"input\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"const\":\"http\"},\"method\":{\"type\":\"string\",\"enum\":[\"GET\"]},\"queryParams\":{\"type\":\"object\",\"properties\":{\"chain\":{\"type\":\"string\",\"description\":\"base (default), arbitrum, ethereum or optimism; chain ids 8453, 42161, 1, 10 also work\"},\"address\":{\"type\":\"string\",\"pattern\":\"^0x[0-9a-fA-F]{40}$\",\"description\":\"wallet address\"},\"tokens\":{\"type\":\"string\",\"description\":\"optional comma-separated extra ERC-20 addresses\"}},\"required\":[\"address\"]}},\"required\":[\"type\",\"method\"],\"additionalProperties\":false},\"output\":{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\"},\"example\":{\"type\":\"object\"}},\"required\":[\"type\"]}},\"required\":[\"input\"]}}}}"
+  },
+  "run_id": "20261031T144205Z",
+  "checked_at": "2026-10-31T14:42:07Z"
+}
