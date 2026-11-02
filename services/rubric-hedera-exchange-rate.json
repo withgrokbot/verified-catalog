@@ -32,11 +32,11 @@
   "quality_test": null,
   "paid_receipts": 6,
   "latest": {
-    "checked_at": "2026-11-01T18:53:56Z",
+    "checked_at": "2026-11-02T22:45:48Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 188,
+    "latency_ms": 206,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001",
@@ -48,15 +48,15 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261101T185354Z/rubric-hedera-exchange-rate.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261101T185354Z/rubric-hedera-exchange-rate.json"
+    "raw_log": "results/raw/20261102T224547Z/rubric-hedera-exchange-rate.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261102T224547Z/rubric-hedera-exchange-rate.json"
   },
   "history_summary": {
-    "checks": 32,
-    "reachable": 32,
-    "x402_challenge_ok": 32,
+    "checks": 33,
+    "reachable": 33,
+    "x402_challenge_ok": 33,
     "paid_checks": 6,
     "first_checked": "2026-10-06T17:58:54Z",
-    "last_checked": "2026-11-01T18:53:56Z"
+    "last_checked": "2026-11-02T22:45:48Z"
   }
 }
