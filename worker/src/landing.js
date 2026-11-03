@@ -68,7 +68,10 @@ export function homeExample(receipts = RECEIPTS, meta = RECEIPTS_META, saves = S
   const rs = (receipts || []).filter((r) => r && r.verdict === "skip" && ID_RE.test(r.id || "")).sort((x, y) => (x.id < y.id ? -1 : 1));
   const differs = (r) => PRICE_RE.test(r.reason || "") && typeof r.claimed_price_usd === "number" && typeof r.quoted_price_usd === "number";
   let r = rs.find((r) => differs(r) && r.quoted_price_usd > r.claimed_price_usd && r.network === "eip155:8453" && r.pay_to && r.http_status === 402)
-    || rs.find(differs) || rs.find((r) => MISMATCH_RE.test(r.reason || ""));
+    || rs.find(differs)
+    // 0.59.10: wallet / network step prefers a row that carries both prices (listed and asked), then any such row
+    || rs.find((r) => MISMATCH_RE.test(r.reason || "") && typeof r.claimed_price_usd === "number" && typeof r.quoted_price_usd === "number")
+    || rs.find((r) => MISMATCH_RE.test(r.reason || ""));
   if (!r) {
     const sv = (saves || []).filter((x) => x && x.kind === "price_higher" && ID_RE.test(x.receipt_id || "") && x.endpoint)
       .sort((x, y) => (x.receipt_id < y.receipt_id ? -1 : 1)).map((x) => fromSave(x, meta)).find(Boolean);
@@ -98,11 +101,14 @@ export function homeCard(ex) {
   const how = ex.method ? `${esc(ex.method)}, HTTP ${esc(ex.live_402.http_status)}` : `HTTP ${esc(ex.live_402.http_status)}`;
   const net = ex.live_402.network ? ` on ${ex.live_402.network === "eip155:8453" ? "Base" : esc(ex.live_402.network)}` : "";
   const to = ex.live_402.pay_to ? ` to ${esc(short(ex.live_402.pay_to))}` : "";
+  // 0.59.10: a missing price is left out (no "$ per call" / "$ USDC" blanks); the Listing line goes when it has no price
+  const has = (x) => typeof x === "number" && Number.isFinite(x);
+  const listLine = has(ex.listing.price_usd) ? `\n      <li><b>Listing</b>${src}: $${esc(ex.listing.price_usd)} per call</li>` : "";
+  const live = has(ex.live_402.price_usd) ? `$${esc(ex.live_402.price_usd)} ${esc(ex.live_402.asset)}` : esc(ex.live_402.asset);
   return `  <div class="card realex" aria-label="Real example">
     <p class="rx-h">A real check from our crawl (${esc(ex.crawl_date)}, <a href="/v1/receipts/${esc(ex.receipt_id)}">receipt ${esc(ex.receipt_id)}</a>)</p>
-    <ol class="rx">
-      <li><b>Listing</b>${src}: $${esc(ex.listing.price_usd)} per call</li>
-      <li><b>Live 402</b> (${how}): $${esc(ex.live_402.price_usd)} ${esc(ex.live_402.asset)}${net}${to}</li>
+    <ol class="rx">${listLine}
+      <li><b>Live 402</b> (${how}): ${live}${net}${to}</li>
       <li><b>402xAgent:</b> <span class="rx-skip">${esc(ex.verdict)}</span>, ${esc(ex.reason)}</li>
     </ol>
   </div>

@@ -3080,7 +3080,9 @@ test("0.39.0 home: 'Try a check' runs the free Try-it flow; REAL stored example 
     assert.equal(HOME_EXAMPLE.live_402.pay_to, rec.pay_to); assert.equal(HOME_EXAMPLE.reason, rec.reason); assert.equal(HOME_EXAMPLE.checked_at, rec.timestamp);
     assert.equal(HOME_EXAMPLE.listing.source, rec.source_list); assert.equal(HOME_EXAMPLE.live_402.network, rec.network); assert.equal(HOME_EXAMPLE.method, rec.method);
     if (pagePrice) assert.match(HOME_EXAMPLE.reason, /different price than listed/, "a page-1 price skip when page 1 has one");
-    assert.ok(html.includes(`<b>Listing</b> (${HOME_EXAMPLE.listing.source}): $${HOME_EXAMPLE.listing.price_usd ?? ""} per call`)); // 0.59.10: a wallet/network row may carry no price
+    if (typeof HOME_EXAMPLE.listing.price_usd === "number") assert.ok(html.includes(`<b>Listing</b> (${HOME_EXAMPLE.listing.source}): $${HOME_EXAMPLE.listing.price_usd} per call`));
+    else assert.ok(!html.includes("<b>Listing</b>"), "0.59.10: no Listing line without a price");
+    assert.ok(!/\$ per call|\$ USDC/.test(html), "0.59.10: no price blanks on the card");
   } else {
     const sv = SAVES.find((s) => s.receipt_id === HOME_EXAMPLE.receipt_id && s.kind === "price_higher");
     assert.ok(sv, "card receipt is a price_higher row of the full-crawl saves list"); assert.ok(!pageMismatch, "any page-1 mismatch skip wins over saves rows");
@@ -3106,6 +3108,13 @@ test("0.39.0 home: 'Try a check' runs the free Try-it flow; REAL stored example 
     const P = { ...W, id: "cccccccccc", reason: "asks a different price than listed (listed $0.01, asks $0.02)", quoted_price_usd: 0.02, url: "https://p.example/x" };
     assert.equal(homeExample([N, W, P], m, [S]).receipt_id, "cccccccccc");
     assert.equal(homeExample([N, W], m, [S]).receipt_id, "aaaaaaaaaa", "wallet skip before the saves fallback");
+    // 0.59.10 (Max): the wallet/network step prefers a row with both prices; a chosen row without a price shows no price blanks
+    const U = { ...W, id: "0000000001", reason: "asks for payment on a different network than listed (listed eip155:8453, offers eip155:196)", claimed_price_usd: undefined, quoted_price_usd: undefined, network: "eip155:196" };
+    assert.equal(homeExample([N, U, W], m, []).receipt_id, "aaaaaaaaaa", "priced wallet/network row preferred over a lower-id unpriced one");
+    const u = homeExample([N, U], m, []); assert.equal(u.receipt_id, "0000000001");
+    { const { homeCard } = await import("../worker/src/landing.js"); const c = homeCard(u);
+      assert.ok(!/<b>Listing<\/b>/.test(c), "no Listing line without a price"); assert.ok(!/\$ per call|\$ USDC|\$undefined|\$<\/|: \$ /.test(c), "no price blanks");
+      assert.match(c, /<b>Live 402<\/b> \(GET, HTTP 402\): USDC on eip155:196 to 0x1111…1111<\/li>/); }
     const a = homeExample([N], m, [S]); assert.equal(a.receipt_id, "bbbbbbbbbb"); assert.equal(a.reason, "asks a different price than listed (listed $0.02, asks $0.4)"); assert.equal(a.url, S.endpoint);
     assert.equal(homeExample([N, W], m, []).receipt_id, "aaaaaaaaaa");
     assert.equal(homeExample([N], m, []), null, "never a non-mismatch skip");
