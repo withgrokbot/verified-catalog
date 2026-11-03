@@ -46,7 +46,7 @@ import { PS_ID, PS_NETWORK, USDC_BASE_LC, parseRequest, readChain, decide, terms
 import { discover, DISCOVER_PER_MIN, DISCOVER_MAX } from "./discover.js";
 import { handleSkips, handleReceipts, crawlReceiptForUrl, crawlReceipt, normUrl, skipsPageRows, crawlSchedule } from "./skips.js";
 import { docsIndexHtml, docsProductHtml, DOCS_ANCHORS_PATH, DOCS_ANCHORS_JS } from "./docs.js"; // 0.58.6
-import { receiptListHtml, liveReceiptHtml, crawlReceiptHtml, receiptNotFoundHtml, crawlReasonText, RECEIPTS_PAGE_SIZE, LIVE_PAGE_SIZE } from "./receipts-html.js"; // 0.58.5
+import { receiptListHtml, liveReceiptHtml, crawlReceiptHtml, receiptNotFoundHtml, receiptJsonHtml, crawlReasonText, RECEIPTS_PAGE_SIZE, LIVE_PAGE_SIZE } from "./receipts-html.js"; // 0.58.5
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { landingHtml } from "./landing.js";
 import { homeHtml, HOME_JS, HOME_SCRIPT_PATH, HOME_CSP } from "./home.js"; // 0.58.0: the human landing page (browsers on 402xagent.com/ only)
@@ -1786,7 +1786,12 @@ const rj = (o, status = 200) => new Response(JSON.stringify(o, null, 2), { statu
 // public fields; receipts-html.js picks from those by allow-list. Returns null to fall through to the JSON answer
 // (by-url, ps-/er-/eb- side receipts, store errors).
 export function wantsReceiptHtml(req, url) {
-  return (req.method === "GET" || req.method === "HEAD") && /text\/html/i.test(req.headers.get("accept") || "") && url.searchParams.get("format") !== "json";
+  return (req.method === "GET" || req.method === "HEAD") && /text\/html/i.test(req.headers.get("accept") || "") && url.searchParams.get("format") !== "json" && !url.searchParams.has("raw");
+}
+// 0.59.6: ?format=json opened in a browser (Accept names text/html, no ?raw) shows the same JSON styled in the site chrome.
+// Agents (no Accept, */*, application/json, curl) and ?raw=1 keep the plain JSON, byte for byte.
+export function wantsReceiptJsonHtml(req, url) {
+  return (req.method === "GET" || req.method === "HEAD") && /text\/html/i.test(req.headers.get("accept") || "") && url.searchParams.get("format") === "json" && !url.searchParams.has("raw");
 }
 const LIST_TYPES = ["live", "dry-run", "self-checked"];
 const hostOfU = (u) => { try { return new URL(u).host.toLowerCase(); } catch (_) { return ""; } };
@@ -1850,6 +1855,17 @@ async function receiptsHtml(req, env, url, path) {
     return res.status === 200 ? H(crawlReceiptHtml(CANON_ORIGIN, await res.json(), fp)) : null;
   }
   return H(receiptNotFoundHtml(CANON_ORIGIN, id, fp), 404);
+}
+async function receiptJsonView(req, env, url, path) {
+  const pth = path.replace(/\/+$/, ""), id = pth.slice("/v1/receipts/".length);
+  const live = LIVE_RECEIPT_RE.test(id);
+  if (!live && !/^[0-9a-f]{10}$/.test(id)) return null;
+  const res = live ? await handleLiveReceipts(req, env, url, pth) : await handleReceipts(url, env);
+  if (res.status !== 200) return null; // errors stay the JSON answer
+  const raw = new URL(url); raw.searchParams.set("raw", "1");
+  const fp = { endpointReport: endpointReportOn(env), watchtower: watchOn(env) };
+  const body = receiptJsonHtml(CANON_ORIGIN, id, await res.text(), raw.pathname + raw.search, fp);
+  return new Response(req.method === "HEAD" ? null : body, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=60", vary: "accept", "content-security-policy": HOME_CSP, "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "access-control-allow-origin": "*" } });
 }
 async function handleLiveReceipts(req, env, url, path) {
   if (path === "/v1/receipts/by-url") {
@@ -4220,6 +4236,7 @@ const routeInnerHolder = {
     if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env, { endpointReport: endpointReportOn(env), watchtower: watchOn(env) }); // 0.58.7: footer flags for the HTML page
     if (path === "/v1/discover") return handleDiscover(req, env, url);
     if ((path === "/bazaar" || path === "/bazaar.json") && env.BAZAAR_PAGE !== "off") return handleBazaar(req, url, env, path, CANON_ORIGIN);
+    if (path.startsWith("/v1/receipts/") && wantsReceiptJsonHtml(req, url)) { const h = await receiptJsonView(req, env, url, path); if (h) return h; } // 0.59.6
     if ((path === "/v1/receipts" || path.startsWith("/v1/receipts/")) && wantsReceiptHtml(req, url)) { const h = await receiptsHtml(req, env, url, path); if (h) return h; } // 0.58.5
     if (path === "/v1/receipts/by-url" || /^\/v1\/receipts\/sc-/.test(path)) return handleLiveReceipts(req, env, url, path);
     if (path === "/v1/receipts" && url.searchParams.has("type")) return handleReceiptList(env, url);
