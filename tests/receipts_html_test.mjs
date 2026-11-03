@@ -27,7 +27,7 @@ test("0.58.5 negotiation: non-browser clients get the same JSON as before; brows
     assert.match(h.headers.get("content-security-policy"), /^default-src 'none'; script-src 'self' https:\/\/static\.cloudflareinsights\.com;/);
     assert.equal(h.headers.get("x-content-type-options"), "nosniff");
     assert.doesNotMatch(h.text, /<script/i, p);
-    const j = await get(p + (p.includes("?") ? "&" : "?") + "format=json", HTML);
+    const j = await get(p + (p.includes("?") ? "&" : "?") + "format=json&raw=1", HTML); // 0.59.6: ?raw=1 is the plain JSON for browsers
     assert.match(j.headers.get("content-type"), /application\/json/, p);
   }
   assert.equal((await get("/v1/receipts/sc-ffffffffffffffff", HTML)).status, 404);
@@ -96,4 +96,37 @@ test("0.58.5 receipts list: tabs, verdict chips, searchable, paginated, links to
   assert.doesNotMatch(x.text, /<script>alert/); assert.match(x.text, /&lt;script&gt;alert/);
   assert.match(text, /@media\(max-width:760px\)\{\n\.rc-box/);
   assert.doesNotMatch(text, /Spot[- ]Check/);
+});
+
+// 0.59.6: "View JSON" (?format=json) in a browser is the same JSON, styled in the site chrome; agents keep the exact bytes.
+test("0.59.6 receipt JSON view: browsers get styled HTML of the exact JSON; agents and ?raw=1 get byte-identical JSON", async () => {
+  for (const id of ["44e3732d23", "sc-85c8963fb57e7b25"]) {
+    const p = "/v1/receipts/" + id;
+    const base = await get(p, {});
+    for (const h of ACCEPTS) {
+      const r = await get(p + "?format=json", h);
+      assert.equal(r.text, base.text, id + JSON.stringify(h));
+      assert.match(r.headers.get("content-type"), /application\/json/);
+    }
+    const raw = await get(p + "?format=json&raw=1", HTML);
+    assert.equal(raw.text, base.text); assert.match(raw.headers.get("content-type"), /application\/json/);
+    const rawNoFmt = await get(p + "?raw=1", HTML);
+    assert.equal(rawNoFmt.text, base.text);
+    const h = await get(p + "?format=json", HTML);
+    assert.equal(h.status, 200);
+    assert.match(h.headers.get("content-type"), /^text\/html/);
+    assert.equal(h.headers.get("vary"), "accept");
+    assert.equal(h.headers.get("x-content-type-options"), "nosniff");
+    assert.doesNotMatch(h.text, /<script/i);
+    assert.match(h.text, /<header class="top">/); assert.match(h.text, /<footer/);
+    assert.match(h.text, new RegExp(`href="/v1/receipts/${id}">Human receipt`));
+    assert.match(h.text, new RegExp(`href="/v1/receipts/${id}\\?format=json&amp;raw=1">Raw JSON`));
+    const pre = h.text.match(/<pre class="rc-json"[^>]*><code>([\s\S]*?)<\/code><\/pre>/)[1];
+    const unesc = pre.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+    assert.equal(unesc, base.text, "the shown JSON is the agent JSON verbatim");
+    assert.match(h.text, /\.rc-json\{[^}]*white-space:pre-wrap[^}]*overflow-wrap:anywhere/);
+  }
+  assert.equal((await get("/v1/receipts/sc-ffffffffffffffff?format=json", HTML)).status, 404);
+  assert.match((await get("/v1/receipts/sc-ffffffffffffffff?format=json", HTML)).headers.get("content-type"), /application\/json/);
+  assert.match((await get("/v1/receipts/ps-0123456789abcdef?format=json", HTML)).headers.get("content-type"), /application\/json/);
 });

@@ -98,7 +98,7 @@ const isUsdcBase = (a) => a && String(a.asset || "").toLowerCase() === "0x833589
 const amountText = (a) => (a.amount_usd != null ? "$" + Number(a.amount_usd).toString() + " " : isUsdcBase(a) && /^\d+$/.test(String(a.amount_atomic || "")) ? "$" + (Number(a.amount_atomic) / 1e6).toString() + " " : "") + (a.amount_atomic != null ? `(${esc(a.amount_atomic)} atomic)` : "");
 
 function page(o) {
-  return chromePage({ ...o, css: CSS, current: "/v1/skips", footer: o.footer });
+  return chromePage({ ...o, css: CSS + (o.css || ""), current: "/v1/skips", footer: o.footer });
 }
 
 /** HTML list. d: { tab, rows:[{id, verdict, url, reason, time}], q, page, pages, prevHref, nextHref, total, note, exact } */
@@ -181,4 +181,14 @@ export function crawlReceiptHtml(origin, r, fp) {
 export function receiptNotFoundHtml(origin, id, fp) {
   const main = `<section class="pg-hero"><p class="pg-crumb"><a href="/v1/receipts">&larr; Receipts</a></p><h1>Receipt not found</h1><p class="pg-lead">There is no receipt with the id <code class="pg-mono">${esc(String(id).slice(0, 40))}</code>. Receipt ids are 10 hex characters (crawl) or <code class="pg-mono">sc-</code> plus 16 hex characters (live checks).</p></section><div class="pg-body"><p><a href="/v1/receipts">Browse all receipts</a></p></div>`;
   return page({ title: "Receipt not found · 402xAgent", desc: "No receipt with this id.", canonical: origin + "/v1/receipts", main, footer: fp, robots: "noindex" });
+}
+
+const JSON_CSS = `.rc-json{margin:0;padding:18px 20px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:var(--radius-lg);font-family:var(--mono);font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;max-width:100%;overflow-x:auto;color:var(--text)}\n@media (max-width:640px){.rc-json{font-size:12px;padding:14px}}`;
+/** 0.59.6: the "View JSON" link (?format=json) in a browser. The exact JSON body a non-browser client gets for this URL,
+ *  pretty-printed as it is (no re-serialisation), escaped, in the shared chrome. ?raw=1 returns the plain application/json. */
+export function receiptJsonHtml(origin, id, jsonText, rawHref, fp) {
+  const main = `<section class="pg-hero"><p class="pg-crumb"><a href="/v1/receipts/${esc(id)}">&larr; Receipt ${esc(id)}</a></p><h1>Receipt JSON</h1><p class="pg-lead">The public JSON for receipt <code class="pg-mono">${esc(id)}</code>, exactly as agents receive it.</p></section>
+<div class="pg-body"><div class="rc-actions"><a href="/v1/receipts/${esc(id)}">Human receipt</a><a href="${esc(rawHref)}">Raw JSON</a><a href="${VERIFY_HREF}">Verify offline</a></div>
+<pre class="rc-json" tabindex="0" aria-label="Receipt JSON"><code>${esc(jsonText)}</code></pre></div>`;
+  return page({ title: `Receipt ${id} JSON · 402xAgent`, desc: `Public JSON for 402xAgent receipt ${id}.`, canonical: origin + "/v1/receipts/" + id, alternate: rawHref, main, footer: fp, robots: "noindex", css: JSON_CSS });
 }
