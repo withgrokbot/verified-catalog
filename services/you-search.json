@@ -40,36 +40,31 @@
   },
   "paid_receipts": 7,
   "latest": {
-    "checked_at": "2026-11-03T18:49:49Z",
-    "mode": "paid",
+    "checked_at": "2026-11-03T20:29:52Z",
+    "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 630,
+    "latency_ms": 778,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.005",
     "quoted_price_usd": "0.005",
     "price_matches_listing": true,
-    "paid": true,
-    "charged_price_usd": "0.005",
-    "delivered_valid": true,
+    "paid": false,
+    "charged_price_usd": null,
+    "delivered_valid": null,
     "payment_refused_reason": null,
     "error": null,
-    "quality": {
-      "result": "not_graded",
-      "reason": "facts only: On 2026-09-30 the endpoint answered our x402 payment with a second HTTP 402 asking to pay again by another method (Tempo), so nothing was delivered.",
-      "facts_only": true,
-      "graded_at": "2026-11-03T18:49:50Z"
-    },
-    "raw_log": "results/raw/20261103T184933Z/you-search.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261103T184933Z/you-search.json"
+    "quality": null,
+    "raw_log": "results/raw/20261103T202951Z/you-search.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261103T202951Z/you-search.json"
   },
   "history_summary": {
-    "checks": 43,
-    "reachable": 43,
-    "x402_challenge_ok": 43,
+    "checks": 44,
+    "reachable": 44,
+    "x402_challenge_ok": 44,
     "paid_checks": 7,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-11-03T18:49:49Z"
+    "last_checked": "2026-11-03T20:29:52Z"
   }
 }

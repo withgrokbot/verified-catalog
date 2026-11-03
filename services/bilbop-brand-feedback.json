@@ -32,11 +32,11 @@
   "quality_test": null,
   "paid_receipts": 0,
   "latest": {
-    "checked_at": "2026-11-03T18:50:26Z",
+    "checked_at": "2026-11-03T20:29:53Z",
     "mode": "dry-run",
     "reachable": false,
     "http_status": null,
-    "latency_ms": 15,
+    "latency_ms": 59,
     "x402_challenge": false,
     "x402_version": null,
     "advertised_price_usd": "0.5",
@@ -46,17 +46,17 @@
     "charged_price_usd": null,
     "delivered_valid": null,
     "payment_refused_reason": null,
-    "error": "URLError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1029)",
+    "error": "URLError: [Errno -2] Name or service not known",
     "quality": null,
-    "raw_log": "results/raw/20261103T184933Z/bilbop-brand-feedback.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261103T184933Z/bilbop-brand-feedback.json"
+    "raw_log": "results/raw/20261103T202951Z/bilbop-brand-feedback.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261103T202951Z/bilbop-brand-feedback.json"
   },
   "history_summary": {
-    "checks": 9,
+    "checks": 10,
     "reachable": 0,
     "x402_challenge_ok": 0,
     "paid_checks": 0,
     "first_checked": "2026-10-27T14:53:17Z",
-    "last_checked": "2026-11-03T18:50:26Z"
+    "last_checked": "2026-11-03T20:29:53Z"
   }
 }
