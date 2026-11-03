@@ -79,8 +79,31 @@ export function strip0610(body) {
   if (process.env.SNAP_KEEP_0610 === "1" || typeof body !== "string") return body;
   return body.split(META_0610).join("").split(FOOTER_X_0610).join("");
 }
+// 0.62.0: free results show one paid-check line (homepage /home.js and /docs/try-it.js replace the old free line) and
+// receipt pages gain one rc-paid note; receipt routes get an edge cache + per-client limit (RECEIPT_GUARD). Unless
+// SNAP_KEEP_0620=1 the snapshots run with RECEIPT_GUARD=off and these exact text changes are reverted, so older fixtures
+// still prove every other byte is unchanged; tests/paidcheck_0620_test.mjs checks the additions themselves.
+import { PAID_CHECK_NOTE } from "../../worker/src/paidcheck.js";
+export const NOTE_EXPR_0620 = "(j.paid_check && j.paid_check.note) || " + JSON.stringify(PAID_CHECK_NOTE);
+export const HOME_NOTE_0620 = ['el("p", "result-note result-paid", ' + NOTE_EXPR_0620 + ")", 'el("p", "result-note", "Free checks show how each term compared. The exact amount, payTo wallet and the payment to sign come with the $0.02 paid check.")'];
+export const DOCS_NOTE_0620 = ['el("p", "ti-note ti-paid", ' + NOTE_EXPR_0620 + ")", 'el("p", "ti-note", "Free checks show which terms matched; the exact amount, payTo wallet and the payment object to sign come with the $0.02 paid check.")'];
+export const RECEIPT_NOTE_0620 = '\n<p class="rc-note rc-paid">' + PAID_CHECK_NOTE + "</p>";
+export const guardEnv0620 = () => (process.env.SNAP_KEEP_0620 === "1" ? {} : { RECEIPT_GUARD: "off" });
+export function strip0620(key, body) {
+  if (process.env.SNAP_KEEP_0620 === "1" || typeof body !== "string") return body;
+  if (body.includes('"paid_check"') && body.includes(PAID_CHECK_NOTE)) { // JSON answers + examples: drop exactly the new paid_check blocks
+    try {
+      const drop = (o) => { if (Array.isArray(o)) o.forEach(drop); else if (o && typeof o === "object") { if (o.paid_check && o.paid_check.note === PAID_CHECK_NOTE) delete o.paid_check; Object.values(o).forEach(drop); } };
+      const j = JSON.parse(body); drop(j);
+      const ind = (/^\{\n( +)"/.exec(body) || [])[1];
+      const nl = body.endsWith("\n") ? "\n" : "";
+      body = JSON.stringify(j, null, ind ? ind.length : undefined) + nl;
+    } catch (_) {}
+  }
+  return body.split(HOME_NOTE_0620[0]).join(HOME_NOTE_0620[1]).split(DOCS_NOTE_0620[0]).join(DOCS_NOTE_0620[1]).split(RECEIPT_NOTE_0620).join("");
+}
 export function as0589(key, body) {
-  body = as0598(key, strip0610(body));
+  body = as0598(key, strip0610(strip0620(key, body)));
   if (process.env.SNAP_KEEP_0590 === "1" || typeof body !== "string") return body;
   if (/\/llms\.txt \[/.test(key)) return body.replace(LLMS_0590_LINE, "");
   if (/\/\.well-known\/402xagent-(keys|receipt-key)\.json \[/.test(key)) return body.replace(KEYS_0590_FIELD, "");
@@ -95,7 +118,7 @@ export async function snapshot(workerPath, onResponse = null) { // 0.58.9: optio
   const worker = mod.default, VERSION = lib.VERSION;
   const norm = (s) => s.split(VERSION).join("<VERSION>");
   const env = () => ({ DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01" });
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620() });
   const out = {};
   const run = async (key, req) => {
     const res = await worker.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
@@ -131,7 +154,7 @@ export async function snapshotExtra(workerPath) {
   const worker = mod.default, VERSION = lib.VERSION;
   const norm = (s) => s.split(VERSION).join("<VERSION>");
   const env = () => ({ DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01" });
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620() });
   const out = {};
   const run = async (key, req) => {
     const res = await worker.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
@@ -157,9 +180,9 @@ export async function snapshotHomeBody(workerPath) {
   const mod = await import(pathToFileURL(resolve(workerPath)).href);
   const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
   const env = { DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01" };
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620() };
   const res = await mod.default.fetch(new Request("https://402xagent.com/", { headers: { accept: "text/html,application/xhtml+xml,*/*;q=0.8", "user-agent": "Mozilla/5.0", "cf-connecting-ip": "203.0.113.9" } }), env, { waitUntil() {}, passThroughOnException() {} });
-  return as0598("GET https://402xagent.com/ [html]", await res.text()).split(lib.VERSION).join("<VERSION>");
+  return as0598("GET https://402xagent.com/ [html]", strip0620("GET https://402xagent.com/ [html]", await res.text())).split(lib.VERSION).join("<VERSION>");
 }
 
 // 0.58.4: everything at once against 0.58.3 (main 139fed1): the full machine snapshot, the extra set, /pricing on every host
@@ -170,13 +193,13 @@ export async function snapshot0583(workerPath) {
   const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
   const norm = (x) => x.split(lib.VERSION).join("<VERSION>");
   const env = { DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01" };
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620() };
   const HTML = { accept: "text/html,application/xhtml+xml,*/*;q=0.8", "user-agent": "Mozilla/5.0", "cf-connecting-ip": "203.0.113.9" };
   for (const h of HOSTS) for (const [an, a] of [...Object.entries(ACCEPTS), ["html", null]]) {
     const [accept, ua] = a ? a.split("|") : [null, null];
     const headers = an === "html" ? HTML : { "cf-connecting-ip": "203.0.113.9", ...(ua ? { "user-agent": ua } : {}), ...(accept ? { accept } : {}) };
     const res = await mod.default.fetch(new Request(h + "/pricing", { headers }), env, { waitUntil() {}, passThroughOnException() {} });
-    const body = strip0610(await res.text()); const hd = {}; // 0.61.0
+    const body = strip0610(strip0620("", await res.text())); const hd = {}; // 0.61.0
     for (const [k, v] of [...res.headers.entries()].sort()) hd[k] = norm(v);
     out[`GET ${h}/pricing [${an}]`] = { status: res.status, headers: hd, sha256: createHash("sha256").update(norm(body)).digest("hex") };
   }
@@ -229,7 +252,7 @@ export async function snapshotReceipts(workerPath) {
   const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
   const norm = (x) => x.split(lib.VERSION).join("<VERSION>");
   const env = () => ({ DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", RECEIPTS_DB: fakeReceiptsD1() });
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), RECEIPTS_DB: fakeReceiptsD1(), ...guardEnv0620() });
   const out = {};
   for (const h of HOSTS) for (const p of RECEIPT_GETS) for (const [an, a] of Object.entries(RECEIPT_ACCEPTS)) {
     const [accept, ua] = a ? a.split("|") : [null, null];
@@ -268,7 +291,7 @@ export async function snapshotSkips(workerPath) {
   const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
   const norm = (x) => x.split(lib.VERSION).join("<VERSION>");
   const env = () => ({ DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", TERMS_MAX_AGE_HOURS: "168", RECEIPTS_DB: fakeSkipsD1() });
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), TERMS_MAX_AGE_HOURS: "168", RECEIPTS_DB: fakeSkipsD1() });
   const out = {};
   for (const h of HOSTS) for (const p of SKIPS_GETS) for (const [an, a] of Object.entries(RECEIPT_ACCEPTS)) {
     const [accept, ua] = a ? a.split("|") : [null, null];
@@ -284,7 +307,7 @@ export async function snapshotSkips(workerPath) {
 export async function skipsBody(workerPath, url, accept) {
   const mod = await import(pathToFileURL(resolve(workerPath)).href);
   const env = { DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", TERMS_MAX_AGE_HOURS: "168", RECEIPTS_DB: fakeSkipsD1() };
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), TERMS_MAX_AGE_HOURS: "168", RECEIPTS_DB: fakeSkipsD1() };
   const res = await mod.default.fetch(new Request(url, { headers: { "cf-connecting-ip": "203.0.113.9", "user-agent": "Mozilla/5.0", ...(accept ? { accept } : {}) } }), env, { waitUntil() {}, passThroughOnException() {} });
   return { status: res.status, headers: Object.fromEntries(res.headers.entries()), body: await res.text() };
 }

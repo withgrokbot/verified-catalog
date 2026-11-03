@@ -867,7 +867,7 @@ test("spot-check free path: first call/day succeeds without payment (mock outbou
   assert.equal(r.body.verdict, "pay");
   assert.equal(r.body.reason, "listed $0.001, payment request matches the listed price");
   // free tier: verdict + plain reason + access only (quoted/claimed price, pay_to, network, asset are paid)
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "confidence", "history", "locked", "locked_commitments", "pay_to_changed", "payment_terms_sha256", "prior_checks", "quality", "reason", "reason_code", "receipt_id", "receipt_url", "reputation", "upsell", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "confidence", "history", "locked", "locked_commitments", "paid_check", "pay_to_changed", "payment_terms_sha256", "prior_checks", "quality", "reason", "reason_code", "receipt_id", "receipt_url", "reputation", "upsell", "verdict"]);
   assert.equal(r.body.upsell, "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02");
   assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.match(r.body.payment_terms_sha256, /^[0-9a-f]{64}$/);
@@ -1567,7 +1567,7 @@ test("dry run (0.13.0): free, never signed or paid, always stored; free-tier sha
   const u = SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price=0.001";
   const r = await send(u + "&mode=dry-run&ref=via-agentkit&client=dry-client-1", { envo: e, headers: { "payment-signature": spotPayment({ amount: "20000" }) } });
   assert.equal(r.status, 200);
-  assert.deepEqual(Object.keys(r.body).sort(), ["access", "check_type", "confidence", "history", "locked", "locked_commitments", "mode", "payment_terms_sha256", "prior_checks", "quality", "reason", "reason_code", "receipt_id", "receipt_url", "reputation", "verdict"]);
+  assert.deepEqual(Object.keys(r.body).sort(), ["access", "check_type", "confidence", "history", "locked", "locked_commitments", "mode", "paid_check", "payment_terms_sha256", "prior_checks", "quality", "reason", "reason_code", "receipt_id", "receipt_url", "reputation", "verdict"]);
   assert.equal(r.body.prior_checks, "https://402xagent.com/v1/skips");
   assert.equal(r.body.mode, "dry-run");
   assert.equal(r.body.verdict, "pay");
@@ -2706,7 +2706,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.61.0");
+  assert.equal(VERSION, "0.62.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -4985,6 +4985,69 @@ test("0.57.1 review: the try-it UI never shows the claimed_price hint; the API J
   }
   for (const r of ["listed $0.02, payment request matches the listed price", "price unlisted, the endpoint returned a server error, try again later"]) assert.equal(uiReason(r), r, "other reasons unchanged");
   assert.ok(!/claimed_price/.test(T.docsTryItHtml()), "no hint in the static section either");
+});
+
+// 0.62.0 paid-check upsell: every free endpoint-spot-check answer (JSON, MCP, dry run) carries the same paid_check block
+test("0.62.0 paid_check: free JSON, MCP and dry-run answers carry the paid_check block; paid-only fields stay out", async () => {
+  const { paidCheckBlock, PAID_CHECK_NOTE, PAID_CHECK_AMOUNT_ATOMIC } = await import("../worker/src/paidcheck.js");
+  const { SPOT_PAID_ATOMIC } = await import("../worker/src/lib.js");
+  assert.equal(PAID_CHECK_AMOUNT_ATOMIC, SPOT_PAID_ATOMIC, "price from the paid path");
+  const target = "https://spot.target.fixture/api";
+  const e = spotEnv();
+  spotTargetMode = "402";
+  const r = await send(SPOT + "?url=" + encodeURIComponent(target) + "&claimed_price=0.001&client=paidcheck-0620", { envo: e });
+  assert.equal(r.status, 200); assert.equal(r.body.access.tier, "free");
+  assert.deepEqual(r.body.paid_check, paidCheckBlock(target));
+  assert.equal(r.body.paid_check.note, PAID_CHECK_NOTE);
+  assert.equal(r.body.paid_check.price_usd, "0.02");
+  assert.ok(r.body.paid_check.how.url.startsWith("https://api.402xagent.com/v1/products/endpoint-spot-check?url=" + encodeURIComponent(target) + "&"));
+  for (const k of ["pay_to", "payment", "quoted_price_usd", "network"]) assert.ok(!(k in r.body), "free answer still has no " + k);
+  const e2 = spotEnv();
+  const m = await rpc({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "endpoint_spot_check", arguments: { url: target, claimed_price: 0.001 } } }, { envo: e2 });
+  assert.deepEqual(m.body.result.structuredContent.paid_check, paidCheckBlock(target), "MCP free answer");
+  const d = await send(SPOT + "?url=" + encodeURIComponent(target) + "&mode=dry-run&client=paidcheck-dry", { envo: spotEnv({ RECEIPTS_DB: fakeD1() }) });
+  assert.equal(d.status, 200, JSON.stringify(d.body).slice(0, 200)); assert.deepEqual(d.body.paid_check, paidCheckBlock(target), "dry run");
+  // a paid / exempt answer does not get it
+  const ex = await send(SPOT + "?url=" + encodeURIComponent(target) + "&claimed_price=0.001&client=withgrokbot-selftest", { envo: spotEnv() });
+  assert.ok(!("paid_check" in ex.body), "exempt answer unchanged");
+});
+
+// 0.62.0 receipt-scrape protection: per-client limit with 429 + Retry-After; payscout.dev never limited; receipts by id edge-cached
+test("0.62.0 receipt guard: 429 + Retry-After past the per-client limit, payscout.dev never limited, immutable cache for receipt ids", async () => {
+  const { receiptGuard, RECEIPT_RATE_PER_MIN, RECEIPT_IMMUTABLE_CC, RECEIPT_CRAWL_CC, isPayscoutRequest } = await import("../worker/src/receiptguard.js");
+  const e = spotEnv(); const env = e.env;
+  const now = new Date("2026-11-03T18:00:30Z");
+  let calls = 0; const inner = async () => { calls++; return new Response("{}", { status: 200, headers: { "content-type": "application/json", "cache-control": "public, max-age=60" } }); };
+  const mk = (u, h = {}) => { const url = new URL(u); return [new Request(url, { headers: { "cf-connecting-ip": "198.51.100.77", ...h } }), url]; };
+  const go = async (u, h, cache = null) => { const [req, url] = mk(u, h); return receiptGuard(req, env, null, url, url.pathname, inner, { now, cache }); };
+  for (let i = 0; i < RECEIPT_RATE_PER_MIN; i++) assert.equal((await go("https://402xagent.com/v1/receipts/sc-0123456789abcdef")).status, 200, "under the limit " + i);
+  const over = await go("https://402xagent.com/v1/receipts/sc-0123456789abcdef");
+  assert.equal(over.status, 429); assert.equal(over.headers.get("retry-after"), "30"); assert.equal((await over.json()).code, "rate_limited");
+  // payscout.dev: by host, Origin or Referer, and the old-host redirect path, never blocked even past the limit
+  for (const [u, h] of [["https://payscout.dev/v1/receipts/sc-0123456789abcdef", {}], ["https://api.payscout.dev/v1/receipts/0123456789", {}],
+    ["https://402xagent.com/v1/receipts/sc-0123456789abcdef", { origin: "https://payscout.dev" }], ["https://402xagent.com/v1/receipts/sc-0123456789abcdef", { referer: "https://www.payscout.dev/skips" }]]) {
+    assert.equal((await go(u, h)).status, 200, "payscout " + u + JSON.stringify(h));
+  }
+  assert.equal(isPayscoutRequest(new Request("https://402xagent.com/x", { headers: { referer: "https://notpayscout.dev/" } }), new URL("https://402xagent.com/x")), false, "look-alike host is not exempt");
+  const redirect = await worker.fetch(new Request("https://payscout.dev/v1/receipts/sc-0123456789abcdef", { headers: { accept: "text/html", "user-agent": "Mozilla/5.0", "cf-connecting-ip": "198.51.100.77" } }), env, { waitUntil() {} });
+  assert.notEqual(redirect.status, 429, "payscout.dev redirect path never blocked"); assert.equal(redirect.status, 301);
+  // edge cache: second read of the same id is a cache hit (inner not called), immutable for live ids, 1 h for crawl ids
+  const store = new Map(); const cache = { async match(k) { const v = store.get(k); return v ? v.clone() : undefined; }, async put(k, v) { store.set(k, v); } };
+  const env2 = spotEnv().env; calls = 0;
+  const g2 = async (u, h = {}) => { const [req, url] = mk(u, h); return receiptGuard(req, env2, null, url, url.pathname, inner, { now, cache }); };
+  const a = await g2("https://402xagent.com/v1/receipts/sc-0123456789abcdef");
+  assert.equal(a.headers.get("cache-control"), RECEIPT_IMMUTABLE_CC); assert.equal(a.headers.get("x-receipt-cache"), "miss");
+  const b = await g2("https://402xagent.com/v1/receipts/sc-0123456789abcdef");
+  assert.equal(b.headers.get("x-receipt-cache"), "hit"); assert.equal(calls, 1);
+  const html = await g2("https://402xagent.com/v1/receipts/sc-0123456789abcdef", { accept: "text/html" });
+  assert.equal(html.headers.get("x-receipt-cache"), "miss", "HTML page cached separately from JSON"); assert.equal(calls, 2);
+  assert.equal((await g2("https://402xagent.com/v1/receipts/0123456789")).headers.get("cache-control"), RECEIPT_CRAWL_CC);
+  const list = await g2("https://402xagent.com/v1/receipts?type=live");
+  assert.equal(list.headers.get("cache-control"), "public, max-age=60", "lists are not cached as immutable");
+  // kill switch
+  const off = { ...spotEnv().env, RECEIPT_GUARD: "off" };
+  const [rq, uu] = mk("https://402xagent.com/v1/receipts/sc-0123456789abcdef");
+  assert.equal((await receiptGuard(rq, off, null, uu, uu.pathname, inner, { now, cache })).headers.get("cache-control"), "public, max-age=60");
 });
 
 let passed = 0, skipped = 0;

@@ -1,4 +1,5 @@
 // 0.58.0: the human landing page (worker/src/home.js) and /home.js.
+import { DOCS_NOTE_0620 } from "./helpers/machine_snapshot.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -11,8 +12,9 @@ const sha = (s) => createHash("sha256").update(s).digest("hex");
 const NOW = Date.parse(RECEIPTS_META.crawled_at) + 86400000;
 const get = (p, accept = "text/html,application/xhtml+xml,*/*;q=0.8", host = "https://402xagent.com") => worker.fetch(new Request(host + p, { headers: { accept, "user-agent": "Mozilla/5.0" } }), { CLIENT_SALT: "t", ENDPOINT_REPORT: "1", WATCHTOWER: "1" }, { waitUntil() {} });
 
+// 0.62.0: the free-result line is the paid-check note; with it swapped back the script is unchanged
 test("/docs/try-it.js is byte-identical to 0.57.1 after the shared-core refactor", () => {
-  assert.equal(sha(DOCS_TRYIT_JS), "d4d58280048134a87325d75f01402b5a11dfe0e7e77ba9bdbfc51869fe0d00f7");
+  assert.equal(sha(DOCS_TRYIT_JS.split(DOCS_NOTE_0620[0]).join(DOCS_NOTE_0620[1])), "d4d58280048134a87325d75f01402b5a11dfe0e7e77ba9bdbfc51869fe0d00f7");
 });
 
 test("/home.js: served as JS with nosniff, parses, no innerHTML/eval, same endpoint + ref as /docs, never reads the payment object", async () => {
