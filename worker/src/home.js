@@ -26,6 +26,14 @@ export const HOME_EXAMPLES = [
   { url: "https://api.automaton-sovereign.workers.dev/v2/oracle/base", label: "automaton-sovereign" },
 ];
 
+// 0.60.0: the copy-paste curl under the checker. The URL is percent-encoded (encodeURIComponent plus ' ( ) ! *), so
+// the single-quoted shell argument can never be broken out of; the page writes it with textContent only.
+export const HOME_CURL_BASE = "https://api.402xagent.com/v1/products/endpoint-spot-check?url=";
+export const HOME_CURL_EMPTY = "<endpoint-url>";
+export const curlEnc = (v) => encodeURIComponent(v).replace(/['()!*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+export function homeCurl(raw) { const v = String(raw ?? "").trim(); return "curl -s '" + HOME_CURL_BASE + (v ? curlEnc(v) : HOME_CURL_EMPTY) + "'"; }
+// homepage only (HOME_CSS is shared with /pricing and other pages and stays byte-identical)
+export const CURL_CSS = '.curl-snippet{max-width:760px;margin:14px auto 0;text-align:left;background:#0B0B10;border:1px solid #2A2E3A;border-radius:12px;padding:12px 16px;min-width:0}.curl-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}.curl-head span{font-size:12.5px;color:#8A8F9E;font-weight:600}.curl-snippet pre{margin:0;font-family:var(--mono);font-size:13px;line-height:1.6;color:#D8DAE2;white-space:pre-wrap;word-break:break-all;overflow-wrap:anywhere}';
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const num = (n) => (typeof n === "number" && Number.isFinite(n) && n >= 0 ? n.toLocaleString("en-US") : null);
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -345,7 +353,7 @@ export function homeHtml(origin, opts = {}) {
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(desc)}">
 <meta name="twitter:image" content="https://402xagent.com${LOGO}">
-<style>${CSS}${AUDIT_CSS}</style>
+<style>${CSS}${AUDIT_CSS}${CURL_CSS}</style>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -366,17 +374,17 @@ export function homeHtml(origin, opts = {}) {
 <h1>Ask before your<br>agent <span class="serif">pays.</span></h1>
 <p class="hero-sub">402xAgent checks an x402 endpoint right before your agent pays: pay, skip, or recheck, with a signed receipt you can verify offline.</p>
 <div class="checker" id="checker">
-<div class="checker-head"><strong>Try it: free check</strong><span>Live probe · No payment made</span></div>
+<div class="checker-head"><strong>Check any x402 URL</strong><span>Live probe · No payment made</span></div>
 <form class="checker-form" id="hc-form" novalidate>
 <label class="url-field" for="hc-url"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">x402 endpoint URL</span>
-<input id="hc-url" name="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" maxlength="2048" placeholder="${esc(DOCS_TRYIT_PLACEHOLDER)}" value="${esc(DOCS_TRYIT_PREFILL)}" required></label>
+<input id="hc-url" name="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" maxlength="2048" placeholder="${esc(DOCS_TRYIT_PLACEHOLDER)}" value="" required></label>
 <button class="btn btn-primary check-btn" type="submit" id="hc-go">Check endpoint</button>
 </form>
 <div class="examples"><span>Try:</span>${HOME_EXAMPLES.map((x) => `<button class="chip-example" type="button" data-url="${esc(x.url)}">${esc(x.label)}</button>`).join("")}</div>
 <div class="result" id="hc-out" role="status" aria-live="polite"></div>
 <noscript><p class="result">Needs JavaScript. Same check without it: <code>GET /v1/products/endpoint-spot-check?url=&lt;endpoint&gt;</code></p></noscript>
 </div>
-<p class="hero-note"><span><b>${esc(o.freePerDay)} free checks a day</b></span><span aria-hidden="true">·</span><span>No wallet, no signup</span><span aria-hidden="true">·</span><span>The probe never pays the target</span></p>
+${HOME_CURL_HTML}<p class="hero-note"><span><b>${esc(o.freePerDay)} free checks a day</b></span><span aria-hidden="true">·</span><span>No wallet, no signup</span><span aria-hidden="true">·</span><span>The probe never pays the target</span></p>
 </div>
 ${stats.length ? `<div class="proof" id="proof" aria-label="Live from the public crawl${st.crawled ? ", " + esc(st.crawled) : ""}"><div class="wrap proof-grid">${stats.join("")}</div></div>` : ""}
 ${cd.text ? `<div class="crawl-dates${stats.length ? "" : " solo"}" id="crawl-dates"><div class="wrap"><span>${esc(cd.text)}</span></div></div>` : ""}
@@ -514,6 +522,22 @@ const HOME_RENDER = String.raw`  function show(nodes, cls) {
   }
   function busy(on) { btn.disabled = on; btn.textContent = on ? "Checking\u2026" : "Check endpoint"; input.setAttribute("aria-busy", on ? "true" : "false"); }
 `;
+// 0.60.0: the snippet block under the checker and its /home.js behaviour (exported so the snapshot helper can take
+// exactly these additions back out and prove nothing else on the page or in /home.js moved).
+export const HOME_CURL_HTML = `<div class="curl-snippet" id="hc-curl-box"><div class="curl-head"><span>Same check from a terminal</span><button class="copy" id="hc-curl-copy" type="button">Copy</button></div>
+<pre><code id="hc-curl">${esc(homeCurl(""))}</code></pre></div>
+`;
+export const HOME_CURL_JS = String.raw`  var curl = document.getElementById("hc-curl"), ccb = document.getElementById("hc-curl-copy");
+  var CURL_BASE = ${JSON.stringify(HOME_CURL_BASE)}, CURL_EMPTY = ${JSON.stringify(HOME_CURL_EMPTY)};
+  function curlEnc(v) { return encodeURIComponent(v).replace(/['()!*]/g, function (c) { return "%" + c.charCodeAt(0).toString(16).toUpperCase(); }); }
+  function curlText() { var v = String(input ? input.value : "").trim(); return "curl -s '" + CURL_BASE + (v ? curlEnc(v) : CURL_EMPTY) + "'"; }
+  function syncCurl() { if (curl) curl.textContent = curlText(); }
+  if (input) { input.addEventListener("input", syncCurl); input.addEventListener("change", syncCurl); syncCurl(); }
+  if (ccb) ccb.addEventListener("click", function () {
+    var done = function (ok) { ccb.textContent = ok ? "Copied" : "Select to copy"; setTimeout(function () { ccb.textContent = "Copy"; }, 2000); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(curlText()).then(function () { done(true); }, function () { done(false); }); else done(false);
+  });
+`;
 const HOME_UI = String.raw`(function () {
   "use strict";
   var tabs = [].slice.call(document.querySelectorAll('[role="tab"]')), explore = document.getElementById("explore");
@@ -550,9 +574,9 @@ const HOME_UI = String.raw`(function () {
     a.addEventListener("click", function (e) { if (!input) return; e.preventDefault(); closeMenu(); document.getElementById("checker").scrollIntoView({ block: "start" }); input.focus({ preventScroll: true }); });
   });
   [].slice.call(document.querySelectorAll(".chip-example")).forEach(function (c) {
-    c.addEventListener("click", function () { if (!input) return; input.value = c.getAttribute("data-url") || ""; input.focus(); });
+    c.addEventListener("click", function () { if (!input) return; input.value = c.getAttribute("data-url") || ""; syncCurl(); input.focus(); });
   });
-  var cb = document.getElementById("copy-btn"), note = document.getElementById("copy-note");
+${HOME_CURL_JS}  var cb = document.getElementById("copy-btn"), note = document.getElementById("copy-note");
   if (cb) cb.addEventListener("click", function () {
     var text = cb.getAttribute("data-copy") || "";
     var done = function (ok) { if (note) note.textContent = ok ? "Copied the one-liner." : "Copy failed; select the line above."; cb.textContent = ok ? "Copied" : "Copy"; setTimeout(function () { cb.textContent = "Copy"; }, 2000); };

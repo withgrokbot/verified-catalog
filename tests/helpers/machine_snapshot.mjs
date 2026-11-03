@@ -57,7 +57,21 @@ export const LLMS_0590_LINE = /\n- Offline receipt verifier \(0\.59\.0; [^\n]*(?
 export const KEYS_0590_FIELD = /,\n  "offline_verifier": "https:\/\/402xagent\.com\/verify \(0\.59\.0: [^"\n]*"/;
 export const RECEIPT_0590_LINK = /<a href="\/verify\?id=sc-[0-9a-f]{16}">Verify offline/; // receipt pages: only the link target
 import { DOCS_PAYEE_GUARD } from "../../worker/src/docs.js";
+// 0.60.0: the homepage checker becomes "Check any x402 URL": empty input (no prefill), a curl snippet block with its own
+// CSS, and the snippet's /home.js block. Unless SNAP_KEEP_0600=1 these exact additions are taken back out, so every
+// older fixture still proves the rest of the homepage and /home.js is unchanged (tests/home_curl_0600_test.mjs checks them).
+import { HOME_CURL_HTML, HOME_CURL_JS, CURL_CSS } from "../../worker/src/home.js";
+import { DOCS_TRYIT_PREFILL } from "../../worker/src/tryit.js";
+export function as0598(key, body) {
+  if (process.env.SNAP_KEEP_0600 === "1" || typeof body !== "string") return body;
+  if (/^GET https:\/\/402xagent\.com\/home\.js \[/.test(key)) return body.replace(HOME_CURL_JS, "").replace(" syncCurl(); input.focus();", " input.focus();");
+  if (/^GET https:\/\/402xagent\.com\/ \[html\]$/.test(key)) return body.replace(HOME_CURL_HTML, "").replace(CURL_CSS, "")
+    .replace("<strong>Check any x402 URL</strong>", "<strong>Try it: free check</strong>")
+    .replace(/(<input id="hc-url"[^>]*) value=""/, `$1 value="${DOCS_TRYIT_PREFILL}"`);
+  return body;
+}
 export function as0589(key, body) {
+  body = as0598(key, body);
   if (process.env.SNAP_KEEP_0590 === "1" || typeof body !== "string") return body;
   if (/\/llms\.txt \[/.test(key)) return body.replace(LLMS_0590_LINE, "");
   if (/\/\.well-known\/402xagent-(keys|receipt-key)\.json \[/.test(key)) return body.replace(KEYS_0590_FIELD, "");
@@ -136,7 +150,7 @@ export async function snapshotHomeBody(workerPath) {
   const env = { DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
     PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01" };
   const res = await mod.default.fetch(new Request("https://402xagent.com/", { headers: { accept: "text/html,application/xhtml+xml,*/*;q=0.8", "user-agent": "Mozilla/5.0", "cf-connecting-ip": "203.0.113.9" } }), env, { waitUntil() {}, passThroughOnException() {} });
-  return (await res.text()).split(lib.VERSION).join("<VERSION>");
+  return as0598("GET https://402xagent.com/ [html]", await res.text()).split(lib.VERSION).join("<VERSION>");
 }
 
 // 0.58.4: everything at once against 0.58.3 (main 139fed1): the full machine snapshot, the extra set, /pricing on every host
