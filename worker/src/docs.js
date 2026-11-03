@@ -120,6 +120,20 @@ function nextBlock(opts, p) {
   return `<nav class="dc-next" aria-label="Next step"><span>Next step: ${step}</span>${nx ? `<a href="${docsPageHref(nx.slug)}">${esc(nx.name)} &rarr;</a>` : '<a href="/docs">Back to Getting started &rarr;</a>'}</nav>`;
 }
 
+// 0.59.6: composing with a payee guard. Order checked by a local run of all three packages (stubbed network).
+export const DOCS_PAYEE_GUARD = `<h2 id="payee-guard">Composing with a payee guard (e.g. INAM inamGuardedFetch)</h2>
+<p>x402-spotcheck checks the route and the price. If you also want a check on who gets paid, a payee guard such as <code>inamGuardedFetch</code> from <a href="https://github.com/inamprotocol/inam-protocol/tree/main/integrations/agentkit">inam-protocol/integrations/agentkit</a> (a separate, third-party project) wraps the same <code>fetch</code>. Nest them so the payee is checked first and payment comes last:</p>
+<pre><code>import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
+import { spotCheckFetch } from "x402-spotcheck";
+import { inamGuardedFetch } from "@inamprotocol/agentkit"; // built from the repo above
+
+const payeeChecked = inamGuardedFetch(fetch, { block: ["fail"] }); // 1. payee
+const routeChecked = spotCheckFetch(payeeChecked);                  // 2. route and price
+const pay = wrapFetchWithPayment(routeChecked, client);            // 3. pays last</code></pre>
+<ul><li>A blocked payee throws <code>InamBlockedError</code> before the seller is called. A 402 outside your route or price throws <code>SpotCheckBlockedError</code>. In both cases nothing is signed.</li>
+<li>x402-spotcheck also re-checks the signed payment on the retry. inamGuardedFetch caches its verdict per URL and method (5 minutes by default), so the retry does not trigger a second payee lookup.</li>
+<li>Each guard has its own options and its own failure behaviour. Read their docs. We do not run or vouch for the INAM check.</li></ul>`;
+
 /** /docs: the index (Getting started). */
 export function docsIndexHtml(origin, apiOrigin, opts = {}) {
   const { intro, sections } = legacyDocsParts(origin, apiOrigin, opts);
@@ -130,7 +144,7 @@ export function docsIndexHtml(origin, apiOrigin, opts = {}) {
   const titles = { "endpoint-report-verify": "Verify a report", "payment-status-example": "Worked example (402rates-ping, Oct 16)", "expiry-check": "Expiry check (opt-in)", "receipt-signatures": "Receipt signatures" };
   const pointers = `<h2 id="moved">Moved sections</h2><p>The sections of the old single page now live on the product pages. Old links keep working: each one lands here and points on (with JavaScript on, it forwards you).</p>
 ${moved.map((id) => `<section class="dc-moved" id="${id}"><h2>${esc(titles[id] || nameOf(id))}</h2><p>Moved to <a href="${DOCS_ANCHOR_MAP[id]}">${esc(nameOf(id))}: ${esc(DOCS_ANCHOR_MAP[id])}</a></p></section>`).join("\n")}`;
-  const content = `${intro.replace(/^<h1>Docs<\/h1>\n/, "")}${sections["quick-start"] || ""}\n${cards}\n${pointers}`;
+  const content = `${intro.replace(/^<h1>Docs<\/h1>\n/, "")}${sections["quick-start"] || ""}\n${DOCS_PAYEE_GUARD}\n${cards}\n${pointers}`;
   return shell(origin, opts, { slug: "", title: "Docs · 402xAgent", desc: "402xAgent docs: getting started, the free Try-it check, the quick start, and a page per product.", h1: "Docs", lead: "Getting started with 402xAgent, then one page per product.", content });
 }
 
