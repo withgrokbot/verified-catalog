@@ -1,6 +1,7 @@
 // 402xAgent landing page (0.18.0 light redesign around the logo): browser view of https://402xagent.com only. Inline CSS/JS,
 // no external fonts or scripts; images are the Worker's own /brand assets. Every example below is a real live answer (re-checked before each release).
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
+import { SAVES } from "./saves-data.js";
 import { crawlSchedule, crawlScheduleText } from "./skips.js";
 import { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE } from "./spotcheck.js";
 
@@ -32,15 +33,47 @@ export const LANDING_SAMPLE = {
 
 const V = "18"; // asset cache-buster
 
-// 0.45.4: the home card is a REAL receipt from the CURRENT crawl, chosen deterministically from the bundled page-1
-// receipts (receipts-data.js, rebuilt by the weekly script): a skip whose live 402 asked MORE than the listing, on Base
-// USDC, with a pay_to; lowest id wins. The card's date is the crawl `meta` date (RECEIPTS_META.crawled_at), never hand-edited.
-// Falls back to any "different price" skip, then any skip.
-export function homeExample(receipts = RECEIPTS, meta = RECEIPTS_META) {
-  const rs = (receipts || []).filter((r) => r && r.verdict === "skip" && /^[0-9a-f]{10}$/.test(r.id || "")).sort((x, y) => (x.id < y.id ? -1 : 1));
-  const differs = (r) => /different price than listed/.test(r.reason || "") && typeof r.claimed_price_usd === "number" && typeof r.quoted_price_usd === "number";
-  const r = rs.find((r) => differs(r) && r.quoted_price_usd > r.claimed_price_usd && r.network === "eip155:8453" && r.pay_to && r.http_status === 402)
-    || rs.find(differs) || rs[0];
+// 0.45.4: the home card is a REAL receipt from the CURRENT crawl, chosen deterministically; the card's date is the crawl
+// `meta` date (RECEIPTS_META.crawled_at), never hand-edited.
+// 0.59.9: it is always a listed-vs-offered MISMATCH skip, never another kind of skip. Order:
+//   1. a page-1 receipt (receipts-data.js) "different price than listed" skip whose live 402 asked MORE, Base USDC, pay_to; lowest id;
+//   2. any page-1 "different price than listed" skip;
+//   3. a "price_higher" row from the full-crawl saves list (saves-data.js, built from the same crawl file); lowest receipt_id;
+//   4. any page-1 wallet / network mismatch skip ("pays a different wallet than listed", "... different network than listed");
+//   else null (no card).
+const PRICE_RE = /different price than listed/;
+const MISMATCH_RE = /different (price|wallet|network) than listed/;
+const ID_RE = /^[0-9a-f]{10}$/;
+const usd = (s) => { const n = Number(String(s).replace(/[$,]/g, "")); return Number.isFinite(n) ? n : null; };
+const fmtUsd = (n) => "$" + String(n);
+function fromSave(sv, meta) {
+  const m = /asked \$([0-9.,]+), listed \$([0-9.,]+)/.exec(sv.what || "");
+  if (!m) return null;
+  const asked = usd(m[1]), listed = usd(m[2]);
+  if (asked === null || listed === null || !(asked > listed)) return null;
+  return Object.freeze({
+    receipt_id: sv.receipt_id,
+    crawl_date: String((meta && meta.crawled_at) || sv.date || "").slice(0, 10),
+    checked_at: sv.date || "",
+    url: sv.endpoint,
+    method: "",
+    listing: { source: "", price_usd: listed },
+    live_402: { http_status: 402, price_usd: asked, network: "", asset: "USDC", pay_to: "" },
+    verdict: "skip",
+    reason: `asks a different price than listed (listed ${fmtUsd(listed)}, asks ${fmtUsd(asked)})`,
+  });
+}
+export function homeExample(receipts = RECEIPTS, meta = RECEIPTS_META, saves = SAVES) {
+  const rs = (receipts || []).filter((r) => r && r.verdict === "skip" && ID_RE.test(r.id || "")).sort((x, y) => (x.id < y.id ? -1 : 1));
+  const differs = (r) => PRICE_RE.test(r.reason || "") && typeof r.claimed_price_usd === "number" && typeof r.quoted_price_usd === "number";
+  let r = rs.find((r) => differs(r) && r.quoted_price_usd > r.claimed_price_usd && r.network === "eip155:8453" && r.pay_to && r.http_status === 402)
+    || rs.find(differs);
+  if (!r) {
+    const sv = (saves || []).filter((x) => x && x.kind === "price_higher" && ID_RE.test(x.receipt_id || "") && x.endpoint)
+      .sort((x, y) => (x.receipt_id < y.receipt_id ? -1 : 1)).map((x) => fromSave(x, meta)).find(Boolean);
+    if (sv) return sv;
+    r = rs.find((r) => MISMATCH_RE.test(r.reason || ""));
+  }
   if (!r) return null;
   return Object.freeze({
     receipt_id: r.id,
@@ -56,6 +89,25 @@ export function homeExample(receipts = RECEIPTS, meta = RECEIPTS_META) {
 }
 export const HOME_EXAMPLE = homeExample();
 const short = (a) => String(a).slice(0, 6) + "…" + String(a).slice(-4);
+
+// 0.59.9: the crawl-driven card (markup unchanged when every field is known; a saves-list card omits what it doesn't carry).
+export const HOME_CARD_RE = /  <div class="card realex" aria-label="Real example">[\s\S]*?<\/ol>\n  <\/div>\n/;
+export function homeCard(ex) {
+  if (!ex) return "";
+  const src = ex.listing.source ? ` (${esc(ex.listing.source)})` : "";
+  const how = ex.method ? `${esc(ex.method)}, HTTP ${esc(ex.live_402.http_status)}` : `HTTP ${esc(ex.live_402.http_status)}`;
+  const net = ex.live_402.network ? ` on ${ex.live_402.network === "eip155:8453" ? "Base" : esc(ex.live_402.network)}` : "";
+  const to = ex.live_402.pay_to ? ` to ${esc(short(ex.live_402.pay_to))}` : "";
+  return `  <div class="card realex" aria-label="Real example">
+    <p class="rx-h">A real check from our crawl (${esc(ex.crawl_date)}, <a href="/v1/receipts/${esc(ex.receipt_id)}">receipt ${esc(ex.receipt_id)}</a>)</p>
+    <ol class="rx">
+      <li><b>Listing</b>${src}: $${esc(ex.listing.price_usd)} per call</li>
+      <li><b>Live 402</b> (${how}): $${esc(ex.live_402.price_usd)} ${esc(ex.live_402.asset)}${net}${to}</li>
+      <li><b>402xAgent:</b> <span class="rx-skip">${esc(ex.verdict)}</span>, ${esc(ex.reason)}</li>
+    </ol>
+  </div>
+`;
+}
 
 export function landingHtml(origin, meta = RECEIPTS_META) {
   const m = meta || {};
@@ -233,15 +285,7 @@ footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{color:var(--muted)}foot
   </div>
   <div class="cta"><a class="btn primary" href="#try" id="trynow">Try a check</a><a class="btn" href="https://github.com/withgrokbot/x402-spotcheck"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a></div>
   <p class="nosignup">Free, no signup, no key: runs a real check on a sample endpoint (5 a day).</p>
-  <div class="card realex" aria-label="Real example">
-    <p class="rx-h">A real check from our crawl (${esc(HOME_EXAMPLE.crawl_date)}, <a href="/v1/receipts/${esc(HOME_EXAMPLE.receipt_id)}">receipt ${esc(HOME_EXAMPLE.receipt_id)}</a>)</p>
-    <ol class="rx">
-      <li><b>Listing</b> (${esc(HOME_EXAMPLE.listing.source)}): $${esc(HOME_EXAMPLE.listing.price_usd)} per call</li>
-      <li><b>Live 402</b> (${esc(HOME_EXAMPLE.method)}, HTTP ${esc(HOME_EXAMPLE.live_402.http_status)}): $${esc(HOME_EXAMPLE.live_402.price_usd)} ${esc(HOME_EXAMPLE.live_402.asset)} on ${HOME_EXAMPLE.live_402.network === "eip155:8453" ? "Base" : esc(HOME_EXAMPLE.live_402.network)} to ${esc(short(HOME_EXAMPLE.live_402.pay_to))}</li>
-      <li><b>402xAgent:</b> <span class="rx-skip">${esc(HOME_EXAMPLE.verdict)}</span>, ${esc(HOME_EXAMPLE.reason)}</li>
-    </ol>
-  </div>
-  <p class="support">Checks read these networks: canonical USDC on Base, Ethereum, OP Mainnet, Polygon, Arbitrum, Avalanche and Solana; testnets and other tokens come back as skip. You pay us in USDC on Base. We probe unpaid, so we can't verify what the endpoint returns after payment, its uptime between checks, or who runs it.</p>
+${homeCard(HOME_EXAMPLE)}  <p class="support">Checks read these networks: canonical USDC on Base, Ethereum, OP Mainnet, Polygon, Arbitrum, Avalanche and Solana; testnets and other tokens come back as skip. You pay us in USDC on Base. We probe unpaid, so we can't verify what the endpoint returns after payment, its uptime between checks, or who runs it.</p>
   <p class="support"><a href="/docs#quick-start">Quick start in the docs →</a></p>
 </div></div>
 
