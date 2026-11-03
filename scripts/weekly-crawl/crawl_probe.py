@@ -214,6 +214,22 @@ def load_candidates():
         c["norm"] = n; c["also"] = []; best[n] = c
     return list(best.values())
 
+# 0.62.0 B1 scheme census: tag each endpoint's x402 scheme from its 402 accepts (stored on the receipt row as x402_scheme).
+SCHEME_TAGS = ("exact", "upto", "batch", "other", "unknown")
+def scheme_tag(scheme):
+    """exact | upto | batch | other (a scheme we don't recognize) | unknown (no scheme given)."""
+    s = str(scheme or "").strip().lower().replace("-", "").replace("_", "")
+    if not s: return "unknown"
+    if s == "exact": return "exact"
+    if s == "upto": return "upto"
+    if s.startswith("batch"): return "batch"
+    return "other"
+
+def scheme_of(accs, chosen=None):
+    """The endpoint's tag: the judged offer's scheme when there is one, else the first offer's; unknown with no accepts."""
+    if chosen is not None: return scheme_tag(chosen.get("scheme"))
+    return scheme_tag(accs[0].get("scheme")) if accs else "unknown"
+
 def decode_402(r):
     ch = None
     hdr = r.headers.get("payment-required")
@@ -233,7 +249,7 @@ def probe(c):
     rec = dict(id=rid(c["norm"]), url=c["url"], norm_url=c["norm"], also_listed_in=c["also"], claimed_price_usd=claimed, quoted_price_usd=None,
                pay_to=None, verdict=None, reason=None, timestamp=None, source_list=c["source_list"], check_type="self-checked",
                method=c["method"], http_status=None, network=None, asset=None, listed_pay_to=lead.get("payTo"),
-               listed_network=net(lead.get("network")) or None)
+               listed_network=net(lead.get("network")) or None, x402_scheme="unknown")
     def done(v, why):
         rec.update(verdict=v, reason=why, timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"))
         return rec
@@ -331,6 +347,7 @@ def judge(r, rec, lead, claimed, done):
             buf += chunk
         r._content = buf
         accs = decode_402(r)
+        rec["x402_scheme"] = scheme_of(accs)
         if not accs: return done("skip", "payment request has no readable payment options")
         want_net = net(lead.get("network")) if "network" in lead else None
         same_net = [a for a in accs if net(a.get("network")) == want_net] if want_net else accs
@@ -345,12 +362,12 @@ def judge(r, rec, lead, claimed, done):
             main = [a for a in accs if net(a.get("network")).lower() in USDC_MAINNET and str(a.get("asset") or "").lower() == USDC_MAINNET[net(a.get("network")).lower()]]
             if main: same_net = main + [a for a in accs if a not in main]
         if not same_net:
-            a = accs[0]; rec.update(network=net(a.get("network")), asset=a.get("asset"), pay_to=a.get("payTo"), quoted_price_usd=usd(a), amount_atomic=atomic(a))
+            a = accs[0]; rec.update(network=net(a.get("network")), asset=a.get("asset"), pay_to=a.get("payTo"), quoted_price_usd=usd(a), amount_atomic=atomic(a), x402_scheme=scheme_of(accs, a))
             return done("skip", f"asks for payment on a different network than listed (listed {want_net}, offers {', '.join(sorted({net(x.get('network')) for x in accs}))})")
         same_asset = [a for a in same_net if str(a.get("asset") or "").lower() == str(lead.get("asset") or "").lower()] if lead.get("asset") else same_net
         a = (same_asset or same_net)[0]
         q = usd(a)
-        rec.update(network=net(a.get("network")), asset=a.get("asset"), pay_to=a.get("payTo"), quoted_price_usd=q, amount_atomic=atomic(a))
+        rec.update(network=net(a.get("network")), asset=a.get("asset"), pay_to=a.get("payTo"), quoted_price_usd=q, amount_atomic=atomic(a), x402_scheme=scheme_of(accs, a))
         if not same_asset: return done("skip", f"asks for a different token than listed (listed {lead.get('asset')}, asks {a.get('asset')})")
         if lead.get("payTo") and str(a.get("payTo") or "").lower() != str(lead["payTo"]).lower():
             return done("skip", f"pays a different wallet than listed ({lead['payTo']} listed, {a.get('payTo')} asked)")
@@ -369,6 +386,11 @@ def judge(r, rec, lead, claimed, done):
         return done("recheck", f"endpoint did not answer in {TIMEOUT:g} s, try again later")
     except requests.exceptions.RequestException as e:
         return done("recheck", "could not connect (" + type(e).__name__ + "), try again later")
+
+def scheme_counts(recs):
+    """0.62.0: x402_scheme census for the crawl summary (rows from before 0.62.0 count as unknown)."""
+    c = collections.Counter(r.get("x402_scheme") or "unknown" for r in recs)
+    return {k: c.get(k, 0) for k in SCHEME_TAGS}
 
 PREV = {}  # 0.55.0: id -> previous run's record (only the fields transient_guard reads), loaded in __main__
 def load_prev(path):
@@ -430,4 +452,5 @@ if __name__ == "__main__":
         with open(os.path.join(ROOT, "previous.txt"), "w") as f: f.write(prev + "\n")
     with open(os.path.join(ROOT, "latest.txt"), "w") as f: f.write(os.path.basename(path) + "\n")
     took = (datetime.datetime.now(datetime.timezone.utc) - started).total_seconds()
-    print(path, len(recs), f"{took:.0f}s", collections.Counter(r["verdict"] for r in recs), collections.Counter(r["source_list"] for r in recs))
+    print(path, len(recs), f"{took:.0f}s", collections.Counter(r["verdict"] for r in recs), collections.Counter(r["source_list"] for r in recs),
+          "schemes", scheme_counts(recs))

@@ -5,7 +5,7 @@
 Prints the one-line coverage summary as the last line."""
 import json, os, sys, collections, hashlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from crawl_probe import norm_url, mainnet_policy
+from crawl_probe import norm_url, mainnet_policy, scheme_counts
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KV = os.path.join(ROOT, "kv"); os.makedirs(KV, exist_ok=True)
 PAGE = 500
@@ -13,7 +13,7 @@ FEATURED = "b5e13e8271"  # README's featured case while it is still a skip
 name = open(os.path.join(ROOT, "latest.txt")).read().strip()
 rs = [mainnet_policy(json.loads(l)) for l in open(os.path.join(ROOT, name))]  # 0.14.0: testnet / non-canonical USDC pays -> skip
 keep = ["id", "url", "claimed_price_usd", "quoted_price_usd", "pay_to", "verdict", "reason", "timestamp", "source_list",
-        "also_listed_in", "check_type", "method", "http_status", "network", "listed_network", "listed_pay_to", "free_trial_remaining"]
+        "also_listed_in", "check_type", "method", "http_status", "network", "listed_network", "listed_pay_to", "free_trial_remaining", "x402_scheme"]
 rs = [{k: r.get(k) for k in keep if r.get(k) not in (None, [])} | {"id": r["id"], "url": r["url"], "verdict": r["verdict"]} for r in rs]
 for r in rs:
     r.setdefault("reason", ""); r.setdefault("timestamp", "")
@@ -41,6 +41,7 @@ meta = {"crawled_at": min(r["timestamp"] for r in rs if r["timestamp"]), "crawl_
         "endpoints_covered": len(rs), "new_this_week": len(new), "previous_run": prev_name or None, "previous_covered": len(prev) or None,
         "total": len(rs), "skip": counts["skip"], "pay": counts["pay"], "recheck": counts["recheck"],
         "lists": dict(collections.Counter(r["source_list"] for r in rs)),
+        "x402_schemes": scheme_counts(rs),  # 0.62.0 B1 scheme census (exact / upto / batch / other / unknown)
         "listed_in": dict(collections.Counter(s for r in rs for s in [r["source_list"]] + r.get("also_listed_in", []))),
         "sources": {k: {kk: v.get(kk) for kk in ("ok", "skipped", "items", "note", "error") if v.get(kk) is not None} for k, v in sources.items()},
         "featured_id": FEATURED, "skip_pages": len(pages), "page_size": PAGE, "check_type": "self-checked",
@@ -66,4 +67,4 @@ changed = [b for b in bulk if uploaded.get(b["key"]) != h(b["value"])]
 json.dump(changed, open(os.path.join(KV, "changed.json"), "w"))
 json.dump({b["key"]: h(b["value"]) for b in bulk}, open(os.path.join(KV, "pending.json"), "w"))
 print(out, os.path.getsize(out), "kv keys", len(bulk), "changed", len(changed), "largest shard", max(len(b["value"]) for b in bulk if b["key"].startswith("c:")))
-print(f"COVERAGE covered={len(rs)} new_this_week={len(new)} pay={counts['pay']} skip={counts['skip']} recheck={counts['recheck']} sources_ok={sum(1 for v in sources.values() if v.get('ok'))}/{len(sources)}")
+print(f"COVERAGE covered={len(rs)} new_this_week={len(new)} pay={counts['pay']} skip={counts['skip']} recheck={counts['recheck']} sources_ok={sum(1 for v in sources.values() if v.get('ok'))}/{len(sources)} schemes=" + ",".join(f"{k}:{v}" for k, v in meta["x402_schemes"].items()))

@@ -77,9 +77,11 @@ export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECK
 import { BRAND_ASSETS } from "./brand.js";
 import { agentCard, AGENT_CARD_PATHS } from "./agentcard.js"; // 0.61.0
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
+import { paidCheckBlock } from "./paidcheck.js";
+import { receiptGuard } from "./receiptguard.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.61.0";
+export const VERSION = "0.62.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -1047,6 +1049,7 @@ export const SPOT_FREE_EXAMPLE = {
   locked_commitments: { ref: "cm-0123456789abcdef", expires_at: "2026-11-20T00:00:00Z", alg: "sha256(JCS({snapshot, nonce})), nonce = 32 bytes hex", drift_history: "sha256:<64 hex>", hygiene_detail: "sha256:<64 hex>" },
   prior_checks: "https://402xagent.com/v1/skips",
   upsell: FREE_UPSELL,
+  paid_check: paidCheckBlock(FREE_CHECK_EXAMPLE_TARGET),
   access: { tier: "free", free_per_day: 5, free_used_today: 1, free_remaining_today: 4, then: "$0.02 USDC on Base for the full check of this endpoint via x402 (HTTP 402)" },
 };
 const SPOT_VERDICT_SCHEMA = { type: "string", enum: ["pay", "skip", "recheck"] };
@@ -2205,7 +2208,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
       if (pub && rid && saved) await publishRecent(env, rid, pub);
       // 0.49.0 (EXPLAIN_LINE): redacted line (field names + the public teasers only), response-only, not in the signed receipt
       const ex = explainOn(env) && !probe.host_unstable ? { explain: explainFree({ diffFields: (v2.diff || []).map((x) => x.field), compared: comparedFields(exp, probe, pm0), driftCount: lk.locked.drift.count_30d, grade: lk.locked.hygiene.grade }), explain_v: EXPLAIN_V } : {};
-      return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), ...ex, ...rf, payment_terms_sha256: termsHash, ...receiptFields, quality: qualityPublic(quality), reputation: reputationPublic(reputation), prior_checks: PRIOR_CHECKS, upsell: FREE_UPSELL, access };
+      return { verdict: d.verdict, reason: spotLossReason(d, exp.claimed), ...ex, ...rf, payment_terms_sha256: termsHash, ...receiptFields, quality: qualityPublic(quality), reputation: reputationPublic(reputation), prior_checks: PRIOR_CHECKS, upsell: FREE_UPSELL, paid_check: paidCheckBlock(q.url), access };
     }
     const acc = Array.isArray(probe.accepts) ? probe.accepts.find((a) => a && a.payTo) : null;
     const exPaid = explainOn(env) ? { explain: explainPaid({ diff: v2.diff, compared: comparedFields(exp, probe, pm0), driftCount: driftTeaser(history && history.list).count_30d, grade: quality ? (gradeFor(quality.code) || {}).grade || null : null }), explain_v: EXPLAIN_V } : {};
@@ -2506,7 +2509,7 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
   if (probe && probe.host_unstable) { // 0.56.0 review: breaker open -> answered without a fetch and without any D1 write
     const dB = decideVerdict(probe, exp.claimed);
     point(200, "dry-run-breaker", dB.verdict);
-    return json({ mode: "dry-run", check_type: exempt ? "self-checked" : "dry-run", verdict: dB.verdict, reason: spotLossReason(dB, exp.claimed), ...reasonFields(dB, exp.claimed, null), breaker: probe.breaker, payment_terms_sha256: null, receipt_id: null, receipt_url: null,
+    return json({ mode: "dry-run", check_type: exempt ? "self-checked" : "dry-run", verdict: dB.verdict, reason: spotLossReason(dB, exp.claimed), ...reasonFields(dB, exp.claimed, null), breaker: probe.breaker, payment_terms_sha256: null, receipt_id: null, receipt_url: null, paid_check: paidCheckBlock(q.url),
       access: { tier: exempt ? "dry-run-exempt" : "dry-run", dry_runs_per_day: c.dryPerDay, dry_runs_used_today: cap.used, dry_runs_remaining_today: cap.used === null ? null : Math.max(0, c.dryPerDay - cap.used), note: "Free dry run: nothing signed or paid, not an approval to pay. The host's circuit breaker is open, so the target was not fetched and no receipt was stored." } },
       200, { "cache-control": "no-store", ...(probe.breaker && probe.breaker.retry_after_s ? { "retry-after": String(probe.breaker.retry_after_s) } : {}) });
   }
@@ -2544,6 +2547,7 @@ async function spotDryRun(req, env, url, q, qLike, exp, listing, probeOpts, { ci
     reputation: reputationPublic(reputation),
     ...lockedD,
     prior_checks: PRIOR_CHECKS,
+    paid_check: paidCheckBlock(q.url),
     access: {
       tier: exempt ? "dry-run-exempt" : "dry-run",
       dry_runs_per_day: c.dryPerDay,
@@ -4193,6 +4197,20 @@ export function oldHostPageView(req, url, path) {
   return true;
 }
 
+// 0.62.0: the receipt routes, unchanged, behind receiptGuard (receiptguard.js).
+async function receiptRoutes(req, env, url, path) {
+  if (path.startsWith("/v1/receipts/") && wantsReceiptJsonHtml(req, url)) { const h = await receiptJsonView(req, env, url, path); if (h) return h; } // 0.59.6
+  if ((path === "/v1/receipts" || path.startsWith("/v1/receipts/")) && wantsReceiptHtml(req, url)) { const h = await receiptsHtml(req, env, url, path); if (h) return h; } // 0.58.5
+  if (path === "/v1/receipts/by-url" || /^\/v1\/receipts\/sc-/.test(path)) return handleLiveReceipts(req, env, url, path);
+  if (path === "/v1/receipts" && url.searchParams.has("type")) return handleReceiptList(env, url);
+  if (/^\/v1\/receipts\/(ps|er|eb)-[0-9a-f]{16}$/.test(path)) {
+    const r = await sideReceipt(env, path.slice("/v1/receipts/".length)); // 0.45.6 scrubbed; 0.46.0 + er-
+    if (!r && path.includes("/er-")) return json({ error: "no endpoint report with this id" }, 404);
+    return r ? json(r, 200, { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" }) : json({ error: "no payment-status receipt with this id (only final answers are stored)" }, 404);
+  }
+  return handleReceipts(url, env);
+}
+
 export const SPOT_ALIASES = new Set(["/endpoint-spot-check", "/v1/endpoint-spot-check", "/spot-check", "/v1/spot-check", "/v1/products/spot-check", "/v1/lookup/endpoint-spot-check"]);
 const routeInnerHolder = {
   async routeInner(req, env, ctx, url, path) {
@@ -4237,16 +4255,7 @@ const routeInnerHolder = {
     if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env, { endpointReport: endpointReportOn(env), watchtower: watchOn(env) }); // 0.58.7: footer flags for the HTML page
     if (path === "/v1/discover") return handleDiscover(req, env, url);
     if ((path === "/bazaar" || path === "/bazaar.json") && env.BAZAAR_PAGE !== "off") return handleBazaar(req, url, env, path, CANON_ORIGIN);
-    if (path.startsWith("/v1/receipts/") && wantsReceiptJsonHtml(req, url)) { const h = await receiptJsonView(req, env, url, path); if (h) return h; } // 0.59.6
-    if ((path === "/v1/receipts" || path.startsWith("/v1/receipts/")) && wantsReceiptHtml(req, url)) { const h = await receiptsHtml(req, env, url, path); if (h) return h; } // 0.58.5
-    if (path === "/v1/receipts/by-url" || /^\/v1\/receipts\/sc-/.test(path)) return handleLiveReceipts(req, env, url, path);
-    if (path === "/v1/receipts" && url.searchParams.has("type")) return handleReceiptList(env, url);
-    if (/^\/v1\/receipts\/(ps|er|eb)-[0-9a-f]{16}$/.test(path)) {
-      const r = await sideReceipt(env, path.slice("/v1/receipts/".length)); // 0.45.6 scrubbed; 0.46.0 + er-
-      if (!r && path.includes("/er-")) return json({ error: "no endpoint report with this id" }, 404);
-      return r ? json(r, 200, { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" }) : json({ error: "no payment-status receipt with this id (only final answers are stored)" }, 404);
-    }
-    if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return handleReceipts(url, env);
+    if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return receiptGuard(req, env, ctx, url, path, () => receiptRoutes(req, env, url, path)); // 0.62.0 edge cache + per-client limit
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
     if (path === "/.well-known/x402") return json(wellKnownX402(env, url.hostname), 200, { "cache-control": "public, max-age=300" });
     if (AGENT_CARD_PATHS.has(path)) return json(agentCard(VERSION), 200, { "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" }); // 0.61.0: A2A AgentCard

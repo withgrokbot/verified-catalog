@@ -512,7 +512,7 @@ const HOME_RENDER = String.raw`  function show(nodes, cls) {
     else if (v === "pay") why = /^no listing to compare/i.test(String(j.explain || "")) ? "The live 402 is a valid USDC payment request on a supported network; there was no listing to compare it against." : "The live 402 terms match the listing right now.";
     if (why) rs.appendChild(el("p", null, why));
     top.appendChild(rs);
-    var nodes = [top, termsGrid(j), el("p", "result-note", "Free checks show how each term compared. The exact amount, payTo wallet and the payment to sign come with the $0.02 paid check.")];
+    var nodes = [top, termsGrid(j), el("p", "result-note result-paid", (j.paid_check && j.paid_check.note) || "The $0.02 paid check adds the full payment terms, pay_to, the deadline and mismatch checks via claimed_price, pay_to and network.")];
     var foot = el("div", "result-foot"), href = receiptHref(j);
     if (href) { var a = link(href, "View signed receipt \u2192"); a.className = "receipt-link"; foot.appendChild(a); }
     var a2 = j.access || {}, small = [];

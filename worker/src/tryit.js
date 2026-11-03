@@ -132,7 +132,7 @@ const TI_RESULT_DOCS = `  function result(j) {
     else if (v === "pay") nodes.push(el("p", "ti-note", /^no listing to compare/i.test(String(j.explain || "")) ? "Pay means the live 402 is a valid USDC payment request on a supported network; there was no listing to compare the price and wallet against." : "Pay means the live 402 terms match the listing right now."));
     if (j.explain) nodes.push(el("p", "ti-note", j.explain));
     nodes.push(termsTable(j));
-    if (!j.payment) nodes.push(el("p", "ti-note", "Free checks show which terms matched; the exact amount, payTo wallet and the payment object to sign come with the $0.02 paid check."));
+    if (!j.payment) nodes.push(el("p", "ti-note ti-paid", (j.paid_check && j.paid_check.note) || "The $0.02 paid check adds the full payment terms, pay_to, the deadline and mismatch checks via claimed_price, pay_to and network."));
     var href = receiptHref(j);
     if (href) { var p = el("p", "ti-note"); p.appendChild(document.createTextNode("Signed receipt: ")); p.appendChild(link(href, String(j.receipt_id || href))); nodes.push(p); }
     var a = j.access || {};
