@@ -4,6 +4,7 @@
 // Status, every response header and the body sha256 must match the saved snapshot; the only tolerated change is the
 // VERSION string (replaced by "<VERSION>" on both sides). Snapshot: node tests/helpers/machine_snapshot.mjs <worker/src/index.js>
 // run on a 0.57.1 checkout, saved to tests/fixtures/machine_0.57.1/snapshot.json.
+import { readFixture, CRAWL_RECEIPT_ID } from "./helpers/crawl_fixtures.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -15,7 +16,7 @@ import { createHash } from "node:crypto";
 import { RECEIPT_HTML_KEY, DOCS_PRICING_KEY, HOME_KEY, restoreHomeFooter, SKIPS_HTML_KEY, META402_KEYS } from "./helpers/machine_snapshot.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BLOG0587 = { ...process.env, SNAP_BLOG_AS_0587: "1" }; // 0.58.8: older fixtures predate the two Oct 29 blog changes (see helper)
-const want = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.57.1", "snapshot.json"), "utf8"));
+const want = readFixture("machine_0.57.1", "snapshot.json");
 
 test("0.58.0 machine surfaces: byte-identical to the 0.57.1 snapshot (status, headers, body)", () => {
   const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), join(HERE, "..", "worker", "src", "index.js")], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
@@ -43,7 +44,7 @@ test("0.58.0 snapshot helper is deterministic and normalizes only the version", 
 // browser homepage, /home.js, /docs and /docs/try-it.js on 402xagent.com. The 0.57.1 snapshot above still covers root JSON,
 // llms.txt, skill.md, openapi.json, /mcp and every /v1 route (llms.txt and openapi.json mention /pricing; both unchanged).
 test("0.58.3 /pricing rebuild: pricing machine paths and the homepage are byte-identical to 0.58.2", () => {
-  const want2 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.2", "extra.json"), "utf8"));
+  const want2 = readFixture("machine_0.58.2", "extra.json");
   const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--extra", join(HERE, "..", "worker", "src", "index.js")], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
   assert.equal(r.status, 0, r.stderr);
   const got = JSON.parse(r.stdout);
@@ -59,7 +60,7 @@ test("0.58.3 /pricing rebuild: pricing machine paths and the homepage are byte-i
 });
 
 test("0.58.3 review + 0.58.4: the homepage body equals 0.58.2 once the two card strings are swapped back and the audit card is removed", async () => {
-  const want2 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.2", "extra.json"), "utf8"));
+  const want2 = readFixture("machine_0.58.2", "extra.json");
   const r = spawnSync(process.execPath, ["--input-type=module", "-e", `
     const { snapshotHomeBody } = await import(${JSON.stringify(join(HERE, "helpers", "machine_snapshot.mjs"))});
     process.stdout.write(await snapshotHomeBody(${JSON.stringify(join(HERE, "..", "worker", "src", "index.js"))}));`], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
@@ -80,7 +81,7 @@ test("0.58.3 review + 0.58.4: the homepage body equals 0.58.2 once the two card 
 // openapi.json, /.well-known/*, /v1/*, /mcp, /home.js, /docs, /pricing on every host and Accept, the /pricing.json-style
 // 404s): everything is byte-identical except the browser homepage, and the homepage minus the card equals 0.58.3 exactly.
 test("0.58.4 audit layer card: every surface byte-identical to 0.58.3; the homepage only gains the card", async () => {
-  const want3 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.3", "snapshot.json"), "utf8"));
+  const want3 = readFixture("machine_0.58.3", "snapshot.json");
   const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--0583", join(HERE, "..", "worker", "src", "index.js")], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
   assert.equal(r.status, 0, r.stderr);
   const got = JSON.parse(r.stdout);
@@ -106,7 +107,7 @@ test("0.58.4 audit layer card: every surface byte-identical to 0.58.3; the homep
 test("0.58.5 receipts HTML: every machine answer byte-identical to 0.58.4; only browser receipt pages change", () => {
   const W = join(HERE, "..", "worker", "src", "index.js");
   for (const [flag, file] of [["--0583", "snapshot.json"], ["--receipts", "receipts.json"]]) {
-    const want4 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.4", file), "utf8"));
+    const want4 = readFixture("machine_0.58.4", file);
     const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), flag, W], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
     assert.equal(r.status, 0, r.stderr);
     const got = JSON.parse(r.stdout);
@@ -120,7 +121,7 @@ test("0.58.5 receipts HTML: every machine answer byte-identical to 0.58.4; only 
     }
     if (file === "receipts.json") {
       // the sampled real receipts are covered as JSON for every non-browser Accept on every host
-      for (const id of ["44e3732d23", "sc-85c8963fb57e7b25", "sc-9841a8498462c4b0"]) for (const a of ["none", "json", "any", "text", "curl"]) for (const h of ["https://402xagent.com", "https://api.402xagent.com"]) {
+      for (const id of [CRAWL_RECEIPT_ID, "sc-85c8963fb57e7b25", "sc-9841a8498462c4b0"]) for (const a of ["none", "json", "any", "text", "curl"]) for (const h of ["https://402xagent.com", "https://api.402xagent.com"]) {
         const k = `GET ${h}/v1/receipts/${id} [${a}]`;
         assert.equal(want4[k].status, 200, k); assert.match(want4[k].headers["content-type"], /application\/json/, k);
       }
@@ -140,7 +141,7 @@ test("0.58.5 receipts HTML: every machine answer byte-identical to 0.58.4; only 
 // llms.txt, openapi.json, /.well-known/*, /v1/*, root JSON and /mcp are unchanged.
 test("0.58.6 docs split: only /docs, /pricing and the homepage footer change; every machine surface byte-identical to 0.58.4", async () => {
   const W = join(HERE, "..", "worker", "src", "index.js");
-  const want4 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.4", "snapshot.json"), "utf8"));
+  const want4 = readFixture("machine_0.58.4", "snapshot.json");
   const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--0583", W], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
   assert.equal(r.status, 0, r.stderr);
   const got = JSON.parse(r.stdout);
@@ -167,7 +168,7 @@ test("0.58.6 docs split: only /docs, /pricing and the homepage footer change; ev
 // /v1/skips of 402xagent.com and api.402xagent.com, which get text/html with the strict CSP. The older hosts are unchanged.
 test("0.58.7 skips page: /v1/skips.json, /skips.json and non-browser /v1/skips JSON byte-identical to 0.58.6; only browser /v1/skips changes", () => {
   const W = join(HERE, "..", "worker", "src", "index.js");
-  const want6 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.6", "skips.json"), "utf8"));
+  const want6 = readFixture("machine_0.58.6", "skips.json");
   const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), "--skips", W], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
   assert.equal(r.status, 0, r.stderr);
   const got = JSON.parse(r.stdout);
@@ -200,7 +201,7 @@ test("0.58.7 skips page: /v1/skips.json, /skips.json and non-browser /v1/skips J
 test("0.58.7 skips page: every other surface (homepage, /pricing, /docs, receipts, machine JSON) byte-identical to 0.58.6", () => {
   const W = join(HERE, "..", "worker", "src", "index.js");
   for (const [flag, file, n] of [["--0583", "snapshot.json", 4], ["--receipts", "receipts.json", 0]]) {
-    const want6 = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.6", file), "utf8"));
+    const want6 = readFixture("machine_0.58.6", file);
     const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), flag, W], { encoding: "utf8", maxBuffer: 64 << 20, env: BLOG0587 });
     assert.equal(r.status, 0, r.stderr);
     const got = JSON.parse(r.stdout);

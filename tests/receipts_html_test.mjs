@@ -1,10 +1,13 @@
 // 0.58.5: receipts for browsers. Negotiation (JSON for every non-browser Accept, HTML only when Accept names text/html),
 // shown fields (allow-list from the public JSON only; nothing buyer-side even if a stored row carries it), and the signing
 // wording (signed live checks: signature block + Verify offline; unsigned sc-: says so; crawl: plainly unsigned, no block).
+import { CRAWL_RECEIPT_ID } from "./helpers/crawl_fixtures.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fakeReceiptsD1 } from "./helpers/machine_snapshot.mjs";
+import { RECEIPTS } from "../worker/src/receipts-data.js";
+import { plainReason } from "../worker/src/home.js";
 
 const worker = (await import("../worker/src/index.js")).default;
 const SAMPLE = JSON.parse(readFileSync(new URL("./fixtures/receipts_sample_2026-10-28.json", import.meta.url), "utf8")).rows;
@@ -17,7 +20,7 @@ const get = async (path, headers = {}, env = envWith(), host = "https://402xagen
 };
 
 test("0.58.5 negotiation: non-browser clients get the same JSON as before; browsers get HTML; ?format=json forces JSON", async () => {
-  for (const p of ["/v1/receipts", "/v1/receipts/44e3732d23", "/v1/receipts/sc-85c8963fb57e7b25", "/v1/receipts?type=live", "/v1/receipts/sc-ffffffffffffffff"]) {
+  for (const p of ["/v1/receipts", "/v1/receipts/" + CRAWL_RECEIPT_ID, "/v1/receipts/sc-85c8963fb57e7b25", "/v1/receipts?type=live", "/v1/receipts/sc-ffffffffffffffff"]) {
     const base = await get(p, {});
     assert.match(base.headers.get("content-type"), /application\/json/, p);
     for (const h of ACCEPTS) { const r = await get(p, h); assert.equal(r.text, base.text, p + JSON.stringify(h)); assert.equal(r.status, base.status); }
@@ -33,7 +36,7 @@ test("0.58.5 negotiation: non-browser clients get the same JSON as before; brows
   assert.equal((await get("/v1/receipts/sc-ffffffffffffffff", HTML)).status, 404);
   for (const p of ["/v1/receipts/by-url?url=https://api.402rates.com/v1/ping", "/v1/receipts/ps-0123456789abcdef"]) assert.match((await get(p, HTML)).headers.get("content-type"), /application\/json/, p);
   assert.equal((await get("/v1/receipts", HTML, envWith(), "https://verified-catalog-lookup.withgrokbot.workers.dev")).status, 301);
-  assert.match((await get("/v1/receipts/44e3732d23", HTML, envWith(), "https://api.402xagent.com")).headers.get("content-type"), /^text\/html/);
+  assert.match((await get("/v1/receipts/" + CRAWL_RECEIPT_ID, HTML, envWith(), "https://api.402xagent.com")).headers.get("content-type"), /^text\/html/);
 });
 
 test("0.58.5 signed live-check receipt: verdict, compared terms, signature block with Verify offline; no hidden fields", async () => {
@@ -69,15 +72,18 @@ test("0.58.5 buyer data never reaches the HTML, even if a stored row holds it", 
 });
 
 test("0.58.5 crawl receipt: plainly unsigned, no signature block, no Verify offline; compared terms from the public JSON", async () => {
-  const { text, status } = await get("/v1/receipts/44e3732d23", HTML);
+  const { text, status } = await get("/v1/receipts/" + CRAWL_RECEIPT_ID, HTML);
   assert.equal(status, 200);
   assert.match(text, /Unsigned crawl receipt/); assert.match(text, /Crawl receipts are not signed/);
   assert.doesNotMatch(text, /Verify offline|id="signature"|Key id/);
   assert.match(text, /<span class="verdict skip"><i><\/i>skip<\/span>/);
-  assert.match(text, /Payment network differs from the listing/);
-  assert.match(text, /eip155:84532/); assert.match(text, /class="rc-diff">eip155:8453</);
-  const red = await get("/v1/receipts/44e3732d23?view=redacted", HTML);
-  assert.ok(!red.text.includes("0x2D6F7D1e969a3C6218599B348EbBBDdc7f583948"), "?view=redacted keeps the wallets out of the page too");
+  // 0.59.10: the compared terms come from the bundled receipt itself (whichever kind of mismatch it is)
+  const rec = RECEIPTS.find((r) => r.id === CRAWL_RECEIPT_ID);
+  assert.ok(rec && rec.verdict === "skip", "the featured crawl receipt is a bundled page-1 skip");
+  assert.ok(text.includes(plainReason(rec.reason)), plainReason(rec.reason));
+  if (/different network/.test(rec.reason)) { assert.ok(text.includes(rec.listed_network)); assert.ok(text.includes(`class="rc-diff">${rec.network}<`)); }
+  const red = await get("/v1/receipts/" + CRAWL_RECEIPT_ID + "?view=redacted", HTML);
+  for (const w of [rec.pay_to, rec.listed_pay_to].filter(Boolean)) assert.ok(!red.text.includes(w), "?view=redacted keeps the wallets out of the page too");
 });
 
 test("0.58.5 receipts list: tabs, verdict chips, searchable, paginated, links to each receipt", async () => {
@@ -100,7 +106,7 @@ test("0.58.5 receipts list: tabs, verdict chips, searchable, paginated, links to
 
 // 0.59.6: "View JSON" (?format=json) in a browser is the same JSON, styled in the site chrome; agents keep the exact bytes.
 test("0.59.6 receipt JSON view: browsers get styled HTML of the exact JSON; agents and ?raw=1 get byte-identical JSON", async () => {
-  for (const id of ["44e3732d23", "sc-85c8963fb57e7b25"]) {
+  for (const id of [CRAWL_RECEIPT_ID, "sc-85c8963fb57e7b25"]) {
     const p = "/v1/receipts/" + id;
     const base = await get(p, {});
     for (const h of ACCEPTS) {

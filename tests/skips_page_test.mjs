@@ -61,10 +61,11 @@ test("0.58.7 skips page: every row has the homepage's plain reason and its recei
     const p = plainReason(r.reason);
     if (p) assert.equal(crawlReasonText(r.reason), p);
   }
-  const row = skipRowHtml(RECEIPTS.find((r) => /^asks for payment on a different network/.test(r.reason)));
-  assert.match(row, />Payment network differs from the listing</);
-  assert.match(skipRowHtml(RECEIPTS.find((r) => /^pays a different wallet/.test(r.reason))), />Payment wallet differs from the listing</);
-  assert.match(skipRowHtml(RECEIPTS.find((r) => /^asks a different price/.test(r.reason))), />Payment price differs from the listing</);
+  // 0.59.10: each mismatch kind is checked when the bundled page 1 has one (a crawl need not have all three)
+  const KINDS = [[/^asks for payment on a different network/, "Payment network differs from the listing"], [/^pays a different wallet/, "Payment wallet differs from the listing"], [/^asks a different price/, "Payment price differs from the listing"]];
+  let seen = 0;
+  for (const [re, text] of KINDS) { const r = RECEIPTS.find((x) => re.test(x.reason)); if (r) { seen++; assert.ok(skipRowHtml(r).includes(">" + text + "<"), text); } }
+  assert.ok(seen > 0, "page 1 has at least one mismatch kind");
   assert.doesNotMatch(body, /pays a different wallet than listed \(|asks a different price than listed \(/, "raw crawl reasons (with wallets) are not shown");
   const n = (x) => x.toLocaleString("en-US");
   for (const [v, l] of [[RECEIPTS_META.endpoints_covered ?? RECEIPTS_META.total, "endpoints covered"], [RECEIPTS_META.skip, "skip"], [RECEIPTS_META.pay, "pay"], [RECEIPTS_META.recheck, "recheck"]])

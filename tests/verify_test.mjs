@@ -2,6 +2,7 @@
 // Fixtures: tests/fixtures/verify/ holds two real public receipt views fetched Oct 29, 2026 (?format=json):
 // sc-7cf5080faccbc6ee (signed dry run, the acceptance receipt) and 44e3732d23 (a crawl receipt, unsigned).
 // tests/fixtures/machine_0.58.9/ is the machine + receipt snapshot of main 4e53549 (0.58.9).
+import { readFixture } from "./helpers/crawl_fixtures.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
@@ -26,7 +27,7 @@ const env = { DATA_BASE_URL: "https://data.fixture/vc/" };
 const get = async (p, headers = {}) => { const r = await worker.fetch(new Request("https://402xagent.com" + p, { headers }), env, { waitUntil() {}, passThroughOnException() {} }); return { r, text: await r.text() }; };
 const keysIn = (src) => JSON.parse(/\}\)\((\[\{"kid".*?\}\])\);/.exec(src)[1]);
 
-test("0.59.0 version", () => assert.equal(VERSION, "0.59.9"));
+test("0.59.0 version", () => assert.equal(VERSION, "0.59.10"));
 
 test("0.59.0 pinned keys = the published keys doc (kid + x), in the page script, the standalone file and the Node script", () => {
   const published = receiptKeysDoc().keys.map((k) => ({ kid: k.kid, x: k.x }));
@@ -133,7 +134,7 @@ const snap = (flag, keep) => {
 };
 const diffKeys = (a, b) => Object.keys(a).filter((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k]));
 test("0.59.0 machine surfaces vs 0.58.9: only the llms.txt line and the keys-doc field are added", () => {
-  const want = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.9", "snapshot.json"), "utf8"));
+  const want = readFixture("machine_0.58.9", "snapshot.json");
   const kept = snap(null, true), stripped = snap(null, false);
   assert.deepEqual(Object.keys(kept).sort(), Object.keys(want).sort());
   assert.deepEqual(diffKeys(want, stripped), [], "nothing else changed");
@@ -151,7 +152,7 @@ test("0.59.0 the two additions themselves (exact text)", async () => {
   assert.equal(Object.keys(kd).at(-2), "offline_verifier"); assert.equal(Object.keys(kd).at(-1), "keys");
 });
 test("0.59.0 receipt routes vs 0.58.9: JSON byte-identical; HTML differs only in the Verify offline link", () => {
-  const want = JSON.parse(readFileSync(join(HERE, "fixtures", "machine_0.58.9", "receipts.json"), "utf8"));
+  const want = readFixture("machine_0.58.9", "receipts.json");
   const kept = snap("--receipts", true), stripped = snap("--receipts", false);
   assert.deepEqual(diffKeys(want, stripped), [], "after restoring the old link target nothing differs");
   const changed = diffKeys(want, kept);
