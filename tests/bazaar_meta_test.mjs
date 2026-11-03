@@ -6,11 +6,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { bodies402 } from "./helpers/bodies402.mjs";
 import { snapshot } from "./helpers/machine_snapshot.mjs";
+import { readFixture } from "./helpers/crawl_fixtures.mjs";
 import { BAZAAR_SERVICE_NAME, BAZAAR_ICON_URL, BAZAAR_META, bazaarServiceMeta } from "../worker/src/spotcheck.js";
 import { spotCfg, spotPaymentRequired, paidPaymentRequired, paymentRequired, psPaymentRequired, erPaymentRequired, bulkPaymentRequired, cfg } from "../worker/src/lib.js";
 
 const W = fileURLToPath(new URL("../worker/src/index.js", import.meta.url));
-const fx = (f) => JSON.parse(readFileSync(fileURLToPath(new URL("./fixtures/machine_0.58.7/" + f, import.meta.url)), "utf8"));
+const fx = (f) => readFixture("machine_0.58.7", f); // 0.59.10: per-crawl fixture
 const META = ["serviceName", "tags", "iconUrl"];
 const ASCII = /^[\x20-\x7e]+$/;
 

@@ -38,8 +38,9 @@ const V = "18"; // asset cache-buster
 // 0.59.9: it is always a listed-vs-offered MISMATCH skip, never another kind of skip. Order:
 //   1. a page-1 receipt (receipts-data.js) "different price than listed" skip whose live 402 asked MORE, Base USDC, pay_to; lowest id;
 //   2. any page-1 "different price than listed" skip;
-//   3. a "price_higher" row from the full-crawl saves list (saves-data.js, built from the same crawl file); lowest receipt_id;
-//   4. any page-1 wallet / network mismatch skip ("pays a different wallet than listed", "... different network than listed");
+//   3. (0.59.10) any page-1 wallet / network mismatch skip ("pays a different wallet than listed", "... different network
+//      than listed"); lowest id. A full page-1 receipt, so the card keeps every field;
+//   4. last, a "price_higher" row from the full-crawl saves list (saves-data.js, same crawl file), not enriched; lowest receipt_id;
 //   else null (no card).
 const PRICE_RE = /different price than listed/;
 const MISMATCH_RE = /different (price|wallet|network) than listed/;
@@ -67,12 +68,11 @@ export function homeExample(receipts = RECEIPTS, meta = RECEIPTS_META, saves = S
   const rs = (receipts || []).filter((r) => r && r.verdict === "skip" && ID_RE.test(r.id || "")).sort((x, y) => (x.id < y.id ? -1 : 1));
   const differs = (r) => PRICE_RE.test(r.reason || "") && typeof r.claimed_price_usd === "number" && typeof r.quoted_price_usd === "number";
   let r = rs.find((r) => differs(r) && r.quoted_price_usd > r.claimed_price_usd && r.network === "eip155:8453" && r.pay_to && r.http_status === 402)
-    || rs.find(differs);
+    || rs.find(differs) || rs.find((r) => MISMATCH_RE.test(r.reason || ""));
   if (!r) {
     const sv = (saves || []).filter((x) => x && x.kind === "price_higher" && ID_RE.test(x.receipt_id || "") && x.endpoint)
       .sort((x, y) => (x.receipt_id < y.receipt_id ? -1 : 1)).map((x) => fromSave(x, meta)).find(Boolean);
-    if (sv) return sv;
-    r = rs.find((r) => MISMATCH_RE.test(r.reason || ""));
+    return sv || null;
   }
   if (!r) return null;
   return Object.freeze({

@@ -6,7 +6,10 @@ import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 
-const FIXED = Date.parse("2026-10-28T12:00:00Z");
+import { CRAWLED_AT, CRAWL_RECEIPT_ID, SNAP_NOW, readFixture } from "./crawl_fixtures.mjs";
+export { CRAWLED_AT, CRAWL_RECEIPT_ID, readFixture };
+// 0.59.10: frozen clock relative to the bundled crawl (crawl_fixtures.mjs SNAP_NOW), was a fixed 2026-10-28T12:00:00Z.
+const FIXED = SNAP_NOW;
 const RealDate = Date;
 class FixedDate extends RealDate {
   constructor(...a) { if (a.length) super(...a); else super(FIXED); }
@@ -192,7 +195,7 @@ export function restoreHomeFooter(body) {
   if (body.split(HOME_FOOTER_0586).length !== 2) throw new Error("0.58.6 footer list not found exactly once");
   return body.replace(HOME_FOOTER_0586, HOME_FOOTER_0584);
 }
-export const RECEIPT_GETS = ["/v1/receipts", "/v1/receipts?page=2", "/v1/receipts?q=api.402rates.com", "/v1/receipts/44e3732d23", "/v1/receipts/44e3732d23?view=redacted", "/v1/receipts/0000000000",
+export const RECEIPT_GETS = ["/v1/receipts", "/v1/receipts?page=2", "/v1/receipts?q=api.402rates.com", "/v1/receipts/" + CRAWL_RECEIPT_ID, "/v1/receipts/" + CRAWL_RECEIPT_ID + "?view=redacted", "/v1/receipts/0000000000",
   ...SAMPLE.map((r) => "/v1/receipts/" + r.id), "/v1/receipts/sc-ffffffffffffffff", "/v1/receipts/not-an-id", "/v1/receipts/by-url?url=https://api.402rates.com/v1/ping",
   "/v1/receipts?type=live", "/v1/receipts?type=live&limit=2", "/v1/receipts?type=dry-run", "/v1/receipts?type=self-checked", "/v1/receipts?type=bogus", "/v1/receipts?type=live&cursor=bad",
   "/v1/receipts/ps-0123456789abcdef", "/v1/receipts/er-0123456789abcdef", "/receipts"];
@@ -288,4 +291,5 @@ if (process.argv[2] === "--skips" && process.argv[3]) {
 
 // 0.58.9: every key that answered 402 in the 0.58.7 snapshot (tests/fixtures/machine_0.58.7/bodies402.json). Their only
 // allowed change is the Bazaar service metadata on resource; bazaar_meta_test.mjs checks that field by field.
-export const META402_KEYS = new Set(Object.keys(JSON.parse(readFileSync(fileURLToPath(new URL("../fixtures/machine_0.58.7/bodies402.json", import.meta.url)), "utf8")).bodies));
+// 0.59.10: null (not a throw) while a crawl's fixtures are still being generated (scripts/regen_snapshot_fixtures.sh)
+export const META402_KEYS = (() => { try { return new Set(Object.keys(readFixture("machine_0.58.7", "bodies402.json").bodies)); } catch (_) { return null; } })();
