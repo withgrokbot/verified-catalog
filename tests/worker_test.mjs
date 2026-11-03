@@ -2706,7 +2706,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.59.8");
+  assert.equal(VERSION, "0.59.9");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -3066,21 +3066,48 @@ test("0.39.0 home: 'Try a check' runs the free Try-it flow; REAL stored example 
   assert.match(html, /no signup/i);
   // 0.45.4: the example is a real receipt from the CURRENT bundled crawl (page 1), its date is the crawl meta date
   const { RECEIPTS, RECEIPTS_META } = await import("../worker/src/receipts-data.js");
-  const rec = RECEIPTS.find((r) => r.id === HOME_EXAMPLE.receipt_id);
-  assert.ok(rec, "card receipt is in the bundled crawl");
+  // 0.59.9: the card is always a listed-vs-offered mismatch skip: a page-1 price skip, else a price_higher row from the
+  // full-crawl saves list (same crawl file), else a page-1 wallet/network mismatch skip; never any other skip.
+  const { SAVES } = await import("../worker/src/saves-data.js");
+  assert.ok(HOME_EXAMPLE, "a card is shown");
   assert.equal(HOME_EXAMPLE.crawl_date, String(RECEIPTS_META.crawled_at).slice(0, 10), "card date == crawl date");
-  assert.equal(HOME_EXAMPLE.url, rec.url); assert.equal(HOME_EXAMPLE.listing.price_usd, rec.claimed_price_usd); assert.equal(HOME_EXAMPLE.live_402.price_usd, rec.quoted_price_usd);
-  assert.equal(HOME_EXAMPLE.live_402.pay_to, rec.pay_to); assert.equal(HOME_EXAMPLE.verdict, "skip"); assert.equal(HOME_EXAMPLE.reason, rec.reason); assert.equal(HOME_EXAMPLE.checked_at, rec.timestamp);
-  assert.equal(HOME_EXAMPLE.listing.source, rec.source_list); assert.equal(HOME_EXAMPLE.live_402.network, rec.network); assert.equal(HOME_EXAMPLE.method, rec.method);
-  assert.match(HOME_EXAMPLE.reason, /different price than listed/); assert.ok(HOME_EXAMPLE.live_402.price_usd > HOME_EXAMPLE.listing.price_usd);
+  assert.equal(HOME_EXAMPLE.verdict, "skip"); assert.match(HOME_EXAMPLE.reason, /different (price|wallet|network) than listed/, "a mismatch skip");
+  const rec = RECEIPTS.find((r) => r.id === HOME_EXAMPLE.receipt_id);
+  const pagePrice = RECEIPTS.some((r) => r.verdict === "skip" && /different price than listed/.test(r.reason || ""));
+  const savePrice = SAVES.some((s) => s.kind === "price_higher");
+  if (rec) {
+    assert.equal(HOME_EXAMPLE.url, rec.url); assert.equal(HOME_EXAMPLE.listing.price_usd, rec.claimed_price_usd); assert.equal(HOME_EXAMPLE.live_402.price_usd, rec.quoted_price_usd);
+    assert.equal(HOME_EXAMPLE.live_402.pay_to, rec.pay_to); assert.equal(HOME_EXAMPLE.reason, rec.reason); assert.equal(HOME_EXAMPLE.checked_at, rec.timestamp);
+    assert.equal(HOME_EXAMPLE.listing.source, rec.source_list); assert.equal(HOME_EXAMPLE.live_402.network, rec.network); assert.equal(HOME_EXAMPLE.method, rec.method);
+    if (pagePrice || savePrice) assert.match(HOME_EXAMPLE.reason, /different price than listed/, "a price skip when the crawl has one");
+    assert.ok(html.includes(`<b>Listing</b> (${HOME_EXAMPLE.listing.source}): $${HOME_EXAMPLE.listing.price_usd}`));
+  } else {
+    const sv = SAVES.find((s) => s.receipt_id === HOME_EXAMPLE.receipt_id && s.kind === "price_higher");
+    assert.ok(sv, "card receipt is a price_higher row of the full-crawl saves list"); assert.ok(!pagePrice, "page-1 price skips win over saves rows");
+    assert.equal(HOME_EXAMPLE.url, sv.endpoint); assert.ok(sv.what.includes(`asked $${HOME_EXAMPLE.live_402.price_usd}, listed $${HOME_EXAMPLE.listing.price_usd}`));
+    assert.match(HOME_EXAMPLE.reason, /different price than listed/);
+    assert.ok(html.includes(`<b>Listing</b>: $${HOME_EXAMPLE.listing.price_usd}`));
+  }
+  if (/different price than listed/.test(HOME_EXAMPLE.reason)) { assert.ok(HOME_EXAMPLE.live_402.price_usd > HOME_EXAMPLE.listing.price_usd); assert.ok(html.includes(`): $${HOME_EXAMPLE.live_402.price_usd} USDC`)); }
   assert.ok(html.includes(`A real check from our crawl (${String(RECEIPTS_META.crawled_at).slice(0, 10)}, <a href="/v1/receipts/${HOME_EXAMPLE.receipt_id}">`));
-  assert.ok(html.includes(`<b>Listing</b> (${HOME_EXAMPLE.listing.source}): $${HOME_EXAMPLE.listing.price_usd}`)); assert.ok(html.includes(`): $${HOME_EXAMPLE.live_402.price_usd} USDC on Base`)); assert.match(html, /rx-skip">skip</);
+  assert.match(html, /rx-skip">skip</);
   { // deterministic: same input -> same card; a newer crawl with a different date moves the card date
     const { homeExample } = await import("../worker/src/landing.js");
     assert.deepEqual(homeExample(RECEIPTS, RECEIPTS_META), HOME_EXAMPLE);
     assert.deepEqual(homeExample([...RECEIPTS].reverse(), RECEIPTS_META), HOME_EXAMPLE);
     assert.equal(homeExample(RECEIPTS, { crawled_at: "2026-10-27T12:00:00Z" }).crawl_date, "2026-10-27");
-    assert.equal(homeExample([], RECEIPTS_META), null);
+    assert.equal(homeExample([], RECEIPTS_META, []), null);
+    // 0.59.9 fallbacks on synthetic rows: saves price row beats a wallet skip; wallet skip beats nothing; a non-mismatch skip never shows
+    const W = { id: "aaaaaaaaaa", verdict: "skip", reason: "pays a different wallet than listed (0xabc)", url: "https://w.example/x", claimed_price_usd: 0.01, quoted_price_usd: 0.01, network: "eip155:8453", pay_to: "0x1111111111111111111111111111111111111111", http_status: 402, source_list: "s", method: "GET", timestamp: "2026-11-03T00:00:00Z" };
+    const N = { ...W, id: "0000000000", reason: "listed, no paywall", url: "https://n.example/x" };
+    const S = { endpoint: "https://s.example/x", kind: "price_higher", what: "asked $0.4, listed $0.02", date: "2026-11-03", source: "crawl", receipt_id: "bbbbbbbbbb" };
+    const m = { crawled_at: "2026-11-03T14:56:42Z" };
+    const a = homeExample([N, W], m, [S]); assert.equal(a.receipt_id, "bbbbbbbbbb"); assert.equal(a.reason, "asks a different price than listed (listed $0.02, asks $0.4)"); assert.equal(a.url, S.endpoint);
+    assert.equal(homeExample([N, W], m, []).receipt_id, "aaaaaaaaaa");
+    assert.equal(homeExample([N], m, []), null, "never a non-mismatch skip");
+    assert.equal(homeExample([N], m, [{ ...S, kind: "pay_to_changed" }]), null);
+    const { homeCard } = await import("../worker/src/landing.js");
+    assert.equal(homeCard(null), ""); assert.match(homeCard(a), /<b>Listing<\/b>: \$0\.02 per call/); assert.match(homeCard(a), /\(HTTP 402\): \$0\.4 USDC<\/li>/);
   }
   { const sd = (await import("node:fs")).readFileSync(new URL("../worker/src/saves-data.js", import.meta.url), "utf8");
     assert.match(sd, new RegExp(`"crawl_file":"receipts-${String(RECEIPTS_META.crawled_at).slice(0, 10).replace(/-/g, "")}T`), "0.45.4: /saves built from the same crawl"); }
@@ -4854,7 +4881,16 @@ test("0.57.1 /docs try-it: everything outside the new section is byte-identical 
   const old = readFileSync(join(FIX_DIR, "docs_er1_wt1.html"), "utf8");
   const oldQuick = old.slice(old.indexOf('<h2 id="quick-start">'), old.indexOf('<h2 id="endpoint-report">'));
   assert.ok(oldQuick.length > 50 && served.includes(oldQuick), "quick start verbatim on the index");
-  assert.equal(sha(landingHtml("https://402xagent.com")), want.home, "homepage HTML unchanged");
+  { // 0.59.9: the homepage hash no longer depends on crawl data. The crawl-driven parts (the example card, and the hero
+    // label / dates from RECEIPTS_META) are taken out: the card is cut with HOME_CARD_RE (exactly one, else fail) and the
+    // page is rendered with a fixed meta. Everything else on the page is still byte-guarded. home_0599_static was taken on
+    // main 0.59.9, whose full page (with main's 2026-10-27 crawl) is byte-identical to the 0.57.1 `home` hash.
+    const { HOME_CARD_RE } = await import("../worker/src/landing.js");
+    const FIXED = { crawled_at: "2026-10-27T17:36:57Z", endpoints_covered: 121785 };
+    const page = landingHtml("https://402xagent.com", FIXED);
+    assert.equal((page.match(new RegExp(HOME_CARD_RE.source, "g")) || []).length, 1, "exactly one example card");
+    assert.equal(sha(page.replace(HOME_CARD_RE, "")), want.home_0599_static, "homepage HTML unchanged outside the crawl-driven card");
+  }
   const home = await rawGet("/", e, "https://402xagent.com", { accept: "text/html" });
   assert.ok(!home.text.includes("try-it.js") && !home.text.includes('id="try-it"'), "no try-it / badge on the homepage");
 });
