@@ -491,3 +491,7 @@ to 0.58.2 by `tests/machine_surfaces_test.mjs` (fixture `tests/fixtures/machine_
   Static catalog metadata (README, llms.txt, catalog.json, index.html, services/*.html, .well-known/agent-card.json,
   mcp/server.py) now points at https://api.402xagent.com instead of the workers.dev host, which keeps serving.
 Tests: `tests/agentcard_logo_0610_test.mjs`.
+
+## Page to Markdown (0.63.0)
+
+`GET|POST /v1/products/page-to-markdown?url=<page>&format=json|markdown` returns one public page as clean, LLM-ready Markdown: main content only, absolute links, tables and code kept, plus `title, description, links, word_count, token_estimate`. 3 free pages per network per UTC day (`P2M_FREE_PER_DAY`), then $0.002 USDC on Base via x402 (`P2M_PRICE_ATOMIC`, default 2000). The page is fetched and converted before the payment is settled; robots.txt disallows, login walls, paywalls, 401/402/403 pages and fetch errors answer 422 and are not charged. Every redirect hop goes through the spot-check SSRF guard, and rate limits (20/min per network, 30/min per target site) use the QuotaCounter Durable Object. MCP tool: `page_to_markdown`. JSON docs: `/v1/products/page-to-markdown/docs`. The extractor (`src/page2md.js`) has no dependencies and is the same file the Apify Actor draft uses. `P2M=off` turns the route and all its discovery entries off.
