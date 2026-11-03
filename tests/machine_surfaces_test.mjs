@@ -218,7 +218,7 @@ test("0.58.7 skips page: every other surface (homepage, /pricing, /docs, receipt
 // llms.txt answers, and the new body is the 0.58.7 one plus the new post line and the retitled comparison line.
 test("0.58.8 blog posts: only llms.txt changes on machine surfaces, by exactly the two blog lines", async () => {
   const W = join(HERE, "..", "worker", "src", "index.js");
-  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), W], { encoding: "utf8", maxBuffer: 64 << 20 });
+  const r = spawnSync(process.execPath, [join(HERE, "helpers", "machine_snapshot.mjs"), W], { encoding: "utf8", maxBuffer: 64 << 20, env: { ...process.env, SNAP_BLOG_AS_05910: "1" } });
   assert.equal(r.status, 0, r.stderr);
   const got = JSON.parse(r.stdout);
   const changed = Object.keys(want).filter((k) => !RECEIPT_HTML_KEY.test(k) && !SKIPS_HTML_KEY.test(k) && JSON.stringify(got[k]) !== JSON.stringify(want[k]));
@@ -230,4 +230,21 @@ test("0.58.8 blog posts: only llms.txt changes on machine surfaces, by exactly t
   assert.match(txt, /\n  - What x402 Verification Actually Means \(and What It Can't Tell You\): https:\/\/402xagent\.com\/blog\/what-is-x402-verification\n/);
   assert.match(txt, /\n  - x402 Endpoint Checks Compared: Seven Ways to Look Before Your Agent Pays: https:\/\/402xagent\.com\/blog\/x402-endpoint-checks-compared\n/);
   assert.doesNotMatch(txt, /Six Ways|UPDATE/);
+});
+
+// 0.59.11: new post /blog/197k-x402-receipts-what-breaks plus /docs# link fixes in four older posts. The only machine-surface
+// change is one new llms.txt blog line (older fixtures drop it via SNAP_BLOG_AS_05910, see helper); sitemap lists the page.
+test("0.59.11 blog: new post served, in llms.txt and sitemap; no old /docs# anchors left in any post", async () => {
+  const worker = (await import(join(HERE, "..", "worker", "src", "index.js"))).default;
+  const ctx = { waitUntil() {}, passThroughOnException() {} };
+  const get = async (u) => { const r = await worker.fetch(new Request(u, { headers: { accept: "text/html" } }), {}, ctx); return { status: r.status, text: await r.text() }; };
+  const post = await get("https://402xagent.com/blog/197k-x402-receipts-what-breaks");
+  assert.equal(post.status, 200);
+  assert.match(post.text, /We Checked 197k x402 Receipts, and Here(&#39;|')s What Breaks/);
+  assert.doesNotMatch(post.text, /Alternative headlines/);
+  const llms = (await get("https://402xagent.com/llms.txt")).text;
+  assert.match(llms, /\n  - We Checked 197k x402 Receipts, and Here's What Breaks: https:\/\/402xagent\.com\/blog\/197k-x402-receipts-what-breaks\n/);
+  assert.match((await get("https://402xagent.com/sitemap.xml")).text, /\/blog\/197k-x402-receipts-what-breaks</);
+  const { BLOG_POSTS } = await import("../worker/src/blog-data.js");
+  for (const p of BLOG_POSTS) assert.doesNotMatch(p.html, /402xagent\.com\/docs#/, p.slug);
 });

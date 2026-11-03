@@ -299,6 +299,15 @@ export async function blogAs0587(workerPath) {
   if (i >= 0) BLOG_POSTS.splice(i, 1);
   for (const p of BLOG_POSTS) if (p.slug === "x402-endpoint-checks-compared") p.title = p.title.replace("Seven Ways", "Six Ways");
 }
+// 0.59.11: one new post (/blog/197k-x402-receipts-what-breaks) adds one llms.txt line. SNAP_BLOG_AS_05910=1 drops it so
+// fixtures taken before 0.59.11 still prove every other byte; SNAP_BLOG_AS_0587 implies it. The 0.59.11 test checks the line.
+export const BLOG_05911_NEW = "197k-x402-receipts-what-breaks";
+export async function blogAs05910(workerPath) {
+  const { BLOG_POSTS } = await import(pathToFileURL(resolve(workerPath, "..", "blog-data.js")).href);
+  const i = BLOG_POSTS.findIndex((p) => p.slug === BLOG_05911_NEW);
+  if (i >= 0) BLOG_POSTS.splice(i, 1);
+}
+if ((process.env.SNAP_BLOG_AS_0587 === "1" || process.env.SNAP_BLOG_AS_05910 === "1") && process.argv[2]) await blogAs05910(process.argv[process.argv.length - 1]);
 if (process.env.SNAP_BLOG_AS_0587 === "1" && process.argv[2]) await blogAs0587(process.argv[process.argv.length - 1]);
 if (process.argv[2] === "--skips" && process.argv[3]) {
   process.stdout.write(JSON.stringify(await snapshotSkips(process.argv[3]), null, 1) + "\n");

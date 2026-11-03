@@ -129,7 +129,7 @@ test("0.59.0 receipt pages: Verify offline -> /verify?id=<id>; sitemap lists /ve
 // signed sc- pages for browsers differ, and only by the Verify offline link target.
 const snap = (flag, keep) => {
   const args = [join(HERE, "helpers", "machine_snapshot.mjs"), ...(flag ? [flag] : []), join(HERE, "..", "worker", "src", "index.js")];
-  const r = spawnSync(process.execPath, args, { encoding: "utf8", maxBuffer: 64 << 20, env: { ...process.env, SNAP_KEEP_0590: keep ? "1" : "" } });
+  const r = spawnSync(process.execPath, args, { encoding: "utf8", maxBuffer: 64 << 20, env: { ...process.env, SNAP_KEEP_0590: keep ? "1" : "", SNAP_BLOG_AS_05910: "1" } });
   assert.equal(r.status, 0, r.stderr); return JSON.parse(r.stdout);
 };
 const diffKeys = (a, b) => Object.keys(a).filter((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k]));
