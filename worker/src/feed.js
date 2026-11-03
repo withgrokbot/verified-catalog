@@ -428,6 +428,72 @@ export async function manifest(env, deps, origin) {
   return signed || { ...body, kid: null };
 }
 
+// ------------------------------------------------------------------ 0.59.8 firehose-competitor gate
+// (a) Indexer/competitor UAs (lib.js INDEXER_RE, passed in as deps.indexerRe) are LOG-ONLY: one structured line per
+//     request ({feed:"indexer_ua"}), never blocked, no UA/IP/key stored. (b) Deny list, empty by default:
+//     FEED_DENY_KEYS = comma list of key hashes (sha256(pepper ":" fk_key), the feed_keys.key_hash value; never raw keys)
+//     FEED_DENY_PREFIXES = comma list of ipPrefix() values ("203.0.113.0/24", "2001:db8:1::/48").
+//     A match answers 403 on every /v1/feed* route, including POST /v1/feed/subscribe (all tiers, firehose included).
+const csv = (v) => String(v || "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+export const feedDenyList = (env) => ({ keys: new Set(csv(env && env.FEED_DENY_KEYS)), prefixes: new Set(csv(env && env.FEED_DENY_PREFIXES)) });
+export async function feedGate(req, env, deps, path) {
+  const ua = req.headers.get("user-agent") || "";
+  const re = deps && deps.indexerRe;
+  const indexer = !!(re && re.test(ua));
+  const deny = feedDenyList(env);
+  let denied = null;
+  if (deny.prefixes.size && deps && deps.ipPrefix && deny.prefixes.has(String(deps.ipPrefix(req.headers.get("cf-connecting-ip") || "")).toLowerCase())) denied = "prefix";
+  if (!denied && deny.keys.size) {
+    const m = /^Bearer\s+(fk_[0-9a-f]{48})$/.exec(req.headers.get("authorization") || "");
+    if (m && pepper(env) && deny.keys.has(await sha256Hex(pepper(env) + ":" + m[1]))) denied = "key";
+  }
+  if (indexer || denied) console.log(JSON.stringify({ feed: "gate", indexer_ua: indexer, denied, path, method: req.method }));
+  return { indexer, denied };
+}
+
+// ------------------------------------------------------------------ 0.59.8 observe-mode false-alarm metric
+/**
+ * FALSE ALARM (feed observe mode): an observation row with a drift/down/recovery event, or a state/terms change
+ * ("candidate"), whose NEXT observation of the same endpoint arrives within FEED_FA_HOURS (default 6) and puts state,
+ * http_status AND terms_sig back to the values seen BEFORE the candidate. I.e. the change did not reproduce on the next
+ * probe. Candidates whose next observation has not arrived yet, or arrived later than the window, count as
+ * "pending"/"held" and are not in the rate. rate = false_alarms / (false_alarms + held); null when the denominator is 0.
+ */
+export const FA_HOURS = 6;
+export const FA_DAYS = 30;
+export const faHours = (env) => { const n = Number((env && env.FEED_FA_HOURS) ?? ""); return Number.isFinite(n) && n > 0 && n <= 168 ? n : FA_HOURS; };
+const sig3 = (r) => JSON.stringify([r.state ?? null, r.http_status ?? null, r.terms_sig ?? null]);
+export function falseAlarmsOf(rows, nowMs, hours = FA_HOURS) {
+  const win = hours * 3600000;
+  const out = { candidates: 0, false_alarms: 0, held: 0, pending: 0 };
+  const by = new Map();
+  for (const r of rows) { if (!by.has(r.hkey)) by.set(r.hkey, []); by.get(r.hkey).push(r); }
+  for (const list of by.values()) {
+    list.sort((a, b) => (a.observed_at < b.observed_at ? -1 : a.observed_at > b.observed_at ? 1 : 0));
+    for (let i = 1; i < list.length; i++) {
+      const prev = list[i - 1], cur = list[i], next = list[i + 1];
+      if (!(cur.event || sig3(prev) !== sig3(cur))) continue;
+      out.candidates++;
+      const t = Date.parse(cur.observed_at);
+      if (!next) { if (nowMs - t < win) out.pending++; else out.held++; continue; }
+      if (Date.parse(next.observed_at) - t <= win && sig3(next) === sig3(prev)) out.false_alarms++;
+      else if (Date.parse(next.observed_at) - t <= win || nowMs - t >= win) out.held++;
+      else out.pending++;
+    }
+  }
+  const d = out.false_alarms + out.held;
+  return { ...out, rate: d ? Math.round((out.false_alarms / d) * 10000) / 10000 : null };
+}
+export async function falseAlarmStats(env, now = new Date(), days = FA_DAYS) {
+  const hours = faHours(env);
+  const base = { mode: feedMode(env), window_days: days, revert_hours: hours, definition: "event or state/terms change whose next observation within revert_hours restores the prior state, http_status and terms_sig; rate = false_alarms / (false_alarms + held), pending excluded" };
+  if (!env.RECEIPTS_DB || !(feedOn(env) || feedObserveOn(env))) return { ...base, candidates: 0, false_alarms: 0, held: 0, pending: 0, rate: null };
+  const since = iso(new Date(now).getTime() - days * DAY);
+  // one row before the window per endpoint is not fetched: the first in-window row only serves as "prev"
+  const rows = (await env.RECEIPTS_DB.prepare("SELECT hkey, observed_at, state, http_status, terms_sig, event FROM feed_observations WHERE observed_at >= ? ORDER BY hkey, observed_at LIMIT 50000").bind(since).all()).results || [];
+  return { ...base, observations: rows.length, ...falseAlarmsOf(rows, new Date(now).getTime(), hours) };
+}
+
 // ------------------------------------------------------------------ HTTP
 export async function handleFeed(req, env, url, deps) {
   if (!feedOn(env)) return J({ error: "the Watchtower data feed is not enabled yet", code: "not_enabled" }, 404);
@@ -435,6 +501,8 @@ export async function handleFeed(req, env, url, deps) {
   const db = env.RECEIPTS_DB;
   const now = deps.now ? deps.now() : new Date();
   const path = url.pathname.replace(/\/+$/, "");
+  const gate = await feedGate(req, env, deps, path);
+  if (gate.denied) return J({ error: "access to the Watchtower data feed is not available for this client; for licensing see /v1/feed/manifest", code: "feed_denied" }, 403);
   const sp = url.searchParams;
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, POST", "access-control-allow-headers": "Authorization, PAYMENT-SIGNATURE, X-PAYMENT, Content-Type" } });
   if (path === "/v1/feed/manifest") return J(await manifest(env, deps, url.origin));
