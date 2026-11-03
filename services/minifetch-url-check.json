@@ -38,33 +38,38 @@
     "facts_only": false,
     "facts_only_reason": null
   },
-  "paid_receipts": 9,
+  "paid_receipts": 10,
   "latest": {
-    "checked_at": "2026-11-02T22:45:48Z",
-    "mode": "dry-run",
+    "checked_at": "2026-11-03T18:49:55Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 337,
+    "latency_ms": 329,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001",
     "quoted_price_usd": "0.001",
     "price_matches_listing": true,
-    "paid": false,
-    "charged_price_usd": null,
-    "delivered_valid": null,
+    "paid": true,
+    "charged_price_usd": "0.001",
+    "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
-    "quality": null,
-    "raw_log": "results/raw/20261102T224547Z/minifetch-url-check.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261102T224547Z/minifetch-url-check.json"
+    "quality": {
+      "result": "pass",
+      "reason": "allowed = true",
+      "facts_only": false,
+      "graded_at": "2026-11-03T18:49:56Z"
+    },
+    "raw_log": "results/raw/20261103T184933Z/minifetch-url-check.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261103T184933Z/minifetch-url-check.json"
   },
   "history_summary": {
-    "checks": 46,
-    "reachable": 46,
-    "x402_challenge_ok": 46,
-    "paid_checks": 9,
+    "checks": 47,
+    "reachable": 47,
+    "x402_challenge_ok": 47,
+    "paid_checks": 10,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-11-02T22:45:48Z"
+    "last_checked": "2026-11-03T18:49:55Z"
   }
 }

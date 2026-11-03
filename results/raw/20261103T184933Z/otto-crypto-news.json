@@ -1,0 +1,120 @@
+{
+  "service_id": "otto-crypto-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://x402.ottoai.services/crypto-news",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 604,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 03 Nov 2026 18:49:38 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://x402.ottoai.services/crypto-news",
+            "description": "Importance-ranked crypto headlines with per-article source links and publish times, plus a sentiment-scored market brief. Regenerated hourly; meta carries the snapshot's age and a fresh/stale verdict.",
+            "mimeType": "application/json",
+            "serviceName": "Otto AI",
+            "tags": [
+              "crypto news",
+              "market news",
+              "sentiment analysis",
+              "breaking headlines"
+            ],
+            "iconUrl": "https://x402.ottoai.services/assets/otto-icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "assetTransferMethod": "permit2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "1000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "Hc3sdEAsCGQcpgfivywog9uwtk8gUBUZgsxdME1EJy88"
+              }
+            }
+          ]
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "1517"
+    },
+    "body_bytes": 1517,
+    "body_sha256": "9d80a7bcfd72f0e1fb781508357c0fb242a316a4e6d9882429050b6384626456",
+    "body_excerpt": "{\"error\":\"payment_required\",\"hint\":\"This is a pay-per-call x402 endpoint. The payment terms are the accepts[] array in this body -- mirrored verbatim from the base64 PAYMENT-REQUIRED response header, which remains the x402 v2 protocol contract. Pay one of them with an x402 client, then retry to receive the data.\",\"price\":\"$0.001\",\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"assetTransferMethod\":\"permit2\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"amount\":\"1000\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"payTo\":\"6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5\",\"maxTimeoutSeconds\":300,\"extra\":{\"feePayer\":\"Hc3sdEAsCGQcpgfivywog9uwtk8gUBUZgsxdME1EJy88\"}}],\"docs\":\"https://docs.useotto.xyz/getting-started/agent-quickstart\",\"contact\":{\"email\":\"[email redacted]\",\"telegram\":\"https://t.me/DeFAI_Capital\",\"twitter\":\"https://twitter.com/useOttoAI\",\"feedback\":\"POST https://x402.ottoai.services/feedback ($0.001) -- money-back guarantee on Otto-recommended services and Full Auto; feature requests welcome (email/Telegram are free).\"},\"x402Version\":2}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1824,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 03 Nov 2026 18:49:39 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x024bd5f4461add66133edb196fd3f9b2112f3e1e8820d3a4d724e1eda3db0a7e",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "7205"
+    },
+    "body_bytes": 7205,
+    "body_sha256": "b6d3ff7e3d7df12bc64376ff6ba703821039ac2f97008ed46c864ca7dd50d0f6",
+    "body_excerpt": "{\"status\":\"success\",\"data\":{\"report\":\"_Report generated 2026-11-03 18:00 UTC_\\n\\n## MARKET BRIEF\\n\\nOverview: Binance is reeling from a record $6.3 billion hack tied to fake job interviews and a compromised AI tool, triggering massive outflows and a wider security alert across the crypto industry.\\n\\nMarket Sentiment:\\nOverall Bull/Bear Score: 35\\n\\n---\\n\\n## KEY STORIES\\n\\n1. **Binance traces $6.3B hack to fake job interviews, compromised AI tool** - The largest exchange hack in crypto history; Binance will absorb losses and froze $2.85B, but the EIP-7702 exploit vector and DPRK attribution raise systemic security concerns for all exchange users.\\n\\n2. **Binance net outflows reach $5.3 billion after record hack. CEO says recovery underway** - Near $11B in net outflows over 46 hours signals major erosion of confidence in the largest exchange; deposit/withdrawal stabilization is a key metric for market contagion risk.\\n\\n3. **CFTC's Selig Says Perpetual Futures on Individual Stocks Can Now Trade in the US** - First-ever U.S. approval of perps on individual equities brings crypto's dominant trading model into regulated Wall Street venues, with Coinbase, Kalshi, and Bitnomial already positioned.\\n\\n4. **What's at stake for crypto as the US votes in the 2026 midterms?** - Crypto groups spent ~$176M across 100+ races; outcomes will determine the fate of the CLARITY Act and committee leadership, directly shaping the regulatory environment for years.\\n\\n5. **Amazon, Tesla and SpaceX join OKX--ICE tokenized stock objections as deadline looms** - Objections from 56 companies and ~80% of the stock selection opting out threaten the viability of tokenized equity products, a key growth narrative for exchanges.\\n\\n---\\n\\n## QUICK HITS\\n\\n- Justin Sun seeks sanctions against Trump-linked World Liberty Financial over UAE ties\\n- CZ warns of more AI-driven hacks following Binance's historic $6.4 billion heist\\n- Moscow Exchange to launch Bitcoin, Ether and USDT trading in December\\n- Bitcoin price defends $76K lows as analysts see stocks pricing in 'political gridlock'\\n- NEAR token sinks 7% as proposal to cut annual token issuance passes\\n\\nInformational only -- not investment advice.\\n\\n[Powered by $OTTO AI | @useOttoAI]\",\"headlines\":[{\"rank\":1,\"title\":\"Binance traces $6.3B hack to fake job interviews, compromised AI tool\",\"whyItMatters\":\"The largest exchange hack in crypto history; Binance will absorb losses and froze $2.85B, but the EIP-7702 exploit vector and DPRK attribution raise systemic security concerns for all exchange users.\",\"url\":\"https://cointelegraph.com/news/binance-fake-job-interviews-compromised-ai-tool-hack\",\"publishedAt\":\"2026-11-03T16:44:06.000Z\",\"source\":\"Cointelegraph\",\"match\":\"exact\"},{\"rank\":2,\"title\":\"Binance net outflows reach $5.3 billion after record hack. CEO says recovery underway\",\"whyItMatters\":\"Near $11B in net outflows over 46 hours signals major erosion of confidence in the largest exchange; deposit/withdrawal stabilization is a key metric for market contagion risk.\",\"url\":\"https://www.coindesk.com/business/2026/11/03/binance-net-outflows-reach-usd5-3b-after-record-hack-though-ceo-cites-recovery\",\"publishedAt\":\"2026-11-03T12:57:28.000Z\",\"source\":\"Coindesk\",\"match\":\"exact\"},{\"rank\":3,\"title\":\"CFTC's Selig Says Perpetual Futures on Individual Stocks Can Now Trade in the US\",\"whyItMatters\":\"First-ever U.S. approval of perps on individual equities brings crypto's dominant trading model into regulated Wall Street venues, with Coinbase, Kalshi, and Bitnomial already positioned.\",\"url\":\"https://unchainedcrypto.com/cftcs-selig-says-perpetual-futures-on-individual-stocks-can-now-trade-in-the-us/\",\"publishedAt\":\"2026-11-03T17:20:37.000Z\",\"source\":\"Unchainedcrypto\",\"match\":\"exact\"},{\"rank\":4,\"title\":\"What's at stake for crypto as the US votes in the 2026 midterms?\",\"whyItMatters\":\"Crypto groups spent ~$176M across 100+ races; outcomes will determine the fate of the CLARITY Act and committee leadership, directly shaping the regulatory environment for years.\",\"url\":\"https://cointelegraph.com/news/us-midterms-2026-"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "10 items with source URLs; newest 1.5 h old",
+    "observed": {
+      "items": 10,
+      "items_with_url": 10,
+      "newest": "2026-11-03T17:20:37Z",
+      "newest_age_hours": 1.48
+    },
+    "expected": {},
+    "test": {
+      "input": "none",
+      "pass_if": "at least 5 items, each with a source URL; newest item under 3 h old (the listing says hourly)"
+    },
+    "graded_at": "2026-11-03T18:49:40Z"
+  },
+  "run_id": "20261103T184933Z",
+  "checked_at": "2026-11-03T18:49:38Z"
+}

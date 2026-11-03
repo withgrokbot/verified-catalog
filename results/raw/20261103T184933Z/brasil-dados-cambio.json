@@ -1,0 +1,104 @@
+{
+  "service_id": "brasil-dados-cambio",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://brasil-dados-api.onrender.com/cambio",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 136,
+    "headers": {
+      "date": "Tue, 03 Nov 2026 18:50:03 GMT",
+      "content-type": "application/json",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://brasil-dados-api.onrender.com/cambio",
+            "description": "Official USD/BRL and EUR/BRL exchange rates (PTAX, Central Bank of Brazil).",
+            "mimeType": "application/json",
+            "serviceName": "Brazil Data API",
+            "tags": [
+              "brazil",
+              "brasil",
+              "data",
+              "economy",
+              "verify"
+            ]
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "2000",
+              "payTo": "0x649006bC937E7a60F98e49455D0fE3425321A3b0",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "amount": "2000",
+              "payTo": "yUdt7ThMbP5mvtLtURiwK3wgnhexuFtbKC9LEgb1Q8e",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "GVJJ7rdGiXr5xaYbRwRbjfaJL7fmwRygFi1H6aGqDveb",
+                "transactionVersions": [
+                  0
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 28,
+    "body_sha256": "82af6ca892240288814e00509a16808dd68cbb25f81ee44b39966734f55a62c0",
+    "body_excerpt": "{\"error\":\"Payment required\"}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 3017,
+    "headers": {
+      "date": "Tue, 03 Nov 2026 18:50:06 GMT",
+      "content-type": "application/json",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x9c07d037e9e98c9cd11ec0e263c75bfdc8bfcd1f7e1e0689392d2c70fa607831",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "cloudflare"
+    },
+    "body_bytes": 101,
+    "body_sha256": "857669816dd3b03cd505af73590814e805dd9e76c21e778ebd1e0c7451eca3c3",
+    "body_excerpt": "{\"usd_brl\":5.4935,\"eur_brl\":6.15,\"updated_at\":\"2026-11-03\",\"source\":\"Banco Central do Brasil (PTAX)\"}"
+  },
+  "quality": {
+    "result": "not_graded",
+    "reason": "facts only: On 2026-09-30 the endpoint answered our x402 payment with HTTP 500 and no data (no settlement transaction was reported).",
+    "observed": {},
+    "expected": {},
+    "test": {
+      "input": "none",
+      "pass_if": "USD/BRL equals the free BCB PTAX API for that date"
+    },
+    "facts_only": true,
+    "graded_at": "2026-11-03T18:50:06Z"
+  },
+  "run_id": "20261103T184933Z",
+  "checked_at": "2026-11-03T18:50:03Z"
+}
