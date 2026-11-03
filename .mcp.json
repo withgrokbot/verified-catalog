@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "402xagent": {
+      "url": "https://api.402xagent.com/mcp"
+    }
+  }
+}

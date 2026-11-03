@@ -2706,7 +2706,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.60.0");
+  assert.equal(VERSION, "0.61.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -4902,7 +4902,8 @@ test("0.57.1 /docs try-it: everything outside the new section is byte-identical 
     const FIXED = { crawled_at: "2026-10-27T17:36:57Z", endpoints_covered: 121785 };
     const page = landingHtml("https://402xagent.com", FIXED);
     assert.equal((page.match(new RegExp(HOME_CARD_RE.source, "g")) || []).length, 1, "exactly one example card");
-    assert.equal(sha(page.replace(HOME_CARD_RE, "")), want.home_0599_static, "homepage HTML unchanged outside the crawl-driven card");
+    // 0.61.0: the two X handle meta lines (@402xAgent) are removed before hashing; tests/agentcard_logo_0610_test.mjs checks them
+    assert.equal(sha(page.split('<meta name="twitter:site" content="@402xAgent">\n<meta name="twitter:creator" content="@402xAgent">\n').join("").replace(HOME_CARD_RE, "")), want.home_0599_static, "homepage HTML unchanged outside the crawl-driven card");
   }
   const home = await rawGet("/", e, "https://402xagent.com", { accept: "text/html" });
   assert.ok(!home.text.includes("try-it.js") && !home.text.includes('id="try-it"'), "no try-it / badge on the homepage");

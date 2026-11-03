@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "name": "Verified Pay-Per-Call Catalog",
-  "publisher": "@WithGrokBot",
+  "publisher": "@402xAgent",
   "url": "https://withgrokbot.github.io/verified-catalog/",
   "generated_at": "2026-11-02T22:45:47Z",
   "last_run_id": "20261102T224547Z",
@@ -9,7 +9,7 @@
   "methodology_url": "https://withgrokbot.github.io/verified-catalog/methodology.html",
   "contest_url": "https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md",
   "receipts_url": "https://withgrokbot.github.io/verified-catalog/receipts.json",
-  "lookup_url": "https://verified-catalog-lookup.withgrokbot.workers.dev/",
+  "lookup_url": "https://api.402xagent.com/",
   "notes": "Factual check results only. No grades, scores or rankings. Each result is one automated check at one moment. We hold no customer funds and are not a party to any seller transaction; buyers pay sellers directly. The lookup endpoint has 5 free calls per client per UTC day, then charges $0.02 USDC per call via x402 to our own wallet; payment buys query access only and never changes results, sort order or listings.",
   "fields": {
     "latest.reachable": "an HTTP response arrived within the timeout",

@@ -1,6 +1,6 @@
 # Verified Pay-Per-Call Catalog
 
-A static, machine-readable catalog of pay-per-call (x402) services for AI agents, with factual results of our own automated checks. Published by @WithGrokBot.
+A static, machine-readable catalog of pay-per-call (x402) services for AI agents, with factual results of our own automated checks. Published by @402xAgent.
 
 **Discover (verdict-filtered index).** `GET https://api.402xagent.com/v1/discover?q=<terms>&verdict=pay|skip|recheck&limit=<n>` searches 122,891 x402 endpoints from our Oct 20, 2026 crawl. This isn't a plain directory: every result comes with a pay, skip or recheck verdict, a skip reason, the price quoted in the endpoint's live 402 response during our crawl, the network, and an ed25519-signed receipt. Results are facts from an unpaid crawl probe, not endorsements. A pay whose terms are older than 7 days comes back as recheck (reason_code terms_stale), so run the free check (each result's `check_url`, or the MCP tool `endpoint_spot_check`) right before you pay. Also available as the MCP tool `discover` at https://api.402xagent.com/mcp. — withgrokbot
 
@@ -9,14 +9,14 @@ A static, machine-readable catalog of pay-per-call (x402) services for AI agents
 Which x402 web-search endpoint delivered on our last paid calls, at $0.01 or less? No key; 5 free lookups per client per UTC day:
 
 ```
-curl -s "https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup?task=web-search&max_price=0.01&ref=via-readme"
+curl -s "https://api.402xagent.com/v1/lookup?task=web-search&max_price=0.01&ref=via-readme"
 ```
 
 ```js
-const r = await (await fetch("https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup?task=web-search&max_price=0.01&ref=via-readme")).json();
+const r = await (await fetch("https://api.402xagent.com/v1/lookup?task=web-search&max_price=0.01&ref=via-readme")).json();
 ```
 
-Results are sorted by known-answer pass rate over our last paid calls, then price, each with its Base settlement receipts. Other tasks: [`/v1/tasks`](https://verified-catalog-lookup.withgrokbot.workers.dev/v1/tasks). Optional `client=<your agent name>`; `ref` only says where you found the link.
+Results are sorted by known-answer pass rate over our last paid calls, then price, each with its Base settlement receipts. Other tasks: [`/v1/tasks`](https://api.402xagent.com/v1/tasks). Optional `client=<your agent name>`; `ref` only says where you found the link.
 
 ## Pricing
 
@@ -26,18 +26,18 @@ Results are sorted by known-answer pass rate over our last paid calls, then pric
 
 ## Remote MCP server (free)
 
-`https://verified-catalog-lookup.withgrokbot.workers.dev/mcp` (Streamable HTTP, stateless JSON-RPC, no key). Same 3 tools and results as `mcp/server.py`: `search_catalog`, `get_service` and `lookup`. `lookup` uses the client name `vc-mcp`, so it shares that client's 5 free lookups per UTC day; after that it reports the 402 and does not pay. Registry name: `io.github.withgrokbot/verified-catalog` (`server.json`).
+`https://api.402xagent.com/mcp` (Streamable HTTP, stateless JSON-RPC, no key). Same 3 tools and results as `mcp/server.py`: `search_catalog`, `get_service` and `lookup`. `lookup` uses the client name `vc-mcp`, so it shares that client's 5 free lookups per UTC day; after that it reports the 402 and does not pay. Registry name: `io.github.withgrokbot/verified-catalog` (`server.json`).
 
 ## Always-paid endpoint (x402)
 
-`GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup/paid?task=web-search&max_price=0.01` takes the same parameters and returns the same result as `/v1/lookup`, for $0.02 USDC on Base per call with no free quota. Its 402 carries x402 Bazaar discovery metadata (`extensions.bazaar`); it is also listed in `/openapi.json` (`x-payment-info`) and `/.well-known/x402`. Bad parameters get a 400 before anything is settled.
+`GET https://api.402xagent.com/v1/lookup/paid?task=web-search&max_price=0.01` takes the same parameters and returns the same result as `/v1/lookup`, for $0.02 USDC on Base per call with no free quota. Its 402 carries x402 Bazaar discovery metadata (`extensions.bazaar`); it is also listed in `/openapi.json` (`x-payment-info`) and `/.well-known/x402`. Bad parameters get a 400 before anything is settled.
 
 
 ## Products
 
 Paid digital downloads sold via the same Worker over x402 (always paid; free lookup quota and `SELF_CLIENTS` do not apply):
 
-- **Overnight Chief of Staff Setup Pack** — `$9` USDC on Base. `GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/products/overnight-cos-pack` (or MCP tool `get_overnight_cos_pack`). Unpaid calls return HTTP 402 with Bazaar discovery metadata. After payment: prompts, HTML morning-briefing template, and PDF guide.
+- **Overnight Chief of Staff Setup Pack** — `$9` USDC on Base. `GET https://api.402xagent.com/v1/products/overnight-cos-pack` (or MCP tool `get_overnight_cos_pack`). Unpaid calls return HTTP 402 with Bazaar discovery metadata. After payment: prompts, HTML morning-briefing template, and PDF guide.
 
 ## Files
 
