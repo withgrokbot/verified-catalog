@@ -5,7 +5,7 @@
 import { assertSafeUrl, resolveHost, parseX402Challenge, readBodyCapped, bazaarServiceMeta } from "./spotcheck.js";
 import { canonicalize, signObject, signBytes } from "./sign.js";
 import { noteD1Size } from "./d1size.js";
-import { feedObserveOn, feedStatementsForWatch, feedOptOut, optInAllowed, optInMax, isOptedIn, setOptIn } from "./feed.js";
+import { falseAlarmStats, feedObserveOn, feedStatementsForWatch, feedOptOut, optInAllowed, optInMax, isOptedIn, setOptIn } from "./feed.js";
 import { methodNotAllowed, inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER } from "./ops.js";
 
 export const WATCH_PRICE_ATOMIC = "1000000";
@@ -580,7 +580,10 @@ export async function stats(env, now = new Date()) {
   const r = (await db.prepare("SELECT SUM(status = 'active') AS active, SUM(status = 'paused') AS paused, SUM(paid > 0) AS paid_watches, MIN(CASE WHEN paid > 0 THEN created_at END) AS first_paid_at, SUM(probes_total) AS probes FROM watches WHERE status != 'deleted'").first()) || {};
   const days = r.first_paid_at ? Math.floor((new Date(now).getTime() - new Date(r.first_paid_at).getTime()) / DAY) : 0;
   const active = r.active || 0;
+  let feedFa = null;
+  try { feedFa = await falseAlarmStats(env, now); } catch (e) { feedFa = { error: String((e && e.message) || e).slice(0, 120) }; }
   return {
+    feed_false_alarms: feedFa, // 0.59.8 observe-mode false-alarm metric (feed.js falseAlarmsOf)
     active, paused: r.paused || 0, watch_max: watchMax(env), probes_total: r.probes || 0,
     queues: { threshold: QUEUE_THRESHOLD, move_to_queues: active >= QUEUE_THRESHOLD },
     pricing_review: { paid_watches: r.paid_watches || 0, first_paid_at: r.first_paid_at || null, days_since_first_paid: days, due: days >= PRICING_REVIEW.days || (r.paid_watches || 0) >= PRICING_REVIEW.paid_watches, rule: "review at 60 days or 50 paid watches, from watch_usage" },

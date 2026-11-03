@@ -78,7 +78,7 @@ import { BRAND_ASSETS } from "./brand.js";
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.59.7";
+export const VERSION = "0.59.8";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -4628,7 +4628,7 @@ async function handlePaymentStatus(req, env, ctx, url, opts = {}) {
 export const ER_EXAMPLE_REQUEST = { url: "https://api.402rates.com/v1/ping", commitment_ref: "cm-0123456789abcdef" };
 export const ER_VERIFY = "For each key k in locked_commitments (drift_history, hygiene_detail): \"sha256:\" + hex(sha256(RFC 8785 JCS of {snapshot: revealed[k].snapshot, nonce: revealed[k].nonce})) must equal locked_commitments[k] from your free check. Then verify this receipt's ed25519 signature (JCS of the receipt minus signature) with the kid in /.well-known/402xagent-keys.json.";
 // 0.47.1: probes of our own routes are served in-process (same-zone subrequests 522), like the spot-check.
-export const feedDeps = (env) => ({ cfgOf: (e) => cfg(e), paymentHeader, decodePaymentHeader, checkPayload, verifyAndSettle, paymentRequirements, b64encode, ipPrefix });
+export const feedDeps = (env) => ({ cfgOf: (e) => cfg(e), paymentHeader, decodePaymentHeader, checkPayload, verifyAndSettle, paymentRequirements, b64encode, ipPrefix, indexerRe: INDEXER_RE });
 export const watchDeps = (env) => ({ fetchImpl: selfFetch(env), cfg: spotCfg(env), paymentHeader, decodePaymentHeader, checkPayload, verifyAndSettle, paymentRequirements, b64encode, ipPrefix });
 export function erCfg(env) { return { ...spotCfg(env), priceAtomic: ER_PAID_ATOMIC, priceUsd: ER_PRICE_USD }; }
 export const erNet = (c) => (c && c.label) || "Base";
