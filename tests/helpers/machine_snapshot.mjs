@@ -53,10 +53,13 @@ const POSTS = [
 export const LLMS_0590_LINE = /\n- Offline receipt verifier \(0\.59\.0; [^\n]*(?=\n)/;
 export const KEYS_0590_FIELD = /,\n  "offline_verifier": "https:\/\/402xagent\.com\/verify \(0\.59\.0: [^"\n]*"/;
 export const RECEIPT_0590_LINK = /<a href="\/verify\?id=sc-[0-9a-f]{16}">Verify offline/; // receipt pages: only the link target
+import { DOCS_PAYEE_GUARD } from "../../worker/src/docs.js";
 export function as0589(key, body) {
   if (process.env.SNAP_KEEP_0590 === "1" || typeof body !== "string") return body;
   if (/\/llms\.txt \[/.test(key)) return body.replace(LLMS_0590_LINE, "");
   if (/\/\.well-known\/402xagent-(keys|receipt-key)\.json \[/.test(key)) return body.replace(KEYS_0590_FIELD, "");
+  // 0.59.6: /docs gains exactly one block, the payee-guard section (tests/payee_guard_docs_0596_test.mjs checks it).
+  if (/^GET [^ ]+\/docs \[html\]$/.test(key) && body.includes(DOCS_PAYEE_GUARD + "\n")) return body.replace(DOCS_PAYEE_GUARD + "\n", "");
   if (/\/v1\/receipts\/sc-/.test(key)) return body.replace(RECEIPT_0590_LINK, '<a href="/docs#receipt-signatures">Verify offline');
   return body;
 }
@@ -106,7 +109,7 @@ export async function snapshotExtra(workerPath) {
   const out = {};
   const run = async (key, req) => {
     const res = await worker.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
-    const body = await res.text();
+    const body = as0589(key, await res.text()); // 0.59.6: /docs payee-guard block removed (see as0589)
     const headers = {};
     for (const [k, v] of [...res.headers.entries()].sort()) headers[k] = norm(v);
     out[key] = { status: res.status, headers, sha256: createHash("sha256").update(norm(body)).digest("hex") };
