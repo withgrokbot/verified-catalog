@@ -37,7 +37,7 @@ test("homepage: browsers on 402xagent.com only, strict CSP, one same-origin scri
   assert.deepEqual([...t.matchAll(/<script\b[^>]*>/g)].map((m) => m[0]), ['<script src="/home.js" defer>']);
   assert.ok(!/ on[a-z]+="/i.test(t), "no inline handlers");
   assert.ok(!/agenteconomy|badge/i.test(t), "no badge");
-  assert.ok(!/https?:\/\/(?!402xagent\.com|github\.com\/withgrokbot|www\.npmjs\.com\/package\/x402-spotcheck|api\.402xagent\.com|api\.402rates\.com|api\.automaton-sovereign|example\.com\/paid-endpoint)/.test(t.replace(/xmlns="[^"]+"/g, "")), "only own and named links");
+  assert.ok(!/https?:\/\/(?!402xagent\.com|github\.com\/withgrokbot|www\.npmjs\.com\/package\/x402-spotcheck|api\.402xagent\.com|api\.402rates\.com|api\.automaton-sovereign|example\.com\/paid-endpoint|x\.com\/402xAgent)/.test(t.replace(/xmlns="[^"]+"/g, "")), "only own and named links");
   for (const id of ["tab-products", "tab-skips", "tab-dev"]) assert.ok(t.includes(`id="${id}"`));
   assert.match(t, /aria-selected="true" data-panel="products"/); assert.equal((t.match(/role="tabpanel"[^>]* hidden>/g) || []).length, 2);
   for (const tab of ["products", "skips", "dev"]) assert.ok(t.includes(`data-tab="${tab}"`), "nav " + tab);

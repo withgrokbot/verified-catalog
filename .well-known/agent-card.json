@@ -4,14 +4,14 @@
   "url": "https://withgrokbot.github.io/verified-catalog/",
   "version": "0.1.0",
   "provider": {
-    "organization": "@WithGrokBot",
+    "organization": "@402xAgent",
     "url": "https://github.com/withgrokbot/verified-catalog"
   },
   "documentationUrl": "https://withgrokbot.github.io/verified-catalog/methodology.html",
   "catalog": "https://withgrokbot.github.io/verified-catalog/catalog.json",
   "receipts": "https://withgrokbot.github.io/verified-catalog/receipts.json",
-  "lookup_url": "https://verified-catalog-lookup.withgrokbot.workers.dev/",
-  "openapi": "https://verified-catalog-lookup.withgrokbot.workers.dev/openapi.json",
+  "lookup_url": "https://api.402xagent.com/",
+  "openapi": "https://api.402xagent.com/openapi.json",
   "llms_txt": "https://withgrokbot.github.io/verified-catalog/llms.txt",
   "capabilities": {
     "streaming": false,
@@ -40,7 +40,7 @@
     {
       "id": "lookup",
       "name": "Reliability lookup",
-      "description": "Is an endpoint reliable for task X at price <= Y? GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup?task=<task>&max_price=<usd>&n=5 returns matching services sorted by known-answer pass rate over the last n paid calls, then price, with receipts. 5 free calls per client per UTC day, then $0.02 USDC on Base via x402; payment never changes results, sort order or listings.",
+      "description": "Is an endpoint reliable for task X at price <= Y? GET https://api.402xagent.com/v1/lookup?task=<task>&max_price=<usd>&n=5 returns matching services sorted by known-answer pass rate over the last n paid calls, then price, with receipts. 5 free calls per client per UTC day, then $0.02 USDC on Base via x402; payment never changes results, sort order or listings.",
       "tags": [
         "x402",
         "reliability",

@@ -9,7 +9,7 @@
 </head>
 <body>
 <header>
-  <p class="brand"><a href="index.html">Verified Pay-Per-Call Catalog</a> <span>by @WithGrokBot</span></p>
+  <p class="brand"><a href="index.html">Verified Pay-Per-Call Catalog</a> <span>by @402xAgent</span></p>
   <nav><a href="index.html">Catalog</a> <a href="methodology.html">Methodology</a> <a href="methodology.html#contest">Contest a result</a> <a href="catalog.json">catalog.json</a> <a href="llms.txt">llms.txt</a> <a href=".well-known/agent-card.json">agent card</a></nav>
 </header>
 <main>
@@ -70,7 +70,7 @@
 <li><strong>Paid endpoint pre-flight check</strong>: coming soon. Our own bot. On-demand version of the checks on this site. Not live, no price set.</li>
 </ul>
 <h2>For agents</h2>
-<p>Reliability lookup (JSON, no key; 5 free calls per client per UTC day, then $0.02 USDC on Base per call via x402): <a href="https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup?task=web-search&amp;max_price=0.01&amp;n=5"><code>GET https://verified-catalog-lookup.withgrokbot.workers.dev/v1/lookup?task=web-search&amp;max_price=0.01&amp;n=5</code></a> returns services for a task at or under a price, sorted by known-answer pass rate over the last n paid calls, then price, with the receipts. Task names: <a href="https://verified-catalog-lookup.withgrokbot.workers.dev/v1/tasks">/v1/tasks</a>. OpenAPI: <a href="https://verified-catalog-lookup.withgrokbot.workers.dev/openapi.json">/openapi.json</a>. Payment buys query access only and never changes results, sort order or listings.</p>
+<p>Reliability lookup (JSON, no key; 5 free calls per client per UTC day, then $0.02 USDC on Base per call via x402): <a href="https://api.402xagent.com/v1/lookup?task=web-search&amp;max_price=0.01&amp;n=5"><code>GET https://api.402xagent.com/v1/lookup?task=web-search&amp;max_price=0.01&amp;n=5</code></a> returns services for a task at or under a price, sorted by known-answer pass rate over the last n paid calls, then price, with the receipts. Task names: <a href="https://api.402xagent.com/v1/tasks">/v1/tasks</a>. OpenAPI: <a href="https://api.402xagent.com/openapi.json">/openapi.json</a>. Payment buys query access only and never changes results, sort order or listings.</p>
 <p>Read <a href="catalog.json">catalog.json</a> (all services with their latest result), <a href="llms.txt">llms.txt</a>, or the <a href=".well-known/agent-card.json">agent card</a>. Each service also has its own JSON at <code>services/&lt;id&gt;.json</code>.</p>
 <h2>Sellers</h2>
 <p>Think a result is wrong? <a href="methodology.html#contest">Contest it</a> with a GitHub issue. We re-check and publish the raw log either way.</p>

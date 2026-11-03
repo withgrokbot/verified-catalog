@@ -70,8 +70,17 @@ export function as0598(key, body) {
     .replace(/(<input id="hc-url"[^>]*) value=""/, `$1 value="${DOCS_TRYIT_PREFILL}"`);
   return body;
 }
+// 0.61.0: the X handle (@402xAgent) adds two twitter: meta lines and one footer link to the HTML pages. Unless
+// SNAP_KEEP_0610=1, snapshots remove exactly those additions, so older fixtures still prove every other byte is unchanged;
+// tests/agentcard_logo_0610_test.mjs checks the additions themselves.
+export const META_0610 = '<meta name="twitter:site" content="@402xAgent">\n<meta name="twitter:creator" content="@402xAgent">\n';
+export const FOOTER_X_0610 = '<li><a href="https://x.com/402xAgent">X @402xAgent</a></li>';
+export function strip0610(body) {
+  if (process.env.SNAP_KEEP_0610 === "1" || typeof body !== "string") return body;
+  return body.split(META_0610).join("").split(FOOTER_X_0610).join("");
+}
 export function as0589(key, body) {
-  body = as0598(key, body);
+  body = as0598(key, strip0610(body));
   if (process.env.SNAP_KEEP_0590 === "1" || typeof body !== "string") return body;
   if (/\/llms\.txt \[/.test(key)) return body.replace(LLMS_0590_LINE, "");
   if (/\/\.well-known\/402xagent-(keys|receipt-key)\.json \[/.test(key)) return body.replace(KEYS_0590_FIELD, "");
@@ -167,7 +176,7 @@ export async function snapshot0583(workerPath) {
     const [accept, ua] = a ? a.split("|") : [null, null];
     const headers = an === "html" ? HTML : { "cf-connecting-ip": "203.0.113.9", ...(ua ? { "user-agent": ua } : {}), ...(accept ? { accept } : {}) };
     const res = await mod.default.fetch(new Request(h + "/pricing", { headers }), env, { waitUntil() {}, passThroughOnException() {} });
-    const body = await res.text(); const hd = {};
+    const body = strip0610(await res.text()); const hd = {}; // 0.61.0
     for (const [k, v] of [...res.headers.entries()].sort()) hd[k] = norm(v);
     out[`GET ${h}/pricing [${an}]`] = { status: res.status, headers: hd, sha256: createHash("sha256").update(norm(body)).digest("hex") };
   }
@@ -206,6 +215,7 @@ export const HOME_FOOTER_0584 = '<div><h4>Products</h4><ul><li><a href="/docs#qu
 export const HOME_FOOTER_0586 = '<div><h4>Products</h4><ul><li><a href="/docs/check">402xAgent Check</a></li><li><a href="/docs/endpoint-report">Endpoint Report</a></li><li><a href="/docs/payment-status">Payment Status</a></li><li><a href="/docs/watchtower">Watchtower</a></li><li><a href="/docs/facilitator-check">Facilitator Check</a></li><li><a href="/docs/hosted">Hosted Mode</a></li><li><a href="/#audit-layer">Audit layer</a></li></ul></div>';
 /** The homepage body with the 0.58.6 footer Products list put back to 0.58.4's (throws unless it occurs exactly once). */
 export function restoreHomeFooter(body) {
+  body = strip0610(body);
   if (body.split(HOME_FOOTER_0586).length !== 2) throw new Error("0.58.6 footer list not found exactly once");
   return body.replace(HOME_FOOTER_0586, HOME_FOOTER_0584);
 }

@@ -75,10 +75,11 @@ const transientWindowText = (env) => termsWindowText(transientSkipAfterHours(env
 import { termsWindowText, QUOTE_ID_RE, quoteTerms, applyQuote, quoteChangedText, freshnessFor, termsMaxAgeHours, ageHours } from "./freshness.js"; // 0.54.0
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
+import { agentCard, AGENT_CARD_PATHS } from "./agentcard.js"; // 0.61.0
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.60.0";
+export const VERSION = "0.61.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -4248,6 +4249,7 @@ const routeInnerHolder = {
     if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return handleReceipts(url, env);
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
     if (path === "/.well-known/x402") return json(wellKnownX402(env, url.hostname), 200, { "cache-control": "public, max-age=300" });
+    if (AGENT_CARD_PATHS.has(path)) return json(agentCard(VERSION), 200, { "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" }); // 0.61.0: A2A AgentCard
     if (path === "/.well-known/402xagent-keys.json" || path === "/.well-known/402xagent-receipt-key.json") return json(receiptKeysDoc(), 200, { "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" });
     if (path.startsWith("/badge/")) return handleBadge(req, env, url, CANON_ORIGIN);
     if (path === "/saves" || path === "/saves.json") { const r = await handleSaves(req, env, url, CANON_ORIGIN); if (r) return r; } // 0.35.0: SAVES_PAGE flag, off by default

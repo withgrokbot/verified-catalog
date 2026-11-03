@@ -42,7 +42,7 @@ export function footerHtml(fp = {}) {
 <div class="footer-brand"><a class="brand" href="/" aria-label="402xAgent home"><span class="footer-logo-chip"><img src="${LOGO}" alt="402xAgent" width="49" height="40"></span></a><p>Verification for the x402 economy. Ask before your agent pays, and keep the receipt.</p></div>
 <div><h4>Products</h4><ul><li><a href="${L.check}">402xAgent Check</a></li>${fp.endpointReport ? `<li><a href="${L.report}">Endpoint Report</a></li>` : ""}<li><a href="${L.status}">Payment Status</a></li>${fp.watchtower ? `<li><a href="${L.watch}">Watchtower</a></li>` : ""}<li><a href="${L.facil}">Facilitator Check</a></li><li><a href="${L.hosted}">Hosted Mode</a></li>${audit}</ul></div>
 <div><h4>Resources</h4><ul><li><a href="/docs">Docs</a></li><li><a href="/blog">Blog</a></li><li><a href="/v1/skips">Receipts</a></li><li><a href="/pricing">Pricing</a></li><li><a href="${GH_GUARD}">GitHub</a></li><li><a href="${NPM_GUARD}">npm: x402-spotcheck</a></li></ul></div>
-<div><h4>Company</h4><ul><li><a href="/health">Status</a></li><li><a href="${GH_REPO}/issues">Contact</a></li><li><a href="/rules">Verdict rules</a></li></ul></div>
+<div><h4>Company</h4><ul><li><a href="/health">Status</a></li><li><a href="${GH_REPO}/issues">Contact</a></li><li><a href="https://x.com/402xAgent">X @402xAgent</a></li><li><a href="/rules">Verdict rules</a></li></ul></div>
 </div>
 <div class="footer-bottom"><span>402xAgent — verification for the x402 economy.</span><span>402xagent.com · Probes never pay the target</span></div>
 </div>

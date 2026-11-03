@@ -159,6 +159,8 @@ curl "https://api.402xagent.com/v1/products/endpoint-spot-check?url=https://api.
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="402xAgent logo: check before your agent pays">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@402xAgent">
+<meta name="twitter:creator" content="@402xAgent">
 <meta name="twitter:title" content="402xAgent: check before your agent pays">
 <meta name="twitter:description" content="${esc(desc)}">
 <meta name="twitter:image" content="https://402xagent.com/og.png?v=${V}">

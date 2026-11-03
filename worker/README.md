@@ -16,7 +16,7 @@ from the catalog's own data and counts distinct clients for the demand test. It 
 $0.02 USDC on Base. **Payment never changes results, sort order or listings**: it buys query access only, and free, paid
 and exempt lookups run the same `lookup()` on the same data (unit-tested: paid and free results are identical).
 
-Live: https://verified-catalog-lookup.withgrokbot.workers.dev/ (deployed 2026-09-30; test day 1 = 2026-10-01).
+Live: https://api.402xagent.com/ (originally https://verified-catalog-lookup.withgrokbot.workers.dev/, still served) (deployed 2026-09-30; test day 1 = 2026-10-01).
 
 ```
 GET /v1/lookup?task=web-search&max_price=0.01&n=5     # n = paid receipts per service (1-20, default 5)
@@ -478,3 +478,16 @@ to 0.58.2 by `tests/machine_surfaces_test.mjs` (fixture `tests/fixtures/machine_
 
 - **Competitor gate.** On `/v1/feed*`, a User-Agent that matches `INDEXER_RE` is logged and never blocked. The log line is `{"feed":"gate","indexer_ua":true,"denied":null,"path","method"}` and holds no UA, IP or key. Two deny lists are empty by default: `FEED_DENY_KEYS` (a comma list of `feed_keys.key_hash`) and `FEED_DENY_PREFIXES` (a comma list of `ipPrefix()` values such as `203.0.113.0/24` or `2001:db8:1::/48`). A client on either list gets a 403 (`feed_denied`) on every feed route, including `POST /v1/feed/subscribe` at every tier.
 - **False alarm (observe mode).** A candidate is an observation with a drift, down or recovery event, or with a change in state or terms. It counts as a false alarm when the endpoint's next observation arrives within `FEED_FA_HOURS` (default 6) and restores the earlier `state`, `http_status` and `terms_sig`, meaning the change did not reproduce on the next probe. Candidates whose next observation shows the change persisting, or arrives after the window, count as **held**. Candidates still waiting for a next observation inside the window count as **pending**. `rate = false_alarms / (false_alarms + held)`, or null when nothing is settled. The window is the last 30 days. The result is reported as `feed_false_alarms` in `GET /v1/watch/stats` (Bearer WATCH_STATS_TOKEN).
+
+## 0.61.0: A2A agent card, 400px logo, .mcp.json, X handle
+
+- `GET /.well-known/agent.json` (alias `/.well-known/agent-card.json`, the A2A v1.0 well-known path): A2A AgentCard
+  (`src/agentcard.js`), validated against the A2A v1.0 JSON schema (`tests/fixtures/a2a/a2a-v1.0.json`). v1.0 has no
+  top-level `url`; the API origin is `supportedInterfaces[0].url`.
+- `GET /logo-400.png`: 400x400 PNG rendered by the brand pipeline that makes `apple-touch-icon.png` (same mark, white tile,
+  12% padding), served from `BRAND_ASSETS` with the same 7-day cache.
+- Root `.mcp.json` for Cursor / Cursor Directory: `{"mcpServers":{"402xagent":{"url":"https://api.402xagent.com/mcp"}}}`.
+- X handle @402xAgent: `twitter:site` / `twitter:creator` meta on the homepage, footer link to https://x.com/402xAgent.
+  Static catalog metadata (README, llms.txt, catalog.json, index.html, services/*.html, .well-known/agent-card.json,
+  mcp/server.py) now points at https://api.402xagent.com instead of the workers.dev host, which keeps serving.
+Tests: `tests/agentcard_logo_0610_test.mjs`.

@@ -21,7 +21,7 @@ import urllib.request
 from decimal import Decimal, InvalidOperation
 
 MCP_CLIENT = "vc-mcp"
-DEFAULT_LOOKUP_URL = "https://verified-catalog-lookup.withgrokbot.workers.dev/"
+DEFAULT_LOOKUP_URL = "https://api.402xagent.com/"
 LOOKUP_TIMEOUT_S = 15
 
 PROTOCOL = "2025-06-18"
