@@ -2949,7 +2949,36 @@ export function pricingDoc(c) {
   };
 }
 
+// AgentDrives checklist: every operation that can answer 402 carries an x-payment-info block
+// (fixed price, or min/max for bulk). /v1/lookup stays free-first and undeclared on purpose.
+const XPI_SKIP = new Set(["/v1/lookup"]);
+function xpiPrices(env) {
+  const p2m = p2mOn(env) ? { [P2M_PATH]: { mode: "fixed", currency: "USD", amount: p2mCfg(env).priceUsd } } : {};
+  return {
+    ...p2m,
+    "/v1/products/payment-status": { mode: "fixed", currency: "USD", amount: "0.02" },
+    "/v1/products/endpoint-spot-check": { mode: "fixed", currency: "USD", amount: "0.02", amount_atomic: "20000" },
+    "/v1/watch": { mode: "fixed", currency: "USD", amount: WATCH_PRICE_USD },
+    "/v1/watch/{watch_id}/renew": { mode: "fixed", currency: "USD", amount: WATCH_PRICE_USD },
+    [ER_ROUTE_PATH]: { mode: "fixed", currency: "USD", amount: ER_PRICE_USD },
+    [BULK_ROUTE_PATH]: { mode: "dynamic", currency: "USD", min: ER_PRICE_USD, max: "0.20" },
+  };
+}
 export function openapi(origin, env = {}) {
+  const doc = openapiBase(origin, env);
+  if (String(env.OPENAPI_XPI || "").toLowerCase() === "off") return doc;
+  const c = spotCfg(env), prices = xpiPrices(env);
+  for (const [path, item] of Object.entries(doc.paths || {})) {
+    if (XPI_SKIP.has(path)) continue;
+    for (const op of Object.values(item)) {
+      if (!op || typeof op !== "object" || !op.responses || !op.responses[402] || op["x-payment-info"]) continue;
+      if (!prices[path]) continue;
+      op["x-payment-info"] = { price: prices[path], protocols: [{ x402: { scheme: "exact", network: c.network, asset: c.asset, payTo: c.payTo } }] };
+    }
+  }
+  return doc;
+}
+function openapiBase(origin, env = {}) {
   const c = cfg(env);
   return {
     openapi: "3.1.0",

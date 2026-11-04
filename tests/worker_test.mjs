@@ -5052,6 +5052,17 @@ test("0.62.0 receipt guard: 429 + Retry-After past the per-client limit, payscou
 
 let passed = 0, skipped = 0;
 const SKIP = Symbol("skip");
+test("openapi: every paid (402) operation except free-first /v1/lookup carries x-payment-info", async () => {
+  const oa = (await send("/openapi.json", {})).body;
+  let n = 0;
+  for (const [p, item] of Object.entries(oa.paths)) for (const [m, op] of Object.entries(item)) {
+    if (!op || !op.responses || !op.responses[402] || p === "/v1/lookup") continue;
+    n++;
+    assert.ok(op["x-payment-info"], `${m} ${p} missing x-payment-info`);
+  }
+  assert.ok(n >= 6, "expected several paid operations, got " + n);
+});
+
 for (const [name, fn] of T) {
   try {
     await fn({ skip(msg) { throw { [SKIP]: msg }; } });
@@ -5064,3 +5075,4 @@ for (const [name, fn] of T) {
 }
 console.log(`${passed}/${T.length - skipped} worker tests passed` + (skipped ? ` (${skipped} skipped)` : ""));
 process.exit(passed === T.length ? 0 : 1);
+
