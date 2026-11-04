@@ -214,8 +214,8 @@ export function keyFromReq(req) {
 export async function loadKey(env, raw, now = new Date()) {
   const h = await hashKey(env, raw);
   if (!billingOn(env)) return env.RECEIPTS_DB.prepare("SELECT id, plan, monthly_quota, status FROM api_keys WHERE key_hash = ?").bind(h).first();
-  // BILLING=1 (needs migration 0027): a paid plan past its end date drops to free here, before quota and rate limits
-  return applyPlanEnd(env, await env.RECEIPTS_DB.prepare("SELECT id, plan, monthly_quota, status, plan_ends_at FROM api_keys WHERE key_hash = ?").bind(h).first(), now);
+  // BILLING=1 (needs migrations 0027 + 0028): a paid plan past its end date drops to free here, before quota and rate limits
+  return applyPlanEnd(env, await env.RECEIPTS_DB.prepare("SELECT id, plan, monthly_quota, status, plan_ends_at, grace_ends_at FROM api_keys WHERE key_hash = ?").bind(h).first(), now);
 }
 /** Count one call in the key's minute bucket. {limited, suspended} — a burst over perMin x SPIKE_FACTOR suspends the key. */
 export async function keyMinute(env, key, now = new Date()) {

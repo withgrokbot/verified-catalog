@@ -120,10 +120,9 @@ test("plan changes: checkout -> starter 5,000; upgrade -> pro 25,000; downgrade 
   assert.equal((await call()).status, 200); const r = await call(); assert.equal(r.status, 429); assert.equal((await r.json()).reason, "quota_exceeded");
 });
 
-test("downgrade: cancel at period end, failed payment and deletion keep the paid plan until period end, then free (500)", async () => {
+test("downgrade: cancel at period end, past_due and deletion keep the paid plan until period end, then free (500)", async () => {
   for (const [name, ev] of [
     ["cancel_at_period_end", subEv("evt_c1", "active", "price_pro", { cancel_at_period_end: true })],
-    ["payment_failed", { id: "evt_f1", type: "invoice.payment_failed", data: { object: { subscription: "sub_1", customer: "cus_1", lines: { data: [{ period: { end: nowS() + 86400 * 20 } }] } } } }],
     ["past_due", subEv("evt_p1", "past_due", "price_pro")],
     ["deleted_mid_period", { id: "evt_d1", type: "customer.subscription.deleted", data: { object: { id: "sub_1", status: "canceled", metadata: { key_id: "key-1" }, current_period_end: nowS() + 86400 * 20 } } }],
   ]) {
@@ -152,4 +151,54 @@ test("no leaks: D1 rows hold only Stripe ids, docs list the plans, and the raw k
   assert.equal(docs.billing.enabled, true); assert.match(docs.billing.rules[0], /hard cap/);
   assert.deepEqual([docs.price.plans.starter.usd_per_month, docs.price.plans.starter.monthly_renders, docs.price.plans.pro.usd_per_month, docs.price.plans.pro.monthly_renders], [10, 5000, 29, 25000]);
   for (const s of [RAW, SK, WHSEC, "price_pro"]) assert.ok(!JSON.stringify(docs).includes(s));
+});
+
+// ---- 0.66.1 grace period after invoice.payment_failed
+const failed = (id, created) => ({ id, type: "invoice.payment_failed", created, data: { object: { subscription: "sub_1", customer: "cus_1", lines: { data: [{ period: { end: nowS() + 86400 * 20 } }] } } } });
+const fakeLaunch = async () => ({ newPage: async () => ({ setRequestInterception: async () => {}, on: () => {}, goto: async () => ({ status: () => 200 }), pdf: async () => new Uint8Array(10) }), close: async () => {} });
+const useKey = (e, now) => { const url = new URL(API + RENDER_PDF_PATH); return handleRender(new Request(url, { method: "POST", headers: { "x-api-key": RAW, "cf-connecting-ip": "198.51.100." + Math.floor(Math.random() * 250) }, body: JSON.stringify({ url: "https://ok.fixture/" }) }), e, {}, url, "pdf", { now, launch: fakeLaunch }); };
+
+test("grace: payment_failed keeps the paid plan for 3 days from the event time, then free (500) on next use", async () => {
+  const e = env(); await addKey(e); await signed(e, completed("evt_0", "pro"));
+  const created = nowS() - 3600;
+  const r = await signed(e, failed("evt_f", created)); assert.equal((await r.json()).outcome, "grace_until_later");
+  let k = await keyRow(e); assert.equal(k.plan, "pro"); assert.equal(k.grace_ends_at, created + 3 * 86400); assert.equal(k.plan_ends_at, null, "grace is separate from the period end");
+  assert.equal((await useKey(e, new Date((created + 3 * 86400 - 60) * 1000))).status, 200);
+  k = await keyRow(e); assert.deepEqual([k.plan, k.monthly_quota], ["pro", 25000], "inside the grace window");
+  const res = await useKey(e, new Date((created + 3 * 86400 + 1) * 1000));
+  assert.equal(res.headers.get("x-quota-limit"), "500");
+  k = await keyRow(e); assert.deepEqual([k.plan, k.monthly_quota, k.grace_ends_at], ["free", 500, null], "expired grace drops to free");
+  // a second failure never extends an earlier grace end
+  const e2 = env(); await addKey(e2); await signed(e2, completed("evt_0", "pro"));
+  await signed(e2, failed("evt_f1", created)); await signed(e2, failed("evt_f2", created + 86400));
+  assert.equal((await keyRow(e2)).grace_ends_at, created + 3 * 86400);
+});
+
+test("grace recovery: a later successful payment or a subscription update to active clears it; cancel-at-period-end is kept", async () => {
+  for (const rec of [
+    { id: "evt_paid", type: "invoice.paid", data: { object: { subscription: "sub_1" } } },
+    { id: "evt_ok", type: "invoice.payment_succeeded", data: { object: { parent: { subscription_details: { subscription: "sub_1" } } } } },
+    subEv("evt_active", "active", "price_pro"),
+  ]) {
+    const e = env(); await addKey(e); await signed(e, completed("evt_0", "pro"));
+    await signed(e, failed("evt_f", nowS())); assert.ok((await keyRow(e)).grace_ends_at, rec.type);
+    await signed(e, rec); const k = await keyRow(e); assert.equal(k.grace_ends_at, null, rec.type + " clears grace"); assert.equal(k.plan, "pro");
+    await useKey(e, new Date((nowS() + 10 * 86400) * 1000)); assert.equal((await keyRow(e)).plan, "pro", rec.type + ": no drop after recovery");
+  }
+  const e = env(); await addKey(e); await signed(e, completed("evt_0", "pro"));
+  await signed(e, subEv("evt_c", "active", "price_pro", { cancel_at_period_end: true }));
+  const ends = (await keyRow(e)).plan_ends_at;
+  await signed(e, failed("evt_f", nowS())); await signed(e, { id: "evt_p", type: "invoice.paid", data: { object: { subscription: "sub_1" } } });
+  assert.equal((await keyRow(e)).plan_ends_at, ends, "a recovered payment does not undo a cancel at period end");
+});
+
+test("grace: BILLING_GRACE_DAYS is configurable (0 = drop on next use; bad values fall back to 3)", async () => {
+  const { graceDays } = await import("../worker/src/billing.js");
+  assert.equal(graceDays({}), 3); assert.equal(graceDays({ BILLING_GRACE_DAYS: "7" }), 7); assert.equal(graceDays({ BILLING_GRACE_DAYS: "-1" }), 3); assert.equal(graceDays({ BILLING_GRACE_DAYS: "abc" }), 3); assert.equal(graceDays({ BILLING_GRACE_DAYS: "0" }), 0);
+  const e = env({ BILLING_GRACE_DAYS: "7" }); await addKey(e); await signed(e, completed("evt_0", "pro"));
+  const c = nowS(); await signed(e, failed("evt_f", c)); assert.equal((await keyRow(e)).grace_ends_at, c + 7 * 86400);
+  const z = env({ BILLING_GRACE_DAYS: "0" }); await addKey(z); await signed(z, completed("evt_0", "pro"));
+  await signed(z, failed("evt_f", nowS() - 5)); await useKey(z, new Date()); assert.equal((await keyRow(z)).plan, "free");
+  const docs = await (await worker.fetch(new Request(API + "/v1/render/docs"), e, { waitUntil() {} })).json();
+  assert.match(docs.billing.rules[1], /7-day grace period/);
 });
