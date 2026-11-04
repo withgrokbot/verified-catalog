@@ -241,6 +241,27 @@ export async function releaseQuota(env, key, now = new Date()) {
 }
 
 export const RENDER_VERIFY_PATH = "/v1/render/keys/verify";
+export const RENDER_UNSUB_PATH = "/v1/render/keys/unsubscribe";
+export const RENDER_EMAIL_SUBJECT = "Confirm your 402xAgent API key";
+/** The one signup email: plain text only (the link is shown as-is), short plain subject, and a List-Unsubscribe that
+ * cancels this pending signup. It is the only mail we send to the address; we keep no address to mail again. */
+export function signupEmail(to, from, link, unsubLink) {
+  return {
+    to, from: { email: from, name: "402xAgent" }, subject: RENDER_EMAIL_SUBJECT,
+    text: `Someone (hopefully you) asked for a free 402xAgent Render API key for this address.\n\nTo confirm, open this link within 30 minutes and press the button:\n${link}\n\nIf you didn't ask for this, ignore this email. No key is created unless the link is opened, and we won't email you again.\n\n402xAgent - https://402xagent.com`,
+    headers: { "List-Unsubscribe": `<${unsubLink}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+  };
+}
+/** List-Unsubscribe target: cancels the pending signup for that token (one-click POST or GET page). Always 200. */
+export async function handleRenderUnsubscribe(req, env, ctx, url) {
+  if (!renderOn(env)) return J({ error: "not found" }, 404);
+  const token = url.searchParams.get("token") || "";
+  if (req.method === "POST" && env.RECEIPTS_DB && pepper(env) && /^[A-Za-z0-9_-]{20,100}$/.test(token)) {
+    try { await env.RECEIPTS_DB.prepare("DELETE FROM render_signups WHERE token_hash = ?").bind(await tokenHash(env, token)).run(); } catch (_) {}
+  }
+  if (req.method === "POST") return J({ ok: true, note: "Signup cancelled. We send no other email to this address." });
+  return H(`<h1>Unsubscribe</h1><p>That email was a one-time confirmation link. We don't send any other email and keep no address to mail again.</p><form method="post" action="${RENDER_UNSUB_PATH}?token=${esc(encodeURIComponent(token))}"><button type="submit">Cancel this signup</button></form>`);
+}
 export const RENDER_VERIFY_TTL_S = 30 * 60; // a verify link works for 30 minutes, once
 export const emailOn = (env) => !!(env.RENDER_EMAIL && typeof env.RENDER_EMAIL.send === "function" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(env.RENDER_EMAIL_FROM || "")));
 const SENT = { status: "check_your_email", note: "If this address can get a free key, a one-time link is on its way. It expires in 30 minutes. The key is issued only when you open the link." };
@@ -267,9 +288,7 @@ export async function handleRenderSignup(req, env, ctx, url, opts = {}) {
   await env.RECEIPTS_DB.prepare("INSERT INTO render_signups (token_hash, email_hash, created_at, expires_at) VALUES (?, ?, ?, ?)").bind(await tokenHash(env, token), emailHash, t, t + RENDER_VERIFY_TTL_S).run();
   const link = url.origin + RENDER_VERIFY_PATH + "?token=" + encodeURIComponent(token);
   try {
-    await env.RENDER_EMAIL.send({ to: e.email, from: { email: String(env.RENDER_EMAIL_FROM), name: "402xAgent" }, subject: "Your 402xAgent Render API key: confirm your email",
-      text: `Open this link within 30 minutes to get your free 402xAgent Render API key (${RENDER_PLANS.free.quota} renders a month):\n\n${link}\n\nIf you didn't ask for this, ignore this email. Nothing happens unless the link is opened.`,
-      html: `<p>Open this link within 30 minutes to get your free 402xAgent Render API key (${RENDER_PLANS.free.quota} renders a month):</p><p><a href="${esc(link)}">Confirm and get my key</a></p><p>If you didn't ask for this, ignore this email. Nothing happens unless the link is opened.</p>` });
+    await env.RENDER_EMAIL.send(signupEmail(e.email, String(env.RENDER_EMAIL_FROM), link, url.origin + RENDER_UNSUB_PATH + "?token=" + encodeURIComponent(token)));
   } catch (err) {
     await env.RECEIPTS_DB.prepare("DELETE FROM render_signups WHERE email_hash = ?").bind(emailHash).run();
     return J({ error: "could not send the verification email, try again later", reason: "email_send_failed" }, 502);

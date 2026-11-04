@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import worker from "../worker/src/index.js";
 import { QuotaCounter, openapi } from "../worker/src/lib.js";
-import { handleRender, handleRenderSignup, handleRenderVerify, RENDER_VERIFY_PATH, makeRequestGuard, checkEmail, runRender, RENDER_PDF_PATH, RENDER_SHOT_PATH, RENDER_KEYS_PATH, RENDER_MAX_HTML_BYTES, RENDER_MAX_OUT_BYTES, RENDER_PLANS } from "../worker/src/render.js";
+import { handleRenderUnsubscribe, handleRender, handleRenderSignup, handleRenderVerify, RENDER_VERIFY_PATH, makeRequestGuard, checkEmail, runRender, RENDER_PDF_PATH, RENDER_SHOT_PATH, RENDER_KEYS_PATH, RENDER_MAX_HTML_BYTES, RENDER_MAX_OUT_BYTES, RENDER_PLANS } from "../worker/src/render.js";
 import { sqliteD1 as d1 } from "./helpers/sqlite_d1.mjs";
 
 const PAY_TO = "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674";
@@ -189,7 +189,11 @@ test("email verification: signup stores a pending row and mails a one-time link;
   const e = env(); mail = [];
   const r = await call(e, RENDER_KEYS_PATH, { email: "Dev@Example.com" }); assert.equal(r.status, 202);
   const b = await r.json(); assert.equal(b.status, "check_your_email"); assert.equal(b.api_key, undefined);
-  assert.equal(mail.length, 1); assert.equal(mail[0].to, "dev@example.com"); assert.equal(mail[0].from.email, "keys@402xagent.example"); assert.ok(mail[0].text && mail[0].html);
+  assert.equal(mail.length, 1); assert.equal(mail[0].to, "dev@example.com"); assert.equal(mail[0].from.email, "keys@402xagent.example"); assert.ok(mail[0].text); assert.equal(mail[0].html, undefined, "plain text only");
+  assert.equal(mail[0].subject, "Confirm your 402xAgent API key");
+  assert.ok(mail[0].text.includes(API + RENDER_VERIFY_PATH + "?token="), "verify link shown as plain text");
+  assert.match(mail[0].headers["List-Unsubscribe"], /^<https:\/\/api\.402xagent\.com\/v1\/render\/keys\/unsubscribe\?token=[A-Za-z0-9_-]+>$/);
+  assert.equal(mail[0].headers["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click");
   assert.equal((await e.RECEIPTS_DB.prepare("SELECT COUNT(*) AS n FROM api_keys").first()).n, 0, "no key before verification");
   const token = tokenOf(mail[0]);
   const pend = await e.RECEIPTS_DB.prepare("SELECT * FROM render_signups").first();
@@ -266,4 +270,18 @@ test("discovery: openapi x-payment-info + llms.txt entry with RENDER=1; absent b
   assert.doesNotMatch(await llms({ ...env(), RENDER: undefined }), /Render \(PDF/);
   const docs = await worker.fetch(new Request(API + "/v1/render/docs"), { ...env(), RENDER: "1" }, { waitUntil() {} });
   assert.equal(docs.status, 200); assert.equal((await docs.json()).price.x402_per_render_usd, "0.002");
+});
+
+test("List-Unsubscribe one-click cancels the pending signup; the GET page is honest and changes nothing", async () => {
+  const e = env(); mail = [];
+  await call(e, RENDER_KEYS_PATH, { email: "unsub@example.com" });
+  const unsub = new URL(mail[0].headers["List-Unsubscribe"].slice(1, -1));
+  const g = await handleRenderUnsubscribe(new Request(unsub), e, {}, unsub);
+  assert.equal(g.status, 200); assert.match(await g.text(), /one-time/);
+  assert.equal((await e.RECEIPTS_DB.prepare("SELECT COUNT(*) AS n FROM render_signups").first()).n, 1);
+  const p = await handleRenderUnsubscribe(new Request(unsub, { method: "POST", body: "List-Unsubscribe=One-Click" }), e, {}, unsub);
+  assert.equal(p.status, 200);
+  assert.equal((await e.RECEIPTS_DB.prepare("SELECT COUNT(*) AS n FROM render_signups").first()).n, 0);
+  assert.equal((await verify(e, tokenOf(mail[0]))).status, 400, "the link no longer issues a key");
+  const r = await worker.fetch(new Request(unsub, { method: "POST" }), e, { waitUntil() {} }); assert.equal(r.status, 200, "routed");
 });
