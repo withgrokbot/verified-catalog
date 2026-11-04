@@ -32,11 +32,11 @@
   "quality_test": null,
   "paid_receipts": 0,
   "latest": {
-    "checked_at": "2026-11-03T20:29:53Z",
+    "checked_at": "2026-11-04T20:48:18Z",
     "mode": "dry-run",
     "reachable": false,
     "http_status": null,
-    "latency_ms": 144,
+    "latency_ms": 337,
     "x402_challenge": false,
     "x402_version": null,
     "advertised_price_usd": "0.01",
@@ -48,15 +48,15 @@
     "payment_refused_reason": null,
     "error": "URLError: [Errno -2] Name or service not known",
     "quality": null,
-    "raw_log": "results/raw/20261103T202951Z/bilbop-sol-mint-info.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261103T202951Z/bilbop-sol-mint-info.json"
+    "raw_log": "results/raw/20261104T204816Z/bilbop-sol-mint-info.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261104T204816Z/bilbop-sol-mint-info.json"
   },
   "history_summary": {
-    "checks": 10,
+    "checks": 11,
     "reachable": 0,
     "x402_challenge_ok": 0,
     "paid_checks": 0,
     "first_checked": "2026-10-27T14:53:17Z",
-    "last_checked": "2026-11-03T20:29:53Z"
+    "last_checked": "2026-11-04T20:48:18Z"
   }
 }
