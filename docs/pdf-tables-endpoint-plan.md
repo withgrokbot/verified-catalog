@@ -27,10 +27,11 @@ The MCP tool `pdf_tables` reuses the same route, the same way `page_to_markdown`
 | Scanned page (OCR, 2 to 4 GB) | ~4 to 15 s/page (OSD rotation check plus Tesseract at 300 DPI) |
 | 5-page digital PDF end to end | ~5 to 8 s |
 | 5-page scanned PDF end to end | ~25 to 60 s |
+| Measured: run-sync with 1 digital page + 1 OCR page + 1 bad URL (2 GB) | ~9 s total |
 Apify's run-sync waits up to 300 s, so the sync route should cap at 20 pages, with OCR capped lower if needed. Larger jobs would need an async variant (pay, get a job id, poll), which is out of scope for v1.
 
 ## Cost per call (to us)
-Measured compute is about $0.045 per 1k digital pages and about $1.2 to $2.7 per 1k scanned pages at $0.20/CU, plus roughly $0.0003 of sync-run overhead per call. A 1-page call costs well under $0.001 in compute, so the x402 price per page (proposed $0.004 digital / $0.012 OCR) covers compute with margin even at 1 page. Since the actor is private and called with our own token, there is no Apify marketplace commission on this path.
+Measured compute is about $0.045 per 1k digital pages and about $1.2 to $2.7 per 1k scanned pages at $0.20/CU, plus roughly $0.0003 of sync-run overhead per call. A 1-page call costs well under $0.001 in compute, so the x402 price per page (proposed $0.005 digital / $0.015 OCR, mirroring the Actor: an OCR page = 3 `page` units) covers compute with margin even at 1 page. Since the actor is private and called with our own token, there is no Apify marketplace commission on this path.
 
 ## Why this is not a one-line PR
 - It adds a new Worker secret (`APIFY_TOKEN`) and a new external dependency on a paid service in the request path.
