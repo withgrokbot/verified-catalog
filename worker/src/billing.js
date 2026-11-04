@@ -15,6 +15,9 @@ export const BILLING_PORTAL_PATH = "/v1/render/billing/portal";
 export const BILLING_WEBHOOK_PATH = "/v1/render/billing/webhook";
 export const STRIPE_API = "https://api.stripe.com/v1";
 export const WEBHOOK_TOLERANCE_S = 300;
+export const DEFAULT_GRACE_DAYS = 3;
+/** BILLING_GRACE_DAYS: whole or fractional days, 0-30; anything else = 3. */
+export function graceDays(env) { const n = Number(env && env.BILLING_GRACE_DAYS); return env && env.BILLING_GRACE_DAYS !== undefined && env.BILLING_GRACE_DAYS !== "" && Number.isFinite(n) && n >= 0 && n <= 30 ? n : DEFAULT_GRACE_DAYS; }
 export const billingOn = (env) => String((env && env.BILLING) || "") === "1";
 export const billingReady = (env) => billingOn(env) && !!(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && env.STRIPE_PRICE_STARTER && env.STRIPE_PRICE_PRO && env.RECEIPTS_DB);
 const PAID = ["starter", "pro"];
@@ -126,7 +129,7 @@ export async function applyEvent(env, ev, now = new Date()) {
       const plan = o.metadata && o.metadata.plan;
       if (!keyId || !PAID.includes(plan)) return "ignored_no_key";
       if (o.payment_status && o.payment_status !== "paid" && o.payment_status !== "no_payment_required") return "ignored_unpaid";
-      const n = await setPlan(env, { sql: "id = ?", vals: [keyId] }, plan, { stripe_customer_id: o.customer || null, stripe_subscription_id: o.subscription || null, plan_ends_at: null }, now);
+      const n = await setPlan(env, { sql: "id = ?", vals: [keyId] }, plan, { stripe_customer_id: o.customer || null, stripe_subscription_id: o.subscription || null, plan_ends_at: null, grace_ends_at: null }, now);
       return n ? "plan_" + plan : "unknown_key";
     }
     case "customer.subscription.updated": {
@@ -135,7 +138,7 @@ export async function applyEvent(env, ev, now = new Date()) {
       const plan = planForPrice(env, price);
       if (["active", "trialing"].includes(o.status) && plan) {
         const ends = o.cancel_at_period_end ? periodEnd(o) : (o.cancel_at ? Number(o.cancel_at) : null);
-        const n = await setPlan(env, bySub(o.id, keyId), plan, { stripe_subscription_id: o.id, stripe_customer_id: o.customer || null, plan_ends_at: ends }, now);
+        const n = await setPlan(env, bySub(o.id, keyId), plan, { stripe_subscription_id: o.id, stripe_customer_id: o.customer || null, plan_ends_at: ends, grace_ends_at: null }, now);
         return n ? (ends ? "plan_" + plan + "_until_period_end" : "plan_" + plan) : "unknown_key";
       }
       if (["past_due", "unpaid", "incomplete_expired", "canceled", "paused"].includes(o.status)) return endAtPeriod(env, bySub(o.id, keyId), periodEnd(o), now);
@@ -145,9 +148,19 @@ export async function applyEvent(env, ev, now = new Date()) {
       return endAtPeriod(env, bySub(o.id, o.metadata && o.metadata.key_id), periodEnd(o), now);
     case "invoice.payment_failed": {
       const sub = o.subscription || (o.parent && o.parent.subscription_details && o.parent.subscription_details.subscription);
-      const end = Number((o.lines && o.lines.data && o.lines.data[0] && o.lines.data[0].period && o.lines.data[0].period.end) || o.period_end || 0) || null;
       if (!sub) return "ignored_no_subscription";
-      return endAtPeriod(env, { sql: "stripe_subscription_id = ?", vals: [sub] }, end, now);
+      // grace: keep the paid plan for BILLING_GRACE_DAYS from the event time; an earlier grace end is never extended
+      const at = Number(ev.created) || nowS(now);
+      const until = at + Math.round(graceDays(env) * 86400);
+      const r = await env.RECEIPTS_DB.prepare("UPDATE api_keys SET grace_ends_at = CASE WHEN grace_ends_at IS NULL OR grace_ends_at > ? THEN ? ELSE grace_ends_at END, updated_at = ? WHERE stripe_subscription_id = ? AND plan != 'free'").bind(until, until, nowS(now), sub).run();
+      return (r.meta && r.meta.changes) ? "grace_until_" + (until <= nowS(now) ? "now" : "later") : "unknown_key";
+    }
+    case "invoice.paid":
+    case "invoice.payment_succeeded": {
+      const sub = o.subscription || (o.parent && o.parent.subscription_details && o.parent.subscription_details.subscription);
+      if (!sub) return "ignored_no_subscription";
+      const r = await env.RECEIPTS_DB.prepare("UPDATE api_keys SET grace_ends_at = NULL, updated_at = ? WHERE stripe_subscription_id = ? AND grace_ends_at IS NOT NULL").bind(nowS(now), sub).run();
+      return (r.meta && r.meta.changes) ? "grace_cleared" : "no_grace";
     }
     default: return "ignored_type";
   }
@@ -155,7 +168,7 @@ export async function applyEvent(env, ev, now = new Date()) {
 /** Keep the paid plan until `end`, then free. If the period is already over (or unknown), free now. Never extends a date. */
 async function endAtPeriod(env, where, end, now) {
   const t = nowS(now);
-  if (!end || end <= t) { const n = await setPlan(env, where, "free", { plan_ends_at: null }, now); return n ? "free_now" : "unknown_key"; }
+  if (!end || end <= t) { const n = await setPlan(env, where, "free", { plan_ends_at: null, grace_ends_at: null }, now); return n ? "free_now" : "unknown_key"; }
   const r = await env.RECEIPTS_DB.prepare(`UPDATE api_keys SET plan_ends_at = CASE WHEN plan_ends_at IS NULL OR plan_ends_at > ? THEN ? ELSE plan_ends_at END, updated_at = ? WHERE ${where.sql}`).bind(end, end, t, ...where.vals).run();
   return (r.meta && r.meta.changes) ? "free_at_period_end" : "unknown_key";
 }
@@ -183,9 +196,11 @@ export async function handleWebhook(req, env, ctx, url, opts = {}) {
 
 /** Lazy downgrade used by the render key path (only with BILLING=1): a key past plan_ends_at becomes free. */
 export async function applyPlanEnd(env, key, now = new Date()) {
-  if (!key || !key.plan_ends_at || key.plan === "free" || Number(key.plan_ends_at) > nowS(now)) return key;
-  await env.RECEIPTS_DB.prepare("UPDATE api_keys SET plan = 'free', monthly_quota = ?, plan_ends_at = NULL, updated_at = ? WHERE id = ? AND plan_ends_at IS NOT NULL AND plan_ends_at <= ?").bind(RENDER_PLANS.free.quota, nowS(now), key.id, nowS(now)).run();
-  return { ...key, plan: "free", monthly_quota: RENDER_PLANS.free.quota, plan_ends_at: null };
+  const t = nowS(now);
+  const due = (v) => v != null && Number(v) <= t;
+  if (!key || key.plan === "free" || !(due(key.plan_ends_at) || due(key.grace_ends_at))) return key;
+  await env.RECEIPTS_DB.prepare("UPDATE api_keys SET plan = 'free', monthly_quota = ?, plan_ends_at = NULL, grace_ends_at = NULL, updated_at = ? WHERE id = ? AND ((plan_ends_at IS NOT NULL AND plan_ends_at <= ?) OR (grace_ends_at IS NOT NULL AND grace_ends_at <= ?))").bind(RENDER_PLANS.free.quota, t, key.id, t, t).run();
+  return { ...key, plan: "free", monthly_quota: RENDER_PLANS.free.quota, plan_ends_at: null, grace_ends_at: null };
 }
 
 export function billingDocs(env) {
@@ -194,7 +209,7 @@ export function billingDocs(env) {
     checkout: { method: "POST", url: API_ORIGIN + BILLING_CHECKOUT_PATH, auth: "x-api-key", body: { plan: "starter | pro" }, returns: "{url} of a Stripe Checkout page" },
     portal: { method: "POST", url: API_ORIGIN + BILLING_PORTAL_PATH, auth: "x-api-key", returns: "{url} of the Stripe billing portal (change plan, card, cancel)" },
     rules: ["The plan's monthly quota is a hard cap. Nothing is metered or billed as overage; at quota you get 429 with an upgrade note.",
-      "Cancel or a failed payment keeps the paid plan until the end of the paid period, then the key returns to free (500 renders a month).",
+      `Cancel keeps the paid plan until the end of the paid period. A failed payment keeps it for a ${graceDays(env)}-day grace period (a later successful payment clears it). After that the key returns to free (500 renders a month).`,
       "Stripe sees an internal key id only, never your API key."],
   };
 }
