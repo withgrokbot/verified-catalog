@@ -108,7 +108,7 @@ FEED = "observe"  # 0.53.3: feed observe-only (migration 0018 applied): opt-ins 
 # incl. subscribe: FEED_DENY_KEYS = comma list of feed_keys.key_hash (never raw fk_ keys), FEED_DENY_PREFIXES = comma list of /24 or /48 prefixes.
 # FEED_FA_HOURS = "6"  # false-alarm revert window for /v1/watch/stats feed_false_alarms (1-168)
 DELIVERY_CHECK = "1"  # 0.53.3: post-payment delivery check (migration 0020 applied): a new pay -> recheck/delivery_failed only with a failed delivery row in 14 d
-# pdf-tables (draft, OFF): PDF_TABLES = "1" enables /v1/products/pdf-tables + MCP pdf_tables; also needs the secret APIFY_TOKEN
+PDF_TABLES = "1"  # 0.64.0: pdf-tables ON (migrations 0024, 0025 applied); enables /v1/products/pdf-tables + MCP pdf_tables; also needs the secret APIFY_TOKEN
 # (wrangler secret put APIFY_TOKEN; never here). Without it the route answers 503 and quotes/charges nothing. PDF_PRICE_ATOMIC = "5000" default.
 # 0.48.0 ops counters (migration 0014): paywall funnel + 404 path log in D1. OPS_COUNTERS = "off" disables. Optional DRILL_WALLETS
 # (comma list of the drill wallet addresses) marks those payers as self traffic, like PAY_TO; unset = only PAY_TO is self.
