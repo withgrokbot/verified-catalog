@@ -260,7 +260,7 @@ export async function snapshotReceipts(workerPath) {
   const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
   const norm = (x) => x.split(lib.VERSION).join("<VERSION>");
   const env = () => ({ DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv(), RECEIPTS_DB: fakeReceiptsD1(), ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv() });
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv(), RECEIPTS_DB: fakeReceiptsD1(), ...guardEnv0620(), ...p2mEnv0630() });
   const out = {};
   for (const h of HOSTS) for (const p of RECEIPT_GETS) for (const [an, a] of Object.entries(RECEIPT_ACCEPTS)) {
     const [accept, ua] = a ? a.split("|") : [null, null];
