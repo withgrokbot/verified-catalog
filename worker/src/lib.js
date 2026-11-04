@@ -76,6 +76,7 @@ import { termsWindowText, QUOTE_ID_RE, quoteTerms, applyQuote, quoteChangedText,
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 import { handlePageToMarkdown, p2mOn, p2mCfg, p2mDocs, P2M_PATH, P2M_MCP_TOOL } from "./p2m.js"; // 0.63.0
+import { handlePdfTables, pdfOn, pdfCfg, pdfDocs, PDF_PATH, PDF_MCP_TOOL } from "./pdftables.js"; // draft, PDF_TABLES=1 only
 import { agentCard, AGENT_CARD_PATHS } from "./agentcard.js"; // 0.61.0
 // well-known aliases: /.well-known/mcp.json (= repo-root .mcp.json), /.well-known/x402.json (= /.well-known/x402),
 // /.well-known/oauth-protected-resource (RFC 9728) -> clean 404 JSON: we have no OAuth authorization server.
@@ -3802,13 +3803,14 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
     const tools = MCP_TOOLS.map((t) => (t.name === "discover" ? { ...t, description: t.description.replace("older than 7 days (TERMS_MAX_AGE_HOURS)", `older than ${win} (TERMS_MAX_AGE_HOURS)`) }
       : t.name === "endpoint_spot_check" ? { ...t, description: t.description.replace("after 24 h (TRANSIENT_SKIP_AFTER_HOURS)", `after ${tw} (TRANSIENT_SKIP_AFTER_HOURS)`) } : t));
     const t2 = endpointReportOn(env) ? tools.concat([ER_MCP_TOOL]) : tools;
-    return { tools: p2mOn(env) ? t2.concat([P2M_MCP_TOOL]) : t2 }; // 0.63.0
+    const t3 = p2mOn(env) ? t2.concat([P2M_MCP_TOOL]) : t2; // 0.63.0
+    return { tools: pdfOn(env) ? t3.concat([PDF_MCP_TOOL]) : t3 }; // pdf-tables draft (off unless PDF_TABLES=1)
   }
   if (method === "tools/call") {
     const name = params.name;
     const args = params.arguments || {};
     const err = (text) => ({ content: [{ type: "text", text }], isError: true });
-    if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check", "get_receipt", "payment_status", "discover", "x402_hygiene", ...(endpointReportOn(env) ? ["endpoint_report"] : []), ...(p2mOn(env) ? ["page_to_markdown"] : [])].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
+    if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check", "get_receipt", "payment_status", "discover", "x402_hygiene", ...(endpointReportOn(env) ? ["endpoint_report"] : []), ...(p2mOn(env) ? ["page_to_markdown"] : []), ...(pdfOn(env) ? ["pdf_tables"] : [])].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
     let data;
     try {
       if (name === "x402_hygiene") {
@@ -3911,6 +3913,20 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         if (r.status === 200) data = body;
         else if (r.status === 402) return err("Payment required: $" + p2mCfg(env).priceUsd + " USDC on Base via x402 for page_to_markdown after " + p2mCfg(env).freePerDay + " free pages per day. Retry this MCP call with a PAYMENT-SIGNATURE header, or pay at " + u.toString() + ". Requirements: " + JSON.stringify(body));
         else return err("page_to_markdown: HTTP " + r.status + (body && body.error ? ": " + body.error : "") + (body && body.reason ? " (" + body.reason + ", not charged)" : ""));
+      } else if (name === "pdf_tables") { // draft: same route and x402 quote as /v1/products/pdf-tables
+        if (!args.url) return err("url is required");
+        const u = new URL(origin + PDF_PATH + "?" + new URLSearchParams({ url: pyStr(args.url), pages: pyStr(args.pages || ""), ocr: args.ocr === "auto" ? "auto" : "never" }).toString());
+        const headers = { accept: "application/json", "user-agent": "verified-catalog-mcp/0.6" };
+        const pay = paymentHeader(req);
+        if (pay) headers["payment-signature"] = pay;
+        const ip = req.headers.get("cf-connecting-ip");
+        if (ip) headers["cf-connecting-ip"] = ip;
+        const r = await handlePdfTables(new Request(u, { method: "GET", headers }), env, ctx, u);
+        let body = null;
+        try { body = await r.json(); } catch (_) { body = null; }
+        if (r.status === 200) data = body;
+        else if (r.status === 402) return err("Payment required: $" + (body && body.price_usd) + " USDC on Base via x402 for pdf_tables (" + (body && body.quoted_pages) + " page(s)). Retry this MCP call with a PAYMENT-SIGNATURE header. Requirements: " + JSON.stringify(body));
+        else return err("pdf_tables: HTTP " + r.status + (body && body.error ? ": " + body.error : "") + (body && body.reason ? " (" + body.reason + ", not charged)" : ""));
       } else if (name === "get_overnight_cos_pack") {
         const u = new URL(origin + "/v1/products/overnight-cos-pack");
         const headers = { accept: "application/json", "user-agent": "verified-catalog-mcp/0.5" };
@@ -4264,6 +4280,8 @@ const routeInnerHolder = {
     if (path === "/v1/admin/funnel" && req.method === "GET") return handleFunnelAdmin(req, env);
     if (path === "/v1/products/endpoint-spot-check" && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointSpotCheck(req, env, ctx, url);
     if (path === PS_ROUTE_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaymentStatus(req, env, ctx, url);
+    if (pdfOn(env) && path === PDF_PATH + "/docs" && (req.method === "GET" || req.method === "HEAD")) return new Response(JSON.stringify(pdfDocs(pdfCfg(env)), null, 2), { headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });
+    if (pdfOn(env) && path === PDF_PATH && ["GET", "POST"].includes(req.method)) return handlePdfTables(req, env, ctx, url); // draft, off by default
     if (p2mOn(env) && path === P2M_PATH + "/docs" && (req.method === "GET" || req.method === "HEAD")) return new Response(JSON.stringify(p2mDocs(p2mCfg(env)), null, 2), { headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });
     if (p2mOn(env) && path === P2M_PATH && ["GET", "POST"].includes(req.method)) return handlePageToMarkdown(req, env, ctx, url); // 0.63.0
     if (path === ER_ROUTE_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointReport(req, env, ctx, url);
