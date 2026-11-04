@@ -25,6 +25,10 @@ export function pdfCfg(env) {
   const maxPages = Math.min(PDF_MAX_SYNC_PAGES, Math.max(1, parseInt(env.PDF_MAX_SYNC_PAGES || PDF_MAX_SYNC_PAGES, 10) || PDF_MAX_SYNC_PAGES));
   return { ...c, unitAtomic: unit, ocrUnits: PDF_DEFAULT_OCR_UNITS, maxPages };
 }
+// Billing note (Max, PR #63 option b): ocr=auto bills ocrUnits for EVERY quoted page, scanned or not.
+export function pdfOcrBillingNote(c) {
+  return `ocr=auto bills ${c.ocrUnits} units ($${usd(BigInt(c.unitAtomic) * BigInt(c.ocrUnits))}) for EVERY page, digital or scanned, not only scanned pages. Use ocr=never (the default, $${usd(c.unitAtomic)}/page) for digital PDFs; use ocr=auto only for scanned PDFs.`;
+}
 const usd = (atomic) => (Number(atomic) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
 export const PDF_MCP_TOOL = {
   name: "pdf_tables",
@@ -239,7 +243,7 @@ export function pdfDocs(c) {
     product: "pdf-tables", version: "0",
     what: "Tables (CSV, JSON, Markdown) and per-page text from one PDF at a public URL. Digital PDFs via pdfplumber, scanned pages via Tesseract OCR (ocr=auto).",
     route: { methods: ["GET", "POST"], url: API_ORIGIN + PDF_PATH + "?url=<pdf>&pages=1-3&ocr=never|auto" },
-    price: { per_page_usd: usd(c.unitAtomic), per_page_ocr_auto_usd: usd(BigInt(c.unitAtomic) * BigInt(c.ocrUnits)), protocol: "x402 v2 exact, amount = pages x per-page price (quoted in the 402)", charged_only_if_all_pages_succeed: true, free_tier: false },
+    price: { per_page_usd: usd(c.unitAtomic), per_page_ocr_auto_usd: usd(BigInt(c.unitAtomic) * BigInt(c.ocrUnits)), protocol: "x402 v2 exact, amount = pages x per-page price (quoted in the 402)", charged_only_if_all_pages_succeed: true, free_tier: false, ocr_billing: pdfOcrBillingNote(c) },
     accuracy: { digital_cell_accuracy: "~97%", scanned_cell_accuracy: "~80%", caveats: ["author blocks and form boxes can come back as tables", "long borderless tables can be split into fragments", "OCR can drop decimal points"] },
     limits: { max_pages_per_call: c.maxPages, max_bytes: PDF_MAX_BYTES, per_minute_per_network: PDF_PER_MIN },
     mcp: { url: API_ORIGIN + "/mcp", tool: "pdf_tables" },

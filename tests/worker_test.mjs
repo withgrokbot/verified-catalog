@@ -5084,6 +5084,22 @@ test("openapi: /v1/products/pdf-tables declared with 402 + per-page x-payment-in
   assert.deepEqual([alt.amount_per_page, alt.amount_per_scanned_page], ["0.007", "0.021"], "price follows PDF_PRICE_ATOMIC");
 });
 
+test("pdf-tables: OpenAPI, llms.txt and docs all say ocr=auto bills 3 units for EVERY page; use ocr=never for digital PDFs", async () => {
+  const { openapi } = await import("../worker/src/lib.js");
+  const { pdfCfg, pdfDocs, pdfOcrBillingNote, PDF_PATH } = await import("../worker/src/pdftables.js");
+  const env = { PDF_TABLES: "1" }, pc = pdfCfg(env), note = pdfOcrBillingNote(pc);
+  assert.match(note, /ocr=auto bills 3 units \(\$0\.015\) for EVERY page/); assert.match(note, /Use ocr=never \(the default, \$0\.005\/page\) for digital PDFs/);
+  const op = openapi("https://api.402xagent.com", env).paths[PDF_PATH].get;
+  assert.ok(op["x-payment-info"].price.note.includes(note)); assert.ok(op.summary.includes("EVERY page")); assert.ok(op.parameters.find((x) => x.name === "ocr").description.includes(note));
+  assert.equal(pdfDocs(pc).price.ocr_billing, note);
+  const e = meteredEnv(); e.env.PDF_TABLES = "1";
+  const llms = await (await worker.fetch(new Request("https://api.402xagent.com/llms.txt"), e.env, { waitUntil() {} })).text();
+  const line = llms.split("\n").find((l) => l.startsWith("- PDF tables"));
+  assert.ok(line && line.includes(note) && line.includes("$0.005 USDC per page"), line);
+  const off = await (await worker.fetch(new Request("https://api.402xagent.com/llms.txt"), meteredEnv().env, { waitUntil() {} })).text();
+  assert.ok(!off.includes("- PDF tables"), "off by default");
+});
+
 for (const [name, fn] of T) {
   try {
     await fn({ skip(msg) { throw { [SKIP]: msg }; } });
