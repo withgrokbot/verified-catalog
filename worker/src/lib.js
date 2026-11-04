@@ -76,7 +76,7 @@ import { termsWindowText, QUOTE_ID_RE, quoteTerms, applyQuote, quoteChangedText,
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 import { handlePageToMarkdown, p2mOn, p2mCfg, p2mDocs, P2M_PATH, P2M_MCP_TOOL } from "./p2m.js"; // 0.63.0
-import { handleRender, handleRenderSignup, handleRenderVerify, RENDER_VERIFY_PATH, renderOn, renderCfg, renderDocs, RENDER_PDF_PATH, RENDER_SHOT_PATH, RENDER_KEYS_PATH, RENDER_PLANS } from "./render.js"; // 0.65.0, RENDER=1 only
+import { handleRender, handleRenderSignup, handleRenderVerify, RENDER_VERIFY_PATH, handleRenderUnsubscribe, RENDER_UNSUB_PATH, renderOn, renderCfg, renderDocs, RENDER_PDF_PATH, RENDER_SHOT_PATH, RENDER_KEYS_PATH, RENDER_PLANS } from "./render.js"; // 0.65.0, RENDER=1 only
 import { handlePdfTables, pdfOn, pdfCfg, pdfDocs, pdfOcrBillingNote, PDF_PATH, PDF_MCP_TOOL } from "./pdftables.js"; // draft, PDF_TABLES=1 only
 import { agentCard, AGENT_CARD_PATHS } from "./agentcard.js"; // 0.61.0
 // well-known aliases: /.well-known/mcp.json (= repo-root .mcp.json), /.well-known/x402.json (= /.well-known/x402),
@@ -88,7 +88,7 @@ import { paidCheckBlock } from "./paidcheck.js";
 import { receiptGuard } from "./receiptguard.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.65.0";
+export const VERSION = "0.65.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -4342,6 +4342,7 @@ const routeInnerHolder = {
     if (renderOn(env) && path === RENDER_SHOT_PATH) return handleRender(req, env, ctx, url, "screenshot");
     if (renderOn(env) && path === RENDER_KEYS_PATH && req.method === "POST") return handleRenderSignup(req, env, ctx, url);
     if (renderOn(env) && path === RENDER_VERIFY_PATH) return handleRenderVerify(req, env, ctx, url);
+    if (renderOn(env) && path === RENDER_UNSUB_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handleRenderUnsubscribe(req, env, ctx, url);
     if (pdfOn(env) && path === PDF_PATH + "/docs" && (req.method === "GET" || req.method === "HEAD")) return new Response(JSON.stringify(pdfDocs(pdfCfg(env)), null, 2), { headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });
     if (pdfOn(env) && path === PDF_PATH && ["GET", "POST"].includes(req.method)) return handlePdfTables(req, env, ctx, url); // draft, off by default
     if (p2mOn(env) && path === P2M_PATH + "/docs" && (req.method === "GET" || req.method === "HEAD")) return new Response(JSON.stringify(p2mDocs(p2mCfg(env)), null, 2), { headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });
