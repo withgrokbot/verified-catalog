@@ -3057,6 +3057,21 @@ function openapiBase(origin, env = {}) {
           },
         },
       },
+      ...(pdfOn(env) ? (() => { // pdf-tables (draft, PDF_TABLES=1 only): per-page x402 pricing from pdfCfg
+        const pc = pdfCfg(env), u = (a) => (Number(a) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+        const unitUsd = u(pc.unitAtomic), ocrUsd = u(Number(pc.unitAtomic) * pc.ocrUnits);
+        const xpi = { price: { mode: "dynamic", currency: "USD", unit: "page", amount_per_page: unitUsd, amount_per_page_atomic: pc.unitAtomic, scanned_page_units: pc.ocrUnits, amount_per_scanned_page: ocrUsd, max_pages: pc.maxPages, free_allowance: null, note: `quote = pages x $${unitUsd} (ocr=never); ocr=auto counts every page as ${pc.ocrUnits} units ($${ocrUsd}). Settled only if every quoted page is extracted.` }, protocols: [{ x402: { scheme: "exact", network: pc.network, asset: pc.asset, payTo: pc.payTo } }] };
+        const params = [
+          { name: "url", in: "query", required: true, schema: { type: "string" }, description: "http(s) URL of a PDF (10 MB cap)" },
+          { name: "pages", in: "query", schema: { type: "string" }, description: `page range, e.g. 1-3,7 (default all, max ${pc.maxPages})` },
+          { name: "ocr", in: "query", schema: { type: "string", enum: ["never", "auto"], default: "never" }, description: `auto: scanned pages via OCR, every page quoted at ${pc.ocrUnits} units` },
+        ];
+        const responses = { 200: { description: "tables (CSV/JSON/Markdown) and per-page text, access with settlement tx" }, 400: { description: "bad url, pages or ocr (nothing charged)" }, 402: { description: `x402 v2 payment requirement: amount = quoted pages x ${pc.unitAtomic} atomic USDC on Base (x${pc.ocrUnits} with ocr=auto); no free tier` }, 422: { description: "extraction failed on a quoted page: not charged" }, 503: { description: "extractor not configured: nothing quoted or charged" } };
+        return { [PDF_PATH]: {
+          get: { operationId: "pdfTables", summary: `PDF tables + text, $${unitUsd} USDC per page via x402 ($${ocrUsd} per page with OCR), max ${pc.maxPages} pages`, parameters: params, "x-payment-info": xpi, responses },
+          post: { operationId: "pdfTablesPost", summary: "Same as GET; JSON body {url, pages, ocr}", requestBody: { required: false, content: { "application/json": { schema: { type: "object", properties: { url: { type: "string" }, pages: { type: "string" }, ocr: { type: "string", enum: ["never", "auto"] } } } } } }, "x-payment-info": xpi, responses },
+        } };
+      })() : {}),
       ...(p2mOn(env) ? { [P2M_PATH]: { // 0.63.0
         get: {
           operationId: "pageToMarkdown",
