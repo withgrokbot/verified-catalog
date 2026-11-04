@@ -76,6 +76,7 @@ import { termsWindowText, QUOTE_ID_RE, quoteTerms, applyQuote, quoteChangedText,
 export { FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE, PRIOR_CHECKS };
 import { BRAND_ASSETS } from "./brand.js";
 import { handlePageToMarkdown, p2mOn, p2mCfg, p2mDocs, P2M_PATH, P2M_MCP_TOOL } from "./p2m.js"; // 0.63.0
+import { handleCheckout, handlePortal, handleWebhook, BILLING_CHECKOUT_PATH, BILLING_PORTAL_PATH, BILLING_WEBHOOK_PATH } from "./billing.js"; // 0.66.0, BILLING=1 only
 import { handleRender, handleRenderSignup, handleRenderVerify, RENDER_VERIFY_PATH, handleRenderUnsubscribe, RENDER_UNSUB_PATH, renderOn, renderCfg, renderDocs, RENDER_PDF_PATH, RENDER_SHOT_PATH, RENDER_KEYS_PATH, RENDER_PLANS } from "./render.js"; // 0.65.0, RENDER=1 only
 import { handlePdfTables, pdfOn, pdfCfg, pdfDocs, pdfOcrBillingNote, PDF_PATH, PDF_MCP_TOOL } from "./pdftables.js"; // draft, PDF_TABLES=1 only
 import { agentCard, AGENT_CARD_PATHS } from "./agentcard.js"; // 0.61.0
@@ -88,7 +89,7 @@ import { paidCheckBlock } from "./paidcheck.js";
 import { receiptGuard } from "./receiptguard.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.65.1";
+export const VERSION = "0.66.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
@@ -4337,7 +4338,10 @@ const routeInnerHolder = {
     if (path === "/v1/admin/funnel" && req.method === "GET") return handleFunnelAdmin(req, env);
     if (path === "/v1/products/endpoint-spot-check" && ["GET", "HEAD", "POST"].includes(req.method)) return handleEndpointSpotCheck(req, env, ctx, url);
     if (path === PS_ROUTE_PATH && ["GET", "HEAD", "POST"].includes(req.method)) return handlePaymentStatus(req, env, ctx, url);
-    if (renderOn(env) && path === "/v1/render/docs" && (req.method === "GET" || req.method === "HEAD")) return new Response(JSON.stringify(renderDocs(renderCfg(env)), null, 2), { headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });
+    if (renderOn(env) && path === "/v1/render/docs" && (req.method === "GET" || req.method === "HEAD")) return new Response(JSON.stringify(renderDocs(renderCfg(env), env), null, 2), { headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });
+    if (renderOn(env) && path === BILLING_CHECKOUT_PATH) return handleCheckout(req, env); // 404 unless BILLING=1 + Stripe secrets
+    if (renderOn(env) && path === BILLING_PORTAL_PATH) return handlePortal(req, env);
+    if (renderOn(env) && path === BILLING_WEBHOOK_PATH) return handleWebhook(req, env, ctx, url);
     if (renderOn(env) && path === RENDER_PDF_PATH) return handleRender(req, env, ctx, url, "pdf"); // 0.65.0, off by default
     if (renderOn(env) && path === RENDER_SHOT_PATH) return handleRender(req, env, ctx, url, "screenshot");
     if (renderOn(env) && path === RENDER_KEYS_PATH && req.method === "POST") return handleRenderSignup(req, env, ctx, url);

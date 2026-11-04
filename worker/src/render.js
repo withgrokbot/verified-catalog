@@ -17,6 +17,7 @@
 import { assertSafeUrl, isBlockedIp, API_ORIGIN } from "./spotcheck.js";
 import { cfg, checkPayload, decodePaymentHeader, verifyAndSettle, paymentRequirements, takeFree } from "./lib.js";
 import { disposableDomains } from "./disposable-domains.js";
+import { billingOn, billingDocs, applyPlanEnd } from "./billing.js";
 
 export const RENDER_PDF_PATH = "/v1/render/pdf";
 export const RENDER_SHOT_PATH = "/v1/render/screenshot";
@@ -205,14 +206,16 @@ export async function paymentKey(payload) {
 }
 export const hashKey = async (env, raw) => sha(pepper(env) + "|key|" + raw);
 function newKey() { const b = new Uint8Array(24); crypto.getRandomValues(b); return "rk_" + btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
-function keyFromReq(req) {
+export function keyFromReq(req) {
   const x = req.headers.get("x-api-key"); if (x) return x.trim();
   const a = req.headers.get("authorization") || ""; const m = /^Bearer\s+(rk_[A-Za-z0-9_-]+)$/.exec(a.trim());
   return m ? m[1] : "";
 }
-async function loadKey(env, raw) {
+export async function loadKey(env, raw, now = new Date()) {
   const h = await hashKey(env, raw);
-  return env.RECEIPTS_DB.prepare("SELECT id, plan, monthly_quota, status FROM api_keys WHERE key_hash = ?").bind(h).first();
+  if (!billingOn(env)) return env.RECEIPTS_DB.prepare("SELECT id, plan, monthly_quota, status FROM api_keys WHERE key_hash = ?").bind(h).first();
+  // BILLING=1 (needs migration 0027): a paid plan past its end date drops to free here, before quota and rate limits
+  return applyPlanEnd(env, await env.RECEIPTS_DB.prepare("SELECT id, plan, monthly_quota, status, plan_ends_at FROM api_keys WHERE key_hash = ?").bind(h).first(), now);
 }
 /** Count one call in the key's minute bucket. {limited, suspended} — a burst over perMin x SPIKE_FACTOR suspends the key. */
 export async function keyMinute(env, key, now = new Date()) {
@@ -356,7 +359,7 @@ export async function handleRender(req, env, ctx, url, kind, opts = {}) {
   const rawKey = keyFromReq(req);
   if (rawKey) { // API-key path: quota, never x402
     if (!env.RECEIPTS_DB) return J({ error: "api keys are not configured on this deployment" }, 503);
-    const key = await loadKey(env, rawKey);
+    const key = await loadKey(env, rawKey, now);
     if (!key || key.status === "revoked") return J({ error: "unknown api key" }, 401);
     if (key.status !== "active") return J({ error: "api key suspended", reason: "suspended", note: "This key was suspended (for example after a sudden spike in calls). Nothing was charged." }, 403);
     const m = await keyMinute(env, key, now);
@@ -393,7 +396,7 @@ export async function handleRender(req, env, ctx, url, kind, opts = {}) {
   return ok(r, { "payment-response": enc, "x-payment-response": enc });
 }
 
-export function renderDocs(c) {
+export function renderDocs(c, env = {}) {
   return {
     product: "render", version: "0",
     what: "Render a public web page or your own HTML to a PDF or a screenshot in a real headless browser (Cloudflare Browser Rendering).",
@@ -406,6 +409,7 @@ export function renderDocs(c) {
       plans: Object.fromEntries(Object.entries(RENDER_PLANS).map(([k, v]) => [k, { monthly_renders: v.quota, usd_per_month: v.priceUsd, per_minute: v.perMin }])),
       overage: "none: the monthly quota is a hard cap (429 with an upgrade note), never billed extra" },
     limits: { browser_time_ms: RENDER_TIME_MS, max_html_bytes: RENDER_MAX_HTML_BYTES, max_output_bytes: RENDER_MAX_OUT_BYTES, per_minute_per_network: RENDER_PER_IP_MIN, spike_suspend: `a key over ${RENDER_SPIKE_FACTOR}x its per-minute limit in one minute is suspended` },
+    ...(billingOn(env) ? { billing: billingDocs(env) } : {}),
     payments: "one render per x402 payment: a reused payment is refused (409) before rendering",
     safety: "http/https only. WebSocket, WebTransport and service workers are blocked. Every request is DNS-checked again when the browser makes it, and a response from a private address fails the render. The first URL, every redirect and every subresource is DNS-checked; private, loopback, link-local and metadata addresses are refused.",
   };
