@@ -61,12 +61,29 @@ export function funnelRows({ route, hasPayment, status, settled, errText, segmen
   return rows;
 }
 
-export async function writeFunnel(db, rows, now = new Date()) {
+/** Normalized host label for paywall_daily_host (never the raw Host header). */
+export function hostTag(hostname) {
+  const h = String(hostname || "").toLowerCase();
+  if (h === "api.402xagent.com" || h === "402xagent.com") return h;
+  if (h.endsWith(".workers.dev")) return "workers.dev";
+  if (h === "payscout.dev" || h.endsWith(".payscout.dev")) return "payscout";
+  return "other";
+}
+
+export async function writeFunnel(db, rows, now = new Date(), hostname = null) {
   if (!db || !rows.length) return;
   const d = day(now);
   const sql = "INSERT INTO paywall_daily (day, route, segment, event, reason, n) VALUES (?, ?, ?, ?, ?, 1) ON CONFLICT(day, route, segment, event, reason) DO UPDATE SET n = n + 1";
   const st = rows.map((r) => db.prepare(sql).bind(d, ...r));
   if (db.batch && st.length > 1) await db.batch(st); else for (const s of st) await s.run();
+  if (hostname == null) return;
+  // host tag (migration 0024); fail-soft so a deploy before the migration is applied changes nothing
+  const hsql = "INSERT INTO paywall_daily_host (day, host, route, segment, event, reason, n) VALUES (?, ?, ?, ?, ?, ?, 1) ON CONFLICT(day, host, route, segment, event, reason) DO UPDATE SET n = n + 1";
+  const tag = hostTag(hostname);
+  try {
+    const hs = rows.map((r) => db.prepare(hsql).bind(d, tag, ...r));
+    if (db.batch && hs.length > 1) await db.batch(hs); else for (const s of hs) await s.run();
+  } catch (_) {}
 }
 
 // ------------------------------------------------------------------ 404 path log
