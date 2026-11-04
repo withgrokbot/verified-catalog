@@ -14,7 +14,7 @@ const SERVER = JSON.parse(readFileSync(new URL("server.json", ROOT), "utf8"));
 const env = { CLIENT_SALT: "t" };
 const get = (u, h = {}) => worker.fetch(new Request(u, { headers: h }), env, { waitUntil() {} });
 
-test("0.61.0 version", () => { assert.equal(VERSION, "0.64.0"); assert.equal(SERVER.version, VERSION); });
+test("0.61.0 version", () => { assert.equal(VERSION, "0.65.0"); assert.equal(SERVER.version, VERSION); });
 
 test("logo-400.png: 200, image/png, 400x400 PNG, long cache, on every host", async () => {
   for (const h of ["https://402xagent.com", "https://api.402xagent.com"]) {
