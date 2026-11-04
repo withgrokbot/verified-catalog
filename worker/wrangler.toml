@@ -120,6 +120,11 @@ PDF_TABLES = "1"  # 0.64.0: pdf-tables ON (migrations 0024, 0025 applied); enabl
 # POST /v1/render/keys answers 503 and sends nothing.
 RENDER_EMAIL_FROM = "keys@402xagent.com"  # 0.65.0: 402xagent.com onboarded to Email Sending 2026-11-04
 RENDER = "1"  # 0.65.0: render API on (migration 0026 applied remotely 2026-11-04); key/email hashes use CLIENT_SALT (no RENDER_KEY_PEPPER)
+# 0.66.0 render billing (worker/src/billing.js), OFF: BILLING unset = /v1/render/billing/* 404. Needs migration 0027, the secrets
+# STRIPE_SECRET_KEY (restricted key) + STRIPE_WEBHOOK_SECRET (wrangler secret put; never here) and the two price ids below.
+# BILLING = "1"
+# STRIPE_PRICE_STARTER = "price_..."   # $10/month, 5,000 renders
+# STRIPE_PRICE_PRO = "price_..."       # $29/month, 25,000 renders
 # 0.49.0 flags, all OFF by default (see docs/deploy-0.49.0.md): EXPLAIN_LINE = "1" (explanation line), RECHECK = "1" (24 h / 10 re-check
 # window; needs migration 0015 + secret RECHECK_PEPPER), BULK_REPORT = "1" (bulk endpoint report; needs 0015, ENDPOINT_REPORT and RECHECK for credits).
 # Payment network (0.46.0): unset = Base mainnet (prod). Local testnet only: --var PAYMENT_PRESET:base-sepolia --var FACILITATOR_URL:https://x402.org/facilitator
