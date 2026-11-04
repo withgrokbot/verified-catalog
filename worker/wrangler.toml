@@ -112,6 +112,14 @@ PDF_TABLES = "1"  # 0.64.0: pdf-tables ON (migrations 0024, 0025 applied); enabl
 # (wrangler secret put APIFY_TOKEN; never here). Without it the route answers 503 and quotes/charges nothing. PDF_PRICE_ATOMIC = "5000" default.
 # 0.48.0 ops counters (migration 0014): paywall funnel + 404 path log in D1. OPS_COUNTERS = "off" disables. Optional DRILL_WALLETS
 # (comma list of the drill wallet addresses) marks those payers as self traffic, like PAY_TO; unset = only PAY_TO is self.
+# 0.65.0 render API (worker/src/render.js), OFF: RENDER unset = /v1/render/* 404. Needs the [browser] binding below
+# (Browser Rendering, Workers Paid) and migration 0026 (api_keys, api_key_usage, api_key_minute). Optional: RENDER_PRICE_ATOMIC
+# (default "2000" = $0.002 per render), secret RENDER_KEY_PEPPER (falls back to CLIENT_SALT) for key/email hashes.
+# Free-key signup emails a one-time verify link (Cloudflare Email Service). Needs the [[send_email]] binding RENDER_EMAIL
+# (commented out below), the domain of RENDER_EMAIL_FROM onboarded to Email Sending, and RENDER_EMAIL_FROM set. Without them
+# POST /v1/render/keys answers 503 and sends nothing.
+# RENDER_EMAIL_FROM = "keys@402xagent.com"
+# RENDER = "1"
 # 0.49.0 flags, all OFF by default (see docs/deploy-0.49.0.md): EXPLAIN_LINE = "1" (explanation line), RECHECK = "1" (24 h / 10 re-check
 # window; needs migration 0015 + secret RECHECK_PEPPER), BULK_REPORT = "1" (bulk endpoint report; needs 0015, ENDPOINT_REPORT and RECHECK for credits).
 # Payment network (0.46.0): unset = Base mainnet (prod). Local testnet only: --var PAYMENT_PRESET:base-sepolia --var FACILITATOR_URL:https://x402.org/facilitator
@@ -147,6 +155,15 @@ id = "21ac2bd711dd4c01b2cd0ca1a8c14795"
 [[kv_namespaces]]
 binding = "CRAWL_KV"
 id = "b752270a00ef41e58fbffebe0be5d323"
+
+# 0.65.0 render API: Cloudflare Browser Rendering (headless Chromium via @cloudflare/puppeteer). Used only when RENDER = "1".
+[browser]
+binding = "BROWSER"
+
+# 0.65.0 render key signup mail (Cloudflare Email Service). Off until the sending domain is onboarded:
+# [[send_email]]
+# name = "RENDER_EMAIL"
+# allowed_sender_addresses = ["keys@402xagent.com"]
 
 [[d1_databases]]
 binding = "RECEIPTS_DB"
