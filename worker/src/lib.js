@@ -2950,7 +2950,36 @@ export function pricingDoc(c) {
   };
 }
 
+// AgentDrives checklist: every operation that can answer 402 carries an x-payment-info block
+// (fixed price, or min/max for bulk). /v1/lookup is free-first: its block states the free allowance, then the price.
+function xpiPrices(env) {
+  const p2m = p2mOn(env) ? { [P2M_PATH]: { mode: "fixed", currency: "USD", amount: p2mCfg(env).priceUsd } } : {};
+  const lc = cfg(env), sp = spotDynCfg(spotCfg(env), null);
+  return {
+    ...p2m,
+    "/v1/lookup": { mode: "fixed", currency: "USD", amount: lc.priceUsd, free_allowance: { calls: lc.freePerDay, per: "client per UTC day", then: `$${lc.priceUsd} USDC on Base per lookup via x402 (same path answers 402)` } },
+    "/v1/products/payment-status": { mode: "fixed", currency: "USD", amount: sp.priceUsd },
+    "/v1/products/endpoint-spot-check": { mode: "fixed", currency: "USD", amount: sp.priceUsd, amount_atomic: SPOT_PAID_ATOMIC },
+    "/v1/watch": { mode: "fixed", currency: "USD", amount: WATCH_PRICE_USD },
+    "/v1/watch/{watch_id}/renew": { mode: "fixed", currency: "USD", amount: WATCH_PRICE_USD },
+    [ER_ROUTE_PATH]: { mode: "fixed", currency: "USD", amount: ER_PRICE_USD },
+    [BULK_ROUTE_PATH]: { mode: "dynamic", currency: "USD", min: ER_PRICE_USD, max: "0.20" },
+  };
+}
 export function openapi(origin, env = {}) {
+  const doc = openapiBase(origin, env);
+  if (String(env.OPENAPI_XPI || "").toLowerCase() === "off") return doc;
+  const c = spotCfg(env), prices = xpiPrices(env);
+  for (const [path, item] of Object.entries(doc.paths || {})) {
+    for (const op of Object.values(item)) {
+      if (!op || typeof op !== "object" || !op.responses || !op.responses[402] || op["x-payment-info"]) continue;
+      if (!prices[path]) continue;
+      op["x-payment-info"] = { price: prices[path], protocols: [{ x402: { scheme: "exact", network: c.network, asset: c.asset, payTo: c.payTo } }] };
+    }
+  }
+  return doc;
+}
+function openapiBase(origin, env = {}) {
   const c = cfg(env);
   return {
     openapi: "3.1.0",

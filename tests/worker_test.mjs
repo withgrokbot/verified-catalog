@@ -575,7 +575,10 @@ test("paid path: every unpaid call (no params, GET or POST, first call of the da
   assert.deepEqual(op["x-payment-info"].price, { mode: "fixed", currency: "USD", amount: "0.02" });
   assert.ok(op.responses["402"]);
   assert.ok(oa.paths["/mcp"].post);
-  assert.ok(!("x-payment-info" in oa.paths["/v1/lookup"].get), "/v1/lookup is free first, so it is not declared paid");
+  const lk = oa.paths["/v1/lookup"].get["x-payment-info"];
+  assert.ok(lk, "/v1/lookup declares x-payment-info (free first, then paid)");
+  assert.deepEqual([lk.price.amount, lk.price.free_allowance.calls], ["0.02", 5]);
+  assert.deepEqual(lk.protocols, [{ x402: { scheme: "exact", network: "eip155:8453", asset: USDC, payTo: PAY_TO } }]);
 });
 
 test("paid path: paid call returns the identical lookup result; bad params with a payment get a 400 and nothing is settled", async () => {
@@ -5052,6 +5055,17 @@ test("0.62.0 receipt guard: 429 + Retry-After past the per-client limit, payscou
 
 let passed = 0, skipped = 0;
 const SKIP = Symbol("skip");
+test("openapi: every paid (402) operation, free-first /v1/lookup included, carries x-payment-info", async () => {
+  const oa = (await send("/openapi.json", {})).body;
+  let n = 0;
+  for (const [p, item] of Object.entries(oa.paths)) for (const [m, op] of Object.entries(item)) {
+    if (!op || !op.responses || !op.responses[402]) continue;
+    n++;
+    assert.ok(op["x-payment-info"], `${m} ${p} missing x-payment-info`);
+  }
+  assert.ok(n >= 6, "expected several paid operations, got " + n);
+});
+
 for (const [name, fn] of T) {
   try {
     await fn({ skip(msg) { throw { [SKIP]: msg }; } });
@@ -5064,3 +5078,4 @@ for (const [name, fn] of T) {
 }
 console.log(`${passed}/${T.length - skipped} worker tests passed` + (skipped ? ` (${skipped} skipped)` : ""));
 process.exit(passed === T.length ? 0 : 1);
+
