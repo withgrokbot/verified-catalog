@@ -78,6 +78,10 @@ import { BRAND_ASSETS } from "./brand.js";
 import { handlePageToMarkdown, p2mOn, p2mCfg, p2mDocs, P2M_PATH, P2M_MCP_TOOL } from "./p2m.js"; // 0.63.0
 import { handlePdfTables, pdfOn, pdfCfg, pdfDocs, PDF_PATH, PDF_MCP_TOOL } from "./pdftables.js"; // draft, PDF_TABLES=1 only
 import { agentCard, AGENT_CARD_PATHS } from "./agentcard.js"; // 0.61.0
+// well-known aliases: /.well-known/mcp.json (= repo-root .mcp.json), /.well-known/x402.json (= /.well-known/x402),
+// /.well-known/oauth-protected-resource (RFC 9728) -> clean 404 JSON: we have no OAuth authorization server.
+const WK_ALIAS_PATHS = new Set(["/.well-known/mcp.json", "/.well-known/x402.json", "/.well-known/oauth-protected-resource"]);
+const MCP_JSON = Object.freeze({ mcpServers: { "402xagent": { url: "https://api.402xagent.com/mcp" } } });
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { paidCheckBlock } from "./paidcheck.js";
 import { receiptGuard } from "./receiptguard.js";
@@ -4058,7 +4062,7 @@ async function opsWrap(req, env, ctx, inner) {
         later((async () => {
           let errText = "";
           if (errClone) { try { const j = await errClone.json(); errText = String(j.error || j.reason || ""); } catch (_) {} }
-          await writeFunnel(db, funnelRows({ route, hasPayment, status, settled, errText, segment, inputError: !!inputErr, placeholder }));
+          await writeFunnel(db, funnelRows({ route, hasPayment, status, settled, errText, segment, inputError: !!inputErr, placeholder }), new Date(), url.hostname);
         })());
       } else if (res.status === 404 && path !== "/v1/ops/stats" && path !== "/v1/watch/stats") {
         later(writeNotFound(db, req.method, path));
@@ -4314,6 +4318,11 @@ const routeInnerHolder = {
     if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return receiptGuard(req, env, ctx, url, path, () => receiptRoutes(req, env, url, path)); // 0.62.0 edge cache + per-client limit
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
     if (path === "/.well-known/x402") return json(wellKnownX402(env, url.hostname), 200, { "cache-control": "public, max-age=300" });
+    if ((WK_ALIAS_PATHS.has(path) || path.startsWith("/.well-known/oauth-protected-resource/")) && !url.hostname.endsWith(".workers.dev")) { // well-known aliases; the workers.dev host keeps its old 404
+      if (path === "/.well-known/mcp.json") return json(MCP_JSON, 200, { "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" }); // = repo-root .mcp.json
+      if (path === "/.well-known/x402.json") return json(wellKnownX402(env, url.hostname), 200, { "cache-control": "public, max-age=300" }); // = /.well-known/x402
+      return json({ error: "not found", reason: "no_oauth", detail: "This API does not use OAuth. /mcp and the free routes need no credentials; paid calls use x402 (PAYMENT-SIGNATURE header, USDC on Base); hosted mode uses a Bearer integrator key.", x402: API_ORIGIN + "/.well-known/x402", mcp: API_ORIGIN + "/mcp" }, 404, { "cache-control": "public, max-age=3600" });
+    }
     if (AGENT_CARD_PATHS.has(path)) return json(agentCard(VERSION), 200, { "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" }); // 0.61.0: A2A AgentCard
     if (path === "/.well-known/402xagent-keys.json" || path === "/.well-known/402xagent-receipt-key.json") return json(receiptKeysDoc(), 200, { "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" });
     if (path.startsWith("/badge/")) return handleBadge(req, env, url, CANON_ORIGIN);
