@@ -14,7 +14,7 @@
 // DNS-resolved and refused when it points at a private, loopback, link-local, metadata or otherwise reserved address;
 // 15 s browser time per call; 2 MB input HTML; 10 MB output; per-network and per-key per-minute limits; a key that bursts to
 // RENDER_SPIKE_FACTOR x its per-minute limit inside one minute is suspended automatically.
-import { assertSafeUrl, API_ORIGIN } from "./spotcheck.js";
+import { assertSafeUrl, isBlockedIp, API_ORIGIN } from "./spotcheck.js";
 import { cfg, checkPayload, decodePaymentHeader, verifyAndSettle, paymentRequirements, takeFree } from "./lib.js";
 import { disposableDomains } from "./disposable-domains.js";
 
@@ -104,22 +104,55 @@ export async function parseRenderInput(req, kind, opts = {}) {
 }
 
 // ---------- browser ----------
-/** Request guard for every browser request: data/blob/about pass; http(s) must pass assertSafeUrl; anything else is aborted. */
+/** Request guard for every browser request. data/blob/about pass; websocket and service-worker requests are aborted outright;
+ * every http(s) request is DNS-resolved again AT REQUEST TIME (no per-host cache) and must pass assertSafeUrl; anything else
+ * is aborted. Responses are checked too: if the browser actually connected to a blocked IP (DNS rebinding between our
+ * lookup and the browser's), the render fails and nothing is returned or charged. */
+export const BLOCKED_RESOURCE_TYPES = new Set(["websocket", "eventsource-ws", "serviceworker", "service_worker"]);
 export function makeRequestGuard(opts = {}) {
-  const seen = new Map(); const blocked = [];
+  const blocked = []; const rebound = [];
   const check = async (u) => {
     let p; try { p = new URL(u); } catch (_) { return false; }
     if (["data:", "blob:", "about:"].includes(p.protocol)) return true;
-    if (p.protocol !== "http:" && p.protocol !== "https:") return false;
-    const k = p.protocol + "//" + p.host;
-    if (!seen.has(k)) seen.set(k, assertSafeUrl(u, opts.resolveHostFn ? { resolveHostFn: opts.resolveHostFn } : {}).then((s) => !!s.ok));
-    return seen.get(k);
+    if (p.protocol !== "http:" && p.protocol !== "https:") return false; // ws:, wss:, file:, chrome:, ftp: ...
+    const s = await assertSafeUrl(u, opts.resolveHostFn ? { resolveHostFn: opts.resolveHostFn } : {});
+    return !!s.ok;
   };
   const onRequest = async (r) => {
-    let ok = false; try { ok = await check(r.url()); } catch (_) { ok = false; }
+    let ok = false;
+    try {
+      const type = typeof r.resourceType === "function" ? String(r.resourceType() || "").toLowerCase() : "";
+      const sw = typeof r.isServiceWorker === "function" ? r.isServiceWorker() : false; // not in every puppeteer build
+      ok = !BLOCKED_RESOURCE_TYPES.has(type) && !sw && (await check(r.url()));
+    } catch (_) { ok = false; }
     if (ok) { try { await r.continue(); } catch (_) {} } else { blocked.push(r.url()); try { await r.abort("blockedbyclient"); } catch (_) {} }
   };
-  return { check, onRequest, blocked };
+  const onResponse = (resp) => {
+    try {
+      const ip = resp && typeof resp.remoteAddress === "function" ? (resp.remoteAddress() || {}).ip : null;
+      const bare = ip ? String(ip).replace(/^\[|\]$/g, "") : "";
+      // Cloudflare Browser Rendering reports its local proxy (::1 / 127.0.0.1) as the remote address of EVERY response
+      // (seen in a real run, 2026-11-04), so loopback here says nothing about the target and is ignored. Any other
+      // private, link-local or metadata address still fails the render. A full DNS-rebinding fix is a follow-up.
+      if (bare && !/^(::1|127\.\d+\.\d+\.\d+|::ffff:127\.\d+\.\d+\.\d+)$/i.test(bare) && isBlockedIp(bare)) rebound.push(resp.url());
+    } catch (_) {}
+  };
+  return { check, onRequest, onResponse, blocked, rebound };
+}
+/** In-page hardening, before any page script runs: no WebSocket, WebTransport or service workers. */
+export const PAGE_HARDEN_JS = `(() => { const no = function () { throw new Error("blocked by render sandbox"); };
+  try { Object.defineProperty(window, "WebSocket", { value: no, configurable: false, writable: false }); } catch (_) {}
+  try { Object.defineProperty(window, "WebTransport", { value: no, configurable: false, writable: false }); } catch (_) {}
+  try { if (navigator.serviceWorker) Object.defineProperty(navigator, "serviceWorker", { get: () => undefined, configurable: false }); } catch (_) {} })();`;
+export async function hardenPage(page) {
+  const done = [];
+  try { if (page.setBypassServiceWorker) { await page.setBypassServiceWorker(true); done.push("bypass_service_worker"); } } catch (_) {}
+  try { if (page.evaluateOnNewDocument) { await page.evaluateOnNewDocument(PAGE_HARDEN_JS); done.push("no_websocket_no_sw_js"); } } catch (_) {}
+  try { // CDP: block ws/wss at the network layer (request interception does not see WebSocket handshakes)
+    const cdp = page.createCDPSession ? await page.createCDPSession() : (page.target && page.target().createCDPSession ? await page.target().createCDPSession() : null);
+    if (cdp) { await cdp.send("Network.enable"); await cdp.send("Network.setBlockedURLs", { urls: ["ws://*", "wss://*"] }); done.push("cdp_block_ws"); }
+  } catch (_) {}
+  return done;
 }
 
 /** Run one render. {ok, bytes, contentType, blocked} or {ok:false, reason, status}. */
@@ -128,13 +161,15 @@ export async function runRender(env, input, opts = {}) {
   if (!launch) return { ok: false, reason: "browser_not_configured", status: 503 };
   const timeMs = opts.timeMs || RENDER_TIME_MS;
   const guard = makeRequestGuard(opts);
-  let browser = null, timer, done = false;
+  let browser = null, timer, done = false, hardened = [];
   const work = (async () => {
     browser = await launch(env.BROWSER);
     if (done) { try { await browser.close(); } catch (_) {} return { ok: false, reason: "render_timeout", status: 504 }; }
     const page = await browser.newPage();
     await page.setRequestInterception(true);
+    hardened = await hardenPage(page);
     page.on("request", guard.onRequest); // every navigation, redirect hop and subresource
+    if (page.on) page.on("response", guard.onResponse);
     if (input.kind === "screenshot") await page.setViewport({ width: input.width, height: input.height });
     if (input.url) {
       const resp = await page.goto(input.url, { waitUntil: "load", timeout: timeMs });
@@ -144,6 +179,7 @@ export async function runRender(env, input, opts = {}) {
     const out = input.kind === "pdf"
       ? await page.pdf({ format: input.format, landscape: input.landscape, printBackground: true, timeout: timeMs })
       : await page.screenshot({ type: input.format, fullPage: input.fullPage, ...(input.format === "jpeg" ? { quality: 80 } : {}) });
+    if (guard.rebound.length) return { ok: false, reason: "ssrf_blocked", detail: "the browser connected to a private address (DNS rebinding?)", status: 400 };
     const bytes = out instanceof Uint8Array ? out : new Uint8Array(out);
     if (bytes.byteLength > RENDER_MAX_OUT_BYTES) return { ok: false, reason: "output_too_large", status: 413 };
     return { ok: true, bytes, contentType: input.kind === "pdf" ? "application/pdf" : "image/" + input.format };
@@ -157,12 +193,16 @@ export async function runRender(env, input, opts = {}) {
       : /timeout/i.test(m) ? { ok: false, reason: "render_timeout", status: 504 }
       : /429|rate limit|too many/i.test(m) ? { ok: false, reason: "browser_busy", status: 503 } : { ok: false, reason: "render_failed", status: 502 };
   } finally { done = true; clearTimeout(timer); work.catch(() => {}); if (browser) { try { await browser.close(); } catch (_) {} } }
-  return { ...r, blocked: guard.blocked.length };
+  return { ...r, blocked: guard.blocked.length, hardened };
 }
 
 // ---------- API keys ----------
 const month = (now) => now.toISOString().slice(0, 7);
 const minute = (now) => now.toISOString().slice(0, 16);
+export async function paymentKey(payload) {
+  const p = (payload && payload.payload) || {};
+  return sha("render-pay|" + String(p.signature || "") + "|" + String((p.authorization && p.authorization.nonce) || "").toLowerCase());
+}
 export const hashKey = async (env, raw) => sha(pepper(env) + "|key|" + raw);
 function newKey() { const b = new Uint8Array(24); crypto.getRandomValues(b); return "rk_" + btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
 function keyFromReq(req) {
@@ -200,9 +240,20 @@ export async function releaseQuota(env, key, now = new Date()) {
   await env.RECEIPTS_DB.prepare("UPDATE api_key_usage SET renders = renders - 1 WHERE key_id = ? AND month = ? AND renders > 0").bind(key.id, month(now)).run();
 }
 
+export const RENDER_VERIFY_PATH = "/v1/render/keys/verify";
+export const RENDER_VERIFY_TTL_S = 30 * 60; // a verify link works for 30 minutes, once
+export const emailOn = (env) => !!(env.RENDER_EMAIL && typeof env.RENDER_EMAIL.send === "function" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(env.RENDER_EMAIL_FROM || "")));
+const SENT = { status: "check_your_email", note: "If this address can get a free key, a one-time link is on its way. It expires in 30 minutes. The key is issued only when you open the link." };
+function newToken() { const b = new Uint8Array(32); crypto.getRandomValues(b); return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+const tokenHash = (env, t) => sha(pepper(env) + "|verify|" + t);
+const esc = (x) => String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const H = (body, status = 200) => new Response(`<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>402xAgent Render key</title><body style="font:16px system-ui;max-width:640px;margin:3em auto">${body}</body>`, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer", "x-frame-options": "DENY" } });
+
+/** Step 1: POST {email}. Stores a PENDING row (email hash + token hash, 30 min) and mails a one-time link. No key yet.
+ * The answer is the same whether or not a key already exists for the address (no account probing). */
 export async function handleRenderSignup(req, env, ctx, url, opts = {}) {
   if (!renderOn(env)) return J({ error: "not found" }, 404);
-  if (!env.RECEIPTS_DB || !pepper(env)) return J({ error: "key signup is not configured on this deployment" }, 503);
+  if (!env.RECEIPTS_DB || !pepper(env) || !emailOn(env)) return J({ error: "key signup is not configured on this deployment", reason: "signup_not_configured" }, 503);
   const raw = await readBody(req, 4096);
   let b = {}; try { b = raw.text ? JSON.parse(raw.text) : {}; } catch (_) {}
   const e = checkEmail(b && b.email);
@@ -210,11 +261,51 @@ export async function handleRenderSignup(req, env, ctx, url, opts = {}) {
   const now = opts.now || new Date();
   if (!(await takeFree(env, "render-signup:" + (await netKey(req, env)), RENDER_SIGNUPS_PER_IP_DAY, now, "take", "render-signup")).free) return J({ error: `at most ${RENDER_SIGNUPS_PER_IP_DAY} key signups per network per day` }, 429, { "retry-after": "3600" });
   const emailHash = await sha(pepper(env) + "|email|" + e.email);
-  if (await env.RECEIPTS_DB.prepare("SELECT 1 AS x FROM api_keys WHERE email_hash = ?").bind(emailHash).first()) return J({ error: "a key already exists for this email" }, 409);
-  const key = newKey(); const t = Math.floor(now.getTime() / 1000);
+  if (await env.RECEIPTS_DB.prepare("SELECT 1 AS x FROM api_keys WHERE email_hash = ?").bind(emailHash).first()) return J(SENT, 202);
+  const t = Math.floor(now.getTime() / 1000); const token = newToken();
+  await env.RECEIPTS_DB.prepare("DELETE FROM render_signups WHERE email_hash = ? OR expires_at <= ?").bind(emailHash, t).run(); // one live link per address
+  await env.RECEIPTS_DB.prepare("INSERT INTO render_signups (token_hash, email_hash, created_at, expires_at) VALUES (?, ?, ?, ?)").bind(await tokenHash(env, token), emailHash, t, t + RENDER_VERIFY_TTL_S).run();
+  const link = url.origin + RENDER_VERIFY_PATH + "?token=" + encodeURIComponent(token);
+  try {
+    await env.RENDER_EMAIL.send({ to: e.email, from: { email: String(env.RENDER_EMAIL_FROM), name: "402xAgent" }, subject: "Your 402xAgent Render API key: confirm your email",
+      text: `Open this link within 30 minutes to get your free 402xAgent Render API key (${RENDER_PLANS.free.quota} renders a month):\n\n${link}\n\nIf you didn't ask for this, ignore this email. Nothing happens unless the link is opened.`,
+      html: `<p>Open this link within 30 minutes to get your free 402xAgent Render API key (${RENDER_PLANS.free.quota} renders a month):</p><p><a href="${esc(link)}">Confirm and get my key</a></p><p>If you didn't ask for this, ignore this email. Nothing happens unless the link is opened.</p>` });
+  } catch (err) {
+    await env.RECEIPTS_DB.prepare("DELETE FROM render_signups WHERE email_hash = ?").bind(emailHash).run();
+    return J({ error: "could not send the verification email, try again later", reason: "email_send_failed" }, 502);
+  }
+  return J(SENT, 202);
+}
+
+/** Step 2: GET shows a confirm button (so mail scanners that prefetch links don't use the token); POST redeems the token
+ * once, before it expires, and issues the key (shown once). */
+export async function handleRenderVerify(req, env, ctx, url, opts = {}) {
+  if (!renderOn(env)) return J({ error: "not found" }, 404);
+  if (!env.RECEIPTS_DB || !pepper(env)) return J({ error: "key signup is not configured on this deployment" }, 503);
+  let token = url.searchParams.get("token") || "";
+  if (req.method === "GET" || req.method === "HEAD") {
+    if (!/^[A-Za-z0-9_-]{20,100}$/.test(token)) return H("<p>This link is not valid.</p>", 400);
+    return H(`<h1>Get your free Render API key</h1><form method="post" action="${RENDER_VERIFY_PATH}"><input type="hidden" name="token" value="${esc(token)}"><button type="submit">Confirm my email and show my key</button></form>`);
+  }
+  if (req.method !== "POST") return J({ error: "method not allowed" }, 405, { allow: "GET, POST" });
+  const raw = await readBody(req, 4096);
+  if (!token) { const ct = req.headers.get("content-type") || ""; try { token = ct.includes("json") ? String(JSON.parse(raw.text).token || "") : new URLSearchParams(raw.text).get("token") || ""; } catch (_) { token = ""; } }
+  const wantJson = /json/.test(req.headers.get("accept") || "") || /json/.test(req.headers.get("content-type") || "");
+  const bad = (msg) => wantJson ? J({ error: msg, reason: "invalid_or_expired_token" }, 400) : H(`<p>${esc(msg)}</p>`, 400);
+  if (!/^[A-Za-z0-9_-]{20,100}$/.test(token)) return bad("This link is not valid.");
+  const now = opts.now || new Date(); const t = Math.floor(now.getTime() / 1000);
+  const th = await tokenHash(env, token);
+  const used = await env.RECEIPTS_DB.prepare("UPDATE render_signups SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?").bind(t, th, t).run();
+  if (!(used.meta && used.meta.changes)) return bad("This link has expired or was already used. Ask for a new one.");
+  const row = await env.RECEIPTS_DB.prepare("SELECT email_hash FROM render_signups WHERE token_hash = ?").bind(th).first();
+  await env.RECEIPTS_DB.prepare("DELETE FROM render_signups WHERE token_hash = ?").bind(th).run();
+  if (await env.RECEIPTS_DB.prepare("SELECT 1 AS x FROM api_keys WHERE email_hash = ?").bind(row.email_hash).first()) return bad("A key already exists for this email.");
+  const key = newKey();
   await env.RECEIPTS_DB.prepare("INSERT INTO api_keys (id, key_hash, email_hash, plan, monthly_quota, status, created_at, updated_at) VALUES (?, ?, ?, 'free', ?, 'active', ?, ?)")
-    .bind(crypto.randomUUID(), await hashKey(env, key), emailHash, RENDER_PLANS.free.quota, t, t).run();
-  return J({ api_key: key, plan: "free", monthly_quota: RENDER_PLANS.free.quota, note: "Shown once; we store only a hash. Send it as x-api-key. The quota is a hard cap (429 at quota, never billed extra)." }, 201);
+    .bind(crypto.randomUUID(), await hashKey(env, key), row.email_hash, RENDER_PLANS.free.quota, t, t).run();
+  const note = "Shown once; we store only a hash. Send it as x-api-key. The quota is a hard cap (429 at quota, never billed extra).";
+  if (wantJson) return J({ api_key: key, plan: "free", monthly_quota: RENDER_PLANS.free.quota, note }, 201);
+  return H(`<h1>Your Render API key</h1><p><code style="font-size:1.1em;user-select:all">${esc(key)}</code></p><p>${esc(note)}</p>`, 201);
 }
 
 // ---------- render handler ----------
@@ -268,11 +359,17 @@ export async function handleRender(req, env, ctx, url, kind, opts = {}) {
   if (!payload) return need("payment header is not valid base64 JSON x402 payload");
   const bad = checkPayload(payload, c);
   if (bad) return need("payment rejected: " + bad);
+  // one render per payment: record the payment (hash of signature + nonce) BEFORE rendering; a reused payment is refused
+  if (!env.RECEIPTS_DB) return J({ error: "payments are not configured on this deployment", charged: false }, 503);
+  const pk = await paymentKey(payload);
+  try { await env.RECEIPTS_DB.prepare("INSERT INTO render_payments (pay_key, bind, created_at) VALUES (?, ?, ?)").bind(pk, input.bind, Math.floor(now.getTime() / 1000)).run(); }
+  catch (_) { return J({ error: "this payment was already used", reason: "payment_reused", charged: false, note: "Each payment pays for one render. Sign a new payment for a new render." }, 409); }
+  const forget = () => env.RECEIPTS_DB.prepare("DELETE FROM render_payments WHERE pay_key = ?").bind(pk).run().catch(() => {});
   const r = await runRender(env, input, opts);
-  if (!r.ok) return fail(r);
+  if (!r.ok) { await forget(); return fail(r); } // nothing settled, so the same payment may be retried
   const s = await verifyAndSettle(c, payload, new URL(resourceUrl), { paidPath: true, description: "render " + kind, bind: { target: "render:" + kind + "#" + input.bind, method: "POST" } });
   if (!s.ok && s.pending) return J({ error: "payment pending", reason: s.reason, ref: s.ref || null, note: "Do not sign a new payment; retry the same request with the same PAYMENT-SIGNATURE." }, 503, { "retry-after": "10" });
-  if (!s.ok) return need("payment rejected: " + s.reason);
+  if (!s.ok) { await forget(); return need("payment rejected: " + s.reason); }
   const enc = b64(s.settle);
   return ok(r, { "payment-response": enc, "x-payment-response": enc });
 }
@@ -284,12 +381,13 @@ export function renderDocs(c) {
     routes: {
       pdf: { method: "POST", url: API_ORIGIN + RENDER_PDF_PATH, body: { url: "https://... (or html)", html: "<html>... (max 2 MB)", format: "A4|Letter", landscape: false } },
       screenshot: { method: "POST", url: API_ORIGIN + RENDER_SHOT_PATH, body: { url: "https://... (or html)", width: "320-1920 (1280)", height: "240-4000 (800)", fullPage: false, format: "png|jpeg" } },
-      signup: { method: "POST", url: API_ORIGIN + RENDER_KEYS_PATH, body: { email: "you@example.com (no disposable domains)" } },
+      signup: { method: "POST", url: API_ORIGIN + RENDER_KEYS_PATH, body: { email: "you@example.com (no disposable domains)" }, then: "open the one-time link we email you (30 min); the key is issued only then" },
     },
     price: { x402_per_render_usd: c.priceUsd, protocol: "x402 v2 exact, USDC on Base; charged only if the render succeeds",
       plans: Object.fromEntries(Object.entries(RENDER_PLANS).map(([k, v]) => [k, { monthly_renders: v.quota, usd_per_month: v.priceUsd, per_minute: v.perMin }])),
       overage: "none: the monthly quota is a hard cap (429 with an upgrade note), never billed extra" },
     limits: { browser_time_ms: RENDER_TIME_MS, max_html_bytes: RENDER_MAX_HTML_BYTES, max_output_bytes: RENDER_MAX_OUT_BYTES, per_minute_per_network: RENDER_PER_IP_MIN, spike_suspend: `a key over ${RENDER_SPIKE_FACTOR}x its per-minute limit in one minute is suspended` },
-    safety: "http/https only. The first URL, every redirect and every subresource is DNS-checked; private, loopback, link-local and metadata addresses are refused.",
+    payments: "one render per x402 payment: a reused payment is refused (409) before rendering",
+    safety: "http/https only. WebSocket, WebTransport and service workers are blocked. Every request is DNS-checked again when the browser makes it, and a response from a private address fails the render. The first URL, every redirect and every subresource is DNS-checked; private, loopback, link-local and metadata addresses are refused.",
   };
 }

@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import worker from "../worker/src/index.js";
 import { QuotaCounter, openapi } from "../worker/src/lib.js";
-import { handleRender, handleRenderSignup, checkEmail, runRender, RENDER_PDF_PATH, RENDER_SHOT_PATH, RENDER_KEYS_PATH, RENDER_MAX_HTML_BYTES, RENDER_MAX_OUT_BYTES, RENDER_PLANS } from "../worker/src/render.js";
+import { handleRender, handleRenderSignup, handleRenderVerify, RENDER_VERIFY_PATH, makeRequestGuard, checkEmail, runRender, RENDER_PDF_PATH, RENDER_SHOT_PATH, RENDER_KEYS_PATH, RENDER_MAX_HTML_BYTES, RENDER_MAX_OUT_BYTES, RENDER_PLANS } from "../worker/src/render.js";
 import { sqliteD1 as d1 } from "./helpers/sqlite_d1.mjs";
 
 const PAY_TO = "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674";
@@ -34,13 +34,16 @@ const SITE = {
   "https://ok.fixture/hop": { redirect: "http://internal.fixture/admin" },
   "https://ok.fixture/meta-img": { subs: ["http://meta.fixture/latest/meta-data/", "https://cdn.fixture/ok.png"] },
 };
-let launches = 0, seen = [], outBytes = 1000, hang = false, failNext = false;
+let launches = 0, seen = [], outBytes = 1000, hang = false, failNext = false, remoteIp = "93.184.216.34", hardening = [];
 function launch() {
   launches++;
-  let handler = null; const reqs = [];
-  const req = async (u) => { let res; const p = new Promise((r) => (res = r)); seen.push(u); await handler({ url: () => u, continue: async () => res(true), abort: async () => res(false) }); return p; };
+  let handler = null, onResp = null; const reqs = [];
+  const req = async (u, type = "document") => { let res; const p = new Promise((r) => (res = r)); seen.push(u); await handler({ url: () => u, resourceType: () => type, continue: async () => res(true), abort: async () => res(false) }); const ok = await p; if (ok && onResp) onResp({ url: () => u, remoteAddress: () => ({ ip: remoteIp, port: 443 }) }); return ok; };
   const page = {
-    setRequestInterception: async () => {}, on: (ev, fn) => { if (ev === "request") handler = fn; }, setViewport: async () => {},
+    setRequestInterception: async () => {}, on: (ev, fn) => { if (ev === "request") handler = fn; if (ev === "response") onResp = fn; }, setViewport: async () => {},
+    setBypassServiceWorker: async (v) => { hardening.push("bypass:" + v); }, evaluateOnNewDocument: async (js) => { hardening.push(/WebSocket/.test(js) && /serviceWorker/.test(js) ? "js" : "?"); },
+    createCDPSession: async () => ({ send: async (m, a) => { hardening.push(m + (a && a.urls ? ":" + a.urls.join(",") : "")); } }),
+    _req: (u, t) => req(u, t),
     goto: async (u) => {
       if (hang) await new Promise(() => {});
       let cur = u;
@@ -52,7 +55,7 @@ function launch() {
         return { status: () => 200 };
       }
     },
-    setContent: async (html) => { for (const m of html.matchAll(/src="([^"]+)"/g)) reqs.push(await req(m[1])); },
+    setContent: async (html) => { for (const m of html.matchAll(/(src|ws|sw)="([^"]+)"/g)) reqs.push(await req(m[2], m[1] === "ws" ? "websocket" : m[1] === "sw" ? "serviceworker" : "image")); },
     pdf: async () => { if (failNext) { failNext = false; throw new Error("boom"); } return new Uint8Array(outBytes).fill(37); },
     screenshot: async () => new Uint8Array(outBytes).fill(137),
   };
@@ -62,7 +65,9 @@ function quotaNs() {
   const objs = new Map();
   return { idFromName: (n) => n, get: (id) => { if (!objs.has(id)) { const m = new Map(); objs.set(id, new QuotaCounter({ storage: { get: async (k) => m.get(k), put: async (k, v) => m.set(k, v) } }, {})); } const o = objs.get(id); return { fetch: (u) => o.fetch(new Request(u)) }; } };
 }
-const env = (x = {}) => ({ RENDER: "1", BROWSER: {}, PAY_TO, FACILITATOR_URL: "https://facilitator.fixture", CLIENT_SALT: "t", QUOTA: quotaNs(), RECEIPTS_DB: d1(), ...x });
+let mail = [];
+const EMAIL = { send: async (m) => { mail.push(m); return { messageId: "m" + mail.length }; } };
+const env = (x = {}) => ({ RENDER: "1", BROWSER: {}, RENDER_EMAIL: EMAIL, RENDER_EMAIL_FROM: "keys@402xagent.example", PAY_TO, FACILITATOR_URL: "https://facilitator.fixture", CLIENT_SALT: "t", QUOTA: quotaNs(), RECEIPTS_DB: d1(), ...x });
 let ipN = 0; const freshIp = () => `10${(++ipN >> 8) & 7}.${ipN & 255}.7.1`; // a new /24 each call (the per-network limit keys on /24)
 const call = (e, path, body, headers = {}, o = {}) => {
   const url = new URL(API + path);
@@ -71,7 +76,12 @@ const call = (e, path, body, headers = {}, o = {}) => {
 };
 const pay = (n, amount = "2000") => btoa(JSON.stringify({ x402Version: 2, accepted: { scheme: "exact", network: "eip155:8453", amount, asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: PAY_TO },
   payload: { signature: "0xsig", authorization: { from: "0x00000000000000000000000000000000000000b1", to: PAY_TO, value: amount, nonce: "0x" + n.repeat(32), validBefore: "9999999999" } } }));
-async function newKey(e, email = "dev@example.com") { const r = await call(e, RENDER_KEYS_PATH, { email }); assert.equal(r.status, 201); return (await r.json()).api_key; }
+const tokenOf = (m) => new URL(/https:\/\/\S+/.exec(m.text)[0]).searchParams.get("token");
+const verify = (e, token, o = {}) => { const url = new URL(API + RENDER_VERIFY_PATH); return handleRenderVerify(new Request(url, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ token }) }), e, {}, url, o); };
+async function newKey(e, email = "dev@example.com") {
+  mail = []; const r = await call(e, RENDER_KEYS_PATH, { email }); assert.equal(r.status, 202);
+  const v = await verify(e, tokenOf(mail[0])); assert.equal(v.status, 201); return (await v.json()).api_key;
+}
 
 test("off by default: every render route 404s without RENDER=1, and the worker does not route them", async () => {
   for (const p of [RENDER_PDF_PATH, RENDER_SHOT_PATH, RENDER_KEYS_PATH]) assert.equal((await call(env({ RENDER: undefined }), p, { url: "https://ok.fixture/" })).status, 404);
@@ -165,19 +175,83 @@ test("rate limits: per network per minute, per key per minute; a sudden spike su
   assert.equal((await call(e, RENDER_PDF_PATH, { url: "https://ok.fixture/" }, { "x-api-key": k }, { now: new Date(Date.now() + 120000) })).status, 403, "stays suspended");
 });
 
-test("signup: email required, disposable domains (and their subdomains) refused, one key per email, only hashes stored", async () => {
+test("signup: email required, disposable domains (and their subdomains) refused before any mail; only hashes stored", async () => {
   for (const [m, ok] of [["a@gmail.com", true], ["A@Example.ORG", true], ["x@mailinator.com", false], ["x@sub.mailinator.com", false], ["x@yopmail.com", false], ["x@guerrillamail.com", false], ["x@10minutemail.com", false], ["nope", false], ["", false], ["a@b", false]]) assert.equal(checkEmail(m).ok, ok, m);
   assert.equal(checkEmail("x@mailinator.com").reason, "disposable_email");
-  const e = env();
+  const e = env(); mail = [];
   const d = await call(e, RENDER_KEYS_PATH, { email: "throw@mailinator.com" }); assert.equal(d.status, 400); assert.equal((await d.json()).reason, "disposable_email");
-  assert.equal((await call(e, RENDER_KEYS_PATH, {})).status, 400);
-  const r = await call(e, RENDER_KEYS_PATH, { email: "Dev@Example.com" }); assert.equal(r.status, 201); const b = await r.json();
-  assert.match(b.api_key, /^rk_[A-Za-z0-9_-]{32}$/); assert.equal(b.monthly_quota, 500);
-  assert.equal((await call(e, RENDER_KEYS_PATH, { email: "dev@example.com" })).status, 409);
-  const row = await e.RECEIPTS_DB.prepare("SELECT * FROM api_keys").first();
-  assert.ok(!JSON.stringify(row).includes(b.api_key) && !/example\.com/i.test(JSON.stringify(row)));
+  assert.equal((await call(e, RENDER_KEYS_PATH, {})).status, 400); assert.equal(mail.length, 0, "no mail for refused addresses");
   let last; for (let i = 0; i < 4; i++) last = await call(e, RENDER_KEYS_PATH, { email: `p${i}@example.net` }, {}, { ip: "203.0.113.50" });
   assert.equal(last.status, 429, "signups per network per day");
+});
+
+test("email verification: signup stores a pending row and mails a one-time link; the key exists only after the link is redeemed", async () => {
+  const e = env(); mail = [];
+  const r = await call(e, RENDER_KEYS_PATH, { email: "Dev@Example.com" }); assert.equal(r.status, 202);
+  const b = await r.json(); assert.equal(b.status, "check_your_email"); assert.equal(b.api_key, undefined);
+  assert.equal(mail.length, 1); assert.equal(mail[0].to, "dev@example.com"); assert.equal(mail[0].from.email, "keys@402xagent.example"); assert.ok(mail[0].text && mail[0].html);
+  assert.equal((await e.RECEIPTS_DB.prepare("SELECT COUNT(*) AS n FROM api_keys").first()).n, 0, "no key before verification");
+  const token = tokenOf(mail[0]);
+  const pend = await e.RECEIPTS_DB.prepare("SELECT * FROM render_signups").first();
+  assert.ok(pend && pend.expires_at - pend.created_at === 1800); assert.ok(!JSON.stringify(pend).includes(token) && !/example\.com/i.test(JSON.stringify(pend)), "token and email are hashed");
+  const url = new URL(API + RENDER_VERIFY_PATH + "?token=" + token);
+  const g = await handleRenderVerify(new Request(url), e, {}, url); assert.equal(g.status, 200); assert.match(await g.text(), /<form method="post"/);
+  assert.equal((await e.RECEIPTS_DB.prepare("SELECT COUNT(*) AS n FROM api_keys").first()).n, 0, "GET (mail scanners) never issues a key");
+  const v = await verify(e, token); assert.equal(v.status, 201); const k = (await v.json()).api_key; assert.match(k, /^rk_[A-Za-z0-9_-]{32}$/);
+  const row = await e.RECEIPTS_DB.prepare("SELECT * FROM api_keys").first(); assert.ok(!JSON.stringify(row).includes(k) && !/example\.com/i.test(JSON.stringify(row)));
+  assert.equal((await verify(e, token)).status, 400, "single use");
+  assert.equal((await call(e, RENDER_PDF_PATH, { url: "https://ok.fixture/" }, { "x-api-key": k })).status, 200);
+  mail = []; const again = await call(e, RENDER_KEYS_PATH, { email: "dev@example.com" });
+  assert.equal(again.status, 202, "same answer when a key exists (no account probing)"); assert.equal(mail.length, 0);
+  // expiry
+  const e2 = env(); mail = []; const t0 = new Date("2026-11-04T12:00:00Z");
+  await call(e2, RENDER_KEYS_PATH, { email: "late@example.com" }, {}, { now: t0 });
+  assert.equal((await verify(e2, tokenOf(mail[0]), { now: new Date(t0.getTime() + 31 * 60000) })).status, 400, "expired after 30 min");
+  assert.equal((await verify(e2, "x".repeat(43))).status, 400, "unknown token");
+  // not configured -> 503, nothing stored or sent
+  mail = []; const n = await call(env({ RENDER_EMAIL: undefined }), RENDER_KEYS_PATH, { email: "a@example.com" });
+  assert.equal(n.status, 503); assert.equal((await n.json()).reason, "signup_not_configured"); assert.equal(mail.length, 0);
+  // send failure -> 502 and the pending row is removed
+  const e3 = env({ RENDER_EMAIL: { send: async () => { const x = new Error("no"); x.code = "E_SENDER_NOT_VERIFIED"; throw x; } } });
+  assert.equal((await call(e3, RENDER_KEYS_PATH, { email: "b@example.com" })).status, 502);
+  assert.equal((await e3.RECEIPTS_DB.prepare("SELECT COUNT(*) AS n FROM render_signups").first()).n, 0);
+});
+
+test("x402 replay: a payment is recorded before rendering and a reuse is refused (409) without rendering or settling", async () => {
+  const e = env(); settles = 0; launches = 0; const sig = pay("e1");
+  assert.equal((await call(e, RENDER_PDF_PATH, { url: "https://ok.fixture/" }, { "payment-signature": sig })).status, 200);
+  for (const body of [{ url: "https://ok.fixture/" }, { url: "https://cdn.fixture/other" }]) {
+    const r = await call(e, RENDER_PDF_PATH, body, { "payment-signature": sig });
+    assert.equal(r.status, 409); const b = await r.json(); assert.equal(b.reason, "payment_reused"); assert.equal(b.charged, false);
+  }
+  assert.equal(launches, 1); assert.equal(settles, 1);
+  const row = await e.RECEIPTS_DB.prepare("SELECT * FROM render_payments").first(); assert.ok(!/0xsig|0xb1/i.test(JSON.stringify(row)));
+  // a failed render keeps nothing, so the same (unsettled) payment can be retried
+  failNext = true; const sig2 = pay("e2");
+  assert.equal((await call(e, RENDER_PDF_PATH, { url: "https://ok.fixture/" }, { "payment-signature": sig2 })).status, 502);
+  assert.equal((await call(e, RENDER_PDF_PATH, { url: "https://ok.fixture/" }, { "payment-signature": sig2 })).status, 200); assert.equal(settles, 2);
+});
+
+test("browser hardening: WebSocket and service-worker requests are aborted, service workers bypassed, ws/wss blocked via CDP", async () => {
+  hardening = []; seen = [];
+  const r = await runRender({ BROWSER: {} }, { kind: "pdf", html: '<script ws="wss://ok.fixture/socket"></script><script sw="https://ok.fixture/sw.js"></script><img src="https://cdn.fixture/a.png">', format: "A4" }, { launch });
+  assert.equal(r.ok, true); assert.equal(r.blocked, 2, "websocket + service worker aborted even on a public host");
+  assert.deepEqual(r.hardened, ["bypass_service_worker", "no_websocket_no_sw_js", "cdp_block_ws"]);
+  assert.ok(hardening.includes("bypass:true") && hardening.includes("js") && hardening.includes("Network.setBlockedURLs:ws://*,wss://*"));
+});
+
+test("request-time DNS re-check: no per-host cache, and a response from a private IP (rebinding) fails the render", async () => {
+  const g = makeRequestGuard(); DNS["flip.fixture"] = "93.184.216.36";
+  assert.equal(await g.check("https://flip.fixture/a"), true);
+  DNS["flip.fixture"] = "10.9.9.9";
+  assert.equal(await g.check("https://flip.fixture/b"), false, "the same host is resolved again on the next request");
+  delete DNS["flip.fixture"];
+  settles = 0; remoteIp = "[::1]"; // Browser Rendering's own proxy address: not a signal, render goes through
+  assert.equal((await call(env(), RENDER_SHOT_PATH, { url: "https://ok.fixture/" }, { "payment-signature": pay("f0") })).status, 200); settles = 0;
+  remoteIp = "10.0.0.7";
+  const r = await call(env(), RENDER_SHOT_PATH, { url: "https://ok.fixture/" }, { "payment-signature": pay("f1") });
+  remoteIp = "93.184.216.34";
+  assert.equal(r.status, 400); const b = await r.json(); assert.equal(b.reason, "ssrf_blocked"); assert.equal(b.charged, false); assert.equal(settles, 0);
 });
 
 test("discovery: openapi x-payment-info + llms.txt entry with RENDER=1; absent by default", async () => {
