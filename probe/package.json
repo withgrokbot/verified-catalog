@@ -1,0 +1,10 @@
+{
+  "name": "email-smtp-probe",
+  "private": true,
+  "type": "module",
+  "version": "0.68.1",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/probe.test.mjs"
+  }
+}

@@ -1,14 +1,13 @@
-// Email validation v1 (0.68.0, UNRELEASED, OFF by default: EMAIL must be "1", else every route 404s). Not priced and not launched.
+// Email validation (0.68.0, UNRELEASED, OFF by default: EMAIL must be "1", else every route 404s). Not priced and not launched.
 //   POST /v1/email/validate  {email}            one address
 //   POST /v1/email/batch     {emails:[...]}     up to 100 addresses
 // Same API keys as the render API (x-api-key or Authorization: Bearer rk_...). Quota and usage are separate
 // (email_plan, email_monthly_quota, api_key_usage.emails). A hard cap: at quota the call is 429, nothing is billed extra.
 // Checks: RFC 5322 syntax + IDNA, MX over DNS-over-HTTPS (A record if there is no MX), disposable domains (bundled list
-// plus the weekly refresh), role addresses, typo suggestions. No SMTP in v1: checks.smtp is always "not_checked".
-// Status is never "deliverable" without an SMTP pass, so v1's best status is risky or unknown (undeliverable only when
-// syntax or DNS shows the address cannot accept mail).
-// A future SMTP probe host is configured by EMAIL_SMTP_URL + EMAIL_SMTP_SECRET and called with a signed body. Both unset
-// means off. v1 builds that request and does not send it.
+// plus the weekly refresh), role addresses, typo suggestions.
+// 0.68.1: when EMAIL_SMTP_URL (https) and EMAIL_SMTP_SECRET are both set, each address with an MX is sent to the probe.
+// The body is {"v":1,"ts":unix,"email"} and the header is x-email-probe-signature: v1=<hmac-sha256 hex of the raw body>.
+// deliverable is returned only for a non-catch-all 250 RCPT. Either env var unset means the probe is off and smtp stays not_checked.
 import { disposableDomains } from "./disposable-domains.js";
 
 export const EMAIL_VALIDATE_PATH = "/v1/email/validate";
@@ -21,10 +20,12 @@ export const DISPOSABLE_LIST_URL = "https://raw.githubusercontent.com/disposable
 export const emailOn = (env) => String((env && env.EMAIL) || "") === "1";
 
 export const EMAIL_PLANS = {
-  free: { quota: 100, priceUsd: null },
+  free: { quota: 100, priceUsd: 0 },
   starter: { quota: 5000, priceUsd: null },
   pro: { quota: 25000, priceUsd: null },
+  scale: { quota: 100000, priceUsd: null },
 };
+export const EMAIL_PAID = ["starter", "pro", "scale"];
 
 export const ROLE_LOCALS = new Set([
   "admin", "administrator", "info", "information", "support", "sales", "contact", "hello", "help", "office", "team",
@@ -163,9 +164,18 @@ export function suggestEmail(local, domain) {
 }
 
 // ---------- status ----------
+function normCatch(v) {
+  if (v === true || v === "yes") return "yes";
+  if (v === false || v === "no") return "no";
+  if (v === "unknown") return "unknown";
+  return "not_checked";
+}
+function normSmtp(v) {
+  return v === "pass" || v === "fail" || v === "unknown" || v === "not_checked" ? v : "not_checked";
+}
 /**
- * Map checks to a status. deliverable is returned only when smtp is "pass" and nothing else is wrong.
- * Any other smtp value (including "not_checked") cannot be deliverable.
+ * Map checks to a status. deliverable requires smtp "pass" and catch_all "no"
+ * (a non-catch-all 250 RCPT) and no other problem. Anything else stays unknown, risky, or undeliverable.
  */
 export function classify(input) {
   const checks = {
@@ -173,11 +183,12 @@ export function classify(input) {
     mx: ["present", "missing", "a_fallback", "error", "literal"].includes(input.mx) ? input.mx : "missing",
     disposable: input.disposable === true,
     role: input.role === true,
-    catch_all: input.catch_all == null || input.catch_all === "not_checked" ? "not_checked" : input.catch_all,
-    smtp: input.smtp === "pass" || input.smtp === "fail" ? input.smtp : "not_checked",
+    catch_all: normCatch(input.catch_all),
+    smtp: normSmtp(input.smtp),
   };
   const reasons = [];
   let status, confidence;
+  const nonCatchAll = checks.catch_all === "no";
   if (checks.syntax !== "valid") { status = "undeliverable"; confidence = 0.99; reasons.push("invalid_syntax"); }
   else if (checks.mx === "error") { status = "unknown"; confidence = 0.2; reasons.push("dns_error"); }
   else if (checks.mx === "literal") { status = "unknown"; confidence = 0.3; reasons.push("domain_literal"); }
@@ -187,19 +198,20 @@ export function classify(input) {
     if (checks.disposable) reasons.push("disposable_domain");
     if (checks.role) reasons.push("role_address");
     if (checks.mx === "a_fallback") reasons.push("no_mx_a_fallback");
-    if (checks.catch_all === true || checks.catch_all === "yes") reasons.push("catch_all");
-    const risky = reasons.length > 0;
-    if (checks.smtp === "pass" && !risky) { status = "deliverable"; confidence = 0.97; }
-    else {
-      if (checks.smtp !== "pass") reasons.push("smtp_not_checked");
-      if (risky) {
-        status = "risky";
-        confidence = checks.disposable ? 0.8 : checks.role ? 0.65 : checks.mx === "a_fallback" ? 0.55 : 0.6;
-      } else { status = "unknown"; confidence = 0.4; }
-    }
+    if (checks.catch_all === "yes") reasons.push("catch_all");
+    if (checks.smtp === "unknown") reasons.push("smtp_unknown");
+    else if (checks.smtp === "pass" && !nonCatchAll) reasons.push("catch_all_unconfirmed");
+    else if (checks.smtp !== "pass") reasons.push("smtp_not_checked");
+    const soft = new Set(["smtp_unknown", "smtp_not_checked", "catch_all_unconfirmed"]);
+    const risky = reasons.some((r) => !soft.has(r));
+    if (checks.smtp === "pass" && nonCatchAll && !risky) { status = "deliverable"; confidence = 0.97; }
+    else if (risky) {
+      status = "risky";
+      confidence = checks.disposable ? 0.8 : checks.role ? 0.65 : checks.mx === "a_fallback" ? 0.55 : 0.6;
+    } else { status = "unknown"; confidence = checks.smtp === "unknown" ? 0.35 : 0.4; }
   }
-  // Hard rule: no SMTP pass, no deliverable. v1 never sets smtp to "pass".
-  if (status === "deliverable" && checks.smtp !== "pass") {
+  // Hard rule: deliverable only for a confirmed non-catch-all SMTP pass.
+  if (status === "deliverable" && !(checks.smtp === "pass" && nonCatchAll)) {
     status = "unknown"; confidence = 0.4;
     if (!reasons.includes("smtp_not_checked")) reasons.push("smtp_not_checked");
   }
@@ -304,7 +316,8 @@ async function mxForDomain(env, ascii, fetchImpl, now) {
   return { ...looked, catch_all: "not_checked", cached: false };
 }
 
-// ---------- SMTP probe interface (off unless both env vars are set; v1 does not send) ----------
+// ---------- SMTP probe (off unless both env vars are set) ----------
+const PROBE_REASON = /^(greylist|provider_skip|catch_all|no_mx|null_mx|daily_cap|mx_rate|mx_busy|mx_backoff|probe_unreachable|sender_rejected|connect_failed|timeout|non_public_mx|dns_error|bad_banner|ehlo_rejected|bad_probe|bad_email|catch_all_unknown|unexpected_code)$/;
 export function smtpProbeEnabled(env) {
   const url = String((env && env.EMAIL_SMTP_URL) || "").trim();
   const secret = String((env && env.EMAIL_SMTP_SECRET) || "").trim();
@@ -314,12 +327,36 @@ async function hmacHex(secret, msg) {
   const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return hex(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode(msg)));
 }
-/** The request a future probe host would receive, or null when the probe is off. v1 does not send it. */
-export async function buildSmtpProbeRequest(env, email) {
+/** Signed POST for the probe, or null when the probe is off. The timestamp is inside the signed body. */
+export async function buildSmtpProbeRequest(env, email, now = new Date()) {
   if (!smtpProbeEnabled(env)) return null;
-  const body = JSON.stringify({ v: 1, email });
+  const ts = Math.floor((now instanceof Date ? now : new Date(now)).getTime() / 1000);
+  const body = JSON.stringify({ v: 1, ts, email });
   const sig = await hmacHex(String(env.EMAIL_SMTP_SECRET), body);
   return { url: String(env.EMAIL_SMTP_URL).trim(), method: "POST", headers: { "content-type": "application/json", "x-email-probe-signature": "v1=" + sig }, body };
+}
+/** Probe JSON -> checks. pass only when the code is 250 and catch_all is explicitly false. */
+export function interpretProbe(j) {
+  if (!j || typeof j !== "object") return { smtp: "unknown", catch_all: "unknown", code: null, reason: "bad_probe" };
+  const codeNum = Number(j.code);
+  const code = Number.isInteger(codeNum) ? codeNum : null;
+  const catchAll = j.catch_all === true || j.catch_all === "yes" ? "yes" : j.catch_all === false || j.catch_all === "no" ? "no" : "unknown";
+  const reason = typeof j.reason === "string" && PROBE_REASON.test(j.reason) ? j.reason : null;
+  if (code === 250 && catchAll === "no") return { smtp: "pass", catch_all: "no", code, reason };
+  if (catchAll === "yes") return { smtp: "unknown", catch_all: "yes", code, reason };
+  if (j.smtp === "fail" || (code != null && code >= 500 && code <= 599)) return { smtp: "fail", catch_all: catchAll, code, reason };
+  return { smtp: "unknown", catch_all: catchAll, code, reason };
+}
+async function callSmtpProbe(env, email, fetchImpl, now) {
+  const req = await buildSmtpProbeRequest(env, email, now);
+  if (!req) return null;
+  let r;
+  try { r = await fetchImpl(req.url, { method: "POST", headers: req.headers, body: req.body, signal: AbortSignal.timeout(20000) }); }
+  catch (_) { return { smtp: "unknown", catch_all: "unknown", code: null, reason: "probe_unreachable" }; }
+  if (!r || !r.ok) return { smtp: "unknown", catch_all: "unknown", code: null, reason: "probe_unreachable" };
+  let j; try { j = await r.json(); } catch (_) { return { smtp: "unknown", catch_all: "unknown", code: null, reason: "bad_probe" }; }
+  if (j && typeof j.email === "string" && j.email !== email) return { smtp: "unknown", catch_all: "unknown", code: null, reason: "bad_probe" };
+  return interpretProbe(j);
 }
 
 // ---------- one address ----------
@@ -337,16 +374,26 @@ export async function validateAddress(raw, env, opts = {}) {
     const c = classify({ syntax: "valid", mx: "literal", disposable: false, role, catch_all: "not_checked", smtp: "not_checked" });
     return { email: parsed.email, ...c, suggestion };
   }
-  // v1 never calls the SMTP probe. checks.smtp stays "not_checked" even when EMAIL_SMTP_URL is set.
   const [mx, disposable] = await Promise.all([
     mxForDomain(env, parsed.asciiDomain, fetchImpl, now),
     isDisposableDomain(env, parsed.asciiDomain),
   ]);
-  const c = classify({ syntax: "valid", mx: mx.mx, nullMx: mx.nullMx, disposable, role, catch_all: "not_checked", smtp: "not_checked" });
-  if (c.status === "deliverable") {
-    c.status = "unknown"; c.confidence = 0.4;
-    if (!c.reasons.includes("smtp_not_checked")) c.reasons.push("smtp_not_checked");
+  let smtp = "not_checked";
+  let catchAll = "not_checked";
+  let probeReason = null;
+  if (mx.mx === "present" && smtpProbeEnabled(env)) {
+    const probed = await callSmtpProbe(env, parsed.local + "@" + parsed.asciiDomain, fetchImpl, now);
+    if (probed) {
+      smtp = probed.smtp;
+      catchAll = probed.catch_all;
+      probeReason = probed.reason;
+      if (env && env.RECEIPTS_DB && (catchAll === "yes" || catchAll === "no")) {
+        await env.RECEIPTS_DB.prepare("UPDATE email_domain_cache SET catch_all = ? WHERE domain = ?").bind(catchAll, parsed.asciiDomain).run();
+      }
+    }
   }
+  const c = classify({ syntax: "valid", mx: mx.mx, nullMx: mx.nullMx, disposable, role, catch_all: catchAll, smtp });
+  if (probeReason && PROBE_REASON.test(probeReason) && !c.reasons.includes(probeReason)) c.reasons.push(probeReason);
   return { email: parsed.email, ...c, suggestion };
 }
 
@@ -365,6 +412,11 @@ async function releaseEmailQuota(env, keyId, n, now) {
   await env.RECEIPTS_DB.prepare("UPDATE api_key_usage SET emails = emails - ? WHERE key_id = ? AND month = ? AND emails >= ?").bind(n, keyId, monthOf(now), n).run();
 }
 
+async function emailQuotaRow(env, keyId, now) {
+  const t = Math.floor(now.getTime() / 1000);
+  await env.RECEIPTS_DB.prepare("UPDATE api_keys SET email_plan = 'free', email_monthly_quota = ?, email_grace_ends_at = NULL, updated_at = ? WHERE id = ? AND email_plan != 'free' AND email_grace_ends_at IS NOT NULL AND email_grace_ends_at <= ?").bind(EMAIL_PLANS.free.quota, t, keyId, t).run();
+  return env.RECEIPTS_DB.prepare("SELECT email_plan, email_monthly_quota, email_grace_ends_at FROM api_keys WHERE id = ?").bind(keyId).first();
+}
 async function authorize(req, env, n, now) {
   const { keyFromReq, loadKey } = await import("./render.js");
   const raw = keyFromReq(req);
@@ -373,7 +425,7 @@ async function authorize(req, env, n, now) {
   const key = await loadKey(env, raw, now);
   if (!key || key.status === "revoked") return { error: J({ error: "unknown api key" }, 401) };
   if (key.status !== "active") return { error: J({ error: "api key suspended", reason: "suspended" }, 403) };
-  const row = await env.RECEIPTS_DB.prepare("SELECT email_plan, email_monthly_quota FROM api_keys WHERE id = ?").bind(key.id).first();
+  const row = await emailQuotaRow(env, key.id, now);
   const quota = row && row.email_monthly_quota != null ? Number(row.email_monthly_quota) : EMAIL_PLANS.free.quota;
   const plan = (row && row.email_plan) || "free";
   const q = await reserveEmailQuota(env, key.id, n, quota, now);
@@ -439,18 +491,19 @@ export async function handleEmailBatch(req, env, ctx, url, opts = {}) {
 export function emailDocs() {
   return {
     product: "email_validation", version: "1", released: false, priced: false, flag: "EMAIL",
-    note: "Unreleased. Not priced and not launched. v1 does not probe SMTP, so a result is never deliverable.",
+    note: "Unreleased. Not priced and not launched. With the probe unset, checks.smtp stays not_checked and the status is never deliverable.",
     routes: {
       validate: { method: "POST", url: EMAIL_VALIDATE_PATH, auth: "x-api-key (same keys as the render API)", body: { email: "user@example.com" } },
       batch: { method: "POST", url: EMAIL_BATCH_PATH, auth: "x-api-key", body: { emails: ["user@example.com"] }, max: EMAIL_BATCH_MAX },
     },
     result: ["email", "status", "confidence", "reasons", "checks", "suggestion"],
     status: ["deliverable", "undeliverable", "risky", "unknown"],
-    status_rule: "deliverable only after checks.smtp is pass. v1 always returns checks.smtp = not_checked, so the best status is risky or unknown. undeliverable is used when syntax is invalid or the domain has no MX and no A record.",
-    checks: { syntax: "valid|invalid", mx: "present|missing|a_fallback|error|literal", disposable: "boolean", role: "boolean", catch_all: "not_checked", smtp: "not_checked" },
+    status_rule: "deliverable only when checks.smtp is pass and checks.catch_all is no, which is a non-catch-all 250 RCPT. When the probe is off, checks.smtp stays not_checked and the status is never deliverable. undeliverable is used when syntax is invalid, the domain has no MX and no A record, or the probe reports a 5xx on RCPT.",
+    checks: { syntax: "valid|invalid", mx: "present|missing|a_fallback|error|literal", disposable: "boolean", role: "boolean", catch_all: "no|yes|unknown|not_checked", smtp: "pass|fail|unknown|not_checked" },
     plans: EMAIL_PLANS,
+    free_tier: "email_plan free, 100 validations a UTC month, no Stripe price id.",
     quota: "Separate from render quota (api_key_usage.emails). Hard cap, 429 at the cap, never billed as overage.",
-    smtp_probe: { env: ["EMAIL_SMTP_URL", "EMAIL_SMTP_SECRET"], default: "off", v1: "the signed request is defined and not sent" },
+    smtp_probe: { env: ["EMAIL_SMTP_URL", "EMAIL_SMTP_SECRET"], default: "off", request: "POST JSON {v:1,ts,email} signed v1= HMAC-SHA256 in x-email-probe-signature. Sent only when both env vars are set." },
     disposable: "Bundled list, plus a weekly refresh from the disposable-email-domains GitHub list (cron " + EMAIL_DISPOSABLE_CRON + ").",
   };
 }
@@ -460,21 +513,21 @@ export function emailOpenApiPaths() {
     type: "object", required: ["email", "status", "confidence", "reasons", "checks", "suggestion"],
     properties: {
       email: { type: "string" },
-      status: { type: "string", enum: ["deliverable", "undeliverable", "risky", "unknown"], description: "Never deliverable in v1: SMTP is not checked." },
+      status: { type: "string", enum: ["deliverable", "undeliverable", "risky", "unknown"], description: "deliverable only after a non-catch-all 250 RCPT. Off-probe results are never deliverable." },
       confidence: { type: "number", minimum: 0, maximum: 1 },
       reasons: { type: "array", items: { type: "string" } },
-      checks: { type: "object", properties: { syntax: { type: "string" }, mx: { type: "string" }, disposable: { type: "boolean" }, role: { type: "boolean" }, catch_all: { type: "string", enum: ["not_checked"] }, smtp: { type: "string", enum: ["not_checked"] } } },
+      checks: { type: "object", properties: { syntax: { type: "string" }, mx: { type: "string" }, disposable: { type: "boolean" }, role: { type: "boolean" }, catch_all: { type: "string", enum: ["no", "yes", "unknown", "not_checked"] }, smtp: { type: "string", enum: ["pass", "fail", "unknown", "not_checked"] } } },
       suggestion: { type: ["string", "null"] },
     },
   };
-  const shared = { parameters: [{ name: "x-api-key", in: "header", required: true, schema: { type: "string" }, description: "Render API key (rk_...). Email quota is separate from render quota." }], responses: { 200: { description: "Validation result. Unreleased, not priced. status is never deliverable in v1.", content: { "application/json": { schema: resultSchema } } }, 400: { description: "body is not the expected JSON" }, 401: { description: "missing or unknown api key" }, 429: { description: "email monthly quota reached (hard cap)" }, 404: { description: "EMAIL is not 1" } } };
+  const shared = { parameters: [{ name: "x-api-key", in: "header", required: true, schema: { type: "string" }, description: "Render API key (rk_...). Email quota is separate from render quota." }], responses: { 200: { description: "Validation result. Unreleased, not priced. deliverable only after a non-catch-all 250 RCPT.", content: { "application/json": { schema: resultSchema } } }, 400: { description: "body is not the expected JSON" }, 401: { description: "missing or unknown api key" }, 429: { description: "email monthly quota reached (hard cap)" }, 404: { description: "EMAIL is not 1" } } };
   return {
-    [EMAIL_VALIDATE_PATH]: { post: { operationId: "emailValidate", "x-unreleased": true, summary: "UNRELEASED email validation (not priced). One address. Never deliverable without an SMTP pass; v1 does not check SMTP.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["email"], properties: { email: { type: "string", example: "user@gmial.com" } } } } } }, ...shared } },
-    [EMAIL_BATCH_PATH]: { post: { operationId: "emailValidateBatch", "x-unreleased": true, summary: `UNRELEASED email validation (not priced). Up to ${EMAIL_BATCH_MAX} addresses. Never deliverable without an SMTP pass; v1 does not check SMTP.`, requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["emails"], properties: { emails: { type: "array", maxItems: EMAIL_BATCH_MAX, items: { type: "string" } } } } } } }, ...shared, responses: { ...shared.responses, 200: { description: "{results:[...]} same shape as /v1/email/validate. Unreleased.", content: { "application/json": { schema: { type: "object", required: ["results"], properties: { results: { type: "array", items: resultSchema } } } } } } } } },
+    [EMAIL_VALIDATE_PATH]: { post: { operationId: "emailValidate", "x-unreleased": true, summary: "UNRELEASED email validation (not priced). One address. deliverable only after a non-catch-all 250 RCPT; the probe is off unless EMAIL_SMTP_URL and EMAIL_SMTP_SECRET are set.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["email"], properties: { email: { type: "string", example: "user@gmial.com" } } } } } }, ...shared } },
+    [EMAIL_BATCH_PATH]: { post: { operationId: "emailValidateBatch", "x-unreleased": true, summary: `UNRELEASED email validation (not priced). Up to ${EMAIL_BATCH_MAX} addresses. deliverable only after a non-catch-all 250 RCPT; the probe is off unless EMAIL_SMTP_URL and EMAIL_SMTP_SECRET are set.`, requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["emails"], properties: { emails: { type: "array", maxItems: EMAIL_BATCH_MAX, items: { type: "string" } } } } } } }, ...shared, responses: { ...shared.responses, 200: { description: "{results:[...]} same shape as /v1/email/validate. Unreleased.", content: { "application/json": { schema: { type: "object", required: ["results"], properties: { results: { type: "array", items: resultSchema } } } } } } } } },
     [EMAIL_DOCS_PATH]: { get: { operationId: "emailDocs", "x-unreleased": true, summary: "UNRELEASED email validation docs (flag EMAIL=1, not priced, not launched)", responses: { 200: { description: "JSON docs, released:false" } } } },
   };
 }
 
 export function emailLlmsLine(origin) {
-  return `- Email validation (UNRELEASED, not priced, not launched; flag EMAIL=1): POST ${origin}${EMAIL_VALIDATE_PATH} JSON {"email":"user@example.com"} and POST ${origin}${EMAIL_BATCH_PATH} JSON {"emails":[...]} (max ${EMAIL_BATCH_MAX}). Same API key as render (x-api-key); email quota and usage are separate. Checks RFC 5322 + IDNA, MX (DNS-over-HTTPS, else an A record), disposable domains, role addresses, and typo suggestions. No SMTP in this version: checks.smtp is "not_checked" and the status is never deliverable. Docs: ${origin}${EMAIL_DOCS_PATH}\n`;
+  return `- Email validation (UNRELEASED, not priced, not launched; flag EMAIL=1): POST ${origin}${EMAIL_VALIDATE_PATH} JSON {"email":"user@example.com"} and POST ${origin}${EMAIL_BATCH_PATH} JSON {"emails":[...]} (max ${EMAIL_BATCH_MAX}). Same API key as render (x-api-key); email quota and usage are separate. Checks RFC 5322 + IDNA, MX (DNS-over-HTTPS, else an A record), disposable domains, role addresses, and typo suggestions. SMTP runs only when EMAIL_SMTP_URL and EMAIL_SMTP_SECRET are both set. deliverable only after a non-catch-all 250 RCPT; with the probe off, checks.smtp is "not_checked" and the status is never deliverable. Docs: ${origin}${EMAIL_DOCS_PATH}\n`;
 }

@@ -1,0 +1,27 @@
+[Unit]
+Description=SMTP RCPT probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=probe
+Group=probe
+WorkingDirectory=/opt/probe
+EnvironmentFile=/etc/probe/probe.env
+ExecStart=/usr/bin/node /opt/probe/src/server.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadWritePaths=/var/lib/probe
+
+[Install]
+WantedBy=multi-user.target

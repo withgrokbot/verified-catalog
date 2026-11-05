@@ -1,4 +1,6 @@
-# Email validation v1 (0.68.0) — unreleased
+# Email validation (0.68.1) — unreleased
+
+0.68.0 added the checks below with SMTP left off. 0.68.1 maps a probe result when `EMAIL_SMTP_URL` and `EMAIL_SMTP_SECRET` are both set, adds the scale price id, and gives email subscriptions the same failed-payment grace as render. The flag is still unset.
 
 Not priced and not launched. The routes answer only when `EMAIL=1`. That flag is unset in `worker/wrangler.toml`, so production keeps returning 404. OpenAPI and `llms.txt` list the routes only while the flag is on, and they are marked unreleased.
 
@@ -33,7 +35,7 @@ Each address costs one unit. A batch that does not fit in the remaining quota is
 
 `status` is `deliverable`, `undeliverable`, `risky` or `unknown`. `confidence` is from 0 to 1.
 
-`deliverable` is returned only when `checks.smtp` is `pass`. This version does not open an SMTP session, so `checks.smtp` is always `not_checked` and the status is never `deliverable`. The best status without SMTP is `risky` (disposable, role, or MX missing but an A record exists) or `unknown` (MX exists, nothing else wrong). `undeliverable` is used when the address fails RFC 5322 syntax or the domain has no MX and no A record (including a null MX).
+`deliverable` is returned only when `checks.smtp` is `pass` and `checks.catch_all` is `no`. That is a non-catch-all 250 RCPT from the probe. With the probe unset, `checks.smtp` stays `not_checked` and the status is never `deliverable`. The best status without SMTP is `risky` (disposable, role, or MX missing but an A record exists) or `unknown` (MX exists, nothing else wrong). `undeliverable` is used when the address fails RFC 5322 syntax, the domain has no MX and no A record (including a null MX), or the probe reports a 5xx on RCPT. A 4xx, a catch-all, or a skipped provider stays `unknown` or `risky`, not `deliverable`.
 
 ## Checks
 
@@ -42,16 +44,24 @@ Each address costs one unit. A batch that does not fit in the remaining quota is
 - Disposable domains: the bundled list in `worker/src/disposable-domains.js`, plus rows refreshed weekly from `disposable-email-domains/disposable-email-domains` (`disposable_email_blocklist.conf`). Cron `23 6 * * 1` (Monday 06:23 UTC) runs the refresh only when `EMAIL=1`.
 - Role addresses: `admin`, `info`, `support` and the other locals in `ROLE_LOCALS` (the part before `+`).
 - Typo suggestions: one edit, or a unique two-edit, against a list of popular domains (`gmial.com` suggests `gmail.com`).
-- Catch-all: not known without SMTP. `checks.catch_all` is `not_checked`. Domain rows are cached for 24 hours (MX and catch-all).
+- Catch-all: `not_checked` until the probe runs. A random second RCPT that is also accepted is `yes`. Domain rows are cached for 24 hours (MX and catch-all).
 
-## SMTP later
+## SMTP probe
 
-`EMAIL_SMTP_URL` (https) and `EMAIL_SMTP_SECRET` configure an external probe host. Both are unset, so the probe is off. `buildSmtpProbeRequest` builds a POST whose body is signed `v1=` HMAC-SHA256 with the secret. v1 does not send that request.
+`EMAIL_SMTP_URL` (https) and `EMAIL_SMTP_SECRET` configure the probe in `probe/`. Both are unset, so the probe is off and the worker does not call it. When both are set, the worker POSTs `{"v":1,"ts":<unix>,"email":"<ascii address>"}` with header `x-email-probe-signature: v1=<hmac-sha256 hex of the raw body>`. The probe checks the signature, the timestamp (300 seconds), and rejects a replay.
+
+The probe looks up MX and, unless the MX is Gmail, Outlook, or Yahoo, connects on port 25. It sends EHLO, MAIL FROM, RCPT TO, and QUIT. It never sends a message body. A 4xx is `unknown`. Gmail, Outlook, and Yahoo return `unknown` without a connection. `deliverable` requires code 250 and `catch_all: false`.
+
+DNS for the host is `docs/probe-dns.md`. The service is not installed by this repo.
 
 ## Billing
 
-`STRIPE_PRICE_EMAIL_STARTER` and `STRIPE_PRICE_EMAIL_PRO` are blank. When a price id is set later, the Stripe webhook maps it onto `email_plan` / `email_monthly_quota` and does not change the render plan. Quotas until then: free 100, starter 5,000, pro 25,000 per UTC month. No price is charged.
+The free tier is `email_plan = free`, 100 validations a UTC month, and it has no Stripe price id.
+
+`STRIPE_PRICE_EMAIL_STARTER`, `STRIPE_PRICE_EMAIL_PRO`, and `STRIPE_PRICE_EMAIL_SCALE` are blank. When a price id is set later, the Stripe webhook maps it onto `email_plan` / `email_monthly_quota` and does not change the render plan. Quotas: free 100, starter 5,000, pro 25,000, scale 100,000 per UTC month. No price is charged.
+
+`invoice.payment_failed` on an email subscription keeps the paid email plan until `email_grace_ends_at` (the event time plus `BILLING_GRACE_DAYS`, default 3). A later successful payment or an active subscription update clears it. The next validation after the grace ends returns the key to the free tier. Render grace stays on `grace_ends_at`.
 
 ## Migration
 
-`worker/migrations/0030_email.sql` adds the email plan and quota columns, the `emails` usage column, `email_domain_cache` and `email_disposable_domains`. No raw address is stored.
+`worker/migrations/0030_email.sql` adds the email plan and quota columns, the `emails` usage column, `email_domain_cache` and `email_disposable_domains`. `worker/migrations/0031_email_grace.sql` adds `email_stripe_subscription_id` and `email_grace_ends_at`. No raw address is stored.
