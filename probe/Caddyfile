@@ -1,0 +1,4 @@
+# TLS for probe.402xagent.com. Caddy obtains the certificate. The Node process stays on localhost.
+probe.402xagent.com {
+	reverse_proxy 127.0.0.1:8787
+}
