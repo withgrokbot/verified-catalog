@@ -52,7 +52,7 @@ const call = (e, target, headers = {}) => { const url = new URL(API + P2M_PATH +
 const pay = (n, amount = "2000") => btoa(JSON.stringify({ x402Version: 2, accepted: { scheme: "exact", network: "eip155:8453", amount, asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: PAY_TO },
   payload: { signature: "0xsig", authorization: { from: "0x00000000000000000000000000000000000000b1", to: PAY_TO, value: amount, nonce: "0x" + n.repeat(32), validBefore: "9999999999" } } }));
 
-test("0.63.0 version", () => assert.equal(VERSION, "0.67.0"));
+test("0.63.0 version", () => assert.equal(VERSION, "0.68.0"));
 test("extraction: main content only, absolute links, no empty links, tables + code kept, whitespace collapsed", () => {
   const r = htmlToMarkdown(FX("article.html"), "https://ok.fixture/post");
   assert.equal(r.title, "Fixture Article"); assert.equal(r.description, "A fixture article.");
