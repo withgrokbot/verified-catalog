@@ -297,7 +297,7 @@ export function billingDocs(env) {
     checkout: { method: "POST", url: API_ORIGIN + BILLING_CHECKOUT_PATH, auth: "x-api-key", body: { plan: "starter | pro" }, returns: "{url} of a Stripe Checkout page" },
     portal: { method: "POST", url: API_ORIGIN + BILLING_PORTAL_PATH, auth: "x-api-key", returns: "{url} of the Stripe billing portal (change plan, card, cancel)" },
     rules: ["The plan's monthly quota is a hard cap. Nothing is metered or billed as overage; at quota you get 429 with an upgrade note.",
-      `Cancel keeps the paid plan until the end of the paid period. A failed payment keeps it for a ${graceDays(env)}-day grace period (a later successful payment clears it). After that the key returns to free (500 renders a month). The same grace applies to an email subscription, then that plan returns to the free tier (100 validations a month).`,
+      `Cancel keeps the paid plan until the end of the paid period. A failed payment keeps it for a ${graceDays(env)}-day grace period (a later successful payment clears it). After that the key returns to free (500 renders a month). The same grace applies to an email subscription, then that plan returns to the free tier (1,000 validations a month).`,
       "Stripe sees an internal key id only, never your API key.",
       "A PDF, a screenshot and a social card each spend one render. A failed render is refunded. A cached card is free."],
   };

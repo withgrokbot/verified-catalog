@@ -137,12 +137,12 @@ BILLING_GRACE_DAYS = "3"  # 0.66.1: paid plan kept this long after invoice.payme
 # Cards are stored in the Cache API for 7 days; a cache hit is free. GET ?t=&sig= is HMAC-signed for og:image.
 # 0.68.0 email validation (worker/src/email.js), OFF and unreleased: EMAIL unset = /v1/email/* 404.
 # Not priced and not launched. Needs migrations 0030 and 0031. Same API keys as render; email_plan, email_monthly_quota and
-# api_key_usage.emails are separate from render quota. OpenAPI and /llms.txt mention it only when EMAIL=1.
-# Free tier: email_plan free, 100/month, no Stripe price id.
+# api_key_usage kind='email' (emails column; renders stays 0) is separate from pdf/shot/card. OpenAPI and /llms.txt mention it only when EMAIL=1.
+# Free tier: email_plan free, 1,000/month, no Stripe price id. A blank STRIPE_PRICE_EMAIL_* never matches a price.
 # EMAIL = "1"
-# STRIPE_PRICE_EMAIL_STARTER = ""   # blank until a Stripe price exists; webhook maps it to the email starter quota (5,000)
-# STRIPE_PRICE_EMAIL_PRO = ""       # blank until a Stripe price exists; webhook maps it to the email pro quota (25,000)
-# STRIPE_PRICE_EMAIL_SCALE = ""     # blank until a Stripe price exists; webhook maps it to the email scale quota (100,000)
+# STRIPE_PRICE_EMAIL_STARTER = ""   # blank until a Stripe price exists; webhook maps it to the email starter quota (10,000)
+# STRIPE_PRICE_EMAIL_PRO = ""       # blank until a Stripe price exists; webhook maps it to the email pro quota (50,000)
+# STRIPE_PRICE_EMAIL_SCALE = ""     # blank until a Stripe price exists; webhook maps it to the email scale quota (200,000)
 # SMTP probe (off until both are set). 0.68.1 sends the signed request when EMAIL_SMTP_URL is https and the secret is set.
 # EMAIL_SMTP_SECRET is wrangler secret put only, never here. checks.smtp stays "not_checked" while either is unset.
 # EMAIL_SMTP_URL = ""
