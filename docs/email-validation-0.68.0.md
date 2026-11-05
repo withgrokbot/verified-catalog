@@ -56,9 +56,9 @@ DNS for the host is `docs/probe-dns.md`. The service is not installed by this re
 
 ## Billing
 
-The free tier is `email_plan = free`, 100 validations a UTC month, and it has no Stripe price id.
+The free tier is `email_plan = free`, 1,000 validations a UTC month, and it has no Stripe price id.
 
-`STRIPE_PRICE_EMAIL_STARTER`, `STRIPE_PRICE_EMAIL_PRO`, and `STRIPE_PRICE_EMAIL_SCALE` are blank. When a price id is set later, the Stripe webhook maps it onto `email_plan` / `email_monthly_quota` and does not change the render plan. Quotas: free 100, starter 5,000, pro 25,000, scale 100,000 per UTC month. No price is charged.
+`STRIPE_PRICE_EMAIL_STARTER`, `STRIPE_PRICE_EMAIL_PRO`, and `STRIPE_PRICE_EMAIL_SCALE` are blank. When a price id is set later, the Stripe webhook maps it onto `email_plan` / `email_monthly_quota` and does not change the render plan. Quotas: free 1,000, starter 10,000, pro 50,000, scale 200,000 per UTC month. No price is charged.
 
 `invoice.payment_failed` on an email subscription keeps the paid email plan until `email_grace_ends_at` (the event time plus `BILLING_GRACE_DAYS`, default 3). A later successful payment or an active subscription update clears it. The next validation after the grace ends returns the key to the free tier. Render grace stays on `grace_ends_at`.
 

@@ -20,10 +20,10 @@ export const DISPOSABLE_LIST_URL = "https://raw.githubusercontent.com/disposable
 export const emailOn = (env) => String((env && env.EMAIL) || "") === "1";
 
 export const EMAIL_PLANS = {
-  free: { quota: 100, priceUsd: 0 },
-  starter: { quota: 5000, priceUsd: null },
-  pro: { quota: 25000, priceUsd: null },
-  scale: { quota: 100000, priceUsd: null },
+  free: { quota: 1000, priceUsd: 0 },
+  starter: { quota: 10000, priceUsd: null },
+  pro: { quota: 50000, priceUsd: null },
+  scale: { quota: 200000, priceUsd: null },
 };
 export const EMAIL_PAID = ["starter", "pro", "scale"];
 
@@ -501,7 +501,7 @@ export function emailDocs() {
     status_rule: "deliverable only when checks.smtp is pass and checks.catch_all is no, which is a non-catch-all 250 RCPT. When the probe is off, checks.smtp stays not_checked and the status is never deliverable. undeliverable is used when syntax is invalid, the domain has no MX and no A record, or the probe reports a 5xx on RCPT.",
     checks: { syntax: "valid|invalid", mx: "present|missing|a_fallback|error|literal", disposable: "boolean", role: "boolean", catch_all: "no|yes|unknown|not_checked", smtp: "pass|fail|unknown|not_checked" },
     plans: EMAIL_PLANS,
-    free_tier: "email_plan free, 100 validations a UTC month, no Stripe price id.",
+    free_tier: "email_plan free, 1,000 validations a UTC month, no Stripe price id.",
     quota: "Separate from render quota (api_key_usage.emails). Hard cap, 429 at the cap, never billed as overage.",
     smtp_probe: { env: ["EMAIL_SMTP_URL", "EMAIL_SMTP_SECRET"], default: "off", request: "POST JSON {v:1,ts,email} signed v1= HMAC-SHA256 in x-email-probe-signature. Sent only when both env vars are set." },
     disposable: "Bundled list, plus a weekly refresh from the disposable-email-domains GitHub list (cron " + EMAIL_DISPOSABLE_CRON + ").",

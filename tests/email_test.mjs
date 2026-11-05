@@ -210,7 +210,7 @@ test("status and confidence: deliverable only on a non-catch-all SMTP pass", () 
 test("quota is separate from render usage; batch caps at 100 and is all-or-nothing", async () => {
   const e = env(); await addKey(e);
   let row = await keyRow(e);
-  assert.deepEqual([row.email_plan, row.email_monthly_quota, row.plan, row.monthly_quota], ["free", 100, "free", 500]);
+  assert.deepEqual([row.email_plan, row.email_monthly_quota, row.plan, row.monthly_quota], ["free", 1000, "free", 500]);
   assert.equal((await post(e, E.EMAIL_VALIDATE_PATH, { email: "a@gmail.com" }, { "x-api-key": "" })).status, 401);
   await e.RECEIPTS_DB.prepare("UPDATE api_keys SET email_monthly_quota = 2 WHERE id = 'key-1'").run();
   const a = await post(e, E.EMAIL_VALIDATE_PATH, { email: "a@gmail.com" });
@@ -326,7 +326,8 @@ test("webhook maps email price ids onto the email plan and leaves the render pla
   assert.equal(emailPlanForPrice({ STRIPE_PRICE_EMAIL_STARTER: "", STRIPE_PRICE_EMAIL_PRO: "", STRIPE_PRICE_EMAIL_SCALE: "" }, "price_email_starter"), null);
   assert.equal(emailPlanForPrice({}, "price_email_starter"), null);
   assert.equal(emailPlanForPrice({ STRIPE_PRICE_EMAIL_SCALE: "price_email_scale" }, "price_email_free"), null, "the free tier has no price id");
-  assert.equal(E.EMAIL_PLANS.free.quota, 100); assert.equal(E.EMAIL_PLANS.free.priceUsd, 0); assert.equal(E.EMAIL_PLANS.scale.quota, 100000);
+  assert.deepEqual([E.EMAIL_PLANS.free.quota, E.EMAIL_PLANS.starter.quota, E.EMAIL_PLANS.pro.quota, E.EMAIL_PLANS.scale.quota], [1000, 10000, 50000, 200000]);
+  assert.equal(E.EMAIL_PLANS.free.priceUsd, 0);
   assert.deepEqual(priceToPlan({ STRIPE_PRICE_STARTER: "price_starter", STRIPE_PRICE_PRO: "price_pro", STRIPE_PRICE_EMAIL_STARTER: "price_email_starter" }, "price_pro"), { product: "render", plan: "pro" });
   assert.deepEqual(priceToPlan({ STRIPE_PRICE_EMAIL_STARTER: "price_email_starter", STRIPE_PRICE_EMAIL_PRO: "price_email_pro" }, "price_email_pro"), { product: "email", plan: "pro" });
   assert.deepEqual(priceToPlan({ STRIPE_PRICE_PRO: "price_pro", STRIPE_PRICE_EMAIL_SCALE: "price_email_scale" }, "price_email_scale"), { product: "email", plan: "scale" });
@@ -398,7 +399,8 @@ test("docs and OpenAPI mark the feature unreleased and only when EMAIL=1", async
   const docs = await (await worker.fetch(new Request(API + E.EMAIL_DOCS_PATH), e, { waitUntil() {} })).json();
   assert.equal(docs.released, false); assert.equal(docs.priced, false); assert.match(docs.status_rule, /not_checked/); assert.match(docs.status_rule, /250/);
   assert.match(docs.checks.smtp, /not_checked/); assert.match(docs.checks.smtp, /pass/);
-  assert.equal(docs.free_tier.includes("100"), true); assert.equal(docs.plans.scale.quota, 100000); assert.equal(docs.plans.free.priceUsd, 0);
+  assert.match(docs.free_tier, /1,000/); assert.equal(docs.plans.free.quota, 1000); assert.equal(docs.plans.free.priceUsd, 0);
+  assert.deepEqual([docs.plans.starter.quota, docs.plans.pro.quota, docs.plans.scale.quota], [10000, 50000, 200000]);
   const oa = openapi(API, { EMAIL: "1" });
   assert.equal(oa.paths[E.EMAIL_VALIDATE_PATH].post["x-unreleased"], true);
   assert.match(oa.paths[E.EMAIL_VALIDATE_PATH].post.summary, /UNRELEASED/);
