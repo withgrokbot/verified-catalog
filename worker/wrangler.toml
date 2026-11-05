@@ -122,9 +122,15 @@ RENDER_EMAIL_FROM = "keys@402xagent.com"  # 0.65.0: 402xagent.com onboarded to E
 RENDER = "1"  # 0.65.0: render API on (migration 0026 applied remotely 2026-11-04); key/email hashes use CLIENT_SALT (no RENDER_KEY_PEPPER)
 # 0.66.0 render billing (worker/src/billing.js), OFF: BILLING unset = /v1/render/billing/* 404. Needs migration 0027, the secrets
 # STRIPE_SECRET_KEY (restricted key) + STRIPE_WEBHOOK_SECRET (wrangler secret put; never here) and the two price ids below.
+# Live Stripe account acct_1UYECzAZKt0eA2ND (comment only; not an env). NEVER use acct_1SKTTCAiqVTi8ess (appcraft).
+# Products: starter prod_VZN9U421H95LXh ($10/mo, 5,000 renders), pro prod_VZN9IrRJIzyjM4 ($29/mo, 25,000 renders).
+# Portal config (default; code still passes return_url, and sends configuration only when the var below is set): bpc_1UYEPCAZKt0eA2NDLZJVGCvO
+# Webhook we_1UYEPEAZKt0eA2ND1BZ4mzQI -> https://api.402xagent.com/v1/render/billing/webhook (5 events).
+# Price ids and the portal configuration do not turn billing on. BILLING stays unset. Secrets stay wrangler secret put only.
 # BILLING = "1"
-# STRIPE_PRICE_STARTER = "price_..."   # $10/month, 5,000 renders
-# STRIPE_PRICE_PRO = "price_..."       # $29/month, 25,000 renders
+STRIPE_PRICE_STARTER = "price_1UYEP4AZKt0eA2NDQFAsoZlZ"  # $10/month, 5,000 renders (prod_VZN9U421H95LXh)
+STRIPE_PRICE_PRO = "price_1UYEP6AZKt0eA2NDEzC7q8V8"  # $29/month, 25,000 renders (prod_VZN9IrRJIzyjM4)
+STRIPE_PORTAL_CONFIGURATION = "bpc_1UYEPCAZKt0eA2NDLZJVGCvO"  # optional; portal sessions include it only when set
 # BILLING_GRACE_DAYS = "3"  # 0.66.1: paid plan kept this long after invoice.payment_failed (needs migration 0028); default 3
 # 0.49.0 flags, all OFF by default (see docs/deploy-0.49.0.md): EXPLAIN_LINE = "1" (explanation line), RECHECK = "1" (24 h / 10 re-check
 # window; needs migration 0015 + secret RECHECK_PEPPER), BULK_REPORT = "1" (bulk endpoint report; needs 0015, ENDPOINT_REPORT and RECHECK for credits).
