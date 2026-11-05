@@ -132,6 +132,9 @@ STRIPE_PRICE_STARTER = "price_1UYEP4AZKt0eA2NDQFAsoZlZ"  # $10/month, 5,000 rend
 STRIPE_PRICE_PRO = "price_1UYEP6AZKt0eA2NDEzC7q8V8"  # $29/month, 25,000 renders (prod_VZN9IrRJIzyjM4)
 STRIPE_PORTAL_CONFIGURATION = "bpc_1UYEPCAZKt0eA2NDLZJVGCvO"  # optional; portal sessions include it only when set
 BILLING_GRACE_DAYS = "3"  # 0.66.1: paid plan kept this long after invoice.payment_failed (needs migration 0028); default 3
+# 0.67.0 social cards: POST and GET /v1/render/card (same RENDER flag, API keys, x402 price and monthly quota;
+# one card = one render). Needs migration 0029 (usage kind pdf | shot | card). Template text is HTML-escaped.
+# Cards are stored in the Cache API for 7 days; a cache hit is free. GET ?t=&sig= is HMAC-signed for og:image.
 # 0.49.0 flags, all OFF by default (see docs/deploy-0.49.0.md): EXPLAIN_LINE = "1" (explanation line), RECHECK = "1" (24 h / 10 re-check
 # window; needs migration 0015 + secret RECHECK_PEPPER), BULK_REPORT = "1" (bulk endpoint report; needs 0015, ENDPOINT_REPORT and RECHECK for credits).
 # Payment network (0.46.0): unset = Base mainnet (prod). Local testnet only: --var PAYMENT_PRESET:base-sepolia --var FACILITATOR_URL:https://x402.org/facilitator
