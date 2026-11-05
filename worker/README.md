@@ -495,3 +495,15 @@ Tests: `tests/agentcard_logo_0610_test.mjs`.
 ## Page to Markdown (0.63.0)
 
 `GET|POST /v1/products/page-to-markdown?url=<page>&format=json|markdown` returns one public page as clean, LLM-ready Markdown: main content only, absolute links, tables and code kept, plus `title, description, links, word_count, token_estimate`. 3 free pages per network per UTC day (`P2M_FREE_PER_DAY`), then $0.002 USDC on Base via x402 (`P2M_PRICE_ATOMIC`, default 2000). The page is fetched and converted before the payment is settled; robots.txt disallows, login walls, paywalls, 401/402/403 pages and fetch errors answer 422 and are not charged. Every redirect hop goes through the spot-check SSRF guard, and rate limits (20/min per network, 30/min per target site) use the QuotaCounter Durable Object. MCP tool: `page_to_markdown`. JSON docs: `/v1/products/page-to-markdown/docs`. The extractor (`src/page2md.js`) has no dependencies and is the same file the Apify Actor draft uses. `P2M=off` turns the route and all its discovery entries off.
+## Social cards (0.67.0)
+
+`POST /v1/render/card` renders a social image in the same headless browser as PDF and screenshot. The body is `{template, fields}` or `{html}`, plus `size` and `format`.
+
+- Templates: `basic` (eyebrow, title, subtitle, footer), `article` (kicker, title, author, date, excerpt, site), `product` (badge, title, price, description). Each may include `fields.image`, an http(s) URL. Text is HTML-escaped and capped at 300 characters. Template mode allows network access only for image URLs that pass the SSRF check.
+- Raw `html` (max 2 MB) checks every subresource and redirect the same way a screenshot does. Browser time is 15 seconds.
+- Sizes: `og` 1200×630 (default), `twitter` 1200×675, `square` 1080×1080, or `custom` with `width` and `height` up to 2400. Format: `png` (default) or `jpeg`.
+- One card spends one render on the existing quota (free 500, starter 5,000, pro 25,000). The quota stays a hard cap. Paid plans keep the 3-day grace after a failed invoice. A failed render refunds its unit. Usage is stored by kind (`pdf`, `shot`, `card`; migration 0029).
+- Cache key is sha256 of template + fields + size + format, kept in the Cloudflare cache for 7 days, with that hash as the ETag. A cache hit is free.
+- `GET /v1/render/card?t=&sig=` serves the same image for an `og:image` tag. `sig` is HMAC-SHA256 over `t`, using a secret derived from the API key. A good signature renders (and spends a unit on a cache miss). A tampered query is refused. The route is 404 unless `RENDER=1`.
+
+JSON docs: `GET /v1/render/docs`. Tests: `tests/card_test.mjs`.
