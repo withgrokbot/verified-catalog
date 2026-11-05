@@ -76,6 +76,15 @@ test("portal: needs a Stripe customer; returns the portal url; Stripe errors are
   const r = await W(e, BILLING_PORTAL_PATH, { headers: { "x-api-key": RAW } });
   assert.equal(r.status, 200); assert.equal((await r.json()).url, "https://billing.stripe.com/p/session/bps_1");
   assert.equal(new URLSearchParams(stripeCalls[0].body).get("customer"), "cus_1");
+  assert.equal(new URLSearchParams(stripeCalls[0].body).get("return_url"), API + "/v1/render/docs");
+  assert.equal(new URLSearchParams(stripeCalls[0].body).get("configuration"), null, "unset portal configuration is omitted");
+  e.STRIPE_PORTAL_CONFIGURATION = "bpc_test";
+  const cfg = await W(e, BILLING_PORTAL_PATH, { headers: { "x-api-key": RAW } });
+  assert.equal(cfg.status, 200);
+  const q = new URLSearchParams(stripeCalls.at(-1).body);
+  assert.equal(q.get("configuration"), "bpc_test");
+  assert.equal(q.get("customer"), "cus_1");
+  assert.equal(q.get("return_url"), API + "/v1/render/docs");
   await e.RECEIPTS_DB.prepare("UPDATE api_keys SET stripe_customer_id = 'cus_bad'").run();
   const saved = globalThis.fetch; globalThis.fetch = async () => Response.json({ error: { type: "invalid_request_error", message: "No such customer cus_bad " + SK } }, { status: 400 });
   const bad = await W(e, BILLING_PORTAL_PATH, { headers: { "x-api-key": RAW } }); globalThis.fetch = saved;

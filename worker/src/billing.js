@@ -4,7 +4,7 @@
 // nothing is metered or billed as overage. Cancel or a failed payment keeps the plan to the end of the paid period, then
 // the key drops to free (500/month).
 //   POST /v1/render/billing/checkout {plan: "starter"|"pro"}  (x-api-key)  -> {url} Stripe Checkout (mode=subscription)
-//   POST /v1/render/billing/portal                            (x-api-key)  -> {url} Stripe customer portal
+//   POST /v1/render/billing/portal                            (x-api-key)  -> {url} Stripe customer portal (optional STRIPE_PORTAL_CONFIGURATION, omitted when unset)
 //   POST /v1/render/billing/webhook                           (Stripe)     -> signature-checked, idempotent by event id
 // Stripe only ever sees the key's internal id (a UUID), never the API key.
 import { API_ORIGIN } from "./spotcheck.js";
@@ -80,7 +80,7 @@ export async function handlePortal(req, env) {
   const a = await authKey(req, env); if (a.res) return a.res;
   const row = await env.RECEIPTS_DB.prepare("SELECT stripe_customer_id FROM api_keys WHERE id = ?").bind(a.key.id).first();
   if (!row || !row.stripe_customer_id) return J({ error: "no billing account for this key yet; start with " + BILLING_CHECKOUT_PATH }, 404);
-  const r = await stripe(env, "/billing_portal/sessions", { customer: row.stripe_customer_id, return_url: API_ORIGIN + "/v1/render/docs" });
+  const r = await stripe(env, "/billing_portal/sessions", { customer: row.stripe_customer_id, return_url: API_ORIGIN + "/v1/render/docs", configuration: env.STRIPE_PORTAL_CONFIGURATION || undefined });
   if (!r.ok) return J({ error: "could not open the billing portal", reason: r.error }, r.status);
   return J({ url: r.body.url });
 }
