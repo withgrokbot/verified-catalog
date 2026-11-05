@@ -37,16 +37,14 @@ export const planForPrice = (env, price) => {
   if (id === configuredPriceId(env.STRIPE_PRICE_PRO)) return "pro";
   return null;
 };
-/** Email plan for a Stripe price id. STRIPE_PRICE_EMAIL_STARTER / STRIPE_PRICE_EMAIL_PRO must be non-blank.
- * A missing, blank, or whitespace-only value never equals a price id, and never selects starter or pro. */
+/** Email plan for a Stripe price id. STRIPE_PRICE_EMAIL_STARTER / PRO / SCALE must be non-blank.
+ * A missing, blank, or whitespace-only value never equals a price id, and never selects a plan. The free tier has no price id. A render price id never maps to an email plan. */
 export function emailPlanForPrice(env, price) {
   const id = configuredPriceId(price);
   if (!id || !env) return null;
-  const starter = configuredPriceId(env.STRIPE_PRICE_EMAIL_STARTER);
-  const pro = configuredPriceId(env.STRIPE_PRICE_EMAIL_PRO);
   if (id === configuredPriceId(env.STRIPE_PRICE_STARTER) || id === configuredPriceId(env.STRIPE_PRICE_PRO)) return null;
-  if (starter && id === starter) return "starter";
-  if (pro && id === pro) return "pro";
+  const table = [["STRIPE_PRICE_EMAIL_STARTER", "starter"], ["STRIPE_PRICE_EMAIL_PRO", "pro"], ["STRIPE_PRICE_EMAIL_SCALE", "scale"]];
+  for (const [key, plan] of table) { const configured = configuredPriceId(env[key]); if (configured && id === configured) return plan; }
   return null;
 }
 /** {product:"render"|"email", plan} or null. Render price ids win, so existing render mapping is unchanged when email price ids are blank. */
@@ -150,13 +148,22 @@ async function setPlan(env, where, plan, fields = {}, now) {
   return (r.meta && r.meta.changes) || 0;
 }
 const bySub = (sub, keyId) => keyId ? { sql: "id = ?", vals: [keyId] } : { sql: "stripe_subscription_id = ?", vals: [sub] };
+const byEmailSub = (sub, keyId) => keyId ? { sql: "id = ?", vals: [keyId] } : { sql: "email_stripe_subscription_id = ?", vals: [sub] };
 const periodEnd = (sub) => Number(sub.current_period_end || (sub.items && sub.items.data && sub.items.data[0] && sub.items.data[0].current_period_end) || 0) || null;
 const subPrice = (o) => o && o.items && o.items.data && o.items.data[0] && o.items.data[0].price && o.items.data[0].price.id;
 const eventPrice = (o) => configuredPriceId(subPrice(o) || (o && o.metadata && o.metadata.price));
-async function setEmailPlan(env, where, plan, now) {
+const EMAIL_FIELDS = new Set(["email_stripe_subscription_id", "email_grace_ends_at"]);
+async function setEmailPlan(env, where, plan, fields = {}, now = new Date()) {
   const p = EMAIL_PLANS[plan] || EMAIL_PLANS.free;
-  const r = await env.RECEIPTS_DB.prepare(`UPDATE api_keys SET email_plan = ?, email_monthly_quota = ?, updated_at = ? WHERE ${where.sql}`).bind(plan, p.quota, nowS(now), ...where.vals).run();
+  const sets = ["email_plan = ?", "email_monthly_quota = ?", "updated_at = ?"], vals = [plan, p.quota, nowS(now)];
+  for (const [k, v] of Object.entries(fields)) { if (!EMAIL_FIELDS.has(k)) continue; sets.push(`${k} = ?`); vals.push(v); }
+  const r = await env.RECEIPTS_DB.prepare(`UPDATE api_keys SET ${sets.join(", ")} WHERE ${where.sql}`).bind(...vals, ...where.vals).run();
   return (r.meta && r.meta.changes) || 0;
+}
+async function markEmailGrace(env, where, sub, now, at) {
+  const until = at + Math.round(graceDays(env) * 86400);
+  const r = await env.RECEIPTS_DB.prepare(`UPDATE api_keys SET email_stripe_subscription_id = COALESCE(email_stripe_subscription_id, ?), email_grace_ends_at = CASE WHEN email_grace_ends_at IS NULL OR email_grace_ends_at > ? THEN ? ELSE email_grace_ends_at END, updated_at = ? WHERE ${where.sql} AND email_plan != 'free'`).bind(sub, until, until, nowS(now), ...where.vals).run();
+  return { changes: (r.meta && r.meta.changes) || 0, until };
 }
 
 /** Apply one verified event. Returns a short outcome string (no ids or keys). */
@@ -167,14 +174,17 @@ export async function applyEvent(env, ev, now = new Date()) {
       if (o.mode !== "subscription") return "ignored_mode";
       const keyId = o.client_reference_id || (o.metadata && o.metadata.key_id);
       const plan = o.metadata && o.metadata.plan;
-      if (!keyId || !PAID.includes(plan)) return "ignored_no_key";
       if (o.payment_status && o.payment_status !== "paid" && o.payment_status !== "no_payment_required") return "ignored_unpaid";
       if (o.metadata && o.metadata.product === "email") {
         const emailPlan = emailPlanForPrice(env, eventPrice(o));
         if (!emailPlan) return "ignored_no_price";
-        const n = await setEmailPlan(env, { sql: "id = ?", vals: [keyId] }, emailPlan, now);
+        if (!keyId) return "ignored_no_key";
+        const fields = { email_grace_ends_at: null };
+        if (o.subscription) fields.email_stripe_subscription_id = o.subscription;
+        const n = await setEmailPlan(env, { sql: "id = ?", vals: [keyId] }, emailPlan, fields, now);
         return n ? "email_plan_" + emailPlan : "unknown_key";
       }
+      if (!keyId || !PAID.includes(plan)) return "ignored_no_key";
       const n = await setPlan(env, { sql: "id = ?", vals: [keyId] }, plan, { stripe_customer_id: o.customer || null, stripe_subscription_id: o.subscription || null, plan_ends_at: null, grace_ends_at: null }, now);
       return n ? "plan_" + plan : "unknown_key";
     }
@@ -184,12 +194,17 @@ export async function applyEvent(env, ev, now = new Date()) {
       const emailPlan = emailPlanForPrice(env, price);
       const emailTagged = !!(o.metadata && o.metadata.product === "email");
       if (emailPlan || emailTagged) {
+        const where = byEmailSub(o.id, keyId);
         if (["active", "trialing"].includes(o.status) && emailPlan) {
-          const n = await setEmailPlan(env, bySub(o.id, keyId), emailPlan, now);
+          const n = await setEmailPlan(env, where, emailPlan, { email_stripe_subscription_id: o.id || null, email_grace_ends_at: null }, now);
           return n ? "email_plan_" + emailPlan : "unknown_key";
         }
-        if (emailPlan && ["past_due", "unpaid", "incomplete_expired", "canceled", "paused"].includes(o.status)) {
-          const n = await setEmailPlan(env, bySub(o.id, keyId), "free", now);
+        if (emailPlan && ["past_due", "unpaid"].includes(o.status)) {
+          const g = await markEmailGrace(env, where, o.id, now, Number(ev.created) || nowS(now));
+          return g.changes ? "email_grace_until_" + (g.until <= nowS(now) ? "now" : "later") : "unknown_key";
+        }
+        if (emailPlan && ["incomplete_expired", "canceled", "paused"].includes(o.status)) {
+          const n = await setEmailPlan(env, where, "free", { email_grace_ends_at: null }, now);
           return n ? "email_free" : "unknown_key";
         }
         return emailPlan ? "ignored_status" : "ignored_no_price";
@@ -207,7 +222,7 @@ export async function applyEvent(env, ev, now = new Date()) {
       const price = subPrice(o);
       if (emailPlanForPrice(env, price) || (o.metadata && o.metadata.product === "email")) {
         if (!emailPlanForPrice(env, price)) return "ignored_no_price";
-        const n = await setEmailPlan(env, bySub(o.id, o.metadata && o.metadata.key_id), "free", now);
+        const n = await setEmailPlan(env, byEmailSub(o.id, o.metadata && o.metadata.key_id), "free", { email_grace_ends_at: null }, now);
         return n ? "email_free" : "unknown_key";
       }
       return endAtPeriod(env, bySub(o.id, o.metadata && o.metadata.key_id), periodEnd(o), now);
@@ -215,18 +230,25 @@ export async function applyEvent(env, ev, now = new Date()) {
     case "invoice.payment_failed": {
       const sub = o.subscription || (o.parent && o.parent.subscription_details && o.parent.subscription_details.subscription);
       if (!sub) return "ignored_no_subscription";
-      // grace: keep the paid plan for BILLING_GRACE_DAYS from the event time; an earlier grace end is never extended
+      // grace: keep the paid plan for BILLING_GRACE_DAYS from the event time; an earlier grace end is never extended.
+      // The same window applies to an email subscription, stored on email_grace_ends_at so it does not clobber render grace.
       const at = Number(ev.created) || nowS(now);
       const until = at + Math.round(graceDays(env) * 86400);
+      const email = await markEmailGrace(env, { sql: "email_stripe_subscription_id = ?", vals: [sub] }, sub, now, at);
       const r = await env.RECEIPTS_DB.prepare("UPDATE api_keys SET grace_ends_at = CASE WHEN grace_ends_at IS NULL OR grace_ends_at > ? THEN ? ELSE grace_ends_at END, updated_at = ? WHERE stripe_subscription_id = ? AND plan != 'free'").bind(until, until, nowS(now), sub).run();
-      return (r.meta && r.meta.changes) ? "grace_until_" + (until <= nowS(now) ? "now" : "later") : "unknown_key";
+      if (r.meta && r.meta.changes) return "grace_until_" + (until <= nowS(now) ? "now" : "later");
+      if (email.changes) return "email_grace_until_" + (email.until <= nowS(now) ? "now" : "later");
+      return "unknown_key";
     }
     case "invoice.paid":
     case "invoice.payment_succeeded": {
       const sub = o.subscription || (o.parent && o.parent.subscription_details && o.parent.subscription_details.subscription);
       if (!sub) return "ignored_no_subscription";
+      const email = await env.RECEIPTS_DB.prepare("UPDATE api_keys SET email_grace_ends_at = NULL, updated_at = ? WHERE email_stripe_subscription_id = ? AND email_grace_ends_at IS NOT NULL").bind(nowS(now), sub).run();
       const r = await env.RECEIPTS_DB.prepare("UPDATE api_keys SET grace_ends_at = NULL, updated_at = ? WHERE stripe_subscription_id = ? AND grace_ends_at IS NOT NULL").bind(nowS(now), sub).run();
-      return (r.meta && r.meta.changes) ? "grace_cleared" : "no_grace";
+      if (r.meta && r.meta.changes) return "grace_cleared";
+      if (email.meta && email.meta.changes) return "email_grace_cleared";
+      return "no_grace";
     }
     default: return "ignored_type";
   }
@@ -275,7 +297,7 @@ export function billingDocs(env) {
     checkout: { method: "POST", url: API_ORIGIN + BILLING_CHECKOUT_PATH, auth: "x-api-key", body: { plan: "starter | pro" }, returns: "{url} of a Stripe Checkout page" },
     portal: { method: "POST", url: API_ORIGIN + BILLING_PORTAL_PATH, auth: "x-api-key", returns: "{url} of the Stripe billing portal (change plan, card, cancel)" },
     rules: ["The plan's monthly quota is a hard cap. Nothing is metered or billed as overage; at quota you get 429 with an upgrade note.",
-      `Cancel keeps the paid plan until the end of the paid period. A failed payment keeps it for a ${graceDays(env)}-day grace period (a later successful payment clears it). After that the key returns to free (500 renders a month).`,
+      `Cancel keeps the paid plan until the end of the paid period. A failed payment keeps it for a ${graceDays(env)}-day grace period (a later successful payment clears it). After that the key returns to free (500 renders a month). The same grace applies to an email subscription, then that plan returns to the free tier (100 validations a month).`,
       "Stripe sees an internal key id only, never your API key.",
       "A PDF, a screenshot and a social card each spend one render. A failed render is refunded. A cached card is free."],
   };
