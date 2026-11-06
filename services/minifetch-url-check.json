@@ -40,7 +40,7 @@
   },
   "paid_receipts": 10,
   "latest": {
-    "checked_at": "2026-11-05T21:04:03Z",
+    "checked_at": "2026-11-06T20:25:52Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
@@ -56,15 +56,15 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261105T210402Z/minifetch-url-check.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261105T210402Z/minifetch-url-check.json"
+    "raw_log": "results/raw/20261106T202551Z/minifetch-url-check.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261106T202551Z/minifetch-url-check.json"
   },
   "history_summary": {
-    "checks": 50,
-    "reachable": 50,
-    "x402_challenge_ok": 50,
+    "checks": 51,
+    "reachable": 51,
+    "x402_challenge_ok": 51,
     "paid_checks": 10,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-11-05T21:04:03Z"
+    "last_checked": "2026-11-06T20:25:52Z"
   }
 }

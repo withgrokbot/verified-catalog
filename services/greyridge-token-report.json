@@ -35,11 +35,11 @@
   "quality_test": null,
   "paid_receipts": 0,
   "latest": {
-    "checked_at": "2026-11-05T21:04:04Z",
+    "checked_at": "2026-11-06T20:25:54Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 82,
+    "latency_ms": 517,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.01",
@@ -51,15 +51,15 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261105T210402Z/greyridge-token-report.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261105T210402Z/greyridge-token-report.json"
+    "raw_log": "results/raw/20261106T202551Z/greyridge-token-report.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261106T202551Z/greyridge-token-report.json"
   },
   "history_summary": {
-    "checks": 12,
-    "reachable": 12,
-    "x402_challenge_ok": 12,
+    "checks": 13,
+    "reachable": 13,
+    "x402_challenge_ok": 13,
     "paid_checks": 0,
     "first_checked": "2026-10-27T14:53:18Z",
-    "last_checked": "2026-11-05T21:04:04Z"
+    "last_checked": "2026-11-06T20:25:54Z"
   }
 }
