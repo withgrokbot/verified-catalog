@@ -31,11 +31,11 @@
   "quality_test": null,
   "paid_receipts": 7,
   "latest": {
-    "checked_at": "2026-11-06T20:25:53Z",
+    "checked_at": "2026-11-07T18:44:08Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 404,
+    "latency_ms": 455,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001",
@@ -47,15 +47,15 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261106T202551Z/hypernatt-liq-radar.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261106T202551Z/hypernatt-liq-radar.json"
+    "raw_log": "results/raw/20261107T184407Z/hypernatt-liq-radar.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261107T184407Z/hypernatt-liq-radar.json"
   },
   "history_summary": {
-    "checks": 38,
-    "reachable": 37,
-    "x402_challenge_ok": 37,
+    "checks": 39,
+    "reachable": 38,
+    "x402_challenge_ok": 38,
     "paid_checks": 7,
     "first_checked": "2026-10-06T17:58:51Z",
-    "last_checked": "2026-11-06T20:25:53Z"
+    "last_checked": "2026-11-07T18:44:08Z"
   }
 }

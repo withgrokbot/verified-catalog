@@ -1,0 +1,16 @@
+{
+  "service_id": "bilbop-brand-feedback",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.bilbop.org/brand-feedback",
+    "json_body": {},
+    "payment_header_sent": false
+  },
+  "response": {
+    "error": "URLError: [Errno -2] Name or service not known",
+    "latency_ms": 42
+  },
+  "run_id": "20261107T184407Z",
+  "checked_at": "2026-11-07T18:44:08Z"
+}
