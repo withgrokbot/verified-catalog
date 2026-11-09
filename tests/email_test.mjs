@@ -1,5 +1,5 @@
-// 0.68.0 email validation (unreleased, EMAIL=1). Syntax, mocked DoH, disposable, role, status rules
-// (never deliverable without an SMTP pass), separate quota, webhook plan mapping, 404 when the flag is off.
+// 0.68.1 email validation (unreleased, EMAIL=1). Syntax, mocked DoH, disposable, role, status rules
+// (deliverable only on a non-catch-all 250), probe mapping, quota, scale price, email grace, 404 when the flag is off.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -27,13 +27,18 @@ const records = {
   "xn--bcher-kva.example": { mx: [{ type: 15, data: "10 mx.example." }] },
   "fresh-disposable.test": { mx: [{ type: 15, data: "10 mx.fresh-disposable.test." }] },
   "a.fresh-disposable.test": { mx: [{ type: 15, data: "10 mx.fresh-disposable.test." }] },
+  "example.test": { mx: [{ type: 15, data: "10 mx.example.test." }] },
 };
 let fetches = [];
+let fetchCalls = [];
 let listBody = "fresh-disposable.test\n";
 let listStatus = 200;
-globalThis.fetch = async (u) => {
+let allowProbe = false;
+let probeBody = null;
+globalThis.fetch = async (u, init) => {
   const s = String(u && u.url ? u.url : u);
   fetches.push(s);
+  fetchCalls.push({ url: s, init });
   if (s.includes("disposable_email_blocklist.conf")) return new Response(listBody, { status: listStatus });
   if (s.startsWith("https://cloudflare-dns.com/dns-query")) {
     const q = new URL(s);
@@ -43,7 +48,10 @@ globalThis.fetch = async (u) => {
     const answers = type === "MX" ? rec.mx || [] : type === "A" ? rec.a || [] : [];
     return Response.json({ Status: 0, Answer: answers });
   }
-  if (s.includes("probe.example")) throw new Error("smtp probe must not be called");
+  if (s.includes("probe.example")) {
+    if (!allowProbe) throw new Error("smtp probe must not be called");
+    return Response.json(probeBody || { smtp: "unknown", catch_all: "unknown", code: null, reason: "probe_unreachable" });
+  }
   return new Response("nope", { status: 404 });
 };
 
@@ -54,17 +62,21 @@ async function addKey(e, id = "key-1", raw = RAW) {
 const post = (e, path, body, headers = {}) => worker.fetch(new Request(API + path, { method: "POST", headers: { "content-type": "application/json", "x-api-key": RAW, ...headers }, body: body === undefined ? undefined : JSON.stringify(body) }), e, { waitUntil() {} });
 const keyRow = (e) => e.RECEIPTS_DB.prepare("SELECT plan, monthly_quota, email_plan, email_monthly_quota FROM api_keys WHERE id = 'key-1'").first();
 
-test("version is 0.68.0 and the flag stays off in wrangler.toml", () => {
-  assert.equal(VERSION, "0.68.0");
+test("version is 0.68.1 and the flag stays off in wrangler.toml", () => {
+  assert.equal(VERSION, "0.68.1");
   const toml = readFileSync(join(ROOT, "worker", "wrangler.toml"), "utf8");
   assert.doesNotMatch(toml, /^EMAIL\s*=/m);
-  assert.doesNotMatch(toml, /^STRIPE_PRICE_EMAIL_(STARTER|PRO)\s*=/m);
+  assert.doesNotMatch(toml, /^STRIPE_PRICE_EMAIL_(STARTER|PRO|SCALE)\s*=/m);
+  assert.doesNotMatch(toml, /^EMAIL_SMTP_(URL|SECRET)\s*=/m);
   assert.match(toml, /# EMAIL = "1"/);
   assert.match(toml, /# STRIPE_PRICE_EMAIL_STARTER = ""/);
+  assert.match(toml, /# STRIPE_PRICE_EMAIL_SCALE = ""/);
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*", "23 6 \* \* 1"\]/);
   const sql = readFileSync(join(ROOT, "worker", "migrations", "0030_email.sql"), "utf8");
   assert.match(sql, /email_plan/); assert.match(sql, /email_monthly_quota/); assert.match(sql, /emails/);
   assert.match(sql, /email_domain_cache/); assert.match(sql, /email_disposable_domains/);
+  const grace = readFileSync(join(ROOT, "worker", "migrations", "0031_email_grace.sql"), "utf8");
+  assert.match(grace, /email_stripe_subscription_id/); assert.match(grace, /email_grace_ends_at/);
 });
 
 test("404 when EMAIL is not 1: routes, and nothing in OpenAPI or llms.txt", async () => {
@@ -155,19 +167,32 @@ test("typo suggestion gmial.com -> gmail.com, and status is still not deliverabl
   assert.equal(bad.status, "undeliverable"); assert.equal(bad.confidence, 0.99); assert.deepEqual(bad.reasons, ["invalid_syntax"]); assert.equal(bad.suggestion, null);
 });
 
-test("status and confidence: deliverable only with an SMTP pass; v1 never returns it", () => {
+test("status and confidence: deliverable only on a non-catch-all SMTP pass", () => {
   const clean = { syntax: "valid", mx: "present", disposable: false, role: false, catch_all: "not_checked" };
-  const pass = E.classify({ ...clean, smtp: "pass" });
-  assert.equal(pass.status, "deliverable"); assert.equal(pass.confidence, 0.97); assert.deepEqual(pass.reasons, []);
+  const pass = E.classify({ ...clean, catch_all: false, smtp: "pass" });
+  assert.equal(pass.status, "deliverable"); assert.equal(pass.confidence, 0.97); assert.equal(pass.checks.catch_all, "no"); assert.deepEqual(pass.reasons, []);
+  const unchecked = E.classify({ ...clean, smtp: "pass" });
+  assert.notEqual(unchecked.status, "deliverable"); assert.ok(unchecked.reasons.includes("catch_all_unconfirmed"));
+  const caught = E.classify({ ...clean, catch_all: true, smtp: "unknown" });
+  assert.equal(caught.status, "risky"); assert.ok(caught.reasons.includes("catch_all")); assert.notEqual(caught.status, "deliverable");
+  const grey = E.classify({ ...clean, catch_all: "unknown", smtp: "unknown" });
+  assert.equal(grey.status, "unknown"); assert.equal(grey.confidence, 0.35); assert.ok(grey.reasons.includes("smtp_unknown"));
   for (const smtp of ["not_checked", "fail", undefined, "error", ""]) {
     const c = E.classify({ ...clean, smtp });
     assert.notEqual(c.status, "deliverable", String(smtp));
     assert.ok(c.confidence >= 0 && c.confidence <= 1);
   }
-  assert.equal(E.classify({ ...clean, smtp: "pass", role: true }).status, "risky");
-  assert.equal(E.classify({ ...clean, smtp: "pass", disposable: true }).status, "risky");
+  assert.equal(E.classify({ ...clean, catch_all: "no", smtp: "pass", role: true }).status, "risky");
+  assert.equal(E.classify({ ...clean, catch_all: "no", smtp: "pass", disposable: true }).status, "risky");
   assert.equal(E.classify({ ...clean, smtp: "fail" }).status, "undeliverable");
-  assert.equal(E.classify({ syntax: "invalid", smtp: "pass", mx: "present" }).status, "undeliverable");
+  assert.equal(E.classify({ syntax: "invalid", smtp: "pass", mx: "present", catch_all: "no" }).status, "undeliverable");
+  assert.deepEqual(E.interpretProbe({ code: 250, catch_all: false, smtp: "pass" }), { smtp: "pass", catch_all: "no", code: 250, reason: null });
+  assert.equal(E.interpretProbe({ code: 250, catch_all: true, smtp: "pass" }).smtp, "unknown");
+  assert.equal(E.interpretProbe({ code: 250, catch_all: true, smtp: "pass" }).catch_all, "yes");
+  assert.notEqual(E.classify({ ...clean, ...E.interpretProbe({ code: 250, catch_all: true, smtp: "pass" }) }).status, "deliverable");
+  assert.equal(E.interpretProbe({ code: 550, smtp: "fail" }).smtp, "fail");
+  assert.equal(E.interpretProbe({ code: 450, smtp: "pass", catch_all: false }).smtp, "unknown");
+  assert.equal(E.interpretProbe({ smtp: "pass", catch_all: false }).smtp, "unknown");
   const samples = [
     E.classify({ syntax: "invalid" }),
     E.classify({ ...clean, mx: "missing", smtp: "not_checked" }),
@@ -185,7 +210,7 @@ test("status and confidence: deliverable only with an SMTP pass; v1 never return
 test("quota is separate from render usage; batch caps at 100 and is all-or-nothing", async () => {
   const e = env(); await addKey(e);
   let row = await keyRow(e);
-  assert.deepEqual([row.email_plan, row.email_monthly_quota, row.plan, row.monthly_quota], ["free", 100, "free", 500]);
+  assert.deepEqual([row.email_plan, row.email_monthly_quota, row.plan, row.monthly_quota], ["free", 1000, "free", 500]);
   assert.equal((await post(e, E.EMAIL_VALIDATE_PATH, { email: "a@gmail.com" }, { "x-api-key": "" })).status, 401);
   await e.RECEIPTS_DB.prepare("UPDATE api_keys SET email_monthly_quota = 2 WHERE id = 'key-1'").run();
   const a = await post(e, E.EMAIL_VALIDATE_PATH, { email: "a@gmail.com" });
@@ -279,31 +304,69 @@ test("weekly cron refreshes disposable domains; the flag off does not fetch", as
   assert.deepEqual(parsed, ["foo.example", "bar.example"]);
 });
 
-test("SMTP probe request is signed and off by default; v1 does not send it", async () => {
+test("SMTP probe is off by default, and a signed call maps 250, catch-all, 5xx, 4xx and provider skip", async () => {
   assert.equal(E.smtpProbeEnabled({}), false);
   assert.equal(await E.buildSmtpProbeRequest({}, "a@gmail.com"), null);
   assert.equal(await E.buildSmtpProbeRequest({ EMAIL_SMTP_URL: "http://probe.example/v1", EMAIL_SMTP_SECRET: "s" }, "a@gmail.com"), null);
-  const built = await E.buildSmtpProbeRequest({ EMAIL_SMTP_URL: "https://probe.example/v1", EMAIL_SMTP_SECRET: "secret" }, "a@gmail.com");
+  const now = new Date("2026-11-05T12:00:00Z");
+  const built = await E.buildSmtpProbeRequest({ EMAIL_SMTP_URL: "https://probe.example/v1", EMAIL_SMTP_SECRET: "secret" }, "a@example.test", now);
   assert.equal(built.method, "POST"); assert.equal(built.url, "https://probe.example/v1");
   assert.match(built.headers["x-email-probe-signature"], /^v1=[0-9a-f]{64}$/);
-  assert.equal(JSON.parse(built.body).email, "a@gmail.com");
-  const e = env({ EMAIL_SMTP_URL: "https://probe.example/v1", EMAIL_SMTP_SECRET: "secret" }); await addKey(e);
+  assert.deepEqual(JSON.parse(built.body), { v: 1, ts: Math.floor(now.getTime() / 1000), email: "a@example.test" });
+  assert.equal(built.headers["x-email-probe-signature"], "v1=" + await hmacHex("secret", built.body));
+  const off = env(); await addKey(off);
   fetches = [];
-  const b = await (await post(e, E.EMAIL_VALIDATE_PATH, { email: "a@gmail.com" })).json();
-  assert.equal(b.checks.smtp, "not_checked"); assert.notEqual(b.status, "deliverable");
+  const quiet = await (await post(off, E.EMAIL_VALIDATE_PATH, { email: "a@example.test" })).json();
+  assert.equal(quiet.checks.smtp, "not_checked"); assert.notEqual(quiet.status, "deliverable");
   assert.ok(!fetches.some((u) => u.includes("probe.example")));
+  const e = env({ EMAIL_SMTP_URL: "https://probe.example/v1", EMAIL_SMTP_SECRET: "secret" }); await addKey(e);
+  const one = async (body) => {
+    allowProbe = true; probeBody = body; fetchCalls = [];
+    const res = await post(e, E.EMAIL_VALIDATE_PATH, { email: "User@Example.TEST" });
+    assert.equal(res.status, 200);
+    const call = fetchCalls.find((c) => c.url.includes("probe.example"));
+    assert.ok(call, "probe was called");
+    const sent = JSON.parse(call.init.body);
+    assert.equal(sent.v, 1); assert.equal(sent.email, "user@example.test"); assert.equal(typeof sent.ts, "number");
+    assert.equal(call.init.headers["x-email-probe-signature"], "v1=" + await hmacHex("secret", call.init.body));
+    return res.json();
+  };
+  const pass = await one({ v: 1, email: "user@example.test", smtp: "pass", code: 250, catch_all: false, reason: "rcpt_accepted" });
+  assert.equal(pass.status, "deliverable"); assert.equal(pass.confidence, 0.97); assert.equal(pass.checks.smtp, "pass"); assert.equal(pass.checks.catch_all, "no");
+  const cached = await e.RECEIPTS_DB.prepare("SELECT catch_all FROM email_domain_cache WHERE domain = 'example.test'").first();
+  assert.equal(cached.catch_all, "no");
+  const all = await one({ v: 1, email: "user@example.test", smtp: "pass", code: 250, catch_all: true, reason: "catch_all" });
+  assert.equal(all.status, "risky"); assert.ok(all.reasons.includes("catch_all")); assert.notEqual(all.status, "deliverable");
+  const reject = await one({ v: 1, email: "user@example.test", smtp: "fail", code: 550, catch_all: false, reason: "rcpt_reject" });
+  assert.equal(reject.status, "undeliverable"); assert.equal(reject.checks.smtp, "fail"); assert.ok(reject.reasons.includes("smtp_reject"));
+  const grey = await one({ v: 1, email: "user@example.test", smtp: "unknown", code: 450, catch_all: "unknown", reason: "greylist" });
+  assert.equal(grey.status, "unknown"); assert.ok(grey.reasons.includes("greylist")); assert.notEqual(grey.status, "deliverable");
+  allowProbe = true; probeBody = { v: 1, email: "a@gmail.com", smtp: "unknown", code: null, catch_all: "unknown", reason: "provider_skip" };
+  const gmail = await (await post(e, E.EMAIL_VALIDATE_PATH, { email: "a@gmail.com" })).json();
+  assert.equal(gmail.status, "unknown"); assert.ok(gmail.reasons.includes("provider_skip")); assert.notEqual(gmail.status, "deliverable");
+  const lied = await one({ v: 1, email: "user@example.test", smtp: "pass", catch_all: false });
+  assert.notEqual(lied.status, "deliverable", "a pass without code 250 is not deliverable");
+  allowProbe = false;
 });
 
 test("webhook maps email price ids onto the email plan and leaves the render plan alone; blank ids match nothing", async () => {
-  assert.equal(emailPlanForPrice({ STRIPE_PRICE_EMAIL_STARTER: "", STRIPE_PRICE_EMAIL_PRO: "" }, "price_email_starter"), null);
+  assert.equal(emailPlanForPrice({ STRIPE_PRICE_EMAIL_STARTER: "", STRIPE_PRICE_EMAIL_PRO: "", STRIPE_PRICE_EMAIL_SCALE: "" }, "price_email_starter"), null);
   assert.equal(emailPlanForPrice({}, "price_email_starter"), null);
+  assert.equal(emailPlanForPrice({ STRIPE_PRICE_EMAIL_SCALE: "price_email_scale" }, "price_email_free"), null, "the free tier has no price id");
+  assert.deepEqual([E.EMAIL_PLANS.free.quota, E.EMAIL_PLANS.starter.quota, E.EMAIL_PLANS.pro.quota, E.EMAIL_PLANS.scale.quota], [1000, 10000, 50000, 200000]);
+  assert.equal(E.EMAIL_PLANS.free.priceUsd, 0);
   assert.deepEqual(priceToPlan({ STRIPE_PRICE_STARTER: "price_starter", STRIPE_PRICE_PRO: "price_pro", STRIPE_PRICE_EMAIL_STARTER: "price_email_starter" }, "price_pro"), { product: "render", plan: "pro" });
   assert.deepEqual(priceToPlan({ STRIPE_PRICE_EMAIL_STARTER: "price_email_starter", STRIPE_PRICE_EMAIL_PRO: "price_email_pro" }, "price_email_pro"), { product: "email", plan: "pro" });
+  assert.deepEqual(priceToPlan({ STRIPE_PRICE_PRO: "price_pro", STRIPE_PRICE_EMAIL_SCALE: "price_email_scale" }, "price_email_scale"), { product: "email", plan: "scale" });
+  assert.equal(emailPlanForPrice({ STRIPE_PRICE_PRO: "price_email_scale", STRIPE_PRICE_EMAIL_SCALE: "price_email_scale" }, "price_email_scale"), null);
+  assert.equal(emailPlanForPrice({ STRIPE_PRICE_EMAIL_STARTER: "price_email_starter", STRIPE_PRICE_EMAIL_PRO: "price_email_pro", STRIPE_PRICE_EMAIL_SCALE: "" }, "price_email_scale"), null, "a blank scale price id matches nothing");
+  assert.equal(emailPlanForPrice({ STRIPE_PRICE_EMAIL_SCALE: "   " }, "price_email_scale"), null);
+  assert.equal(emailPlanForPrice({ STRIPE_PRICE_EMAIL_SCALE: "price_email_scale" }, "price_email_scale"), "scale");
   assert.equal(priceToPlan({ STRIPE_PRICE_STARTER: "price_starter", STRIPE_PRICE_EMAIL_STARTER: "price_starter" }, "price_starter").product, "render");
   const e = env({
     RENDER: "1", BILLING: "1", STRIPE_SECRET_KEY: "sk_test_fixture", STRIPE_WEBHOOK_SECRET: "whsec_test_fixture",
     STRIPE_PRICE_STARTER: "price_starter", STRIPE_PRICE_PRO: "price_pro",
-    STRIPE_PRICE_EMAIL_STARTER: "price_email_starter", STRIPE_PRICE_EMAIL_PRO: "price_email_pro",
+    STRIPE_PRICE_EMAIL_STARTER: "price_email_starter", STRIPE_PRICE_EMAIL_PRO: "price_email_pro", STRIPE_PRICE_EMAIL_SCALE: "price_email_scale",
   });
   await addKey(e);
   const send = async (ev) => {
@@ -324,6 +387,35 @@ test("webhook maps email price ids onto the email plan and leaves the render pla
   r = await send({ id: "evt_del", type: "customer.subscription.deleted", data: { object: { id: "sub_email", status: "canceled", metadata: { key_id: "key-1", product: "email" }, items: { data: [{ price: { id: "price_email_pro" } }] } } } });
   assert.equal((await r.json()).outcome, "email_free");
   k = await keyRow(e); assert.equal(k.email_plan, "free"); assert.equal(k.email_monthly_quota, E.EMAIL_PLANS.free.quota); assert.equal(k.plan, "pro");
+  r = await send(sub("evt_scale", "price_email_scale", "email"));
+  assert.equal((await r.json()).outcome, "email_plan_scale");
+  k = await keyRow(e); assert.deepEqual([k.email_plan, k.email_monthly_quota, k.plan], ["scale", E.EMAIL_PLANS.scale.quota, "pro"]);
+  const subId = await e.RECEIPTS_DB.prepare("SELECT email_stripe_subscription_id FROM api_keys WHERE id = 'key-1'").first();
+  assert.equal(subId.email_stripe_subscription_id, "sub_evt_scale");
+  const created = Math.floor(Date.now() / 1000) - 3600;
+  r = await send({ id: "evt_efail", type: "invoice.payment_failed", created, data: { object: { subscription: "sub_evt_scale" } } });
+  assert.equal((await r.json()).outcome, "email_grace_until_later");
+  let grace = await e.RECEIPTS_DB.prepare("SELECT plan, email_plan, email_monthly_quota, grace_ends_at, email_grace_ends_at FROM api_keys WHERE id = 'key-1'").first();
+  assert.equal(grace.plan, "pro", "render plan is untouched");
+  assert.equal(grace.email_plan, "scale"); assert.equal(grace.email_monthly_quota, E.EMAIL_PLANS.scale.quota);
+  assert.equal(grace.grace_ends_at, null); assert.equal(grace.email_grace_ends_at, created + 3 * 86400);
+  r = await send({ id: "evt_efail2", type: "invoice.payment_failed", created: created + 86400, data: { object: { subscription: "sub_evt_scale" } } });
+  assert.equal((await e.RECEIPTS_DB.prepare("SELECT email_grace_ends_at FROM api_keys WHERE id = 'key-1'").first()).email_grace_ends_at, created + 3 * 86400, "a later failure does not extend grace");
+  const inside = await post(e, E.EMAIL_VALIDATE_PATH, { email: "a@gmail.com" });
+  assert.equal(inside.headers.get("x-quota-limit"), String(E.EMAIL_PLANS.scale.quota));
+  r = await send({ id: "evt_epaid", type: "invoice.paid", data: { object: { subscription: "sub_evt_scale" } } });
+  assert.equal((await r.json()).outcome, "email_grace_cleared");
+  assert.equal((await e.RECEIPTS_DB.prepare("SELECT email_plan, email_grace_ends_at FROM api_keys WHERE id = 'key-1'").first()).email_grace_ends_at, null);
+  r = await send({ id: "evt_efail3", type: "invoice.payment_failed", created, data: { object: { subscription: "sub_evt_scale" } } });
+  assert.equal((await r.json()).outcome, "email_grace_until_later");
+  const expired = new Date((created + 3 * 86400 + 5) * 1000);
+  const dropped = await worker.fetch(new Request(API + E.EMAIL_VALIDATE_PATH, { method: "POST", headers: { "content-type": "application/json", "x-api-key": RAW }, body: JSON.stringify({ email: "a@gmail.com" }) }), e, { waitUntil() {} });
+  // the handler uses the current clock unless opts.now is passed; call the handler directly for the grace boundary
+  assert.equal(dropped.status, 200);
+  const atGrace = await E.handleEmailValidate(new Request(API + E.EMAIL_VALIDATE_PATH, { method: "POST", headers: { "content-type": "application/json", "x-api-key": RAW }, body: JSON.stringify({ email: "a@gmail.com" }) }), e, {}, new URL(API + E.EMAIL_VALIDATE_PATH), { now: expired });
+  assert.equal(atGrace.headers.get("x-quota-limit"), String(E.EMAIL_PLANS.free.quota));
+  const after = await e.RECEIPTS_DB.prepare("SELECT email_plan, email_monthly_quota, email_grace_ends_at, plan FROM api_keys WHERE id = 'key-1'").first();
+  assert.deepEqual([after.email_plan, after.email_monthly_quota, after.email_grace_ends_at, after.plan], ["free", E.EMAIL_PLANS.free.quota, null, "pro"]);
   const blank = env({ RENDER: "1", BILLING: "1", STRIPE_SECRET_KEY: "sk_test_fixture", STRIPE_WEBHOOK_SECRET: "whsec_test_fixture", STRIPE_PRICE_STARTER: "price_starter", STRIPE_PRICE_PRO: "price_pro" });
   await addKey(blank);
   const raw = JSON.stringify(sub("evt_blank", "price_email_starter", "email")); const t = Math.floor(Date.now() / 1000);
@@ -333,15 +425,16 @@ test("webhook maps email price ids onto the email plan and leaves the render pla
 });
 
 test("a blank or missing email price id never grants the email plan and never matches another plan", async () => {
-  const probes = ["", "   ", "price_starter", "price_pro", "price_email_starter", "price_1real"];
+  const probes = ["", "   ", "price_starter", "price_pro", "price_email_starter", "price_email_scale", "price_1real"];
   for (const [label, emailEnv] of [
     ["missing", {}],
-    ["blank", { STRIPE_PRICE_EMAIL_STARTER: "", STRIPE_PRICE_EMAIL_PRO: "" }],
-    ["whitespace", { STRIPE_PRICE_EMAIL_STARTER: "   ", STRIPE_PRICE_EMAIL_PRO: " \t" }],
+    ["blank", { STRIPE_PRICE_EMAIL_STARTER: "", STRIPE_PRICE_EMAIL_PRO: "", STRIPE_PRICE_EMAIL_SCALE: "" }],
+    ["whitespace", { STRIPE_PRICE_EMAIL_STARTER: "   ", STRIPE_PRICE_EMAIL_PRO: " \t", STRIPE_PRICE_EMAIL_SCALE: "  " }],
   ]) {
     const base = { STRIPE_PRICE_STARTER: "price_starter", STRIPE_PRICE_PRO: "price_pro", ...emailEnv };
     assert.equal(configuredPriceId(emailEnv.STRIPE_PRICE_EMAIL_STARTER), null, label);
     assert.equal(configuredPriceId(emailEnv.STRIPE_PRICE_EMAIL_PRO), null, label);
+    assert.equal(configuredPriceId(emailEnv.STRIPE_PRICE_EMAIL_SCALE), null, label);
     for (const price of probes) {
       assert.equal(emailPlanForPrice(base, price), null, label + " " + JSON.stringify(price));
       const mapped = priceToPlan(base, price);
@@ -364,15 +457,17 @@ test("a blank or missing email price id never grants the email plan and never ma
     const checkout = await send({ id: "evt_c_" + label, type: "checkout.session.completed", data: { object: { mode: "subscription", payment_status: "paid", client_reference_id: "key-" + label, metadata: { plan: "pro", product: "email", price: "" } } } });
     assert.equal((await checkout.json()).outcome, "ignored_no_price", label);
     const row = await e.RECEIPTS_DB.prepare("SELECT plan, monthly_quota, email_plan, email_monthly_quota FROM api_keys WHERE id = ?").bind("key-" + label).first();
-    assert.deepEqual([row.plan, row.monthly_quota, row.email_plan, row.email_monthly_quota], ["free", 500, "free", 100], label);
+    assert.deepEqual([row.plan, row.monthly_quota, row.email_plan, row.email_monthly_quota], ["free", 500, "free", 1000], label);
   }
 });
 
 test("docs and OpenAPI mark the feature unreleased and only when EMAIL=1", async () => {
   const e = env();
   const docs = await (await worker.fetch(new Request(API + E.EMAIL_DOCS_PATH), e, { waitUntil() {} })).json();
-  assert.equal(docs.released, false); assert.equal(docs.priced, false); assert.match(docs.status_rule, /never deliverable|not_checked/);
-  assert.equal(docs.checks.smtp, "not_checked");
+  assert.equal(docs.released, false); assert.equal(docs.priced, false); assert.match(docs.status_rule, /not_checked/); assert.match(docs.status_rule, /250/);
+  assert.match(docs.checks.smtp, /not_checked/); assert.match(docs.checks.smtp, /pass/);
+  assert.match(docs.free_tier, /1,000/); assert.equal(docs.plans.free.quota, 1000); assert.equal(docs.plans.free.priceUsd, 0);
+  assert.deepEqual([docs.plans.starter.quota, docs.plans.pro.quota, docs.plans.scale.quota], [10000, 50000, 200000]);
   const oa = openapi(API, { EMAIL: "1" });
   assert.equal(oa.paths[E.EMAIL_VALIDATE_PATH].post["x-unreleased"], true);
   assert.match(oa.paths[E.EMAIL_VALIDATE_PATH].post.summary, /UNRELEASED/);
