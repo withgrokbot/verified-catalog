@@ -135,6 +135,15 @@ BILLING_GRACE_DAYS = "3"  # 0.66.1: paid plan kept this long after invoice.payme
 # 0.67.0 social cards: POST and GET /v1/render/card (same RENDER flag, API keys, x402 price and monthly quota;
 # one card = one render). Needs migration 0029 (usage kind pdf | shot | card). Template text is HTML-escaped.
 # Cards are stored in the Cache API for 7 days; a cache hit is free. GET ?t=&sig= is HMAC-signed for og:image.
+# 0.68.0 email validation (worker/src/email.js), OFF and unreleased: EMAIL unset = /v1/email/* 404.
+# Not priced and not launched. Needs migration 0030. Same API keys as render; email_plan, email_monthly_quota and
+# api_key_usage kind='email' (emails column; renders stays 0) is separate from pdf/shot/card. OpenAPI and /llms.txt mention it only when EMAIL=1.
+# EMAIL = "1"
+# STRIPE_PRICE_EMAIL_STARTER = ""   # blank until a Stripe price exists; webhook maps it to the email starter quota
+# STRIPE_PRICE_EMAIL_PRO = ""       # blank until a Stripe price exists; webhook maps it to the email pro quota
+# SMTP probe (off): set both EMAIL_SMTP_URL (https) and secret EMAIL_SMTP_SECRET (wrangler secret put; never here).
+# v1 defines the signed request and does not send it. checks.smtp is "not_checked".
+# EMAIL_SMTP_URL = ""
 # 0.49.0 flags, all OFF by default (see docs/deploy-0.49.0.md): EXPLAIN_LINE = "1" (explanation line), RECHECK = "1" (24 h / 10 re-check
 # window; needs migration 0015 + secret RECHECK_PEPPER), BULK_REPORT = "1" (bulk endpoint report; needs 0015, ENDPOINT_REPORT and RECHECK for credits).
 # Payment network (0.46.0): unset = Base mainnet (prod). Local testnet only: --var PAYMENT_PRESET:base-sepolia --var FACILITATOR_URL:https://x402.org/facilitator
@@ -188,5 +197,6 @@ migrations_dir = "migrations"
 
 # 0.26.0: lean /bazaar refresh; idle steps are one KV read
 # 0.36.0: "17 10 * * *" = daily re-check of the badge hosts (src/daily.js), 10:17 UTC; D1 only, 0 KV writes
+# 0.68.0: "23 6 * * 1" = Monday 06:23 UTC disposable-domain refresh. No-op unless EMAIL=1.
 [triggers]
-crons = ["*/20 * * * *", "17 10 * * *"]
+crons = ["*/20 * * * *", "17 10 * * *", "23 6 * * 1"]
