@@ -4,7 +4,7 @@ Not priced and not launched. The routes answer only when `EMAIL=1`. That flag is
 
 ## Routes
 
-Same API keys as the render API (`x-api-key` or `Authorization: Bearer rk_...`). Email plan, quota and usage are separate from render quota (`email_plan`, `email_monthly_quota`, `api_key_usage.emails`). The quota is a hard cap.
+Same API keys as the render API (`x-api-key` or `Authorization: Bearer rk_...`). Email plan and quota are `email_plan` and `email_monthly_quota`. Usage is one `api_key_usage` row per key per UTC month with `kind = 'email'`; the counter is the `emails` column and `renders` on that row stays 0. Render quota is the sum of `renders` for `pdf`, `shot` and `card` only. The email quota is a hard cap.
 
 - `POST /v1/email/validate` with `{"email":"user@example.com"}`
 - `POST /v1/email/batch` with `{"emails":[...]}` (1 to 100 addresses)
@@ -50,8 +50,8 @@ Each address costs one unit. A batch that does not fit in the remaining quota is
 
 ## Billing
 
-`STRIPE_PRICE_EMAIL_STARTER` and `STRIPE_PRICE_EMAIL_PRO` are blank. When a price id is set later, the Stripe webhook maps it onto `email_plan` / `email_monthly_quota` and does not change the render plan. Quotas until then: free 100, starter 5,000, pro 25,000 per UTC month. No price is charged.
+`STRIPE_PRICE_EMAIL_STARTER` and `STRIPE_PRICE_EMAIL_PRO` are blank. A missing, blank, or whitespace-only value is not a price id: it never equals a subscription price, never grants an email plan, and never selects the render starter or pro plan. When a non-blank price id is set later, the webhook applies the email plan only if the event's price id is exactly that value, and it does not change the render plan. Quotas: free 100, starter 5,000, pro 25,000 per UTC month. No price is charged.
 
 ## Migration
 
-`worker/migrations/0030_email.sql` adds the email plan and quota columns, the `emails` usage column, `email_domain_cache` and `email_disposable_domains`. No raw address is stored.
+`worker/migrations/0030_email.sql` adds the email plan and quota columns, rebuilds `api_key_usage` so `kind` may be `email`, and adds `email_domain_cache` and `email_disposable_domains`. No raw address is stored.

@@ -7,9 +7,9 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import worker from "../worker/src/index.js";
 import { openapi, VERSION } from "../worker/src/lib.js";
-import { hashKey } from "../worker/src/render.js";
+import { hashKey, loadKey, reserveQuota } from "../worker/src/render.js";
 import { sqliteD1 as d1 } from "./helpers/sqlite_d1.mjs";
-import { priceToPlan, emailPlanForPrice, hmacHex, BILLING_WEBHOOK_PATH } from "../worker/src/billing.js";
+import { priceToPlan, emailPlanForPrice, planForPrice, configuredPriceId, hmacHex, BILLING_WEBHOOK_PATH } from "../worker/src/billing.js";
 import * as E from "../worker/src/email.js";
 
 const API = "https://api.402xagent.com";
@@ -193,14 +193,15 @@ test("quota is separate from render usage; batch caps at 100 and is all-or-nothi
   assert.equal((await post(e, E.EMAIL_VALIDATE_PATH, { email: "b@gmail.com" })).status, 200);
   const over = await post(e, E.EMAIL_VALIDATE_PATH, { email: "c@gmail.com" });
   assert.equal(over.status, 429); assert.equal((await over.json()).reason, "quota_exceeded");
-  const usage = await e.RECEIPTS_DB.prepare("SELECT renders, emails FROM api_key_usage WHERE key_id = 'key-1'").first();
-  assert.deepEqual([usage.renders, usage.emails], [0, 2], "render counter stays 0");
+  const usage = await e.RECEIPTS_DB.prepare("SELECT kind, renders, emails FROM api_key_usage WHERE key_id = 'key-1'").first();
+  assert.deepEqual([usage.kind, usage.renders, usage.emails], ["email", 0, 2], "email usage is kind=email and does not increment renders");
   const e2 = env(); await addKey(e2);
   await e2.RECEIPTS_DB.prepare("UPDATE api_keys SET email_monthly_quota = 2 WHERE id = 'key-1'").run();
   const too = await post(e2, E.EMAIL_BATCH_PATH, { emails: ["a@gmail.com", "b@gmail.com", "c@gmail.com"] });
   assert.equal(too.status, 429);
   assert.equal((await e2.RECEIPTS_DB.prepare("SELECT COUNT(*) AS n FROM api_key_usage").first()).n, 1);
-  assert.equal((await e2.RECEIPTS_DB.prepare("SELECT emails FROM api_key_usage").first()).emails, 0, "rejected batch did not consume quota");
+  const held = await e2.RECEIPTS_DB.prepare("SELECT kind, emails, renders FROM api_key_usage").first();
+  assert.deepEqual([held.kind, held.emails, held.renders], ["email", 0, 0], "rejected batch did not consume quota");
   const ok = await post(e2, E.EMAIL_BATCH_PATH, { emails: ["a@gmail.com", "admin@nomx.fixture"] });
   assert.equal(ok.status, 200);
   const results = (await ok.json()).results;
@@ -215,6 +216,32 @@ test("quota is separate from render usage; batch caps at 100 and is all-or-nothi
   await suspended.RECEIPTS_DB.prepare("UPDATE api_keys SET status = 'suspended'").run();
   assert.equal((await post(suspended, E.EMAIL_VALIDATE_PATH, { email: "a@gmail.com" })).status, 403);
   assert.equal((await worker.fetch(new Request(API + E.EMAIL_VALIDATE_PATH), e, { waitUntil() {} })).status, 405);
+});
+
+test("email validate and batch do not change render usage, and render calls do not change email usage", async () => {
+  const e = env({ RENDER: "1" }); await addKey(e);
+  const renderUsed = () => e.RECEIPTS_DB.prepare("SELECT COALESCE(SUM(renders), 0) AS n FROM api_key_usage WHERE key_id = 'key-1' AND kind IN ('pdf', 'shot', 'card')").first();
+  const emailRow = () => e.RECEIPTS_DB.prepare("SELECT kind, renders, emails FROM api_key_usage WHERE key_id = 'key-1' AND kind = 'email'").first();
+  assert.equal((await renderUsed()).n, 0);
+  assert.equal(await emailRow(), null);
+  assert.equal((await post(e, E.EMAIL_VALIDATE_PATH, { email: "a@gmail.com" })).status, 200);
+  assert.equal((await post(e, E.EMAIL_BATCH_PATH, { emails: ["b@gmail.com", "c@nomx.fixture"] })).status, 200);
+  let em = await emailRow();
+  assert.equal(em.kind, "email"); assert.equal(em.renders, 0); assert.equal(em.emails, 3);
+  assert.equal((await renderUsed()).n, 0, "validate and batch did not spend pdf, shot or card");
+  assert.equal((await e.RECEIPTS_DB.prepare("SELECT COUNT(*) AS n FROM api_key_usage WHERE key_id = 'key-1' AND kind != 'email'").first()).n, 0);
+  const key = await loadKey(e, RAW);
+  assert.equal((await reserveQuota(e, key, new Date(), "pdf")).ok, true);
+  assert.equal((await reserveQuota(e, key, new Date(), "card")).ok, true);
+  assert.equal((await reserveQuota(e, key, new Date(), "screenshot")).ok, true);
+  em = await emailRow();
+  assert.equal(em.emails, 3); assert.equal(em.renders, 0, "render calls left the email counter alone");
+  assert.equal((await renderUsed()).n, 3);
+  assert.equal((await post(e, E.EMAIL_VALIDATE_PATH, { email: "d@gmail.com" })).status, 200);
+  assert.equal((await emailRow()).emails, 4);
+  assert.equal((await e.RECEIPTS_DB.prepare("SELECT renders FROM api_key_usage WHERE key_id = 'key-1' AND kind = 'pdf'").first()).renders, 1);
+  assert.equal((await e.RECEIPTS_DB.prepare("SELECT renders FROM api_key_usage WHERE key_id = 'key-1' AND kind = 'card'").first()).renders, 1);
+  assert.equal((await e.RECEIPTS_DB.prepare("SELECT renders FROM api_key_usage WHERE key_id = 'key-1' AND kind = 'shot'").first()).renders, 1);
 });
 
 test("domain cache keeps an MX result for 24 hours", async () => {
@@ -288,7 +315,7 @@ test("webhook maps email price ids onto the email plan and leaves the render pla
   assert.equal(r.status, 200); assert.equal((await r.json()).outcome, "email_plan_starter");
   let k = await keyRow(e);
   assert.deepEqual([k.email_plan, k.email_monthly_quota, k.plan, k.monthly_quota], ["starter", E.EMAIL_PLANS.starter.quota, "free", 500]);
-  r = await send({ id: "evt_co", type: "checkout.session.completed", data: { object: { mode: "subscription", payment_status: "paid", client_reference_id: "key-1", metadata: { plan: "pro", product: "email" } } } });
+  r = await send({ id: "evt_co", type: "checkout.session.completed", data: { object: { mode: "subscription", payment_status: "paid", client_reference_id: "key-1", metadata: { plan: "pro", product: "email", price: "price_email_pro" }, items: { data: [{ price: { id: "price_email_pro" } }] } } } });
   assert.equal((await r.json()).outcome, "email_plan_pro");
   k = await keyRow(e); assert.deepEqual([k.email_plan, k.email_monthly_quota, k.plan], ["pro", E.EMAIL_PLANS.pro.quota, "free"]);
   r = await send(sub("evt_render", "price_pro"));
@@ -301,8 +328,44 @@ test("webhook maps email price ids onto the email plan and leaves the render pla
   await addKey(blank);
   const raw = JSON.stringify(sub("evt_blank", "price_email_starter", "email")); const t = Math.floor(Date.now() / 1000);
   const br = await worker.fetch(new Request(API + BILLING_WEBHOOK_PATH, { method: "POST", headers: { "stripe-signature": `t=${t},v1=${await hmacHex("whsec_test_fixture", t + "." + raw)}` }, body: raw }), blank, { waitUntil() {} });
-  assert.equal((await br.json()).outcome, "ignored_status");
-  assert.equal((await keyRow(blank)).email_plan, "free");
+  assert.equal((await br.json()).outcome, "ignored_no_price");
+  assert.deepEqual([(await keyRow(blank)).email_plan, (await keyRow(blank)).plan], ["free", "free"], "an unmapped email-tagged price changes neither plan");
+});
+
+test("a blank or missing email price id never grants the email plan and never matches another plan", async () => {
+  const probes = ["", "   ", "price_starter", "price_pro", "price_email_starter", "price_1real"];
+  for (const [label, emailEnv] of [
+    ["missing", {}],
+    ["blank", { STRIPE_PRICE_EMAIL_STARTER: "", STRIPE_PRICE_EMAIL_PRO: "" }],
+    ["whitespace", { STRIPE_PRICE_EMAIL_STARTER: "   ", STRIPE_PRICE_EMAIL_PRO: " \t" }],
+  ]) {
+    const base = { STRIPE_PRICE_STARTER: "price_starter", STRIPE_PRICE_PRO: "price_pro", ...emailEnv };
+    assert.equal(configuredPriceId(emailEnv.STRIPE_PRICE_EMAIL_STARTER), null, label);
+    assert.equal(configuredPriceId(emailEnv.STRIPE_PRICE_EMAIL_PRO), null, label);
+    for (const price of probes) {
+      assert.equal(emailPlanForPrice(base, price), null, label + " " + JSON.stringify(price));
+      const mapped = priceToPlan(base, price);
+      assert.notEqual(mapped && mapped.product, "email", label + " " + JSON.stringify(price));
+    }
+    assert.equal(priceToPlan(base, ""), null, label);
+    assert.equal(priceToPlan(base, "   "), null, label);
+    assert.deepEqual(priceToPlan(base, "price_starter"), { product: "render", plan: "starter" }, label);
+    assert.equal(planForPrice({ STRIPE_PRICE_STARTER: "", STRIPE_PRICE_PRO: "   ", ...emailEnv }, ""), null, label);
+    assert.equal(planForPrice({ STRIPE_PRICE_STARTER: "", STRIPE_PRICE_PRO: "", ...emailEnv }, "price_starter"), null, label);
+    assert.equal(emailPlanForPrice({ STRIPE_PRICE_EMAIL_STARTER: "", STRIPE_PRICE_EMAIL_PRO: "" }, ""), null, label);
+    const e = env({ RENDER: "1", BILLING: "1", STRIPE_SECRET_KEY: "sk_test_fixture", STRIPE_WEBHOOK_SECRET: "whsec_test_fixture", STRIPE_PRICE_STARTER: "price_starter", STRIPE_PRICE_PRO: "price_pro", ...emailEnv });
+    await addKey(e, "key-" + label);
+    const send = async (ev) => {
+      const raw = JSON.stringify(ev); const t = Math.floor(Date.now() / 1000);
+      return worker.fetch(new Request(API + BILLING_WEBHOOK_PATH, { method: "POST", headers: { "stripe-signature": `t=${t},v1=${await hmacHex("whsec_test_fixture", t + "." + raw)}`, "content-type": "application/json" }, body: raw }), e, { waitUntil() {} });
+    };
+    const updated = await send({ id: "evt_u_" + label, type: "customer.subscription.updated", data: { object: { id: "sub_u", status: "active", metadata: { key_id: "key-" + label, product: "email" }, items: { data: [{ price: { id: "price_pro" } }] } } } });
+    assert.equal((await updated.json()).outcome, "ignored_no_price", label);
+    const checkout = await send({ id: "evt_c_" + label, type: "checkout.session.completed", data: { object: { mode: "subscription", payment_status: "paid", client_reference_id: "key-" + label, metadata: { plan: "pro", product: "email", price: "" } } } });
+    assert.equal((await checkout.json()).outcome, "ignored_no_price", label);
+    const row = await e.RECEIPTS_DB.prepare("SELECT plan, monthly_quota, email_plan, email_monthly_quota FROM api_keys WHERE id = ?").bind("key-" + label).first();
+    assert.deepEqual([row.plan, row.monthly_quota, row.email_plan, row.email_monthly_quota], ["free", 500, "free", 100], label);
+  }
 });
 
 test("docs and OpenAPI mark the feature unreleased and only when EMAIL=1", async () => {

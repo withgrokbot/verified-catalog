@@ -137,7 +137,7 @@ BILLING_GRACE_DAYS = "3"  # 0.66.1: paid plan kept this long after invoice.payme
 # Cards are stored in the Cache API for 7 days; a cache hit is free. GET ?t=&sig= is HMAC-signed for og:image.
 # 0.68.0 email validation (worker/src/email.js), OFF and unreleased: EMAIL unset = /v1/email/* 404.
 # Not priced and not launched. Needs migration 0030. Same API keys as render; email_plan, email_monthly_quota and
-# api_key_usage.emails are separate from render quota. OpenAPI and /llms.txt mention it only when EMAIL=1.
+# api_key_usage kind='email' (emails column; renders stays 0) is separate from pdf/shot/card. OpenAPI and /llms.txt mention it only when EMAIL=1.
 # EMAIL = "1"
 # STRIPE_PRICE_EMAIL_STARTER = ""   # blank until a Stripe price exists; webhook maps it to the email starter quota
 # STRIPE_PRICE_EMAIL_PRO = ""       # blank until a Stripe price exists; webhook maps it to the email pro quota

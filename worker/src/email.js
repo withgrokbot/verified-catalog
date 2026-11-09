@@ -2,8 +2,8 @@
 //   POST /v1/email/validate  {email}            one address
 //   POST /v1/email/batch     {emails:[...]}     up to 100 addresses
 // Same API keys as the render API (x-api-key or Authorization: Bearer rk_...). Quota and usage are separate
-// (email_plan, email_monthly_quota, api_key_usage.emails on the pdf usage row). A hard cap: at quota the call is 429,
-// nothing is billed extra. Email counts are not part of SUM(renders), so a card, PDF or screenshot does not spend them.
+// (email_plan, email_monthly_quota, api_key_usage where kind = 'email'). A hard cap: at quota the call is 429,
+// nothing is billed extra. That row's renders column stays 0, so it is outside the pdf + shot + card sum.
 // Checks: RFC 5322 syntax + IDNA, MX over DNS-over-HTTPS (A record if there is no MX), disposable domains (bundled list
 // plus the weekly refresh), role addresses, typo suggestions. No SMTP in v1: checks.smtp is always "not_checked".
 // Status is never "deliverable" without an SMTP pass, so v1's best status is risky or unknown (undeliverable only when
@@ -352,9 +352,9 @@ export async function validateAddress(raw, env, opts = {}) {
 }
 
 // ---------- quota ----------
-// Email counts sit on the pdf usage row (migration 0029 keys usage by kind). renders on that row is the PDF
-// counter only; emails is not included in the render hard cap (SUM of pdf + shot + card).
-const EMAIL_USAGE_KIND = "pdf";
+// One row per key per month with kind = 'email'. The emails column is the email quota counter.
+// renders on that row stays 0, and render quota sums only pdf, shot and card.
+export const EMAIL_USAGE_KIND = "email";
 export async function reserveEmailQuota(env, keyId, n, quota, now) {
   const db = env.RECEIPTS_DB;
   const mo = monthOf(now);
@@ -453,7 +453,7 @@ export function emailDocs() {
     status_rule: "deliverable only after checks.smtp is pass. v1 always returns checks.smtp = not_checked, so the best status is risky or unknown. undeliverable is used when syntax is invalid or the domain has no MX and no A record.",
     checks: { syntax: "valid|invalid", mx: "present|missing|a_fallback|error|literal", disposable: "boolean", role: "boolean", catch_all: "not_checked", smtp: "not_checked" },
     plans: EMAIL_PLANS,
-    quota: "Separate from render quota (api_key_usage.emails). Hard cap, 429 at the cap, never billed as overage.",
+    quota: "Separate from render quota. Usage kind is email (emails column; renders stays 0). pdf, shot and card are not touched. Hard cap, 429 at the cap, never billed as overage. Plans: free 100, starter 5000, pro 25000 per UTC month.",
     smtp_probe: { env: ["EMAIL_SMTP_URL", "EMAIL_SMTP_SECRET"], default: "off", v1: "the signed request is defined and not sent" },
     disposable: "Bundled list, plus a weekly refresh from the disposable-email-domains GitHub list (cron " + EMAIL_DISPOSABLE_CRON + ").",
   };

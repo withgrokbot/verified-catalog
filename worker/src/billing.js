@@ -24,16 +24,29 @@ export const billingOn = (env) => String((env && env.BILLING) || "") === "1";
 export const billingReady = (env) => billingOn(env) && !!(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && env.STRIPE_PRICE_STARTER && env.STRIPE_PRICE_PRO && env.RECEIPTS_DB);
 const PAID = ["starter", "pro"];
 const priceFor = (env, plan) => (plan === "starter" ? env.STRIPE_PRICE_STARTER : plan === "pro" ? env.STRIPE_PRICE_PRO : null);
-export const planForPrice = (env, price) => (price && price === env.STRIPE_PRICE_STARTER ? "starter" : price && price === env.STRIPE_PRICE_PRO ? "pro" : null);
-/** Email plans use their own price ids (STRIPE_PRICE_EMAIL_STARTER / STRIPE_PRICE_EMAIL_PRO). Blank or unset matches nothing. A render price id never maps to an email plan. */
+/** A configured Stripe price id, or null when the value is missing, blank, or only whitespace. */
+export function configuredPriceId(v) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s ? s : null;
+}
+export const planForPrice = (env, price) => {
+  const id = configuredPriceId(price);
+  if (!id || !env) return null;
+  if (id === configuredPriceId(env.STRIPE_PRICE_STARTER)) return "starter";
+  if (id === configuredPriceId(env.STRIPE_PRICE_PRO)) return "pro";
+  return null;
+};
+/** Email plan for a Stripe price id. STRIPE_PRICE_EMAIL_STARTER / STRIPE_PRICE_EMAIL_PRO must be non-blank.
+ * A missing, blank, or whitespace-only value never equals a price id, and never selects starter or pro. */
 export function emailPlanForPrice(env, price) {
-  if (!price || !env) return null;
-  const starter = env.STRIPE_PRICE_EMAIL_STARTER;
-  const pro = env.STRIPE_PRICE_EMAIL_PRO;
-  const render = price === env.STRIPE_PRICE_STARTER || price === env.STRIPE_PRICE_PRO;
-  if (render) return null;
-  if (starter && price === starter) return "starter";
-  if (pro && price === pro) return "pro";
+  const id = configuredPriceId(price);
+  if (!id || !env) return null;
+  const starter = configuredPriceId(env.STRIPE_PRICE_EMAIL_STARTER);
+  const pro = configuredPriceId(env.STRIPE_PRICE_EMAIL_PRO);
+  if (id === configuredPriceId(env.STRIPE_PRICE_STARTER) || id === configuredPriceId(env.STRIPE_PRICE_PRO)) return null;
+  if (starter && id === starter) return "starter";
+  if (pro && id === pro) return "pro";
   return null;
 }
 /** {product:"render"|"email", plan} or null. Render price ids win, so existing render mapping is unchanged when email price ids are blank. */
@@ -139,6 +152,7 @@ async function setPlan(env, where, plan, fields = {}, now) {
 const bySub = (sub, keyId) => keyId ? { sql: "id = ?", vals: [keyId] } : { sql: "stripe_subscription_id = ?", vals: [sub] };
 const periodEnd = (sub) => Number(sub.current_period_end || (sub.items && sub.items.data && sub.items.data[0] && sub.items.data[0].current_period_end) || 0) || null;
 const subPrice = (o) => o && o.items && o.items.data && o.items.data[0] && o.items.data[0].price && o.items.data[0].price.id;
+const eventPrice = (o) => configuredPriceId(subPrice(o) || (o && o.metadata && o.metadata.price));
 async function setEmailPlan(env, where, plan, now) {
   const p = EMAIL_PLANS[plan] || EMAIL_PLANS.free;
   const r = await env.RECEIPTS_DB.prepare(`UPDATE api_keys SET email_plan = ?, email_monthly_quota = ?, updated_at = ? WHERE ${where.sql}`).bind(plan, p.quota, nowS(now), ...where.vals).run();
@@ -156,8 +170,10 @@ export async function applyEvent(env, ev, now = new Date()) {
       if (!keyId || !PAID.includes(plan)) return "ignored_no_key";
       if (o.payment_status && o.payment_status !== "paid" && o.payment_status !== "no_payment_required") return "ignored_unpaid";
       if (o.metadata && o.metadata.product === "email") {
-        const n = await setEmailPlan(env, { sql: "id = ?", vals: [keyId] }, plan, now);
-        return n ? "email_plan_" + plan : "unknown_key";
+        const emailPlan = emailPlanForPrice(env, eventPrice(o));
+        if (!emailPlan) return "ignored_no_price";
+        const n = await setEmailPlan(env, { sql: "id = ?", vals: [keyId] }, emailPlan, now);
+        return n ? "email_plan_" + emailPlan : "unknown_key";
       }
       const n = await setPlan(env, { sql: "id = ?", vals: [keyId] }, plan, { stripe_customer_id: o.customer || null, stripe_subscription_id: o.subscription || null, plan_ends_at: null, grace_ends_at: null }, now);
       return n ? "plan_" + plan : "unknown_key";
@@ -166,17 +182,17 @@ export async function applyEvent(env, ev, now = new Date()) {
       const keyId = o.metadata && o.metadata.key_id;
       const price = subPrice(o);
       const emailPlan = emailPlanForPrice(env, price);
-      const emailEvent = !!(emailPlan || (o.metadata && o.metadata.product === "email"));
-      if (emailEvent) {
+      const emailTagged = !!(o.metadata && o.metadata.product === "email");
+      if (emailPlan || emailTagged) {
         if (["active", "trialing"].includes(o.status) && emailPlan) {
           const n = await setEmailPlan(env, bySub(o.id, keyId), emailPlan, now);
           return n ? "email_plan_" + emailPlan : "unknown_key";
         }
-        if (["past_due", "unpaid", "incomplete_expired", "canceled", "paused"].includes(o.status)) {
+        if (emailPlan && ["past_due", "unpaid", "incomplete_expired", "canceled", "paused"].includes(o.status)) {
           const n = await setEmailPlan(env, bySub(o.id, keyId), "free", now);
           return n ? "email_free" : "unknown_key";
         }
-        return "ignored_status";
+        return emailPlan ? "ignored_status" : "ignored_no_price";
       }
       const plan = planForPrice(env, price);
       if (["active", "trialing"].includes(o.status) && plan) {
@@ -190,6 +206,7 @@ export async function applyEvent(env, ev, now = new Date()) {
     case "customer.subscription.deleted": {
       const price = subPrice(o);
       if (emailPlanForPrice(env, price) || (o.metadata && o.metadata.product === "email")) {
+        if (!emailPlanForPrice(env, price)) return "ignored_no_price";
         const n = await setEmailPlan(env, bySub(o.id, o.metadata && o.metadata.key_id), "free", now);
         return n ? "email_free" : "unknown_key";
       }

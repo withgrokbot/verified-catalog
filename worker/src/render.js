@@ -244,19 +244,21 @@ export async function keyMinute(env, key, now = new Date()) {
   }
   return { limited: n > plan.perMin, suspended: false, n, perMin: plan.perMin };
 }
-/** pdf | shot | card. A screenshot is stored as shot. Anything else counts as pdf. */
+/** pdf | shot | card | email. A screenshot is stored as shot. email is not a render and is never folded into pdf. */
 export function usageKind(kind) {
   if (kind === "screenshot" || kind === "shot") return "shot";
   if (kind === "card") return "card";
+  if (kind === "email") return "email";
   return "pdf";
 }
+const RENDER_KINDS_SQL = "kind IN ('pdf', 'shot', 'card')";
 /** Reserve one unit of the month's quota. Hard cap: {ok:false} at quota, nothing is ever billed past it.
- * The cap is the sum of pdf + shot + card for the month (one card = one render). */
+ * The cap is the sum of pdf + shot + card for the month (one card = one render). kind='email' is excluded. */
 export async function reserveQuota(env, key, now = new Date(), kind = "pdf") {
   const db = env.RECEIPTS_DB; const mo = month(now); const t = Math.floor(now.getTime() / 1000); const knd = usageKind(kind);
   await db.prepare("INSERT OR IGNORE INTO api_key_usage (key_id, month, kind, renders, updated_at) VALUES (?, ?, ?, 0, ?)").bind(key.id, mo, knd, t).run();
-  const r = await db.prepare("UPDATE api_key_usage SET renders = renders + 1, updated_at = ? WHERE key_id = ? AND month = ? AND kind = ? AND (SELECT COALESCE(SUM(renders), 0) FROM api_key_usage WHERE key_id = ? AND month = ?) < ?").bind(t, key.id, mo, knd, key.id, mo, key.monthly_quota).run();
-  const row = await db.prepare("SELECT COALESCE(SUM(renders), 0) AS renders FROM api_key_usage WHERE key_id = ? AND month = ?").bind(key.id, mo).first();
+  const r = await db.prepare(`UPDATE api_key_usage SET renders = renders + 1, updated_at = ? WHERE key_id = ? AND month = ? AND kind = ? AND (SELECT COALESCE(SUM(renders), 0) FROM api_key_usage WHERE key_id = ? AND month = ? AND ${RENDER_KINDS_SQL}) < ?`).bind(t, key.id, mo, knd, key.id, mo, key.monthly_quota).run();
+  const row = await db.prepare(`SELECT COALESCE(SUM(renders), 0) AS renders FROM api_key_usage WHERE key_id = ? AND month = ? AND ${RENDER_KINDS_SQL}`).bind(key.id, mo).first();
   const used = row ? Number(row.renders) : 0;
   return { ok: !!(r.meta && r.meta.changes), used, remaining: Math.max(0, key.monthly_quota - used), limit: key.monthly_quota };
 }
