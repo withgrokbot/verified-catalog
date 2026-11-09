@@ -8,8 +8,8 @@ export const RULES_SPAN_SUFFIX = "; days_observed (distinct UTC dates), first_se
 export const MCP_HISTORY_OLD = "History: stable_for_days, last_changed, drift. ";
 export const MCP_HISTORY_NEW = "History: stable_for_days, last_changed, drift, days_observed, first_seen, last_checked. ";
 export const SKIPS_SUMMARY_SUFFIX = ". by_source counts each receipt once and adds up to endpoints_covered; other/unknown holds a receipt with no named source.";
-export const LLMS_HISTORY_LINE = "- Receipt history (0.66.2): days_observed is the count of distinct UTC dates among stored observations, with first_seen (the earliest) and last_checked (the latest, ISO UTC in JSON and YYYY-MM-DD HH:MM UTC on HTML). /v1/skips.json by_source counts each receipt once by its primary list and adds up to endpoints_covered; other/unknown holds a receipt with no named source.";
-export const SKILL_HISTORY_LINE = "- Per-endpoint history: days_observed (distinct UTC dates among stored observations), first_seen and last_checked (ISO UTC in JSON; HTML says Last checked: YYYY-MM-DD HH:MM UTC).";
+export const LLMS_HISTORY_LINE = "- Receipt history (0.66.2): days_observed is the count of distinct UTC dates among stored observations. first_seen is the earliest of those dates (already included in the count) and last_checked is the latest (ISO UTC in JSON, YYYY-MM-DD HH:MM UTC on HTML). /v1/skips.json by_source counts each receipt once by its primary list and adds up to endpoints_covered; other/unknown holds a receipt with no named source.";
+export const SKILL_HISTORY_LINE = "- Per-endpoint history: days_observed (distinct UTC dates among stored observations; first_seen is the earliest of those dates, already included in the count) and last_checked (ISO UTC in JSON; HTML says Last checked: YYYY-MM-DD HH:MM UTC).";
 const DAY_MS = 86400000;
 
 export function observation(probe, pm, verdict, observedAt) {

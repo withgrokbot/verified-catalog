@@ -255,8 +255,8 @@ def build(site):
             "latest.quality": "known-answer test on the paid response: pass, fail or not_graded; null when no paid call was graded",
             "quality_test": "the known-answer test for this service; facts_only means it is broken on the seller's side and is not graded",
             "tasks": "task names the lookup endpoint matches on",
-            "history_summary.days_observed": "distinct UTC dates with a stored check of this service; not the calendar days from first to last",
-            "history_summary.first_seen": "earliest stored check, ISO UTC",
+            "history_summary.days_observed": "count of distinct UTC dates with a stored check of this service. first_seen is the earliest of those dates and is already included in this count, not an extra day. Not the calendar days from first to last",
+            "history_summary.first_seen": "the earliest of the days_observed dates, ISO UTC. Already included in days_observed",
             "history_summary.last_checked": "latest stored check, ISO UTC",
         },
         "services": services_out,
@@ -324,9 +324,9 @@ def build(site):
         h_all = hist.get(s["id"], [])
         span = observation_span(h_all)
         h = h_all[-10:][::-1]
-        span_html = (f'<p class="meta">Days observed: {span["days_observed"]} distinct UTC dates in the stored checks'
-                     f' (first seen {e(span["first_seen"][:10])}). Last checked: {e(fmt_ts(span["last_checked"]))}.'
-                     f' Days with no stored check are not counted.</p>' if span["days_observed"] else "")
+        span_html = (f'<p class="meta">Days observed: {span["days_observed"]} distinct UTC dates in the stored checks.'
+                     f' First seen {e(span["first_seen"][:10])} is the earliest of those dates, already included in the count.'
+                     f' Last checked: {e(fmt_ts(span["last_checked"]))}. Days with no stored check are not counted.</p>' if span["days_observed"] else "")
         hrows = "\n".join(
             f"<tr><td>{e(fmt_ts(x.get('checked_at')))}</td><td>{e(x.get('mode', ''))}</td><td>{e(yn(x.get('reachable')))}</td>"
             f"<td>{e(str(x.get('http_status')))}</td><td>{e(str(x.get('latency_ms')))} ms</td><td>{e(money(x.get('quoted_price_usd')))}</td>"
@@ -425,7 +425,7 @@ def build(site):
 </ol>
 <h2 id="limits">Limits</h2>
 <ul>
-<li><strong>Days observed</strong> on a service page is the number of distinct UTC dates among the checks we stored for that service, plus the date of the earliest one (first seen). <strong>Last checked</strong> is the time of the latest stored check, in UTC. A gap between two checks is not counted as observed days.</li>
+<li><strong>Days observed</strong> on a service page is the number of distinct UTC dates among the checks we stored for that service. <strong>First seen</strong> is the earliest of those dates, named on its own; it is already included in the count. <strong>Last checked</strong> is the time of the latest stored check, in UTC. A gap between two checks is not counted as an observed day.</li>
 <li>One request per service per run, from one location. Latency depends on where we check from.</li>
 <li>"Reachable" does not mean the service works. A free check only shows that the endpoint answers and what it asks to be paid; only a paid check shows whether it delivers.</li>
 <li>The sample request comes from the listing. If it is out of date, the endpoint may answer with an error that a real customer would not see.</li>
@@ -438,7 +438,7 @@ def build(site):
     lines = [f"# {cfg['title']}", "",
              f"> Machine-readable catalog of pay-per-call (x402) services for AI agents, with factual results of our own automated checks. Published by {cfg['brand']}. No grades or rankings. We hold no customer funds; buyers pay sellers directly.",
              "", "## Data", "",
-             f"- [catalog.json]({base}catalog.json): every service with endpoint, advertised price, source, and the latest check (reachable, latency, 402 price, charged price, delivered_valid, checked_at, raw log). history_summary.days_observed is the count of distinct UTC dates with a stored check, history_summary.first_seen is the earliest, history_summary.last_checked is the latest (ISO UTC)",
+             f"- [catalog.json]({base}catalog.json): every service with endpoint, advertised price, source, and the latest check (reachable, latency, 402 price, charged price, delivered_valid, checked_at, raw log). history_summary.days_observed is the count of distinct UTC dates with a stored check. history_summary.first_seen is the earliest of those dates (already included in the count), and history_summary.last_checked is the latest (ISO UTC)",
              f"- [agent card]({base}.well-known/agent-card.json): what this catalog offers to agents",
              f"- [methodology]({base}methodology.html): what each field means and how to contest a result",
              f"- Per service: {base}services/<id>.json", "", "## Services", ""]

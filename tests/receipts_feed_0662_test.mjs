@@ -39,6 +39,16 @@ test("a gap of 4 blank or missing sources is an explicit other/unknown bucket, a
   assert.equal(sum(sourceBreakdown(named)), 5);
 });
 
+test("a source list that already exceeds the headline does not create a negative other/unknown", () => {
+  const over = sourceBreakdown({ endpoints_covered: 3, lists: { "cdp-bazaar": 5, "other/unknown": 1 } });
+  assert.equal(over["cdp-bazaar"], 5);
+  assert.equal(over["other/unknown"], 1, "the negative remainder is clamped to 0 and not subtracted");
+  assert.ok(Object.values(over).every((n) => n >= 0));
+  const bare = sourceBreakdown({ endpoints_covered: 2, total: 2, lists: { "payai-bazaar": 5 } });
+  assert.equal(bare["other/unknown"], undefined);
+  assert.equal(bare["payai-bazaar"], 5);
+});
+
 test("days observed counts distinct UTC dates, and last checked is the latest stored timestamp", () => {
   const span = observationSpan(["2026-11-03T18:50:28Z", "2026-11-03T20:29:54Z", "2026-11-04T20:48:18.000Z", null, "not-a-time"]);
   assert.deepEqual(span, { days_observed: 2, first_seen: "2026-11-03T18:50:28Z", last_checked: "2026-11-04T20:48:18Z" });
@@ -59,7 +69,8 @@ test("days observed counts distinct UTC dates, and last checked is the latest st
 
 test("HTML shows days observed and a human last-checked time on the skips row, the crawl receipt and the live receipt", () => {
   const row = skipRowHtml({ id: "0123456789", url: "https://seller.fixture/a", method: "GET", reason: "no x402 payment request (HTTP 404)", timestamp: "2026-11-03T15:24:34Z", source_list: "cdp-bazaar" });
-  assert.match(row, /1 day observed, first seen 2026-11-03\. Last checked: 2026-11-03 15:24 UTC/);
+  assert.match(row, /2026-11-03 15:24 UTC/);
+  assert.doesNotMatch(row, /day observed/, "a skip row has one crawl timestamp, so it does not claim a days-observed count");
   const crawl = crawlReceiptHtml("https://402xagent.com", { id: "0123456789", url: "https://seller.fixture/a", verdict: "skip", reason: "no x402 payment request (HTTP 404)", timestamp: "2026-11-03T15:24:34Z", days_observed: 2, first_seen: "2026-10-27T14:00:00Z", last_checked: "2026-11-03T15:24:34Z" }, {});
   assert.match(crawl, /2 days observed, first seen 2026-10-27\. Last checked: 2026-11-03 15:24 UTC/);
   const live = liveReceiptHtml("https://402xagent.com", { id: "sc-0123456789abcdef", url: "https://seller.fixture/a", verdict: "pay", checked_at: "2026-11-08T18:48:47Z", history: { observations: 3, stable_for_days: 1, drift: false, days_observed: 3, first_seen: "2026-11-06T18:00:00Z", last_checked: "2026-11-08T18:48:47Z" }, live_402: { http_status: 402, accepts: [] } }, {});

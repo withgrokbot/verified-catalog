@@ -21,8 +21,8 @@
     "latest.quality": "known-answer test on the paid response: pass, fail or not_graded; null when no paid call was graded",
     "quality_test": "the known-answer test for this service; facts_only means it is broken on the seller's side and is not graded",
     "tasks": "task names the lookup endpoint matches on",
-    "history_summary.days_observed": "distinct UTC dates with a stored check of this service; not the calendar days from first to last",
-    "history_summary.first_seen": "earliest stored check, ISO UTC",
+    "history_summary.days_observed": "count of distinct UTC dates with a stored check of this service. first_seen is the earliest of those dates and is already included in this count, not an extra day. Not the calendar days from first to last",
+    "history_summary.first_seen": "the earliest of the days_observed dates, ISO UTC. Already included in days_observed",
     "history_summary.last_checked": "latest stored check, ISO UTC"
   },
   "services": [
