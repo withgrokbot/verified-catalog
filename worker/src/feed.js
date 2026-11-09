@@ -13,6 +13,7 @@ import { normUrl } from "./skips.js";
 import { bazaarServiceMeta } from "./spotcheck.js"; // 0.58.9
 import { canonicalize, signObject } from "./sign.js";
 import { d1WriteAllowed } from "./d1size.js";
+import { observationSpan } from "./history.js"; // 0.66.2
 
 export const FEED_CATEGORIES = Object.freeze(["search/data", "inference", "crypto-market", "content", "infra", "other"]);
 export const FEED_COLUMNS = Object.freeze(["hkey", "url", "host", "method", "category", "state", "http_status", "price_usd", "amount_atomic", "network", "asset", "pay_to", "terms_sig", "observed_at", "last_change_at"]);
@@ -418,6 +419,7 @@ export async function manifest(env, deps, origin) {
     watched_opt_in_cap: optInMax(env),
     snapshot: { page_rows: PAGE_ROWS, order: "category, hkey", built: "in chunks across cron ticks each UTC day; as_of = started_at", index: "GET /v1/feed/snapshot.json (signed header)", page: "GET /v1/feed/snapshot.csv?page=n or .json?page=n" },
     free_filters: "category + offset on the free tier; host and since need live=1 or a key",
+    history: "GET /v1/feed/endpoint/{hkey} includes history.days_observed (distinct UTC dates in that caller's window), history.first_seen and history.last_checked (ISO UTC). Days with no stored row are not counted. Not a snapshot column.",
     limitations: [
       "Crawl-sourced rows (weekly crawl, src c) record only whether a 402 quote was present plus its network and asset; they carry no pay_to or exact amount. A field a source never recorded is not reported as drift, so pay_to/amount drift is only detected on endpoints with hourly watch probes (opted in) or endpoint_history rows.",
       "Crawl rows are as fresh as the last weekly crawl; observed_at says when.",
@@ -546,13 +548,19 @@ export async function handleFeed(req, env, url, deps) {
       const hi = live ? iso(now) : delayCut;
       const lim = live ? intParam(sp.get("limit"), PAID_ROWS, PAID_ROWS) : intParam(sp.get("limit"), FREE_ROWS, FREE_ROWS);
       const obs = ((await db.prepare(`SELECT ${OBS_COLUMNS.join(", ")} FROM feed_observations WHERE hkey = ? AND observed_at >= ? AND observed_at <= ? ORDER BY observed_at DESC LIMIT ?`).bind(one, lo, hi, lim).all()).results || []).map(obsRow);
+      // Distinct UTC dates in the caller's window (not only the limited page of rows). No claim about days with no row.
+      let history = observationSpan(obs.map((o) => o.observed_at));
+      try {
+        const all = ((await db.prepare("SELECT observed_at FROM feed_observations WHERE hkey = ? AND observed_at >= ? AND observed_at <= ?").bind(one, lo, hi).all()).results || []).map((row) => row.observed_at);
+        if (all.length) history = observationSpan(all);
+      } catch (_) { /* the page of observations is still a true span of what we returned */ }
       let current = feedRow(ep);
       if (!live) { // free: the state as of 24 h ago (latest observation at or before the cut), never the live row
         const o = obs[0];
         current = o ? { ...current, ...pick(o, ["state", "http_status", "price_usd", "amount_atomic", "network", "asset", "pay_to", "terms_sig", "observed_at"]) } : null;
         if (current && current.last_change_at > delayCut) current.last_change_at = null;
       }
-      return J({ access: mode, delayed_hours: live ? 0 : FEED_DELAY_H, endpoint: current, observations: obs, count: obs.length }, 200, headers);
+      return J({ access: mode, delayed_hours: live ? 0 : FEED_DELAY_H, endpoint: current, observations: obs, count: obs.length, history }, 200, headers);
     }
     const offset = intParam(sp.get("offset"), 0, 1000000);
     if (mode === "free") { // pages of the newest snapshot completed >= 24 h ago; at most two ~60 KB pages are decoded

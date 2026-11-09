@@ -5,7 +5,8 @@ import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
 import { freshnessFor, termsMaxAgeHours } from "./freshness.js"; // 0.54.0
 import { recentChecks, RECENT_MAX } from "./recent.js";
 import { CANON_ORIGIN, API_ORIGIN, SPOT_SERVICE_NAME, FREE_CHECK_URL, FREE_CHECK_EXAMPLE_URL, FREE_CHECK_EXAMPLE } from "./spotcheck.js";
-import { skipsHtml } from "./skips-html.js"; // 0.58.7
+import { skipsHtml, sourceBreakdown } from "./skips-html.js"; // 0.58.7
+import { observationSpan } from "./history.js"; // 0.66.2
 import { DOCS_CSP as HOME_CSP } from "./tryit.js"; // = home.js HOME_CSP (strict: script-src 'self' + Cloudflare Web Analytics)
 
 const hdrs = (type) => ({ "content-type": type, "access-control-allow-origin": "*", "cache-control": "public, max-age=300", vary: "accept" });
@@ -112,7 +113,9 @@ export function skipsSummary(origin, env = {}, now = Date.now()) {
     ...coverage(),
     total_receipts: m.total, skip: m.skip, pay: m.pay, recheck: m.recheck, check_type: m.check_type,
     terms_freshness: { terms_checked_at: f.terms_checked_at, terms_age_hours: f.terms_age_hours, terms_max_age_hours: f.terms_max_age_hours, terms_stale: f.terms_stale, pay_effective_verdict: f.effective_verdict, note: "crawl pays older than terms_max_age_hours are recheck until the live check re-reads the 402" },
-    lists: m.lists, listed_in: m.listed_in, sources: m.sources, dedupe: m.dedupe, method: m.method, spot_check: spotHowTo(origin),
+    lists: m.lists, by_source: sourceBreakdown(m),
+    by_source_note: "One count per receipt, by the list that won dedupe (lists). These add up to endpoints_covered. A receipt with a blank or unknown source, or any remainder the named lists do not cover, is other/unknown. listed_in counts a receipt once for every list it appears on and does not add up to the headline.",
+    listed_in: m.listed_in, sources: m.sources, dedupe: m.dedupe, method: m.method, spot_check: spotHowTo(origin),
     featured_mismatch: origin + "/v1/receipts/" + m.featured_id,
     skip_pages: m.skip_pages || 1, page_size: m.page_size || RECEIPTS.length,
     receipts: origin + "/v1/receipts", skips_html: origin + "/v1/skips", skips_json: origin + "/v1/skips.json",
@@ -143,15 +146,15 @@ export async function handleSkips(req, url, env = {}, fp = {}) {
     return j({
       ...skipsSummary(origin, env),
       page, pages, next: page < pages ? nav(page + 1) : null, prev: page > 1 ? nav(page - 1) : null,
-      skips: skips.map((r) => ({ ...r, permalink: origin + "/v1/receipts/" + r.id })),
+      skips: skips.map((r) => ({ ...r, ...observationSpan([r.timestamp]), permalink: origin + "/v1/receipts/" + r.id })),
       // 0.25.0: latest outside free checks, newest first: url (scheme://host/path only), verdict, short reason (no
       // price), checked_at (UTC), receipt_url (redacted view), caller. Same on every page.
       recent_checks_note: `latest ${RECENT_MAX} outside free checks with a clear verdict; one per endpoint per UTC day; query strings removed`,
       recent_checks: await recentChecks(env, origin),
     });
   // 0.58.7: the human page (skips-html.js): shared chrome, plain reasons, cards on phones, method text in <details>, no
-  // featured callout, no script. Same rows, same ?page=N paging. The JSON above is unchanged byte for byte
-  // (tests/skips_page_test.mjs, tests/fixtures/machine_0.58.6/skips.json).
+  // featured callout, no script. Same rows, same ?page=N paging.
+  // 0.66.2: JSON gains by_source (a partition of the headline) and, on each row, days_observed / first_seen / last_checked.
   const html = skipsHtml(origin, { meta: m, skips, page, pages, now: Date.now(), freeCheck: { url: FREE_CHECK_URL, exampleUrl: FREE_CHECK_EXAMPLE_URL, example: FREE_CHECK_EXAMPLE }, spotHowTo: spotHowTo(origin), scheduleText: crawlScheduleText(m.crawled_at) }, fp);
   return new Response(html, { status: 200, headers: { ...hdrs("text/html; charset=utf-8"), "content-security-policy": HOME_CSP, "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin" } });
 }
@@ -159,7 +162,7 @@ export async function handleSkips(req, url, env = {}, fp = {}) {
 export async function handleReceipts(url, env = {}) {
   const path = url.pathname.replace(/\/+$/, "");
   const id = path.slice("/v1/receipts".length).replace(/^\//, "");
-  if (!id) return j({ ...skipsSummary(CANON_ORIGIN, env), note: "Every receipt: /v1/receipts/<id> or /v1/receipts/by-url?url=. Skips page by page: /v1/skips.json?page=N. Page 1:", receipts: RECEIPTS });
+  if (!id) return j({ ...skipsSummary(CANON_ORIGIN, env), note: "Every receipt: /v1/receipts/<id> or /v1/receipts/by-url?url=. Skips page by page: /v1/skips.json?page=N. Page 1:", receipts: RECEIPTS.map((r) => ({ ...r, ...observationSpan([r.timestamp]) })) });
   let r = await crawlReceipt(env, id);
   if (!r) return j({ error: "receipt not found", receipts: CANON_ORIGIN + "/v1/receipts" }, 404);
   // 0.35.0: ?view=redacted (used by /saves): no wallets, and the reason without the wallets it quotes. Default unchanged.
@@ -168,5 +171,24 @@ export async function handleReceipts(url, env = {}) {
     r = { ...rest, reason: String(r.reason || "").replace(/0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44}/g, "<wallet>"), redacted: "wallets removed; the full crawl receipt is at the same URL without ?view=redacted" };
   }
   // 0.54.0: read-time freshness next to the stored receipt (the receipt fields themselves are unchanged)
-  return j({ service: SPOT_SERVICE_NAME, ...r, permalink: CANON_ORIGIN + "/v1/receipts/" + r.id, on_page: r.verdict === "skip" ? CANON_ORIGIN + "/v1/skips" : null, spot_check: spotHowTo(CANON_ORIGIN), freshness: freshnessFor(r.verdict, r.timestamp, termsMaxAgeHours(env)) });
+  // 0.66.2: days_observed / first_seen / last_checked. Term history (one row per run of identical terms) supplies
+  // every timestamp we stored for this endpoint; with no rows, the receipt's own timestamp is the one observation.
+  const span = await termHistorySpan(env, r.url, observationSpan([r.timestamp]));
+  return j({ service: SPOT_SERVICE_NAME, ...r, ...span, permalink: CANON_ORIGIN + "/v1/receipts/" + r.id, on_page: r.verdict === "skip" ? CANON_ORIGIN + "/v1/skips" : null, spot_check: spotHowTo(CANON_ORIGIN), freshness: freshnessFor(r.verdict, r.timestamp, termsMaxAgeHours(env)) });
+}
+async function termHistorySpan(env, url, fallback) {
+  const db = env && env.RECEIPTS_DB;
+  if (!db || !url) return fallback;
+  try {
+    const n = normUrl(url);
+    const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(n));
+    const key = "h:" + [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const got = await db.prepare("SELECT first_seen, last_seen FROM term_history WHERE endpoint_key = ?").bind(key).all();
+    const times = [];
+    for (const row of (got && got.results) || []) times.push(row.first_seen, row.last_seen);
+    const span = observationSpan(times);
+    return span.days_observed ? span : fallback;
+  } catch (_) {
+    return fallback;
+  }
 }

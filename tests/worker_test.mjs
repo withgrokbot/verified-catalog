@@ -2352,7 +2352,7 @@ test("0.29.0: endpoint history in D1: summary only (no price/wallet), fresh prob
   assert.equal(b.body.history.stable_for_days, 0);
   assert.equal(db.hist.length, 2);
   const free = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/hist") + "&client=hist-free-1", { envo: e });
-  assert.deepEqual(Object.keys(free.body.history).sort(), ["drift", "last_changed", "observations", "stable_for_days", "stable_since"]);
+  assert.deepEqual(Object.keys(free.body.history).sort(), ["days_observed", "drift", "first_seen", "last_changed", "last_checked", "observations", "stable_for_days", "stable_since"]);
   const rec = JSON.parse(db.rows.find((r) => r.id === free.body.receipt_id).body);
   assert.deepEqual(rec.history, free.body.history, "receipt carries the same summary");
   // cached probes are not new observations
@@ -2365,7 +2365,7 @@ test("0.29.0: endpoint history in D1: summary only (no price/wallet), fresh prob
   const T = (d) => new Date(Date.UTC(2026, 9, d)).toISOString();
   const o = (d, amt, to = "0xA", st = 402) => ({ observed_at: T(d), http_status: st, amount_atomic: amt, network: "eip155:8453", asset: "0xU", pay_to: to });
   const now = new Date(Date.UTC(2026, 9, 13, 12));
-  assert.deepEqual(historySummary([o(13, "10"), o(12, null, null, 504), o(5, "10"), o(1, "20")], now), { observations: 4, stable_for_days: 8, stable_since: T(5), last_changed: T(5), drift: false });
+  assert.deepEqual(historySummary([o(13, "10"), o(12, null, null, 504), o(5, "10"), o(1, "20")], now), { observations: 4, stable_for_days: 8, stable_since: T(5), last_changed: T(5), drift: false, days_observed: 4, first_seen: "2026-10-01T00:00:00Z", last_checked: "2026-10-13T00:00:00Z" });
   assert.equal(historySummary([o(13, "10", "0xB"), o(12, "10")], now).drift, true);
   assert.equal(historySummary([o(13, "10"), o(1, "10")], now).last_changed, null);
   assert.equal(historySummary([o(13, null, null, 404), o(12, "10")], now).stable_for_days, null, "no terms now: no stability claim");
@@ -2709,7 +2709,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*"\]/);
-  assert.equal(VERSION, "0.66.1");
+  assert.equal(VERSION, "0.66.2");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)

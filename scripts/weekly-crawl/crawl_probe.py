@@ -392,6 +392,17 @@ def scheme_counts(recs):
     c = collections.Counter(r.get("x402_scheme") or "unknown" for r in recs)
     return {k: c.get(k, 0) for k in SCHEME_TAGS}
 
+_BLANK_SOURCE = {"", "unknown", "null", "none", "undefined", "other/unknown"}
+def primary_source_counts(recs):
+    """One count per receipt, by source_list. A blank or unknown source is other/unknown, never dropped.
+    The values add up to len(recs)."""
+    c = collections.Counter()
+    for r in recs:
+        s = r.get("source_list")
+        s = "" if s is None else str(s).strip()
+        c["other/unknown" if s.lower() in _BLANK_SOURCE else s] += 1
+    return dict(c)
+
 PREV = {}  # 0.55.0: id -> previous run's record (only the fields transient_guard reads), loaded in __main__
 def load_prev(path):
     out = {}

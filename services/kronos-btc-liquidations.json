@@ -57,6 +57,8 @@
     "x402_challenge_ok": 40,
     "paid_checks": 7,
     "first_checked": "2026-10-06T17:58:46Z",
-    "last_checked": "2026-11-08T18:48:46Z"
+    "last_checked": "2026-11-08T18:48:46Z",
+    "days_observed": 34,
+    "first_seen": "2026-10-06T17:58:46Z"
   }
 }
