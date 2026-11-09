@@ -254,6 +254,9 @@ test("paid per call: $0.01 real-time feed (<= 1000 rows, includes fresh rows); s
   const one = await s.call("/v1/feed/endpoint/" + hk + "?live=1", { headers: s.payHdr("call") });
   assert.equal(one.status, 200);
   assert.equal(one.j.observations.length, 1);
+  assert.equal(one.j.history.days_observed, 1);
+  assert.match(one.j.history.last_checked, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+  assert.equal(one.j.history.first_seen, one.j.history.last_checked);
   const freeOne = await s.call("/v1/feed/endpoint/" + hk);
   assert.equal(freeOne.j.endpoint, null); // nothing 24 h old yet
   assert.equal(freeOne.j.observations.length, 0);

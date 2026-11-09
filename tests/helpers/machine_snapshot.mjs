@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 
 import { CRAWLED_AT, CRAWL_RECEIPT_ID, SNAP_NOW, readFixture } from "./crawl_fixtures.mjs";
+import { HISTORY_SPAN_CLAUSE, RULES_SPAN_SUFFIX, MCP_HISTORY_NEW, MCP_HISTORY_OLD, SKIPS_SUMMARY_SUFFIX, LLMS_HISTORY_LINE, SKILL_HISTORY_LINE } from "../../worker/src/history.js";
 export { CRAWLED_AT, CRAWL_RECEIPT_ID, readFixture };
 // 0.59.10: frozen clock relative to the bundled crawl (crawl_fixtures.mjs SNAP_NOW), was a fixed 2026-10-28T12:00:00Z.
 const FIXED = SNAP_NOW;
@@ -97,6 +98,35 @@ export const p2mEnv0630 = () => (process.env.SNAP_KEEP_0630 === "1" ? {} : { P2M
 // tests/worker_test.mjs checks the annotations themselves.
 export const xpiEnv = () => (process.env.SNAP_KEEP_XPI === "1" ? {} : { OPENAPI_XPI: "off" });
 export const guardEnv0620 = () => (process.env.SNAP_KEEP_0620 === "1" ? {} : { RECEIPT_GUARD: "off" });
+// 0.66.2: by_source on the skips summary, days_observed / first_seen / last_checked on history, and the docs
+// sentences that name them. Unless SNAP_KEEP_0662=1 those additions are taken back out so older fixtures still match;
+// tests/receipts_feed_0662_test.mjs checks the additions themselves.
+export function strip0662(body) {
+  if (process.env.SNAP_KEEP_0662 === "1" || typeof body !== "string") return body;
+  body = body.split(HISTORY_SPAN_CLAUSE).join("").split(RULES_SPAN_SUFFIX).join("").split(MCP_HISTORY_NEW).join(MCP_HISTORY_OLD).split(SKIPS_SUMMARY_SUFFIX).join("").split("\n" + LLMS_HISTORY_LINE).join("").split("\n" + SKILL_HISTORY_LINE).join("");
+  if (!body.includes('"by_source"') && !body.includes('"days_observed"')) return body;
+  try {
+    const j = JSON.parse(body);
+    const drop = (o) => {
+      if (Array.isArray(o)) { o.forEach(drop); return; }
+      if (!o || typeof o !== "object") return;
+      delete o.by_source;
+      delete o.by_source_note;
+      if ("stable_for_days" in o || ("timestamp" in o && "source_list" in o)) {
+        delete o.days_observed;
+        delete o.first_seen;
+        delete o.last_checked;
+      }
+      Object.values(o).forEach(drop);
+    };
+    drop(j);
+    const ind = (/^\{\n( +)"/.exec(body) || [])[1];
+    const nl = body.endsWith("\n") ? "\n" : "";
+    return JSON.stringify(j, null, ind ? ind.length : undefined) + nl;
+  } catch (_) {
+    return body;
+  }
+}
 export function strip0620(key, body) {
   if (process.env.SNAP_KEEP_0620 === "1" || typeof body !== "string") return body;
   if (body.includes('"paid_check"') && body.includes(PAID_CHECK_NOTE)) { // JSON answers + examples: drop exactly the new paid_check blocks
@@ -111,7 +141,7 @@ export function strip0620(key, body) {
   return body.split(HOME_NOTE_0620[0]).join(HOME_NOTE_0620[1]).split(DOCS_NOTE_0620[0]).join(DOCS_NOTE_0620[1]).split(RECEIPT_NOTE_0620).join("");
 }
 export function as0589(key, body) {
-  body = as0598(key, strip0610(strip0620(key, body)));
+  body = as0598(key, strip0610(strip0620(key, strip0662(body))));
   if (process.env.SNAP_KEEP_0590 === "1" || typeof body !== "string") return body;
   if (/\/llms\.txt \[/.test(key)) return body.replace(LLMS_0590_LINE, "");
   if (/\/\.well-known\/402xagent-(keys|receipt-key)\.json \[/.test(key)) return body.replace(KEYS_0590_FIELD, "");
@@ -305,7 +335,7 @@ export async function snapshotSkips(workerPath) {
     const [accept, ua] = a ? a.split("|") : [null, null];
     const req = new Request(h + p, { headers: { "cf-connecting-ip": "203.0.113.9", ...(ua ? { "user-agent": ua } : {}), ...(accept ? { accept } : {}) } });
     const res = await mod.default.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
-    const body = await res.text(); const hd = {};
+    const body = strip0662(await res.text()); const hd = {};
     for (const [k, v] of [...res.headers.entries()].sort()) hd[k] = norm(v);
     out[`GET ${h}${p} [${an}]`] = { status: res.status, headers: hd, sha256: createHash("sha256").update(norm(body)).digest("hex"), length: body.length };
   }

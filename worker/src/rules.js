@@ -4,6 +4,7 @@ import { GRADES } from "./report.js";
 import { REASON_TEXT } from "./recent.js";
 import { QUALITY_CODES } from "./quality.js";
 import { REPUTATION_RULES } from "./reputation.js";
+import { RULES_SPAN_SUFFIX } from "./history.js";
 
 export const RULES_VERSION = "2026-10-27"; // 0.37.0: + quality_codes, reputation (additive); 0.53.3: + delivery_failed (additive); 0.54.0: + terms_changed_since_quote, terms_stale (additive); 0.55.0: + rate_limited, waf_challenge, dns_error (recheck) and their *_persistent skips (new checks only); 0.56.0: + host_unstable (recheck; per-host circuit breaker, target not fetched, never charged; neutral for the 0.55.0 transient fallback), timeout now covers the whole probe (PROBE_TIMEOUT_MS); 0.57.0: + terms_unstable (recheck; the live confirm probe before pay read different 402 terms; a failed confirm probe keeps its existing recheck code) (additive, new live checks only)
 // code -> verdict it produces, and its default confidence
@@ -74,7 +75,7 @@ export function rulesJson(origin) {
       reason_code: "stable machine code (this list); never renamed, new codes may be added",
       reason: "free answers: one plain-words line; paid answers: the code (unchanged since 0.6)",
       confidence: "high | medium | low (rules above)",
-      history: "summary of the last 30 observations: stable_for_days, stable_since, last_changed, drift",
+      history: "summary of the last 30 observations: stable_for_days, stable_since, last_changed, drift" + RULES_SPAN_SUFFIX,
       history_observations: "paid, router and exempt answers only: the last 30 observations (time, price, network, pay_to, asset, status)",
       quality: "0.37.0: paid, router and exempt answers: {code, checks {reachable, http_status, status_is_402, content_type, content_type_ok, body_bytes, schema_declared, schema_source, schema_match}}; free answers and dry runs: {code} only. Metadata of the unpaid 402 response; never changes verdict or reason_code.",
       reputation: "0.37.0: seller host reputation. Paid, router and exempt answers: {host, score 0..100 or null, band, confidence, low_data, provisional_score?, breakdown, inputs}; free answers and dry runs: {host, band} only. Free page: /reputation/<host>.",

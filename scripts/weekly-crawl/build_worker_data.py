@@ -5,7 +5,7 @@
 Prints the one-line coverage summary as the last line."""
 import json, os, sys, collections, hashlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from crawl_probe import norm_url, mainnet_policy, scheme_counts
+from crawl_probe import norm_url, mainnet_policy, scheme_counts, primary_source_counts
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KV = os.path.join(ROOT, "kv"); os.makedirs(KV, exist_ok=True)
 PAGE = 500
@@ -40,9 +40,9 @@ sources = json.load(open(os.path.join(ROOT, "crawl", "sources.json"))) if os.pat
 meta = {"crawled_at": min(r["timestamp"] for r in rs if r["timestamp"]), "crawl_finished_at": max(r["timestamp"] for r in rs if r["timestamp"]), "file": name,
         "endpoints_covered": len(rs), "new_this_week": len(new), "previous_run": prev_name or None, "previous_covered": len(prev) or None,
         "total": len(rs), "skip": counts["skip"], "pay": counts["pay"], "recheck": counts["recheck"],
-        "lists": dict(collections.Counter(r["source_list"] for r in rs)),
+        "lists": primary_source_counts(rs),
         "x402_schemes": scheme_counts(rs),  # 0.62.0 B1 scheme census (exact / upto / batch / other / unknown)
-        "listed_in": dict(collections.Counter(s for r in rs for s in [r["source_list"]] + r.get("also_listed_in", []))),
+        "listed_in": dict(collections.Counter(s for r in rs for s in ([r["source_list"]] if r.get("source_list") else ["other/unknown"]) + [x for x in r.get("also_listed_in") or [] if x])),
         "sources": {k: {kk: v.get(kk) for kk in ("ok", "skipped", "items", "note", "error") if v.get(kk) is not None} for k, v in sources.items()},
         "featured_id": FEATURED, "skip_pages": len(pages), "page_size": PAGE, "check_type": "self-checked",
         "dedupe": "normalized URL (lower-case scheme/host, no default port/fragment/trailing slash, sorted query)",

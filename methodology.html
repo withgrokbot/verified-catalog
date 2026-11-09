@@ -56,6 +56,7 @@
 </ol>
 <h2 id="limits">Limits</h2>
 <ul>
+<li><strong>Days observed</strong> on a service page is the number of distinct UTC dates among the checks we stored for that service, plus the date of the earliest one (first seen). <strong>Last checked</strong> is the time of the latest stored check, in UTC. A gap between two checks is not counted as observed days.</li>
 <li>One request per service per run, from one location. Latency depends on where we check from.</li>
 <li>"Reachable" does not mean the service works. A free check only shows that the endpoint answers and what it asks to be paid; only a paid check shows whether it delivers.</li>
 <li>The sample request comes from the listing. If it is out of date, the endpoint may answer with an error that a real customer would not see.</li>

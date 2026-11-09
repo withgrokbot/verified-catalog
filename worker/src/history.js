@@ -2,6 +2,14 @@
 // Written once per FRESH probe (a cached probe is the same observation), so the extra cost is bounded by the 5-min probe
 // cache: one indexed read per check, plus one insert and one prune per fresh probe. Any store error = no history (fail open).
 export const HISTORY_KEEP = 30;
+/** Appended to the history field docs. Distinct dates we stored, not the span of days between them. */
+export const HISTORY_SPAN_CLAUSE = " days_observed = distinct UTC dates among the stored observations; first_seen = the earliest of those; last_checked = the latest (ISO UTC).";
+export const RULES_SPAN_SUFFIX = "; days_observed (distinct UTC dates), first_seen, last_checked (ISO UTC)";
+export const MCP_HISTORY_OLD = "History: stable_for_days, last_changed, drift. ";
+export const MCP_HISTORY_NEW = "History: stable_for_days, last_changed, drift, days_observed, first_seen, last_checked. ";
+export const SKIPS_SUMMARY_SUFFIX = ". by_source counts each receipt once and adds up to endpoints_covered; other/unknown holds a receipt with no named source.";
+export const LLMS_HISTORY_LINE = "- Receipt history (0.66.2): days_observed is the count of distinct UTC dates among stored observations, with first_seen (the earliest) and last_checked (the latest, ISO UTC in JSON and YYYY-MM-DD HH:MM UTC on HTML). /v1/skips.json by_source counts each receipt once by its primary list and adds up to endpoints_covered; other/unknown holds a receipt with no named source.";
+export const SKILL_HISTORY_LINE = "- Per-endpoint history: days_observed (distinct UTC dates among stored observations), first_seen and last_checked (ISO UTC in JSON; HTML says Last checked: YYYY-MM-DD HH:MM UTC).";
 const DAY_MS = 86400000;
 
 export function observation(probe, pm, verdict, observedAt) {
@@ -18,12 +26,49 @@ export function observation(probe, pm, verdict, observedAt) {
 }
 const sig = (o) => (o && o.amount_atomic != null && o.network && o.pay_to ? [o.network, String(o.asset || "").toLowerCase(), String(o.pay_to).toLowerCase(), o.amount_atomic].join("|") : null);
 
+/** ISO UTC with no milliseconds, or null when the value is not a time. */
+export function isoUtc(t) {
+  const ms = Date.parse(t || "");
+  return Number.isFinite(ms) ? new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z") : null;
+}
+/**
+ * Span of stored observations only. days_observed is the count of distinct UTC dates among the timestamps
+ * we actually have. It is not the number of calendar days from first to last: a weekly crawl that saw an
+ * endpoint on two Tuesdays is 2 days observed, not every day in between.
+ */
+export function observationSpan(times) {
+  const iso = [];
+  const days = new Set();
+  for (const t of times || []) {
+    const s = isoUtc(t);
+    if (!s) continue;
+    iso.push(s);
+    days.add(s.slice(0, 10));
+  }
+  iso.sort();
+  return { days_observed: days.size, first_seen: iso[0] || null, last_checked: iso.length ? iso[iso.length - 1] : null };
+}
+export function lastCheckedLabel(iso) {
+  const s = isoUtc(iso);
+  return s ? s.slice(0, 16).replace("T", " ") + " UTC" : null;
+}
+/** Human line for HTML. Null when there is no stored observation to describe. */
+export function observationSpanText(span) {
+  if (!span || (!span.days_observed && !span.last_checked)) return null;
+  const n = span.days_observed || 0;
+  const first = span.first_seen ? `, first seen ${span.first_seen.slice(0, 10)}` : "";
+  const last = span.last_checked ? `. Last checked: ${lastCheckedLabel(span.last_checked)}` : "";
+  return `${n} day${n === 1 ? "" : "s"} observed${first}${last}`;
+}
+
 // obs: newest first (the current observation first). Only observations that carried payment terms count toward
 // stability, so a one-off timeout does not reset it. Returns only a summary (no price, wallet or network).
+// days_observed / first_seen / last_checked count every stored observation, including ones with no payment terms.
 export function historySummary(obs, now = new Date()) {
   const list = (obs || []).filter(Boolean);
   const terms = list.filter((o) => sig(o));
-  const base = { observations: list.length, stable_for_days: null, stable_since: null, last_changed: null, drift: null };
+  const span = observationSpan(list.map((o) => o.observed_at));
+  const base = { observations: list.length, stable_for_days: null, stable_since: null, last_changed: null, drift: null, ...span };
   if (!list.length || !sig(list[0])) return base;
   const cur = sig(terms[0]);
   let i = 0;

@@ -10,7 +10,37 @@
 // client IPs, payment proofs, tx hashes); recent_checks stays in the JSON only.
 import { chromePage, esc } from "./chrome.js";
 import { homeCrawlDates } from "./home.js";
+import { observationSpan, observationSpanText } from "./history.js";
 import { crawlReasonText } from "./receipts-html.js";
+
+// Primary-source partition of the crawl headline. `lists` counts each receipt once, under the list that won dedupe.
+// A blank or unknown source is not dropped: it is other/unknown. Any remainder (headline minus those counts) is the
+// same bucket, so the displayed breakdown adds up to endpoints_covered. `listed_in` is a different number: a receipt
+// is counted once per list it appears on, and that sum is not a breakdown of the headline.
+export const OTHER_SOURCE = "other/unknown";
+const BLANK_SOURCE = /^(unknown|null|none|undefined|other\/unknown)$/i;
+export function sourceBreakdown(meta = {}) {
+  const headline = Number(meta.endpoints_covered ?? meta.total ?? 0);
+  const by = {};
+  let named = 0;
+  for (const [k, v] of Object.entries(meta.lists || {})) {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    const key = !String(k || "").trim() || BLANK_SOURCE.test(String(k).trim()) ? OTHER_SOURCE : String(k);
+    by[key] = (by[key] || 0) + n;
+    named += n;
+  }
+  const gap = (Number.isFinite(headline) ? headline : 0) - named;
+  if (gap > 0) by[OTHER_SOURCE] = (by[OTHER_SOURCE] || 0) + gap;
+  return by;
+}
+export function sourceLine(meta = {}) {
+  const by = sourceBreakdown(meta);
+  const headline = Number(meta.endpoints_covered ?? meta.total ?? 0) || 0;
+  const num = (n) => (typeof n === "number" && Number.isFinite(n) ? n.toLocaleString("en-US") : String(n));
+  const parts = Object.entries(by).map(([k, v]) => k + " " + num(v)).join(", ");
+  return `lists: ${parts} (these add up to ${num(headline)})`;
+}
 
 export const SKIPS_TITLE = "Latest skips";
 export const SKIPS_CAPTION = "Recent skips from the public crawl. A mismatch often just means the listing is out of date."; // = home.js Latest skips caption
@@ -72,7 +102,7 @@ export function skipRowHtml(r) {
     + `<td data-label="Reason"><div class="sk-v sk-reason">${esc(crawlReasonText(r.reason))}</div></td>`
     + `<td data-label="Listing"><div class="sk-v"><span class="sk-price">${esc(usd(r.claimed_price_usd))}</span>${net(r.listed_network)}</div></td>`
     + `<td data-label="Live 402"><div class="sk-v"><span class="sk-price">${esc(usd(r.quoted_price_usd))}</span>${net(r.network)}${payTo}</div></td>`
-    + `<td data-label="Checked"><div class="sk-v sk-time">${esc(utc(r.timestamp))}</div></td>`
+    + `<td data-label="Checked"><div class="sk-v sk-time">${esc(utc(r.timestamp))}</div><span class="sk-sub">${esc(observationSpanText(observationSpan([r.timestamp])) || "")}</span></td>`
     + `<td class="sk-op"><a class="sk-open" href="/v1/receipts/${esc(r.id)}">Receipt &rarr;</a></td></tr>`;
 }
 
@@ -81,7 +111,6 @@ export function skipsHtml(origin, d, fp) {
   const m = d.meta || {};
   const page = d.page, pages = d.pages;
   const cd = homeCrawlDates(m, d.now);
-  const listed = Object.entries(m.listed_in || m.lists || {}).map(([k, v]) => k + " " + num(v)).join(", ");
   const pager = pages > 1 ? `<nav class="sk-pager" aria-label="Pages"><span>${page > 1 ? `<a href="/v1/skips?page=${page - 1}" rel="prev">&larr; prev</a>` : ""}</span><span>Page ${page} of ${pages} (${esc(m.page_size)} skips per page, clearest mismatches first)</span><span>${page < pages ? `<a href="/v1/skips?page=${page + 1}" rel="next">next &rarr;</a>` : ""}</span></nav>` : "";
   const rows = (d.skips || []).map(skipRowHtml).join("\n");
   const fc = d.freeCheck || {};
@@ -94,7 +123,8 @@ ${cd.text ? `<p class="sk-dates" id="crawl-dates">${esc(cd.text)}</p>` : ""}</se
 <details class="sk-method"><summary>${esc(METHOD_SUMMARY)}</summary><div class="sk-mbody">
 <div class="sk-free"><b>Check your endpoint free first:</b> <code>GET ${esc(fc.url)}</code><br><small>Real example: <a class="sk-mono" href="${esc(fc.exampleUrl)}">${esc(fc.exampleUrl)}</a> → <code>${esc(JSON.stringify(fc.example))}</code>. 5 free per day (25 per network), free dry runs with &amp;mode=dry-run. Then, only for the full payment terms, the paid check (HTTP 402).</small></div>
 <p><b>${esc(num(m.endpoints_covered ?? m.total))}</b> endpoints covered · <b>${esc(num(m.new_this_week))}</b> new this week${m.previous_run ? "" : " (first full crawl)"} · ${esc(d.scheduleText)}</p>
-<p><b>${esc(num(m.skip))}</b> skip · ${esc(num(m.pay))} pay · ${esc(num(m.recheck))} recheck · lists: ${esc(listed)}</p>
+<p><b>${esc(num(m.skip))}</b> skip · ${esc(num(m.pay))} pay · ${esc(num(m.recheck))} recheck · ${esc(sourceLine(m))}</p>
+<p><small>Each row is one stored crawl observation. Days observed counts distinct UTC dates we have a timestamp for, and names the first of those dates. Last checked is that observation's time. A weekly crawl does not record the days in between.</small></p>
 <p>${esc(d.spotHowTo)}</p>
 <p><small>Self-checked: ${esc(m.method)} Deduped by ${esc(m.dedupe || "URL")}. Skip = no paywall (no 402), a malformed 402, price mismatch, wrong or unsupported network, a token other than canonical USDC, or a payTo that differs from the listing. Recheck = transient (timeout, network error, 5xx) or a free trial in use. JSON: <a href="/v1/skips.json">/v1/skips.json</a> · one receipt: /v1/receipts/&lt;id&gt; · by URL: /v1/receipts/by-url?url=&lt;endpoint&gt;. Facts only, not endorsements.</small></p>
 </div></details>

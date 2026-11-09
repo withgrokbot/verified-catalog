@@ -62,6 +62,14 @@ class TermHistory(unittest.TestCase):
         # same as lib.js historyKey: "h:" + sha256(normalized URL)
         self.assertEqual(th.endpoint_key("https://x.example/a"), "h:" + __import__("hashlib").sha256(b"https://x.example/a").hexdigest())
 
+    def test_observed_span_counts_stored_dates_only(self):
+        # first_seen and last_seen two weeks apart are two observed days, not the 14 days in between
+        span = th.observed_span([{"first_seen": "2026-10-12T15:00:00Z", "last_seen": "2026-10-26T15:00:00Z"}])
+        self.assertEqual(span, {"days_observed": 2, "first_seen": "2026-10-12T15:00:00Z", "last_checked": "2026-10-26T15:00:00Z"})
+        same = th.observed_span([{"first_seen": "2026-10-12T01:00:00Z", "last_seen": "2026-10-12T23:00:00Z"}])
+        self.assertEqual(same["days_observed"], 1)
+        self.assertEqual(th.observed_span([])["days_observed"], 0)
+
     def test_unchanged_terms_only_move_last_seen(self):
         d, o = db(), {}
         apply(d, o, crawl(rec(ts="2026-10-12T15:00:00Z")))

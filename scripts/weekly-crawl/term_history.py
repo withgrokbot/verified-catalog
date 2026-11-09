@@ -18,7 +18,10 @@ Exit 0 = ok, 1 = error.
 """
 import argparse, hashlib, json, os, sqlite3, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
-WORKER = os.environ.get("CRAWL_WORKER_DIR", os.path.join(HERE, "..", "..", "app", "worker"))
+_worker_default = os.path.join(HERE, "..", "..", "app", "worker")
+if not os.path.isdir(_worker_default):
+    _worker_default = os.path.join(HERE, "..", "..", "worker")
+WORKER = os.environ.get("CRAWL_WORKER_DIR", _worker_default)
 MIGRATION = "0019_term_history.sql"
 DB = "RECEIPTS_DB"
 FILE_BYTES = 8_000_000
@@ -49,6 +52,20 @@ def terms_of(r):
     norm = r.get("norm_url") or r.get("url")
     if not norm: return None
     return endpoint_key(norm), r["timestamp"], {"amount": _amount(r), "pay_to": _addr(r["pay_to"]), "network": str(r["network"]), "asset": _addr(r.get("asset"))}
+
+def observed_span(rows, keys=("first_seen", "last_seen")):
+    """Distinct UTC dates among the timestamps these rows actually store.
+    A term that was first seen on one crawl and last seen on a later crawl is two observed days,
+    not every calendar day in between: we did not observe those days."""
+    times = []
+    for r in rows or []:
+        for k in keys:
+            t = str((r or {}).get(k) or "")
+            if len(t) >= 10 and t[4] == "-" and t[7] == "-":
+                times.append(t)
+    days = {t[:10] for t in times}
+    times.sort()
+    return {"days_observed": len(days), "first_seen": times[0] if times else None, "last_checked": times[-1] if times else None}
 
 def observations(path):
     """Latest observation per endpoint in one crawl file (a URL listed twice counts once)."""

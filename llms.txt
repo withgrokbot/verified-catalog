@@ -11,7 +11,7 @@
 
 ## Data
 
-- [catalog.json](https://withgrokbot.github.io/verified-catalog/catalog.json): every service with endpoint, advertised price, source, and the latest check (reachable, latency, 402 price, charged price, delivered_valid, checked_at, raw log)
+- [catalog.json](https://withgrokbot.github.io/verified-catalog/catalog.json): every service with endpoint, advertised price, source, and the latest check (reachable, latency, 402 price, charged price, delivered_valid, checked_at, raw log). history_summary.days_observed is the count of distinct UTC dates with a stored check, history_summary.first_seen is the earliest, history_summary.last_checked is the latest (ISO UTC)
 - [agent card](https://withgrokbot.github.io/verified-catalog/.well-known/agent-card.json): what this catalog offers to agents
 - [methodology](https://withgrokbot.github.io/verified-catalog/methodology.html): what each field means and how to contest a result
 - Per service: https://withgrokbot.github.io/verified-catalog/services/<id>.json
