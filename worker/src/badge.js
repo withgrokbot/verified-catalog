@@ -1,4 +1,5 @@
 import { lastCheckedText } from "./daily.js";
+import { observationSpan } from "./history.js"; // 0.66.2: days_observed / first_seen / last_checked, one definition
 // 0.32.0: /badge/<host>.svg (optionally ?path=/exact/path). Shows only the real current status from the latest stored
 // live receipt for that host: "pay · stable N days" when the latest verdict is pay and under BADGE_FRESH_H old;
 // otherwise a neutral "stale" (pay but old) or "not verified" (skip, recheck, none, or the store is down).
@@ -148,14 +149,13 @@ function excludedFromSellerBadge(row) {
 /** rows: newest-or-any order. Returns the public stats object (no URLs of other sellers). */
 export function sellerBadgeFromRows(rows) {
   const list = (rows || []).filter((r) => !excludedFromSellerBadge(r));
+  const span = observationSpan(list.map((r) => r.created_at));
   if (!list.length) {
-    return { observed: false, checks_observed: 0, pay_count: 0, pay_rate: null, last_verdict: null, days_observed: 0, last_checked: null, first_checked: null, receipt_id: null, latest_url: null, endpoints_observed: 0, capped: false };
+    return { observed: false, checks_observed: 0, pay_count: 0, pay_rate: null, last_verdict: null, ...span, receipt_id: null, latest_url: null, endpoints_observed: 0, capped: false };
   }
   list.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   const pays = list.filter((r) => r.verdict === "pay").length;
-  const days = new Set(list.map((r) => String(r.created_at || "").slice(0, 10)).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)));
   const last = list[0];
-  const first = list[list.length - 1];
   const urls = new Set(list.map((r) => r.url).filter(Boolean));
   return {
     observed: true,
@@ -163,9 +163,7 @@ export function sellerBadgeFromRows(rows) {
     pay_count: pays,
     pay_rate: Math.round((pays / list.length) * 1000) / 1000,
     last_verdict: typeof last.verdict === "string" ? last.verdict : null,
-    days_observed: days.size,
-    last_checked: last.created_at || null,
-    first_checked: first.created_at || null,
+    ...span,
     receipt_id: last.id || null,
     latest_url: last.url || null,
     endpoints_observed: urls.size,
@@ -237,8 +235,8 @@ function sellerJson(origin, host, path, stats, extra) {
     endpoints_observed: stats.endpoints_observed,
     last_verdict: stats.last_verdict,
     days_observed: stats.days_observed,
+    first_seen: stats.first_seen,
     last_checked: stats.last_checked,
-    first_checked: stats.first_checked,
     capped: stats.capped,
     receipt: stats.receipt_id ? origin + "/v1/receipts/" + stats.receipt_id : null,
     receipts: embed.receipts,
@@ -246,7 +244,7 @@ function sellerJson(origin, host, path, stats, extra) {
     json: embed.json,
     embed: { markdown: embed.markdown, html: embed.html },
     note: stats.observed
-      ? "Counts are stored live-check receipts for this seller (newest " + SELLER_BADGE_MAX + (stats.capped ? ", cap hit" : "") + "). pay_rate is the share whose verdict is pay. Our own scheduled (cron) self-check probes count. Dry runs and caller-supplied expectations are excluded. Crawl receipts are unsigned and are not included. This is not an endorsement."
+      ? "Counts are stored live-check receipts for this seller (newest " + SELLER_BADGE_MAX + (stats.capped ? ", cap hit" : "") + "). pay_rate is the share whose verdict is pay. days_observed is the count of distinct UTC dates among those receipts, not the calendar days from first to last. first_seen is the earliest of those timestamps and last_checked is the latest (ISO UTC). Our own scheduled (cron) self-check probes count. Dry runs and caller-supplied expectations are excluded. Crawl receipts are unsigned and are not included. This is not an endorsement."
       : "No stored live-check receipt for this seller. This is not a pass.",
   };
   return extra ? { ...base, ...extra } : base;

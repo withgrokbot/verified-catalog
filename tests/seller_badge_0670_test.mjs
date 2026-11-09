@@ -10,7 +10,7 @@ import { docsProductHtml, DOCS_PAYEE_GUARD, DOCS_VERIFY_OFFLINE } from "../worke
 import { CANON_ORIGIN, API_ORIGIN } from "../worker/src/spotcheck.js";
 import { homeHtml } from "../worker/src/home.js";
 
-test("0.67.0 version", () => assert.equal(VERSION, "0.67.0"));
+test("0.69.0 version", () => assert.equal(VERSION, "0.69.0"));
 
 const row = (id, url, verdict, at, extra = {}) => ({
   id, url, created_at: at, verdict, check_type: extra.check_type || "live",
@@ -51,6 +51,13 @@ test("stats from receipts; dry runs and request expectations do not count; empty
   assert.equal(none.observed, false);
   assert.equal(none.pay_rate, null);
   assert.equal(sellerBadgeText(none), "not yet observed");
+  const gap = sellerBadgeFromRows([
+    row("sc-1111111111111111", "https://seller.example/a", "pay", "2026-11-03T00:00:00Z"),
+    row("sc-2222222222222222", "https://seller.example/a", "skip", "2026-11-10T00:00:00Z"),
+  ]);
+  assert.equal(gap.days_observed, 2, "two stored dates, not the calendar days between them");
+  assert.equal(gap.first_seen, "2026-11-03T00:00:00Z");
+  assert.equal(gap.last_checked, "2026-11-10T00:00:00Z");
   assert.doesNotMatch(sellerBadgeText(none), /\b(pay|pass|verified)\b/);
 });
 
