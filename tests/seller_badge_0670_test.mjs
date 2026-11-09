@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import worker from "../worker/src/index.js";
 import { VERSION } from "../worker/src/lib.js";
 import {
-  parseSellerBadgeTarget, sellerBadgeFromRows, sellerBadgeText, handleSellerBadge, SELLER_BADGE_CACHE_S, sellerBadgeOn,
+  parseSellerBadgeTarget, sellerBadgeFromRows, sellerBadgeText, sellerBadgeResource, sellerBadgeEmbed, handleSellerBadge, SELLER_BADGE_CACHE_S, sellerBadgeOn,
 } from "../worker/src/badge.js";
 import { docsProductHtml, DOCS_PAYEE_GUARD, DOCS_VERIFY_OFFLINE } from "../worker/src/docs.js";
 import { CANON_ORIGIN, API_ORIGIN } from "../worker/src/spotcheck.js";
@@ -40,7 +40,7 @@ test("stats from receipts; dry runs and request expectations do not count; empty
   assert.equal(s.observed, true);
   assert.equal(s.checks_observed, 3);
   assert.equal(s.pay_count, 2);
-  assert.equal(s.pass_rate, 0.667);
+  assert.equal(s.pay_rate, 0.667);
   assert.equal(s.last_verdict, "pay");
   assert.equal(s.days_observed, 3);
   assert.equal(s.last_checked, "2026-11-08T12:00:00Z");
@@ -49,7 +49,7 @@ test("stats from receipts; dry runs and request expectations do not count; empty
   assert.equal(sellerBadgeText(s), "3 checks · 67% pay · last pay · 3d · 2026-11-08");
   const none = sellerBadgeFromRows([]);
   assert.equal(none.observed, false);
-  assert.equal(none.pass_rate, null);
+  assert.equal(none.pay_rate, null);
   assert.equal(sellerBadgeText(none), "not yet observed");
   assert.doesNotMatch(sellerBadgeText(none), /\b(pay|pass|verified)\b/);
 });
@@ -97,7 +97,8 @@ test("SVG and JSON: real stats, escaped text, cache, receipt link; unknown is ne
   const body = JSON.parse(await js.text());
   assert.equal(body.observed, true);
   assert.equal(body.checks_observed, 3);
-  assert.equal(body.pass_rate, 0.333);
+  assert.equal(body.pay_rate, 0.333);
+  assert.equal(body.pass_rate, undefined);
   assert.equal(body.last_verdict, "pay<script>");
   assert.equal(body.days_observed, 3);
   assert.equal(body.receipt, "https://o.fixture/v1/receipts/sc-dddddddddddddddd");
@@ -114,7 +115,7 @@ test("SVG and JSON: real stats, escaped text, cache, receipt link; unknown is ne
   const down = await handleSellerBadge(new Request("https://o.fixture/v1/badge/seller.example.json"), { RECEIPTS_DB: { prepare() { throw new Error("down"); } } }, new URL("https://o.fixture/v1/badge/seller.example.json"), "https://o.fixture");
   const dj = JSON.parse(await down.text());
   assert.equal(dj.observed, false);
-  assert.equal(dj.pass_rate, null);
+  assert.equal(dj.pay_rate, null);
   assert.match(dj.note, /not a pass/);
   assert.match(down.headers.get("cache-control"), /max-age=60/);
 });
@@ -127,7 +128,7 @@ test("worker route, OpenAPI and llms.txt; flag hides the docs lines only", async
   assert.equal(res.status, 200);
   const j = await res.json();
   assert.equal(j.last_verdict, "skip");
-  assert.equal(j.pass_rate, 0);
+  assert.equal(j.pay_rate, 0);
   assert.match(j.receipts, /by-url/);
   const oa = await (await worker.fetch(new Request("https://api.402xagent.com/openapi.json"), env, ctx)).json();
   assert.ok(oa.paths["/v1/badge/{seller}.svg"]);
@@ -138,6 +139,7 @@ test("worker route, OpenAPI and llms.txt; flag hides the docs lines only", async
   assert.match(ll, /Stored crawl receipts \(10-character ids\) are unsigned/);
   assert.match(ll, /\/v1\/badge\/api\.402rates\.com\.svg/);
   assert.match(ll, /not yet observed/);
+  assert.match(ll, /scheduled \(cron\) self-check probes count/);
   assert.match(ll, /docs#payee-guard/);
   const off = { SELLER_BADGE: "off" };
   const oaOff = await (await worker.fetch(new Request("https://api.402xagent.com/openapi.json"), off, ctx)).json();
@@ -148,6 +150,23 @@ test("worker route, OpenAPI and llms.txt; flag hides the docs lines only", async
   assert.equal(sellerBadgeOn({}), true);
   const post = await worker.fetch(new Request("https://402xagent.com/v1/badge/seller.example.svg", { method: "POST" }), env, ctx);
   assert.equal(post.status, 405);
+});
+
+test("embed and badge URLs encode each seller path segment", () => {
+  const path = "/v1/a&b+c";
+  const svg = sellerBadgeResource("https://o.fixture", "seller.example", path, "svg");
+  const json = sellerBadgeResource("https://o.fixture", "seller.example", path, "json");
+  assert.equal(svg, "https://o.fixture/v1/badge/seller.example/v1/a%26b%2Bc.svg");
+  assert.equal(json, "https://o.fixture/v1/badge/seller.example/v1/a%26b%2Bc.json");
+  const stats = sellerBadgeFromRows([row("sc-aaaaaaaaaaaaaaaa", "https://seller.example" + path, "pay", "2026-11-01T00:00:00Z", { check_type: "self-checked" })]);
+  assert.equal(stats.checks_observed, 1, "scheduled self-check rows count");
+  assert.equal(stats.pay_rate, 1);
+  const e = sellerBadgeEmbed("https://o.fixture", "seller.example", path, stats);
+  assert.equal(e.svg, svg);
+  assert.equal(e.json, json);
+  assert.ok(e.markdown.includes("a%26b%2Bc.svg"));
+  assert.ok(e.html.includes("a%26b%2Bc.svg"));
+  assert.ok(!e.svg.includes("&") && !e.html.includes("a&b"));
 });
 
 test("docs: offline verifier and the live composition section", () => {

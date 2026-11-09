@@ -149,7 +149,7 @@ function excludedFromSellerBadge(row) {
 export function sellerBadgeFromRows(rows) {
   const list = (rows || []).filter((r) => !excludedFromSellerBadge(r));
   if (!list.length) {
-    return { observed: false, checks_observed: 0, pay_count: 0, pass_rate: null, last_verdict: null, days_observed: 0, last_checked: null, first_checked: null, receipt_id: null, latest_url: null, endpoints_observed: 0, capped: false };
+    return { observed: false, checks_observed: 0, pay_count: 0, pay_rate: null, last_verdict: null, days_observed: 0, last_checked: null, first_checked: null, receipt_id: null, latest_url: null, endpoints_observed: 0, capped: false };
   }
   list.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   const pays = list.filter((r) => r.verdict === "pay").length;
@@ -161,7 +161,7 @@ export function sellerBadgeFromRows(rows) {
     observed: true,
     checks_observed: list.length,
     pay_count: pays,
-    pass_rate: Math.round((pays / list.length) * 1000) / 1000,
+    pay_rate: Math.round((pays / list.length) * 1000) / 1000,
     last_verdict: typeof last.verdict === "string" ? last.verdict : null,
     days_observed: days.size,
     last_checked: last.created_at || null,
@@ -188,12 +188,19 @@ export function sellerReceiptsUrl(origin, host, path, stats) {
   return origin + "/v1/receipts";
 }
 
+/** Host plus each path segment, encodeURIComponent, slashes kept. */
+export function sellerBadgeResource(origin, host, path, ext) {
+  const segs = String(path || "").split("/").map((seg, i) => (i === 0 ? "" : encodeURIComponent(seg))).join("/");
+  return origin + "/v1/badge/" + encodeURIComponent(host) + segs + "." + ext;
+}
+
 export function sellerBadgeEmbed(origin, host, path, stats) {
-  const tail = host + (path || "");
-  const svg = origin + "/v1/badge/" + tail + ".svg";
+  const svg = sellerBadgeResource(origin, host, path, "svg");
+  const json = sellerBadgeResource(origin, host, path, "json");
   const receipts = sellerReceiptsUrl(origin, host, path, stats);
   return {
     svg,
+    json,
     receipts,
     markdown: `[![402xAgent receipts](${svg})](${receipts})`,
     html: `<a href="${esc(receipts)}"><img src="${esc(svg)}" alt="402xAgent receipts"></a>`,
@@ -226,7 +233,7 @@ function sellerJson(origin, host, path, stats, extra) {
     observed: stats.observed,
     checks_observed: stats.checks_observed,
     pay_count: stats.pay_count,
-    pass_rate: stats.pass_rate,
+    pay_rate: stats.pay_rate,
     endpoints_observed: stats.endpoints_observed,
     last_verdict: stats.last_verdict,
     days_observed: stats.days_observed,
@@ -236,9 +243,10 @@ function sellerJson(origin, host, path, stats, extra) {
     receipt: stats.receipt_id ? origin + "/v1/receipts/" + stats.receipt_id : null,
     receipts: embed.receipts,
     svg: embed.svg,
+    json: embed.json,
     embed: { markdown: embed.markdown, html: embed.html },
     note: stats.observed
-      ? "Counts are stored live-check receipts for this seller (newest " + SELLER_BADGE_MAX + (stats.capped ? ", cap hit" : "") + "). pass_rate is the share whose verdict is pay. Dry runs and caller-supplied expectations are excluded. Crawl receipts are unsigned and are not included. This is not an endorsement."
+      ? "Counts are stored live-check receipts for this seller (newest " + SELLER_BADGE_MAX + (stats.capped ? ", cap hit" : "") + "). pay_rate is the share whose verdict is pay. Our own scheduled (cron) self-check probes count. Dry runs and caller-supplied expectations are excluded. Crawl receipts are unsigned and are not included. This is not an endorsement."
       : "No stored live-check receipt for this seller. This is not a pass.",
   };
   return extra ? { ...base, ...extra } : base;
@@ -250,7 +258,7 @@ export async function handleSellerBadge(req, env, url, origin) {
   const empty = sellerBadgeFromRows([]);
   if (!parsed || parsed.error) {
     const body = parsed && parsed.kind === "json"
-      ? JSON.stringify({ error: "invalid seller", observed: false, pass_rate: null, note: "Not a seller host or endpoint. This is not a pass." })
+      ? JSON.stringify({ error: "invalid seller", observed: false, pay_rate: null, note: "Not a seller host or endpoint. This is not a pass." })
       : linkedSvg("invalid seller", NEUTRAL_COLOR, null);
     const ct = parsed && parsed.kind === "json" ? "application/json; charset=utf-8" : "image/svg+xml; charset=utf-8";
     return new Response(req.method === "HEAD" ? null : body, { status: 400, headers: { ...hdr(ct, SELLER_BADGE_CACHE_S), "x-402xagent-badge": "invalid" } });
