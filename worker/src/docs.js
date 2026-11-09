@@ -9,6 +9,7 @@ import { docsHtml } from "./pages.js";
 import { chromePage, esc, NPM_GUARD } from "./chrome.js";
 import { REASON_CODES } from "./rules.js";
 import { REASON_TEXT } from "./recent.js";
+import { VERIFY_EXAMPLE_ID, VERIFY_NODE_PATH, VERIFY_PATH, VERIFY_STANDALONE_PATH } from "./verify.js";
 
 export const DOCS_ANCHORS_PATH = "/docs/anchors.js";
 export const DOCS_EXAMPLE_RECEIPT = "/v1/receipts/sc-85c8963fb57e7b25"; // a stored, signed live-check receipt (never rotates, unlike crawl ids)
@@ -120,19 +121,32 @@ function nextBlock(opts, p) {
   return `<nav class="dc-next" aria-label="Next step"><span>Next step: ${step}</span>${nx ? `<a href="${docsPageHref(nx.slug)}">${esc(nx.name)} &rarr;</a>` : '<a href="/docs">Back to Getting started &rarr;</a>'}</nav>`;
 }
 
-// 0.59.6: composing with a payee guard. Order checked by a local run of all three packages (stubbed network).
-export const DOCS_PAYEE_GUARD = `<h2 id="payee-guard">Composing with a payee guard (e.g. INAM inamGuardedFetch)</h2>
-<p>x402-spotcheck checks the route and the price. If you also want a check on who gets paid, a payee guard such as <code>inamGuardedFetch</code> from <a href="https://github.com/inamprotocol/inam-protocol/tree/main/integrations/agentkit">inam-protocol/integrations/agentkit</a> (a separate, third-party project) wraps the same <code>fetch</code>. Nest them so the payee is checked first and payment comes last:</p>
-<pre><code>import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
+// 0.67.0: what /verify actually does. Keys are pinned; stored crawl receipts are unsigned (verify-core.js).
+export const DOCS_VERIFY_OFFLINE = `<h2 id="verify-without-calling-us">Verify our receipts without calling us</h2>
+<p>The verifier at <a href="${VERIFY_PATH}">/verify</a> checks a receipt on your machine. Public keys are pinned in that page, in <a href="${VERIFY_STANDALONE_PATH}">the standalone HTML file</a> and in <a href="${VERIFY_NODE_PATH}">verify-receipt.mjs</a>, and published at <a href="/.well-known/402xagent-keys.json">/.well-known/402xagent-keys.json</a>. The receipt's <code>kid</code> selects the key (<code>keys[].kid</code>, public part <code>keys[].x</code>). The check is Ed25519 over the RFC 8785 (JCS) JSON of the receipt with only <code>signature</code> removed. It does not call our servers. A valid signature means 402xAgent issued that JSON unchanged. It does not change or endorse the verdict.</p>
+<p>Stored crawl receipts (10-character ids) are unsigned. The verifier reports them as unsigned, neither valid nor invalid. Live-check receipts stored before signing started (2026-10-15) are unsigned too.</p>
+<pre><code>curl -fsS -o verify-receipt.mjs https://402xagent.com${VERIFY_NODE_PATH}
+curl -fsS -o receipt.json "https://402xagent.com/v1/receipts/${VERIFY_EXAMPLE_ID}?format=json"
+node verify-receipt.mjs receipt.json</code></pre>
+<p>Exit code 0 is VALID only. The script reads the file you pass and the keys pinned inside it. It does not fetch the receipt or the keys. Saving the receipt is optional: paste JSON you already have. <code>${VERIFY_EXAMPLE_ID}</code> is a stored signed receipt (a dry run). The signature check does not depend on the verdict.</p>`;
+
+// 0.59.6: composing with a payee guard. Nesting order only; third-party error and cache behaviour is not claimed here.
+export const DOCS_PAYEE_GUARD = `<h2 id="payee-guard">Composing checks (stacking)</h2>
+<p><code>spotCheckFetch</code> from <a href="https://github.com/withgrokbot/x402-spotcheck">x402-spotcheck</a> wraps <code>fetch</code>. <code>wrapFetchWithPayment</code> from <code>@x402/fetch</code> is what pays. Put the check inside payment:</p>
+<pre><code>import { wrapFetchWithPayment } from "@x402/fetch";
+import { spotCheckFetch } from "x402-spotcheck";
+
+const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);</code></pre>
+<p>A payee guard such as <code>inamGuardedFetch</code> from <a href="https://github.com/inamprotocol/inam-protocol/tree/main/integrations/agentkit">inam-protocol/integrations/agentkit</a> is a separate project. We do not run or vouch for it. If you use one, nest it inside <code>spotCheckFetch</code> so its check runs first and payment last. This is the live composition section (<a href="/docs#payee-guard">/docs#payee-guard</a>):</p>
+<pre><code>import { wrapFetchWithPayment } from "@x402/fetch";
 import { spotCheckFetch } from "x402-spotcheck";
 import { inamGuardedFetch } from "@inamprotocol/agentkit"; // built from the repo above
 
 const payeeChecked = inamGuardedFetch(fetch, { block: ["fail"] }); // 1. payee
 const routeChecked = spotCheckFetch(payeeChecked);                  // 2. route and price
 const pay = wrapFetchWithPayment(routeChecked, client);            // 3. pays last</code></pre>
-<ul><li>A blocked payee throws <code>InamBlockedError</code> before the seller is called. A 402 outside your route or price throws <code>SpotCheckBlockedError</code>. In both cases nothing is signed.</li>
-<li>x402-spotcheck also re-checks the signed payment on the retry. inamGuardedFetch caches its verdict per URL and method (5 minutes by default), so the retry does not trigger a second payee lookup.</li>
-<li>Each guard has its own options and its own failure behaviour. Read their docs. We do not run or vouch for the INAM check.</li></ul>`;
+<ul><li>On skip, the check stops the call before payment. The error type is defined by x402-spotcheck.</li>
+<li>The payee guard's options, errors and any cache are its own. Read its docs. The block above is a nesting order, not a description of that project's behaviour.</li></ul>`;
 
 /** /docs: the index (Getting started). */
 export function docsIndexHtml(origin, apiOrigin, opts = {}) {
@@ -157,8 +171,9 @@ export function docsProductHtml(origin, apiOrigin, slug, opts = {}) {
   if (p.slug === "check") {
     const rows = REASON_CODES.map((r) => `<tr><td><code>${esc(r.code)}</code></td><td>${esc(r.verdict)}</td><td>${esc(REASON_TEXT[r.code] || r.rule)}</td></tr>`).join("");
     content = `${content}\n<h2 id="reason-codes">Reason codes</h2><p>Every verdict carries a stable <code>reason_code</code> and a confidence. The full list with rules is at <a href="/rules">/rules</a> (JSON: <a href="/rules.json">/rules.json</a>).</p>
-<table class="dc-codes"><thead><tr><th scope="col">reason_code</th><th scope="col">verdict</th><th scope="col">meaning</th></tr></thead><tbody>${rows}</tbody></table>`;
+<table class="dc-codes"><thead><tr><th scope="col">reason_code</th><th scope="col">verdict</th><th scope="col">meaning</th></tr></thead><tbody>${rows}</tbody></table>
+<p>To stack this check with payment, and with a payee guard such as INAM if you use one, see <a href="/docs#payee-guard">composition</a>.</p>`;
   }
-  if (p.slug === "receipt-verification") content += `\n<p>Example: a signed live-check receipt, <a href="${DOCS_EXAMPLE_RECEIPT}">${esc(DOCS_EXAMPLE_RECEIPT)}</a> (JSON for scripts, a readable page in a browser). Crawl receipts (10-character ids) are unsigned.</p>`;
+  if (p.slug === "receipt-verification") content = `${DOCS_VERIFY_OFFLINE}\n${content}\n<p>Example page: a signed live-check receipt, <a href="${DOCS_EXAMPLE_RECEIPT}">${esc(DOCS_EXAMPLE_RECEIPT)}</a> (JSON for scripts, a readable page in a browser). Stored crawl receipts (10-character ids) are unsigned.</p>`;
   return shell(origin, opts, { slug: p.slug, title: `${p.name} · 402xAgent docs`, desc: `402xAgent docs: ${p.name}. ${p.blurb}`, h1: p.name, lead: esc(p.blurb), content: content + "\n" + nextBlock(opts, p) });
 }

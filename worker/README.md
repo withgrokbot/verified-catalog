@@ -125,6 +125,12 @@ Free live checks: 5 per client name per UTC day **and** at most 25 per network (
 <a href="https://402xagent.com/badge/api.example.com"><img src="https://402xagent.com/badge/api.example.com.svg" alt="402xAgent status"></a>
 ```
 
+## Seller badge (0.67.0)
+
+`GET /v1/badge/<seller>.svg` and the same path with `.json`. `<seller>` is a host (`api.example.com`) or a host plus a path (`api.example.com/v1/ping`). A percent-encoded `https://` URL is accepted as one segment.
+
+The SVG and JSON are computed from stored live-check receipts in D1 (`spot_receipts`), not from a logo and not from the weekly crawl list. They show checks observed, the share whose verdict is `pay`, the last verdict, the number of distinct UTC days, and the last-checked date. The image links to the public receipts page for that endpoint (`/v1/receipts/by-url`). No matching receipt renders grey **not yet observed**. Dry runs and caller-supplied expectations are not counted. Text in the SVG is escaped. `Cache-Control: public, max-age=300`. The route never fetches the seller and never writes. `SELLER_BADGE=off` only hides the lines in `llms.txt` and OpenAPI; the route still answers.
+
 ## Local test (no account needed)
 
 ```

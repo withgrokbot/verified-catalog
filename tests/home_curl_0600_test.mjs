@@ -7,7 +7,7 @@ import { VERSION } from "../worker/src/lib.js";
 
 const page = () => homeHtml("https://402xagent.com", {});
 
-test("0.60.0 version", () => assert.equal(VERSION, "0.68.1"));
+test("0.60.0 version", () => assert.equal(VERSION, "0.69.0"));
 
 test("renders the 'Check any x402 URL' box with input, button and result slot", () => {
   const t = page();
