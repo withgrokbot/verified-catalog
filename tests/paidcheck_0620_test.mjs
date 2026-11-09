@@ -16,8 +16,7 @@ import { liveReceiptHtml, crawlReceiptHtml } from "../worker/src/receipts-html.j
 import { receiptCacheControl, RECEIPT_RATE_PER_MIN } from "../worker/src/receiptguard.js";
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-test("0.62.0 version", () => assert.equal(VERSION, "0.66.2"));
-
+test("0.62.0 version", () => assert.equal(VERSION, "0.67.0"));
 test("paid_check block: price, terms and how-to come from the paid path and the agent card", () => {
   const b = paidCheckBlock("https://api.402rates.com/v1/ping");
   assert.equal(PAID_CHECK_PRICE_USD, String(Number(SPOT_PAID_ATOMIC) / 1e6));

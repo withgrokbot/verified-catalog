@@ -2,7 +2,8 @@
 // STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET AND the vars STRIPE_PRICE_STARTER + STRIPE_PRICE_PRO must be set, else every
 // billing route 404s. Plans: starter $10 = 5,000 renders/month, pro $29 = 25,000. The monthly quota stays a HARD CAP:
 // nothing is metered or billed as overage. Cancel or a failed payment keeps the plan to the end of the paid period, then
-// the key drops to free (500/month).
+// the key drops to free (500/month). A social card (0.67.0) spends one render on this same quota; the grace period
+// still applies, because the card path loads the key through loadKey / applyPlanEnd.
 //   POST /v1/render/billing/checkout {plan: "starter"|"pro"}  (x-api-key)  -> {url} Stripe Checkout (mode=subscription)
 //   POST /v1/render/billing/portal                            (x-api-key)  -> {url} Stripe customer portal (optional STRIPE_PORTAL_CONFIGURATION, omitted when unset)
 //   POST /v1/render/billing/webhook                           (Stripe)     -> signature-checked, idempotent by event id
@@ -210,6 +211,7 @@ export function billingDocs(env) {
     portal: { method: "POST", url: API_ORIGIN + BILLING_PORTAL_PATH, auth: "x-api-key", returns: "{url} of the Stripe billing portal (change plan, card, cancel)" },
     rules: ["The plan's monthly quota is a hard cap. Nothing is metered or billed as overage; at quota you get 429 with an upgrade note.",
       `Cancel keeps the paid plan until the end of the paid period. A failed payment keeps it for a ${graceDays(env)}-day grace period (a later successful payment clears it). After that the key returns to free (500 renders a month).`,
-      "Stripe sees an internal key id only, never your API key."],
+      "Stripe sees an internal key id only, never your API key.",
+      "A PDF, a screenshot and a social card each spend one render. A failed render is refunded. A cached card is free."],
   };
 }
