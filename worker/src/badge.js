@@ -1,4 +1,5 @@
 import { lastCheckedText } from "./daily.js";
+import { observationSpan } from "./history.js"; // 0.66.2: days_observed / first_seen / last_checked, one definition
 // 0.32.0: /badge/<host>.svg (optionally ?path=/exact/path). Shows only the real current status from the latest stored
 // live receipt for that host: "pay · stable N days" when the latest verdict is pay and under BADGE_FRESH_H old;
 // otherwise a neutral "stale" (pay but old) or "not verified" (skip, recheck, none, or the store is down).
@@ -93,4 +94,188 @@ export async function handleBadge(req, env, url, origin, now = new Date()) {
     return new Response(html, { status: 200, headers: hdr("text/html; charset=utf-8", ok ? 300 : 60) });
   }
   return new Response(badgeSvg("402xAgent", st.text, st.color), { status: 200, headers: { ...hdr("image/svg+xml; charset=utf-8", ok ? 300 : 60), "x-402xagent-badge": st.state, ...(row && row.created_at ? { "x-402xagent-last-checked": String(row.created_at) } : {}), link: `<${receipt}>; rel="describedby"` } });
+}
+
+// 0.67.0: GET /v1/badge/{seller}.svg and .json. Stats from stored live-check receipts (spot_receipts), not a logo and
+// not the weekly crawl list (those receipts are unsigned and are not counted here). Extends the 0.32.0 badge helpers
+// (host checks, escaping, SVG). Dry runs and caller-supplied expectations are excluded: they are not a listing verdict.
+// Unknown sellers render "not yet observed". Nothing in this path is a pass stamp.
+export const SELLER_BADGE_MAX = 500;
+export const SELLER_BADGE_CACHE_S = 300;
+const OBSERVED_COLOR = "#374151";
+const NEUTRAL_COLOR = "#9f9f9f";
+
+/** SELLER_BADGE=off hides the route from llms.txt and OpenAPI (machine snapshots). The route itself still answers. */
+export function sellerBadgeOn(env) {
+  const v = String((env && env.SELLER_BADGE) ?? "on").toLowerCase();
+  return v !== "off" && v !== "0";
+}
+
+/** /v1/badge/<host>.svg, /v1/badge/<host>/<path>.svg, or one percent-encoded https URL. kind is svg|json. */
+export function parseSellerBadgeTarget(pathname) {
+  const m = String(pathname || "").match(/^\/v1\/badge\/(.+)\.(svg|json)$/i);
+  if (!m) return null;
+  const kind = m[2].toLowerCase();
+  let rest;
+  try { rest = decodeURIComponent(m[1]); } catch (_) { return { error: "invalid", kind }; }
+  if (!rest || rest.length > 600 || /[\s?#\\]/.test(rest)) return { error: "invalid", kind };
+  let host, path;
+  if (/^https?:\/\//i.test(rest)) {
+    let u;
+    try { u = new URL(rest); } catch (_) { return { error: "invalid", kind }; }
+    if (u.username || u.password || u.search || u.hash || u.port) return { error: "invalid", kind };
+    if (u.protocol !== "https:" && u.protocol !== "http:") return { error: "invalid", kind };
+    host = validBadgeHost(u.hostname);
+    path = validBadgePath(u.pathname === "/" ? "" : u.pathname);
+  } else {
+    const i = rest.indexOf("/");
+    host = validBadgeHost(i === -1 ? rest : rest.slice(0, i));
+    path = validBadgePath(i === -1 ? "" : rest.slice(i));
+  }
+  if (!host || path === null) return { error: "invalid", kind };
+  return { kind, host, path };
+}
+
+function excludedFromSellerBadge(row) {
+  if (!row || row.check_type === "dry-run") return true;
+  try {
+    const b = JSON.parse(row.body || "{}");
+    if (b && b.expected && b.expected.source === "request") return true;
+    if (b && (b.check_type === "dry-run" || b.dry_run === true)) return true;
+  } catch (_) {}
+  return false;
+}
+
+/** rows: newest-or-any order. Returns the public stats object (no URLs of other sellers). */
+export function sellerBadgeFromRows(rows) {
+  const list = (rows || []).filter((r) => !excludedFromSellerBadge(r));
+  const span = observationSpan(list.map((r) => r.created_at));
+  if (!list.length) {
+    return { observed: false, checks_observed: 0, pay_count: 0, pay_rate: null, last_verdict: null, ...span, receipt_id: null, latest_url: null, endpoints_observed: 0, capped: false };
+  }
+  list.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  const pays = list.filter((r) => r.verdict === "pay").length;
+  const last = list[0];
+  const urls = new Set(list.map((r) => r.url).filter(Boolean));
+  return {
+    observed: true,
+    checks_observed: list.length,
+    pay_count: pays,
+    pay_rate: Math.round((pays / list.length) * 1000) / 1000,
+    last_verdict: typeof last.verdict === "string" ? last.verdict : null,
+    ...span,
+    receipt_id: last.id || null,
+    latest_url: last.url || null,
+    endpoints_observed: urls.size,
+    capped: list.length >= SELLER_BADGE_MAX,
+  };
+}
+
+export function sellerBadgeText(stats) {
+  if (!stats || !stats.observed) return "not yet observed";
+  const n = stats.checks_observed;
+  const pct = Math.round((stats.pay_count / n) * 100);
+  const day = String(stats.last_checked || "").slice(0, 10);
+  const verdict = stats.last_verdict || "none";
+  return `${n}${stats.capped ? "+" : ""} check${n === 1 ? "" : "s"} · ${pct}% pay · last ${verdict} · ${stats.days_observed}d · ${day}`;
+}
+
+export function sellerReceiptsUrl(origin, host, path, stats) {
+  if (path) return origin + "/v1/receipts/by-url?url=" + encodeURIComponent("https://" + host + path);
+  if (stats && stats.latest_url) return origin + "/v1/receipts/by-url?url=" + encodeURIComponent(stats.latest_url);
+  return origin + "/v1/receipts";
+}
+
+/** Host plus each path segment, encodeURIComponent, slashes kept. */
+export function sellerBadgeResource(origin, host, path, ext) {
+  const segs = String(path || "").split("/").map((seg, i) => (i === 0 ? "" : encodeURIComponent(seg))).join("/");
+  return origin + "/v1/badge/" + encodeURIComponent(host) + segs + "." + ext;
+}
+
+export function sellerBadgeEmbed(origin, host, path, stats) {
+  const svg = sellerBadgeResource(origin, host, path, "svg");
+  const json = sellerBadgeResource(origin, host, path, "json");
+  const receipts = sellerReceiptsUrl(origin, host, path, stats);
+  return {
+    svg,
+    json,
+    receipts,
+    markdown: `[![402xAgent receipts](${svg})](${receipts})`,
+    html: `<a href="${esc(receipts)}"><img src="${esc(svg)}" alt="402xAgent receipts"></a>`,
+  };
+}
+
+function linkedSvg(text, color, href) {
+  const svg = badgeSvg("402xAgent", text, color);
+  if (!href) return svg;
+  const i = svg.indexOf(">") + 1;
+  return svg.slice(0, i) + `<a href="${esc(href)}">` + svg.slice(i, -"</svg>".length) + "</a></svg>";
+}
+
+export async function receiptsForSellerBadge(db, host, path) {
+  const ranges = path
+    ? [ "https://" + host + path, "http://" + host + path ]
+    : [ "https://" + host + "/", "https://" + host + "0", "http://" + host + "/", "http://" + host + "0" ];
+  const where = path ? "(url = ? OR url = ?)" : "((url >= ? AND url < ?) OR (url >= ? AND url < ?))";
+  const sql = `SELECT id, url, created_at, verdict, check_type, body FROM spot_receipts /* seller-badge */ WHERE ${where} AND COALESCE(check_type, 'live') != 'dry-run' AND COALESCE(json_extract(body, '$.expected.source'), '') != 'request' ORDER BY created_at DESC LIMIT ${SELLER_BADGE_MAX}`;
+  const r = await db.prepare(sql).bind(...ranges).all();
+  return (r && r.results) || [];
+}
+
+function sellerJson(origin, host, path, stats, extra) {
+  const embed = sellerBadgeEmbed(origin, host, path, stats);
+  const base = {
+    seller: host,
+    endpoint: path ? "https://" + host + path : null,
+    scope: path ? "endpoint" : "host",
+    observed: stats.observed,
+    checks_observed: stats.checks_observed,
+    pay_count: stats.pay_count,
+    pay_rate: stats.pay_rate,
+    endpoints_observed: stats.endpoints_observed,
+    last_verdict: stats.last_verdict,
+    days_observed: stats.days_observed,
+    first_seen: stats.first_seen,
+    last_checked: stats.last_checked,
+    capped: stats.capped,
+    receipt: stats.receipt_id ? origin + "/v1/receipts/" + stats.receipt_id : null,
+    receipts: embed.receipts,
+    svg: embed.svg,
+    json: embed.json,
+    embed: { markdown: embed.markdown, html: embed.html },
+    note: stats.observed
+      ? "Counts are stored live-check receipts for this seller (newest " + SELLER_BADGE_MAX + (stats.capped ? ", cap hit" : "") + "). pay_rate is the share whose verdict is pay. days_observed is the count of distinct UTC dates among those receipts, not the calendar days from first to last. first_seen is the earliest of those timestamps and last_checked is the latest (ISO UTC). Our own scheduled (cron) self-check probes count. Dry runs and caller-supplied expectations are excluded. Crawl receipts are unsigned and are not included. This is not an endorsement."
+      : "No stored live-check receipt for this seller. This is not a pass.",
+  };
+  return extra ? { ...base, ...extra } : base;
+}
+
+export async function handleSellerBadge(req, env, url, origin) {
+  const parsed = parseSellerBadgeTarget(url.pathname);
+  const hdr = (ct, maxAge) => ({ "content-type": ct, "cache-control": `public, max-age=${maxAge}`, "access-control-allow-origin": "*", "x-content-type-options": "nosniff" });
+  const empty = sellerBadgeFromRows([]);
+  if (!parsed || parsed.error) {
+    const body = parsed && parsed.kind === "json"
+      ? JSON.stringify({ error: "invalid seller", observed: false, pay_rate: null, note: "Not a seller host or endpoint. This is not a pass." })
+      : linkedSvg("invalid seller", NEUTRAL_COLOR, null);
+    const ct = parsed && parsed.kind === "json" ? "application/json; charset=utf-8" : "image/svg+xml; charset=utf-8";
+    return new Response(req.method === "HEAD" ? null : body, { status: 400, headers: { ...hdr(ct, SELLER_BADGE_CACHE_S), "x-402xagent-badge": "invalid" } });
+  }
+  const { kind, host, path } = parsed;
+  let stats = empty, ok = true, store = "ok";
+  try {
+    if (!env || !env.RECEIPTS_DB) { ok = false; store = "unavailable"; }
+    else stats = sellerBadgeFromRows(await receiptsForSellerBadge(env.RECEIPTS_DB, host, path));
+  } catch (_) { ok = false; store = "unavailable"; stats = empty; }
+  const text = sellerBadgeText(stats);
+  const color = stats.observed ? OBSERVED_COLOR : NEUTRAL_COLOR;
+  const embed = sellerBadgeEmbed(origin, host, path, stats);
+  const maxAge = ok ? SELLER_BADGE_CACHE_S : 60;
+  const state = !ok ? "unavailable" : stats.observed ? "observed" : "not-yet-observed";
+  const link = { link: `<${embed.receipts}>; rel="describedby"`, "x-402xagent-badge": state, ...(stats.last_checked ? { "x-402xagent-last-checked": String(stats.last_checked) } : {}) };
+  if (kind === "json") {
+    const doc = sellerJson(origin, host, path, stats, store === "unavailable" ? { store: "unavailable", note: "Receipt store unavailable. No stats were invented. This is not a pass." } : null);
+    return new Response(req.method === "HEAD" ? null : JSON.stringify(doc), { status: 200, headers: { ...hdr("application/json; charset=utf-8", maxAge), ...link } });
+  }
+  return new Response(req.method === "HEAD" ? null : linkedSvg(text, color, embed.receipts), { status: 200, headers: { ...hdr("image/svg+xml; charset=utf-8", maxAge), ...link } });
 }

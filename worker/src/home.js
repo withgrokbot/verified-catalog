@@ -19,6 +19,10 @@ const GH_REPO = "https://github.com/withgrokbot/verified-catalog";
 const GH_GUARD = "https://github.com/withgrokbot/x402-spotcheck";
 const NPM_GUARD = "https://www.npmjs.com/package/x402-spotcheck";
 const ONE_LINER = "const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);";
+// 0.67.0: the trust line names the offline verifier. Snapshot helpers swap these back so older homepage fixtures stay stable.
+export const HOME_TRUST_BEFORE_0670 = `<strong>Receipts verifiable offline</strong><p>Live-check receipts are ed25519-signed and the public keys are published, so anyone can verify one without calling us.</p>`;
+export const HOME_TRUST_0670 = `<strong>Verify our receipts without calling us</strong><p>Signed live-check receipts carry a <code>kid</code> and an Ed25519 signature. Keys are published at <a href="/.well-known/402xagent-keys.json">/.well-known/402xagent-keys.json</a> and pinned in <a href="/verify">/verify</a>. Stored crawl receipts are unsigned.</p>`;
+export const HOME_STACK_0670 = `<p class="stack-note">A payee guard such as INAM is a separate project. Nest it inside <code>spotCheckFetch</code>, then pay last. <a href="/docs#payee-guard">Composition</a>.</p>`;
 // Real public endpoints for the example chips (they only prefill the box; nothing runs until Check is pressed).
 export const HOME_EXAMPLES = [
   { url: DOCS_TRYIT_PREFILL, label: "api.402xagent.com" },
@@ -437,7 +441,7 @@ ${vrows}
 <span class="k">const</span> pay = <span class="f">wrapFetchWithPayment</span>(<span class="f">spotCheckFetch</span>(fetch), client);
 
 <span class="c">// skip blocks the payment; every check has a receipt</span></pre></div>
-</div></div>
+</div>${HOME_STACK_0670}</div>
 </div>
 </div>
 </section>
@@ -447,7 +451,7 @@ ${vrows}
 <div class="trust">
 <div class="trust-item">${ICON.shield}<strong>Payment never changes a verdict</strong><p>Free, paid and exempt checks run the same code on the same data. Paying buys access to the answer, not a different answer.</p></div>
 <div class="trust-item">${ICON.search}<strong>Probes never pay the target</strong><p>The probe is unpaid by design: it reads the 402 terms and never attaches a payment to the seller.</p></div>
-<div class="trust-item">${ICON.doc}<strong>Receipts verifiable offline</strong><p>Live-check receipts are ed25519-signed and the public keys are published, so anyone can verify one without calling us.</p></div>
+<div class="trust-item">${ICON.doc}${HOME_TRUST_0670}</div>
 <div class="trust-item">${ICON.lock}<strong>No raw IPs in our data</strong><p>The raw IP is never written to our data stores, only a salted hash.</p></div>
 </div>
 </div>

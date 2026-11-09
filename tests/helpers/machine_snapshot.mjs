@@ -61,14 +61,16 @@ import { DOCS_PAYEE_GUARD } from "../../worker/src/docs.js";
 // 0.60.0: the homepage checker becomes "Check any x402 URL": empty input (no prefill), a curl snippet block with its own
 // CSS, and the snippet's /home.js block. Unless SNAP_KEEP_0600=1 these exact additions are taken back out, so every
 // older fixture still proves the rest of the homepage and /home.js is unchanged (tests/home_curl_0600_test.mjs checks them).
-import { HOME_CURL_HTML, HOME_CURL_JS, CURL_CSS } from "../../worker/src/home.js";
+import { HOME_CURL_HTML, HOME_CURL_JS, CURL_CSS, HOME_TRUST_0670, HOME_TRUST_BEFORE_0670, HOME_STACK_0670 } from "../../worker/src/home.js";
 import { DOCS_TRYIT_PREFILL } from "../../worker/src/tryit.js";
 export function as0598(key, body) {
   if (process.env.SNAP_KEEP_0600 === "1" || typeof body !== "string") return body;
   if (/^GET https:\/\/402xagent\.com\/home\.js \[/.test(key)) return body.replace(HOME_CURL_JS, "").replace(" syncCurl(); input.focus();", " input.focus();");
   if (/^GET https:\/\/402xagent\.com\/ \[html\]$/.test(key)) return body.replace(HOME_CURL_HTML, "").replace(CURL_CSS, "")
     .replace("<strong>Check any x402 URL</strong>", "<strong>Try it: free check</strong>")
-    .replace(/(<input id="hc-url"[^>]*) value=""/, `$1 value="${DOCS_TRYIT_PREFILL}"`);
+    .replace(/(<input id="hc-url"[^>]*) value=""/, `$1 value="${DOCS_TRYIT_PREFILL}"`)
+    .split(HOME_TRUST_0670).join(HOME_TRUST_BEFORE_0670)
+    .split(HOME_STACK_0670).join("");
   return body;
 }
 // 0.61.0: the X handle (@402xAgent) adds two twitter: meta lines and one footer link to the HTML pages. Unless
@@ -97,6 +99,8 @@ export const p2mEnv0630 = () => (process.env.SNAP_KEEP_0630 === "1" ? {} : { P2M
 // SNAP_KEEP_XPI=1 the snapshots run with OPENAPI_XPI=off, so older fixtures still prove every other byte is unchanged;
 // tests/worker_test.mjs checks the annotations themselves.
 export const xpiEnv = () => (process.env.SNAP_KEEP_XPI === "1" ? {} : { OPENAPI_XPI: "off" });
+// 0.67.0: seller-badge lines in llms.txt and the two OpenAPI paths. Off in snapshots so older fixtures stay byte-identical.
+export const sellerBadgeEnv = () => (process.env.SNAP_KEEP_0670 === "1" ? {} : { SELLER_BADGE: "off" });
 export const guardEnv0620 = () => (process.env.SNAP_KEEP_0620 === "1" ? {} : { RECEIPT_GUARD: "off" });
 // 0.66.2: by_source on the skips summary, days_observed / first_seen / last_checked on history, and the docs
 // sentences that name them. Unless SNAP_KEEP_0662=1 those additions are taken back out so older fixtures still match;
@@ -156,7 +160,7 @@ export async function snapshot(workerPath, onResponse = null) { // 0.58.9: optio
   const worker = mod.default, VERSION = lib.VERSION;
   const norm = (s) => s.split(VERSION).join("<VERSION>");
   const env = () => ({ DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv() });
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv(), ...sellerBadgeEnv() });
   const out = {};
   const run = async (key, req) => {
     const res = await worker.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
@@ -192,7 +196,7 @@ export async function snapshotExtra(workerPath) {
   const worker = mod.default, VERSION = lib.VERSION;
   const norm = (s) => s.split(VERSION).join("<VERSION>");
   const env = () => ({ DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv() });
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv(), ...sellerBadgeEnv() });
   const out = {};
   const run = async (key, req) => {
     const res = await worker.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
@@ -218,7 +222,7 @@ export async function snapshotHomeBody(workerPath) {
   const mod = await import(pathToFileURL(resolve(workerPath)).href);
   const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
   const env = { DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv() };
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv(), ...sellerBadgeEnv() };
   const res = await mod.default.fetch(new Request("https://402xagent.com/", { headers: { accept: "text/html,application/xhtml+xml,*/*;q=0.8", "user-agent": "Mozilla/5.0", "cf-connecting-ip": "203.0.113.9" } }), env, { waitUntil() {}, passThroughOnException() {} });
   return as0598("GET https://402xagent.com/ [html]", strip0620("GET https://402xagent.com/ [html]", await res.text())).split(lib.VERSION).join("<VERSION>");
 }
@@ -231,7 +235,7 @@ export async function snapshot0583(workerPath) {
   const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
   const norm = (x) => x.split(lib.VERSION).join("<VERSION>");
   const env = { DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv() };
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv(), ...sellerBadgeEnv() };
   const HTML = { accept: "text/html,application/xhtml+xml,*/*;q=0.8", "user-agent": "Mozilla/5.0", "cf-connecting-ip": "203.0.113.9" };
   for (const h of HOSTS) for (const [an, a] of [...Object.entries(ACCEPTS), ["html", null]]) {
     const [accept, ua] = a ? a.split("|") : [null, null];
@@ -290,7 +294,7 @@ export async function snapshotReceipts(workerPath) {
   const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
   const norm = (x) => x.split(lib.VERSION).join("<VERSION>");
   const env = () => ({ DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv(), RECEIPTS_DB: fakeReceiptsD1(), ...guardEnv0620(), ...p2mEnv0630() });
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv(), ...sellerBadgeEnv(), RECEIPTS_DB: fakeReceiptsD1(), ...guardEnv0620(), ...p2mEnv0630() });
   const out = {};
   for (const h of HOSTS) for (const p of RECEIPT_GETS) for (const [an, a] of Object.entries(RECEIPT_ACCEPTS)) {
     const [accept, ua] = a ? a.split("|") : [null, null];
@@ -329,7 +333,7 @@ export async function snapshotSkips(workerPath) {
   const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
   const norm = (x) => x.split(lib.VERSION).join("<VERSION>");
   const env = () => ({ DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv(), TERMS_MAX_AGE_HOURS: "168", RECEIPTS_DB: fakeSkipsD1() });
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv(), ...sellerBadgeEnv(), TERMS_MAX_AGE_HOURS: "168", RECEIPTS_DB: fakeSkipsD1() });
   const out = {};
   for (const h of HOSTS) for (const p of SKIPS_GETS) for (const [an, a] of Object.entries(RECEIPT_ACCEPTS)) {
     const [accept, ua] = a ? a.split("|") : [null, null];
@@ -345,7 +349,7 @@ export async function snapshotSkips(workerPath) {
 export async function skipsBody(workerPath, url, accept) {
   const mod = await import(pathToFileURL(resolve(workerPath)).href);
   const env = { DATA_BASE_URL: BASE, CLIENT_SALT: "snap-salt", SELF_CLIENTS: "withgrokbot", MULTIPROBE_GAP_MS: "0", FREE_PER_DAY: "5", PRICE_ATOMIC: "20000",
-    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv(), TERMS_MAX_AGE_HOURS: "168", RECEIPTS_DB: fakeSkipsD1() };
+    PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674", ENDPOINT_REPORT: "1", WATCHTOWER: "1", EXPLAIN_LINE: "1", BULK_REPORT: "1", FEED: "observe", DELIVERY_CHECK: "1", WEEK_EPOCH: "2026-10-01", ...guardEnv0620(), ...p2mEnv0630(), ...xpiEnv(), ...sellerBadgeEnv(), TERMS_MAX_AGE_HOURS: "168", RECEIPTS_DB: fakeSkipsD1() };
   const res = await mod.default.fetch(new Request(url, { headers: { "cf-connecting-ip": "203.0.113.9", "user-agent": "Mozilla/5.0", ...(accept ? { accept } : {}) } }), env, { waitUntil() {}, passThroughOnException() {} });
   return { status: res.status, headers: Object.fromEntries(res.headers.entries()), body: await res.text() };
 }
