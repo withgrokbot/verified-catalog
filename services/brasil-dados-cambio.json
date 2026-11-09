@@ -35,11 +35,11 @@
   },
   "paid_receipts": 10,
   "latest": {
-    "checked_at": "2026-11-08T18:48:46Z",
+    "checked_at": "2026-11-09T23:25:46Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 136,
+    "latency_ms": 127,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.002",
@@ -51,17 +51,17 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261108T184845Z/brasil-dados-cambio.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261108T184845Z/brasil-dados-cambio.json"
+    "raw_log": "results/raw/20261109T232545Z/brasil-dados-cambio.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261109T232545Z/brasil-dados-cambio.json"
   },
   "history_summary": {
-    "checks": 52,
-    "reachable": 52,
-    "x402_challenge_ok": 52,
+    "checks": 53,
+    "reachable": 53,
+    "x402_challenge_ok": 53,
     "paid_checks": 10,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-11-08T18:48:46Z",
-    "days_observed": 40,
+    "last_checked": "2026-11-09T23:25:46Z",
+    "days_observed": 41,
     "first_seen": "2026-09-30T01:01:51Z"
   }
 }
