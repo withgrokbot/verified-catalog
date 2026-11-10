@@ -111,7 +111,7 @@ test("syntax edge cases, including IDNA and domain literals", () => {
   ok("User@Bücher.example", "user@bücher.example", "xn--bcher-kva.example");
   ok("user@[192.0.2.1]", "user@[192.0.2.1]", "[192.0.2.1]");
   ok("user@[2001:db8::1]", "user@[2001:db8::1]", "[2001:db8::1]");
-  for (const s of ["", "   ", "nouser", "@example.com", "user@", "user@@example.com", ".user@example.com", "user.@example.com", "us..er@example.com", "user@.example.com", "user@gmail..com", "user@-example.com", "user@gmail-.com", "user name@example.com", "üser@example.com", "a".repeat(65) + "@example.com", "user@" + "a".repeat(64) + ".com", "user@gmail.c\\om", "<user@example.com>"]) bad(s);
+  for (const s of ["", "   ", "nouser", "@example.com", "user@", "user@@example.com", ".user@example.com", "user.@example.com", "us..er@example.com", "user@.example.com", "user@example..com", "user@-example.com", "user@example-.com", "user name@example.com", "üser@example.com", "a".repeat(65) + "@example.com", "user@" + "a".repeat(64) + ".com", "user@example.c\\om", "<user@example.com>"]) bad(s);
   assert.equal(E.parseEmail(123).ok, false);
 });
 
