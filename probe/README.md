@@ -1,11 +1,13 @@
 # SMTP probe
 
+Retired. No host is deployed. The service in this directory stays so it can be redeployed later. `EMAIL` stays unset. Turning it on needs a provider with outbound TCP port 25 open, then `EMAIL_SMTP_URL` and `EMAIL_SMTP_SECRET`.
+
 Small Node service for one Ubuntu VPS. It accepts the signed request the worker builds (`EMAIL_SMTP_URL` + `EMAIL_SMTP_SECRET`) and checks one recipient over SMTP. It does not send a message body.
 
-This tree does not install the service, open firewall ports, change DNS, or deploy the worker. Those steps run on the VPS, by hand, after review.
+This tree does not install the service, open firewall ports, change DNS, or deploy the worker. Those steps run on a VPS, by hand, after a host with outbound port 25 exists.
 
-- Hostname: `probe.402xagent.com`
-- Address: `108.61.195.175`
+- Hostname: none deployed. Examples below use `probe.example.com`.
+- Address: none.
 - DNS: [`docs/probe-dns.md`](../docs/probe-dns.md)
 
 ## What a request does
@@ -17,11 +19,13 @@ For each address:
 1. MX lookup. A null MX, a missing MX, or a private address returns `unknown` and opens no socket.
 2. Gmail, Outlook, and Yahoo MX names return `unknown` with `provider_skip` and open no socket.
 3. Otherwise connect to port 25 of a public address of the lowest-preference MX and send only:
-   - `EHLO probe.402xagent.com`
-   - `MAIL FROM:<probe@402xagent.com>`
+   - `EHLO probe.example.com`
+   - `MAIL FROM:<probe@example.com>`
    - `RCPT TO:<the address>`
    - if that reply is 250, `RCPT TO:<no-such-random@the domain>` to detect a catch-all
    - `QUIT`
+
+`probe.example.com` and `probe@example.com` are placeholders. `src/smtp.js` holds the EHLO host and MAIL FROM the process sends. Set both to the new host before a redeploy.
 
 A 250 followed by a rejecting random recipient is `smtp: "pass"`, `catch_all: false`. A 250 on the random recipient is a catch-all (`smtp: "unknown"`). Any 4xx is `unknown` (`greylist`) and that MX backs off. A 5xx on the real recipient is `smtp: "fail"`. A 5xx on `MAIL FROM` is `unknown` (`sender_rejected`), because that does not describe the recipient.
 
@@ -35,7 +39,7 @@ Provider skips and rejected signatures do not use the daily cap.
 
 ## Install
 
-Requirements: Ubuntu, Node 22, outbound TCP 25, and the DNS records in `docs/probe-dns.md`. Many VPS providers block outbound 25 until support enables it. Confirm that before the first probe.
+Requirements: Ubuntu, Node 22, and outbound TCP 25. Many VPS providers block outbound 25 until support enables it. Confirm that before the first probe. No host is deployed.
 
 ```sh
 sudo useradd --system --home /opt/probe --shell /usr/sbin/nologin probe
@@ -67,7 +71,7 @@ Firewall (incoming 22, 80, 443; outgoing 25, 53, 80, 123, 443; inbound 25 denied
 PROBE_APPLY_UFW=1 sudo sh ufw-probe.sh
 ```
 
-The worker variable, set only when the feature is turned on, is `EMAIL_SMTP_URL=https://probe.402xagent.com/v1`. The secret stays in `wrangler secret put`, not in `wrangler.toml`.
+The worker variable, set only when the feature is turned on, is `EMAIL_SMTP_URL=https://probe.example.com/v1`. The secret stays in `wrangler secret put`, not in `wrangler.toml`.
 
 ## Warm-up
 
@@ -83,17 +87,17 @@ Change the value in `/etc/probe/probe.env` and `sudo systemctl restart probe`. A
 
 ## Blocklist checks
 
-Run these before the first probe and before each step up. Do not raise the cap while any list answers.
+Run these before the first probe and before each step up. Do not raise the cap while any list answers. Replace the placeholders with the deployed host. There is no deployed address now.
 
 ```sh
-dig +short A probe.402xagent.com
-dig +short -x 108.61.195.175
-dig +short TXT probe.402xagent.com
-dig +short 175.195.61.108.zen.spamhaus.org
-dig +short 175.195.61.108.b.barracudacentral.org
+dig +short A probe.example.com
+dig +short -x <probe-ipv4>
+dig +short TXT probe.example.com
+dig +short <reversed-ipv4>.zen.spamhaus.org
+dig +short <reversed-ipv4>.b.barracudacentral.org
 ```
 
-The A answer is `108.61.195.175`. The PTR answer is `probe.402xagent.com`. The TXT answer is `v=spf1 ip4:108.61.195.175 -all`. An empty answer from Spamhaus ZEN and Barracuda means those lists have no hit. Also look up the address at the Spamhaus and MultiRBL query pages. If either list answers, leave the cap where it is and fix the listing before sending more probes.
+The A answer is the address of the deployed host. The PTR answer is the probe hostname. The TXT answer is `v=spf1 ip4:<probe-ipv4> -all`. An empty answer from Spamhaus ZEN and Barracuda means those lists have no hit. Also look up the address at the Spamhaus and MultiRBL query pages. If either list answers, leave the cap where it is and fix the listing before sending more probes.
 
 ## Tests
 

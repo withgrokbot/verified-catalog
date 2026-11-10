@@ -52,7 +52,7 @@ Each address costs one unit. A batch that does not fit in the remaining quota is
 
 The probe looks up MX and, unless the MX is Gmail, Outlook, or Yahoo, connects on port 25. It sends EHLO, MAIL FROM, RCPT TO, and QUIT. It never sends a message body. A 4xx is `unknown`. Gmail, Outlook, and Yahoo return `unknown` without a connection. `deliverable` requires code 250 and `catch_all: false`.
 
-DNS for the host is `docs/probe-dns.md`. The service is not installed by this repo.
+The probe host is retired. No host is deployed, and `docs/probe-dns.md` has no IP. Turning the probe on needs a provider with outbound port 25 open. The service is not installed by this repo.
 
 ## Billing
 

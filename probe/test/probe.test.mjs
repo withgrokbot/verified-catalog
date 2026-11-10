@@ -85,8 +85,8 @@ test("dialogue sends EHLO, MAIL FROM, RCPT, a random RCPT, and QUIT, and never a
   session.write = async (line) => { sent.push(line.replace(/\r\n$/, "")); };
   const r = await smtpDialogue({ local: "user", domain: "example.test" }, session, deps());
   assert.deepEqual(sent, [
-    "EHLO probe.402xagent.com",
-    "MAIL FROM:<probe@402xagent.com>",
+    "EHLO " + EHLO_HOST,
+    "MAIL FROM:<" + MAIL_FROM + ">",
     "RCPT TO:<user@example.test>",
     "RCPT TO:<no-such-aaaaaaaaaaaaaaaa@example.test>",
     "QUIT",
@@ -258,10 +258,11 @@ test("HMAC, timestamp and replay match the worker request, and a bad signature d
   const d = deps({
     dns: { async resolveMx() { mx += 1; return [{ priority: 1, exchange: "gmail-smtp-in.l.google.com" }]; }, async resolve4() { throw new Error("resolved"); }, async resolve6() { return []; } },
   });
-  const built = await buildSmtpProbeRequest({ EMAIL_SMTP_URL: "https://probe.402xagent.com/v1", EMAIL_SMTP_SECRET: SECRET }, "user@gmail.com", NOW);
+  const probeUrl = "https://probe.example.com/v1";
+  const built = await buildSmtpProbeRequest({ EMAIL_SMTP_URL: probeUrl, EMAIL_SMTP_SECRET: SECRET }, "user@gmail.com", NOW);
   assert.equal(JSON.parse(built.body).ts, Math.floor(NOW.getTime() / 1000));
   assert.equal(built.headers["x-email-probe-signature"], "v1=" + hmacHex(SECRET, built.body));
-  const call = (body, sig, when = NOW) => handleProbe(new Request("https://probe.402xagent.com/v1", {
+  const call = (body, sig, when = NOW) => handleProbe(new Request(probeUrl, {
     method: "POST", headers: { "content-type": "application/json", "x-email-probe-signature": sig || ("v1=" + hmacHex(SECRET, body)) }, body,
   }), { ...d, now: () => when, replay: d.replay });
   const ok = await call(built.body, built.headers["x-email-probe-signature"]);
@@ -306,18 +307,25 @@ test("health check and a refused start when the secret is missing or short", asy
   } finally { await new Promise((resolve) => server.close(resolve)); }
 });
 
-test("install files name the host, the address, SPF, PTR, the warm-up and the firewall, and hold no secret", async () => {
+test("install files keep the warm-up and the firewall, record no deployed host, and hold no secret", async () => {
   const dnsDoc = readFileSync(join(REPO, "docs", "probe-dns.md"), "utf8");
   const readme = readFileSync(join(ROOT, "README.md"), "utf8");
   const unit = readFileSync(join(ROOT, "probe.service"), "utf8");
   const caddy = readFileSync(join(ROOT, "Caddyfile"), "utf8");
   const ufw = readFileSync(join(ROOT, "ufw-probe.sh"), "utf8");
   const example = readFileSync(join(ROOT, "probe.env.example"), "utf8");
-  assert.match(dnsDoc, /probe\.402xagent\.com/);
-  assert.match(dnsDoc, /108\.61\.195\.175/);
-  assert.match(dnsDoc, /v=spf1 ip4:108\.61\.195\.175 -all/);
-  assert.match(dnsDoc, /PTR/);
-  assert.match(dnsDoc, /Vultr/);
+  const strayIp = (text) => (text.match(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g) || []).filter((ip) => ip !== "127.0.0.1");
+  assert.match(dnsDoc, /retired/i);
+  assert.match(dnsDoc, /no IP/i);
+  assert.match(dnsDoc, /outbound TCP port 25/);
+  assert.deepEqual(strayIp(dnsDoc), []);
+  assert.match(readme, /Retired/);
+  assert.match(readme, /No host is deployed/);
+  assert.match(readme, /outbound TCP port 25/);
+  assert.match(readme, /probe\.example\.com/);
+  assert.match(readme, /<probe-ipv4>/);
+  assert.match(readme, /<reversed-ipv4>\.zen\.spamhaus\.org/);
+  assert.deepEqual(strayIp(readme), []);
   assert.match(readme, /300/);
   assert.match(readme, /1000/);
   assert.match(readme, /3000/);
@@ -327,8 +335,10 @@ test("install files name the host, the address, SPF, PTR, the warm-up and the fi
   assert.match(readme, /zen\.spamhaus\.org/);
   assert.match(readme, /barracudacentral/);
   assert.match(unit, /EnvironmentFile=\/etc\/probe\/probe\.env/);
-  assert.match(caddy, /probe\.402xagent\.com/);
+  assert.match(caddy, /probe\.example\.com/);
   assert.match(caddy, /127\.0\.0\.1:8787/);
+  assert.deepEqual(strayIp(caddy), []);
+  for (const text of [dnsDoc, readme, caddy]) assert.doesNotMatch(text, /402xagent/);
   assert.match(ufw, /allow out 25\/tcp/);
   assert.match(ufw, /deny in 25\/tcp/);
   assert.match(example, /^PROBE_SECRET=$/m);

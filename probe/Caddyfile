@@ -1,4 +1,4 @@
-# TLS for probe.402xagent.com. Caddy obtains the certificate. The Node process stays on localhost.
-probe.402xagent.com {
+# TLS placeholder. No probe host is deployed. Replace probe.example.com when one is. Caddy obtains the certificate. The Node process stays on localhost.
+probe.example.com {
 	reverse_proxy 127.0.0.1:8787
 }
