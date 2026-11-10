@@ -111,7 +111,7 @@ test("syntax edge cases, including IDNA and domain literals", () => {
   ok("User@Bücher.example", "user@bücher.example", "xn--bcher-kva.example");
   ok("user@[192.0.2.1]", "user@[192.0.2.1]", "[192.0.2.1]");
   ok("user@[2001:db8::1]", "user@[2001:db8::1]", "[2001:db8::1]");
-  for (const s of ["", "   ", "nouser", "@gmail.com", "user@", "user@@gmail.com", ".user@gmail.com", "user.@gmail.com", "us..er@gmail.com", "user@.gmail.com", "user@gmail..com", "user@-gmail.com", "user@gmail-.com", "user name@gmail.com", "üser@gmail.com", "a".repeat(65) + "@gmail.com", "user@" + "a".repeat(64) + ".com", "user@gmail.c\\om", "<user@gmail.com>"]) bad(s);
+  for (const s of ["", "   ", "nouser", "@example.com", "user@", "user@@example.com", ".user@example.com", "user.@example.com", "us..er@example.com", "user@.example.com", "user@gmail..com", "user@-example.com", "user@gmail-.com", "user name@example.com", "üser@example.com", "a".repeat(65) + "@example.com", "user@" + "a".repeat(64) + ".com", "user@gmail.c\\om", "<user@example.com>"]) bad(s);
   assert.equal(E.parseEmail(123).ok, false);
 });
 
@@ -233,7 +233,7 @@ test("quota is separate from render usage; batch caps at 100 and is all-or-nothi
   assert.equal(results.length, 2);
   assert.equal(results[0].status, "unknown"); assert.equal(results[1].status, "undeliverable");
   assert.ok(results.every((r) => r.status !== "deliverable" && r.checks.smtp === "not_checked"));
-  assert.equal((await post(e2, E.EMAIL_BATCH_PATH, { emails: Array.from({ length: 101 }, (_, i) => `u${i}@gmail.com`) })).status, 400);
+  assert.equal((await post(e2, E.EMAIL_BATCH_PATH, { emails: Array.from({ length: 101 }, (_, i) => `u${i}@example.com`) })).status, 400);
   const bad = await (await post(e2, E.EMAIL_BATCH_PATH, { emails: "a@gmail.com" })).json();
   assert.equal(bad.reason, "invalid_body");
   assert.equal((await post(e, E.EMAIL_VALIDATE_PATH, {})).status, 400);
