@@ -22,11 +22,11 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-08-31 01:32:18.388 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-11-10 18:49:42 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>paid</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-11-10 20:47:53 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
 <tr><th scope="row">Reachable</th><td>no</td></tr>
 <tr><th scope="row">HTTP status</th><td>none</td></tr>
-<tr><th scope="row">Latency</th><td>55 ms</td></tr>
+<tr><th scope="row">Latency</th><td>10018 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>no</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.003 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>n/a</td></tr>
@@ -34,11 +34,10 @@
 <tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
 <tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
 <tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Error</th><td>URLError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1029)</td></tr>
-<tr><th scope="row">Payment not made because</th><td>no valid x402 challenge</td></tr>
+<tr><th scope="row">Error</th><td>URLError: [Errno -3] Temporary failure in name resolution</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: none seen.</p>
-<p>Evidence: <a href="../results/raw/20261110T184912Z/stride20k-wiki-summary.json">raw log for this check</a>. Machine-readable: <a href="stride20k-wiki-summary.json">stride20k-wiki-summary.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261110T204743Z/stride20k-wiki-summary.json">raw log for this check</a>. Machine-readable: <a href="stride20k-wiki-summary.json">stride20k-wiki-summary.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: Alan Turing. Passes if: Wikidata Q7251 and canonical https://en.wikipedia.org/wiki/Alan_Turing.</p>
 <h2>Paid calls</h2>
@@ -50,10 +49,11 @@
 <tr><td>2026-09-30 17:45:44 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>no pass/fail (this paid call was made before the known-answer tests existed)</td><td><a href="https://basescan.org/tx/0x7e79f7d7cc6a990b0c749d0daa980d374faf84e0a3c8b59af25c4e143aa059c5">0x7e79f7d7...</a></td></tr>
 </tbody></table></div>
 <h2>Recent checks</h2>
-<p class="meta">Days observed: 42 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-10 18:49:42 UTC. Days with no stored check are not counted.</p>
+<p class="meta">Days observed: 42 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-10 20:47:53 UTC. Days with no stored check are not counted.</p>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-11-10 20:47:53 UTC</td><td>dry-run</td><td>no</td><td>None</td><td>10018 ms</td><td>n/a</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261110T204743Z/stride20k-wiki-summary.json">raw log</a></td></tr>
 <tr><td>2026-11-10 18:49:42 UTC</td><td>paid</td><td>no</td><td>None</td><td>55 ms</td><td>n/a</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261110T184912Z/stride20k-wiki-summary.json">raw log</a></td></tr>
 <tr><td>2026-11-09 23:26:06 UTC</td><td>dry-run</td><td>no</td><td>None</td><td>19844 ms</td><td>n/a</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261109T232545Z/stride20k-wiki-summary.json">raw log</a></td></tr>
 <tr><td>2026-11-08 18:48:56 UTC</td><td>dry-run</td><td>no</td><td>None</td><td>10014 ms</td><td>n/a</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261108T184845Z/stride20k-wiki-summary.json">raw log</a></td></tr>
@@ -63,7 +63,6 @@
 <tr><td>2026-11-04 20:48:27 UTC</td><td>dry-run</td><td>no</td><td>None</td><td>10013 ms</td><td>n/a</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261104T204816Z/stride20k-wiki-summary.json">raw log</a></td></tr>
 <tr><td>2026-11-03 20:30:02 UTC</td><td>dry-run</td><td>no</td><td>None</td><td>10023 ms</td><td>n/a</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261103T202951Z/stride20k-wiki-summary.json">raw log</a></td></tr>
 <tr><td>2026-11-03 18:50:01 UTC</td><td>paid</td><td>no</td><td>None</td><td>70 ms</td><td>n/a</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261103T184933Z/stride20k-wiki-summary.json">raw log</a></td></tr>
-<tr><td>2026-11-02 22:45:58 UTC</td><td>dry-run</td><td>no</td><td>None</td><td>10014 ms</td><td>n/a</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261102T224547Z/stride20k-wiki-summary.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>
