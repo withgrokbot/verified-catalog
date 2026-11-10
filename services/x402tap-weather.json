@@ -38,11 +38,11 @@
   },
   "paid_receipts": 4,
   "latest": {
-    "checked_at": "2026-11-09T23:25:46Z",
-    "mode": "dry-run",
+    "checked_at": "2026-11-10T18:49:37Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 245,
+    "latency_ms": 537,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001",
@@ -51,20 +51,20 @@
     "paid": false,
     "charged_price_usd": null,
     "delivered_valid": null,
-    "payment_refused_reason": null,
+    "payment_refused_reason": "price in the 402 challenge $0.01 does not match the listed price $0.001; paid checks only pay the exact listed price",
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261109T232545Z/x402tap-weather.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261109T232545Z/x402tap-weather.json"
+    "raw_log": "results/raw/20261110T184912Z/x402tap-weather.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261110T184912Z/x402tap-weather.json"
   },
   "history_summary": {
-    "checks": 52,
-    "reachable": 52,
-    "x402_challenge_ok": 52,
+    "checks": 53,
+    "reachable": 53,
+    "x402_challenge_ok": 53,
     "paid_checks": 4,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-11-09T23:25:46Z",
-    "days_observed": 41,
+    "last_checked": "2026-11-10T18:49:37Z",
+    "days_observed": 42,
     "first_seen": "2026-09-30T01:01:51Z"
   }
 }

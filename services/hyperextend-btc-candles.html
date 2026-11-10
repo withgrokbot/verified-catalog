@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-30 (listing last updated 2026-09-30 12:18:00 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-11-09 23:25:47 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-11-10 18:49:51 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>506 ms</td></tr>
+<tr><th scope="row">Latency</th><td>936 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.002 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.002</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.002</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>no pass/fail (no known-answer test for this service)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.002, exact on hyperliquid:mainnet: ? units of USDC:0x6d1e7, batch-settlement on eip155:8453: $0.002.</p>
-<p>Evidence: <a href="../results/raw/20261109T232545Z/hyperextend-btc-candles.json">raw log for this check</a>. Machine-readable: <a href="hyperextend-btc-candles.json">hyperextend-btc-candles.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261110T184912Z/hyperextend-btc-candles.json">raw log for this check</a>. Machine-readable: <a href="hyperextend-btc-candles.json">hyperextend-btc-candles.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>No known-answer test for this service.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-11-10 18:49:51 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x6add7ed60303263eff85b0d76e9bfefedfefa798f8ffc327d51f650499114f0d">0x6add7ed6...</a></td></tr>
 <tr><td>2026-11-03 18:50:11 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x26e2bc3014d26ef4e40c8e4149b817e59fc38734bd69d130f411111deb79343c">0x26e2bc30...</a></td></tr>
 <tr><td>2026-10-27 17:52:50 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x34a37165235e333cc0cb8f5edeaf592b13956ee785f825aa7f3abf8301b0c39a">0x34a37165...</a></td></tr>
 <tr><td>2026-10-23 17:51:52 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0xfdc18a291311df9ebcd70516bfb878dabc6d5f012ff9feca57ff953d7ea6daf6">0xfdc18a29...</a></td></tr>
@@ -52,10 +53,11 @@
 <tr><td>2026-10-06 17:58:49 UTC</td><td>$0.002</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x894b7b501c510cfe28232c09773199d5a72ce801a115703d17b816e46d887b84">0x894b7b50...</a></td></tr>
 </tbody></table></div>
 <h2>Recent checks</h2>
-<p class="meta">Days observed: 35 distinct UTC dates in the stored checks. First seen 2026-10-06 is the earliest of those dates, already included in the count. Last checked: 2026-11-09 23:25:47 UTC. Days with no stored check are not counted.</p>
+<p class="meta">Days observed: 36 distinct UTC dates in the stored checks. First seen 2026-10-06 is the earliest of those dates, already included in the count. Last checked: 2026-11-10 18:49:51 UTC. Days with no stored check are not counted.</p>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-11-10 18:49:51 UTC</td><td>paid</td><td>yes</td><td>402</td><td>936 ms</td><td>$0.002</td><td>yes</td><td><a href="../results/raw/20261110T184912Z/hyperextend-btc-candles.json">raw log</a></td></tr>
 <tr><td>2026-11-09 23:25:47 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>506 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261109T232545Z/hyperextend-btc-candles.json">raw log</a></td></tr>
 <tr><td>2026-11-08 18:48:47 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>427 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261108T184845Z/hyperextend-btc-candles.json">raw log</a></td></tr>
 <tr><td>2026-11-07 18:44:08 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>436 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261107T184407Z/hyperextend-btc-candles.json">raw log</a></td></tr>
@@ -65,7 +67,6 @@
 <tr><td>2026-11-03 20:29:53 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>485 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261103T202951Z/hyperextend-btc-candles.json">raw log</a></td></tr>
 <tr><td>2026-11-03 18:50:11 UTC</td><td>paid</td><td>yes</td><td>402</td><td>709 ms</td><td>$0.002</td><td>yes</td><td><a href="../results/raw/20261103T184933Z/hyperextend-btc-candles.json">raw log</a></td></tr>
 <tr><td>2026-11-02 22:45:48 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>526 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261102T224547Z/hyperextend-btc-candles.json">raw log</a></td></tr>
-<tr><td>2026-11-01 18:53:56 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>433 ms</td><td>$0.002</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261101T185354Z/hyperextend-btc-candles.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

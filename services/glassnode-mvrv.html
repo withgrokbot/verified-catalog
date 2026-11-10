@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 11:00:46.45 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-11-09 23:25:46 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-11-10 18:49:33 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>599 ms</td></tr>
+<tr><th scope="row">Latency</th><td>296 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.05 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.05</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.05</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>passed (newest point 42.8 h old, value 1.395)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.05.</p>
-<p>Evidence: <a href="../results/raw/20261109T232545Z/glassnode-mvrv.json">raw log for this check</a>. Machine-readable: <a href="glassnode-mvrv.json">glassnode-mvrv.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261110T184912Z/glassnode-mvrv.json">raw log for this check</a>. Machine-readable: <a href="glassnode-mvrv.json">glassnode-mvrv.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: a=BTC, i=24h. Passes if: newest point at most 48 h old and value between 0.3 and 6 (sanity check only, the weakest test).</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-11-10 18:49:33 UTC</td><td>$0.05</td><td>yes</td><td>200</td><td>passed (newest point 42.8 h old, value 1.395)</td><td><a href="https://basescan.org/tx/0xebc829da9e6cc3ef6148c08d4754803a3a6821d612b129362daccce870268e35">0xebc829da...</a></td></tr>
 <tr><td>2026-11-03 18:49:53 UTC</td><td>$0.05</td><td>yes</td><td>200</td><td>passed (newest point 42.8 h old, value 1.419)</td><td><a href="https://basescan.org/tx/0x05acdc6bbe6e62328c51f8c8fe842691c6ddadb808c9a2679ab835635bc5e4f5">0x05acdc6b...</a></td></tr>
 <tr><td>2026-10-27 17:52:32 UTC</td><td>$0.05</td><td>yes</td><td>200</td><td>passed (newest point 41.9 h old, value 1.479)</td><td><a href="https://basescan.org/tx/0xd3f30d67b34a9efaa5ea4c233e76caf171f081b74eca5f1b8d8d1a6d28e70219">0xd3f30d67...</a></td></tr>
 <tr><td>2026-10-23 17:51:39 UTC</td><td>$0.05</td><td>yes</td><td>200</td><td>passed (newest point 41.9 h old, value 1.504)</td><td><a href="https://basescan.org/tx/0x029015a447ff7887d4f0907e95b99e1f926fe710a1df730634e49bdb59131a05">0x029015a4...</a></td></tr>
@@ -52,13 +53,13 @@
 <tr><td>2026-10-06 17:58:32 UTC</td><td>$0.05</td><td>yes</td><td>200</td><td>passed (newest point 42.0 h old, value 1.595)</td><td><a href="https://basescan.org/tx/0xcf404c6d4c08a45294383d5e3d866c220cabecac0b629e05d2ac47aa253e3290">0xcf404c6d...</a></td></tr>
 <tr><td>2026-10-02 18:48:59 UTC</td><td>$0.05</td><td>yes</td><td>200</td><td>passed (newest point 42.8 h old, value 1.581)</td><td><a href="https://basescan.org/tx/0x4d47999f37d0646d8085b3541c567761eea82fbc8ee4e35a423fb55d6c80c710">0x4d47999f...</a></td></tr>
 <tr><td>2026-09-30 20:54:25 UTC</td><td>$0.05</td><td>yes</td><td>200</td><td>passed (newest point 44.9 h old, value 1.560)</td><td><a href="https://basescan.org/tx/0x8d0eeec5565ebd390d1aee8713a40dc976cca6bf1fc1e2ff8e819e8a207fe6e2">0x8d0eeec5...</a></td></tr>
-<tr><td>2026-09-30 17:45:35 UTC</td><td>$0.05</td><td>yes</td><td>200</td><td>no pass/fail (this paid call was made before the known-answer tests existed)</td><td><a href="https://basescan.org/tx/0x549363609132a5dabf235427aae34441d06761792001b4d5e990730cd470be83">0x54936360...</a></td></tr>
 </tbody></table></div>
 <h2>Recent checks</h2>
-<p class="meta">Days observed: 41 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-09 23:25:46 UTC. Days with no stored check are not counted.</p>
+<p class="meta">Days observed: 42 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-10 18:49:33 UTC. Days with no stored check are not counted.</p>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-11-10 18:49:33 UTC</td><td>paid</td><td>yes</td><td>402</td><td>296 ms</td><td>$0.05</td><td>yes</td><td><a href="../results/raw/20261110T184912Z/glassnode-mvrv.json">raw log</a></td></tr>
 <tr><td>2026-11-09 23:25:46 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>599 ms</td><td>$0.05</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261109T232545Z/glassnode-mvrv.json">raw log</a></td></tr>
 <tr><td>2026-11-08 18:48:46 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>362 ms</td><td>$0.05</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261108T184845Z/glassnode-mvrv.json">raw log</a></td></tr>
 <tr><td>2026-11-07 18:44:08 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>544 ms</td><td>$0.05</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261107T184407Z/glassnode-mvrv.json">raw log</a></td></tr>
@@ -68,7 +69,6 @@
 <tr><td>2026-11-03 20:29:52 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>539 ms</td><td>$0.05</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261103T202951Z/glassnode-mvrv.json">raw log</a></td></tr>
 <tr><td>2026-11-03 18:49:53 UTC</td><td>paid</td><td>yes</td><td>402</td><td>377 ms</td><td>$0.05</td><td>yes</td><td><a href="../results/raw/20261103T184933Z/glassnode-mvrv.json">raw log</a></td></tr>
 <tr><td>2026-11-02 22:45:48 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>427 ms</td><td>$0.05</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261102T224547Z/glassnode-mvrv.json">raw log</a></td></tr>
-<tr><td>2026-11-01 18:53:55 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>566 ms</td><td>$0.05</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261101T185354Z/glassnode-mvrv.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

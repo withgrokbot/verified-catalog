@@ -39,35 +39,40 @@
     "facts_only": false,
     "facts_only_reason": null
   },
-  "paid_receipts": 10,
+  "paid_receipts": 11,
   "latest": {
-    "checked_at": "2026-11-09T23:25:45Z",
-    "mode": "dry-run",
+    "checked_at": "2026-11-10T18:49:13Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 407,
+    "latency_ms": 604,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.003",
     "quoted_price_usd": "0.003",
     "price_matches_listing": true,
-    "paid": false,
-    "charged_price_usd": null,
-    "delivered_valid": null,
+    "paid": true,
+    "charged_price_usd": "0.003",
+    "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
-    "quality": null,
-    "raw_log": "results/raw/20261109T232545Z/onesource-erc20-balance.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261109T232545Z/onesource-erc20-balance.json"
+    "quality": {
+      "result": "pass",
+      "reason": "balance equals public-RPC balanceOf at block 26386410",
+      "facts_only": false,
+      "graded_at": "2026-11-10T18:49:15Z"
+    },
+    "raw_log": "results/raw/20261110T184912Z/onesource-erc20-balance.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261110T184912Z/onesource-erc20-balance.json"
   },
   "history_summary": {
-    "checks": 53,
-    "reachable": 53,
-    "x402_challenge_ok": 53,
-    "paid_checks": 10,
+    "checks": 54,
+    "reachable": 54,
+    "x402_challenge_ok": 54,
+    "paid_checks": 11,
     "first_checked": "2026-09-30T01:01:50Z",
-    "last_checked": "2026-11-09T23:25:45Z",
-    "days_observed": 41,
+    "last_checked": "2026-11-10T18:49:13Z",
+    "days_observed": 42,
     "first_seen": "2026-09-30T01:01:50Z"
   }
 }

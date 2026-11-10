@@ -1,0 +1,120 @@
+{
+  "service_id": "otto-crypto-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://x402.ottoai.services/crypto-news",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 1046,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 10 Nov 2026 18:49:18 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://x402.ottoai.services/crypto-news",
+            "description": "Importance-ranked crypto headlines with per-article source links and publish times, plus a sentiment-scored market brief. Regenerated hourly; meta carries the snapshot's age and a fresh/stale verdict.",
+            "mimeType": "application/json",
+            "serviceName": "Otto AI",
+            "tags": [
+              "crypto news",
+              "market news",
+              "sentiment analysis",
+              "breaking headlines"
+            ],
+            "iconUrl": "https://x402.ottoai.services/assets/otto-icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "assetTransferMethod": "permit2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "1000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "Hc3sdEAsCGQcpgfivywog9uwtk8gUBUZgsxdME1EJy88"
+              }
+            }
+          ]
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "1517"
+    },
+    "body_bytes": 1517,
+    "body_sha256": "9d80a7bcfd72f0e1fb781508357c0fb242a316a4e6d9882429050b6384626456",
+    "body_excerpt": "{\"error\":\"payment_required\",\"hint\":\"This is a pay-per-call x402 endpoint. The payment terms are the accepts[] array in this body -- mirrored verbatim from the base64 PAYMENT-REQUIRED response header, which remains the x402 v2 protocol contract. Pay one of them with an x402 client, then retry to receive the data.\",\"price\":\"$0.001\",\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"assetTransferMethod\":\"permit2\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"amount\":\"1000\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"payTo\":\"6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5\",\"maxTimeoutSeconds\":300,\"extra\":{\"feePayer\":\"Hc3sdEAsCGQcpgfivywog9uwtk8gUBUZgsxdME1EJy88\"}}],\"docs\":\"https://docs.useotto.xyz/getting-started/agent-quickstart\",\"contact\":{\"email\":\"[email redacted]\",\"telegram\":\"https://t.me/DeFAI_Capital\",\"twitter\":\"https://twitter.com/useOttoAI\",\"feedback\":\"POST https://x402.ottoai.services/feedback ($0.001) -- money-back guarantee on Otto-recommended services and Full Auto; feature requests welcome (email/Telegram are free).\"},\"x402Version\":2}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1752,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 10 Nov 2026 18:49:19 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0xfaf263cd375db4fca390ca0cc94b25c6ab0b4fec997b94f283d376d6d5159b3a",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "7291"
+    },
+    "body_bytes": 7291,
+    "body_sha256": "c2a51fd03d5f9701357e12210cb2ab8527ab8223bdaa89ff27d7a8a88af1c797",
+    "body_excerpt": "{\"status\":\"success\",\"data\":{\"report\":\"_Report generated 2026-11-10 18:00 UTC_\\n\\n## MARKET BRIEF\\n\\nOverview: Major Wall Street banks are reportedly committing $270 million to a new stablecoin venture alongside a hotter-than-expected US inflation print that raises the odds of a half-point Fed hike in December, weighing on crypto prices broadly.\\n\\nMarket Sentiment:\\nOverall Bull/Bear Score: 35\\n\\n---\\n\\n## KEY STORIES\\n\\n1. **Goldman Sachs, Citi among banks said to commit $270 million to stablecoin venture** - Major Wall Street banks backing a new dollar-denominated stablecoin venture signals deepening institutional adoption of stablecoins and potential disruption to existing stablecoin incumbents.\\n\\n2. **Hot US inflation raises odds of half-point Fed hike in December** - Hotter-than-expected CPI and the prospect of a 50bp hike is the dominant macro driver pressuring crypto prices across the board, including BTC, ETH and altcoins.\\n\\n3. **Visa adds Monad to stablecoin settlement network options** - Visa expanding stablecoin settlement to Monad integrates blockchain infrastructure into traditional payment rails and validates Monad's ecosystem.\\n\\n4. **Ethereum's Glamsterdam Upgrade Stalls on Gas-Change Risks to Live Contracts, Pending Audits** - Delay of a major Ethereum upgrade over smart contract breakage risks affects the network's roadmap and could weigh on ETH sentiment.\\n\\n5. **Binance Halts MEXC Transfers as FinCEN Cuts Exchange Off From US Financial System** - FinCEN action against MEXC and Binance's response is a significant regulatory enforcement development with implications for exchange access to the US financial system.\\n\\n---\\n\\n## QUICK HITS\\n\\n- Plume affiliate lands broker-dealer license to bring real U.S. assets onchain\\n- Moody's and Chainlink test cross-chain credit ratings distribution\\n- Binance Tells iPhone Users to Delete Sideloaded Apps Over iOS Exploit\\n- Crypto teams up with U.S. government to defend stock perps in legal fight\\n- Poland's lower house backs sanctions bill covering crypto freezes\\n\\nInformational only -- not investment advice.\\n\\n[Powered by $OTTO AI | @useOttoAI]\",\"headlines\":[{\"rank\":1,\"title\":\"Goldman Sachs, Citi among banks said to commit $270 million to stablecoin venture\",\"whyItMatters\":\"Major Wall Street banks backing a new dollar-denominated stablecoin venture signals deepening institutional adoption of stablecoins and potential disruption to existing stablecoin incumbents.\",\"url\":\"https://www.coindesk.com/business/2026/11/10/goldman-sachs-citi-among-banks-said-to-commit-usd270-million-to-stablecoin-venture\",\"publishedAt\":\"2026-11-10T17:32:22.000Z\",\"source\":\"Coindesk\",\"match\":\"exact\"},{\"rank\":2,\"title\":\"Hot US inflation raises odds of half-point Fed hike in December\",\"whyItMatters\":\"Hotter-than-expected CPI and the prospect of a 50bp hike is the dominant macro driver pressuring crypto prices across the board, including BTC, ETH and altcoins.\",\"url\":\"https://cointelegraph.com/news/hot-us-inflation-raises-rate-hike-crypto\",\"publishedAt\":\"2026-11-10T17:31:09.000Z\",\"source\":\"Cointelegraph\",\"match\":\"exact\"},{\"rank\":3,\"title\":\"Visa adds Monad to stablecoin settlement network options\",\"whyItMatters\":\"Visa expanding stablecoin settlement to Monad integrates blockchain infrastructure into traditional payment rails and validates Monad's ecosystem.\",\"url\":\"https://www.theblock.co/news/ecosystems/2026-11-10-visa-monad-stablecoin-settlement-network-437201\",\"publishedAt\":\"2026-11-10T14:00:02.000Z\",\"source\":\"Theblock\",\"match\":\"exact\"},{\"rank\":4,\"title\":\"Ethereum's Glamsterdam Upgrade Stalls on Gas-Change Risks to Live Contracts, Pending Audits\",\"whyItMatters\":\"Delay of a major Ethereum upgrade over smart contract breakage risks affects the network's roadmap and could weigh on ETH sentiment.\",\"url\":\"https://unchainedcrypto.com/ethereums-glamsterdam-upgrade-stalls-on-gas-change-risks-to-live-contracts-pending-audits/\",\"publishedAt\":\"2026-11-10T16:17:00.000Z\",\"source\":\"Unchainedcrypto\",\"match\":\"exact\",\"sourceTitle\":\"Ethereum's Glamsterdam Upgrade Stalls on Gas-Change Risks to Live Contract"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "10 items with source URLs; newest 1.3 h old",
+    "observed": {
+      "items": 10,
+      "items_with_url": 10,
+      "newest": "2026-11-10T17:32:22Z",
+      "newest_age_hours": 1.28
+    },
+    "expected": {},
+    "test": {
+      "input": "none",
+      "pass_if": "at least 5 items, each with a source URL; newest item under 3 h old (the listing says hourly)"
+    },
+    "graded_at": "2026-11-10T18:49:19Z"
+  },
+  "run_id": "20261110T184912Z",
+  "checked_at": "2026-11-10T18:49:18Z"
+}

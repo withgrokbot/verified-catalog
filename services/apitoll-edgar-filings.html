@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 10:09:26.068 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-11-09 23:25:45 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-11-10 18:49:24 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>542 ms</td></tr>
+<tr><th scope="row">Latency</th><td>777 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.003 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.003</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.003</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>no pass/fail (facts only: On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made.)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.003, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 3000 units of EPjFWdd5Aufq.</p>
-<p>Evidence: <a href="../results/raw/20261109T232545Z/apitoll-edgar-filings.json">raw log for this check</a>. Machine-readable: <a href="apitoll-edgar-filings.json">apitoll-edgar-filings.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261110T184912Z/apitoll-edgar-filings.json">raw log for this check</a>. Machine-readable: <a href="apitoll-edgar-filings.json">apitoll-edgar-filings.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: AAPL, form 10-K. Passes if: CIK 0000320193 and the latest 10-K filing date match SEC&#x27;s free submissions API.</p><p class="notice">Facts only (no pass/fail result is given): On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-11-10 18:49:24 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made.)</td><td><a href="https://basescan.org/tx/0x3d6019925845cd2fd6da7abceff60b8862935f0b8424c1c1f8c4f5aee837706c">0x3d601992...</a></td></tr>
 <tr><td>2026-11-03 18:49:44 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made.)</td><td><a href="https://basescan.org/tx/0x07ea0b6e959fa6495b051cadbe2fa34ca3a9662edc5c431968a2a244a927b567">0x07ea0b6e...</a></td></tr>
 <tr><td>2026-10-27 17:52:17 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made.)</td><td><a href="https://basescan.org/tx/0x2c5de58b8282f06317a69046f8647b194fa945edaf55c4a9fae2a7a519ac0e37">0x2c5de58b...</a></td></tr>
 <tr><td>2026-10-23 17:51:31 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made.)</td><td><a href="https://basescan.org/tx/0x246517355a5aff398e484bb3e864ba3f5f852ad1334f0abc4014105482a50803">0x24651735...</a></td></tr>
@@ -51,10 +52,11 @@
 <tr><td>2026-10-13 17:56:52 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the endpoint was unreachable (TLS handshake failed), so no paid call was made.)</td><td><a href="https://basescan.org/tx/0x015af4d63f514eceafc96af0b65e66247f25e196069d2a0188947be9ed7886bf">0x015af4d6...</a></td></tr>
 </tbody></table></div>
 <h2>Recent checks</h2>
-<p class="meta">Days observed: 41 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-09 23:25:45 UTC. Days with no stored check are not counted.</p>
+<p class="meta">Days observed: 42 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-10 18:49:24 UTC. Days with no stored check are not counted.</p>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-11-10 18:49:24 UTC</td><td>paid</td><td>yes</td><td>402</td><td>777 ms</td><td>$0.003</td><td>yes</td><td><a href="../results/raw/20261110T184912Z/apitoll-edgar-filings.json">raw log</a></td></tr>
 <tr><td>2026-11-09 23:25:45 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>542 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261109T232545Z/apitoll-edgar-filings.json">raw log</a></td></tr>
 <tr><td>2026-11-08 18:48:46 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>391 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261108T184845Z/apitoll-edgar-filings.json">raw log</a></td></tr>
 <tr><td>2026-11-07 18:44:07 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>508 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261107T184407Z/apitoll-edgar-filings.json">raw log</a></td></tr>
@@ -64,7 +66,6 @@
 <tr><td>2026-11-03 20:29:52 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>472 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261103T202951Z/apitoll-edgar-filings.json">raw log</a></td></tr>
 <tr><td>2026-11-03 18:49:44 UTC</td><td>paid</td><td>yes</td><td>402</td><td>800 ms</td><td>$0.003</td><td>yes</td><td><a href="../results/raw/20261103T184933Z/apitoll-edgar-filings.json">raw log</a></td></tr>
 <tr><td>2026-11-02 22:45:47 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>412 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261102T224547Z/apitoll-edgar-filings.json">raw log</a></td></tr>
-<tr><td>2026-11-01 18:53:55 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>530 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261101T185354Z/apitoll-edgar-filings.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

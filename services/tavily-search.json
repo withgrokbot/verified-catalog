@@ -39,35 +39,40 @@
     "facts_only": true,
     "facts_only_reason": "On 2026-09-30 the payment settled but the sample request was rejected (HTTP 422). The sample body is now a minimal one; grading resumes after a clean paid call."
   },
-  "paid_receipts": 10,
+  "paid_receipts": 11,
   "latest": {
-    "checked_at": "2026-11-09T23:25:47Z",
-    "mode": "dry-run",
+    "checked_at": "2026-11-10T18:49:32Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 1236,
+    "latency_ms": 1499,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.01",
     "quoted_price_usd": "0.01",
     "price_matches_listing": true,
-    "paid": false,
+    "paid": true,
     "charged_price_usd": null,
-    "delivered_valid": null,
+    "delivered_valid": false,
     "payment_refused_reason": null,
     "error": null,
-    "quality": null,
-    "raw_log": "results/raw/20261109T232545Z/tavily-search.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261109T232545Z/tavily-search.json"
+    "quality": {
+      "result": "not_graded",
+      "reason": "facts only: On 2026-09-30 the payment settled but the sample request was rejected (HTTP 422). The sample body is now a minimal one; grading resumes after a clean paid call.",
+      "facts_only": true,
+      "graded_at": "2026-11-10T18:49:33Z"
+    },
+    "raw_log": "results/raw/20261110T184912Z/tavily-search.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261110T184912Z/tavily-search.json"
   },
   "history_summary": {
-    "checks": 53,
-    "reachable": 53,
-    "x402_challenge_ok": 53,
-    "paid_checks": 10,
+    "checks": 54,
+    "reachable": 54,
+    "x402_challenge_ok": 54,
+    "paid_checks": 11,
     "first_checked": "2026-09-30T01:01:52Z",
-    "last_checked": "2026-11-09T23:25:47Z",
-    "days_observed": 41,
+    "last_checked": "2026-11-10T18:49:32Z",
+    "days_observed": 42,
     "first_seen": "2026-09-30T01:01:52Z"
   }
 }
