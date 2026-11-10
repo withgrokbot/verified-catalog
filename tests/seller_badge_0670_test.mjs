@@ -10,7 +10,7 @@ import { docsProductHtml, DOCS_PAYEE_GUARD, DOCS_VERIFY_OFFLINE } from "../worke
 import { CANON_ORIGIN, API_ORIGIN } from "../worker/src/spotcheck.js";
 import { homeHtml } from "../worker/src/home.js";
 
-test("0.69.0 version", () => assert.equal(VERSION, "0.69.0"));
+test("0.69.0 version", () => assert.equal(VERSION, "0.70.0"));
 
 const row = (id, url, verdict, at, extra = {}) => ({
   id, url, created_at: at, verdict, check_type: extra.check_type || "live",

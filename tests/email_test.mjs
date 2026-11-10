@@ -62,8 +62,8 @@ async function addKey(e, id = "key-1", raw = RAW) {
 const post = (e, path, body, headers = {}) => worker.fetch(new Request(API + path, { method: "POST", headers: { "content-type": "application/json", "x-api-key": RAW, ...headers }, body: body === undefined ? undefined : JSON.stringify(body) }), e, { waitUntil() {} });
 const keyRow = (e) => e.RECEIPTS_DB.prepare("SELECT plan, monthly_quota, email_plan, email_monthly_quota FROM api_keys WHERE id = 'key-1'").first();
 
-test("version is 0.69.0 and the flag stays off in wrangler.toml", () => {
-  assert.equal(VERSION, "0.69.0");
+test("version is 0.70.0 and the flag stays off in wrangler.toml", () => {
+  assert.equal(VERSION, "0.70.0");
   const toml = readFileSync(join(ROOT, "worker", "wrangler.toml"), "utf8");
   assert.doesNotMatch(toml, /^EMAIL\s*=/m);
   assert.doesNotMatch(toml, /^STRIPE_PRICE_EMAIL_(STARTER|PRO|SCALE)\s*=/m);
@@ -71,7 +71,7 @@ test("version is 0.69.0 and the flag stays off in wrangler.toml", () => {
   assert.match(toml, /# EMAIL = "1"/);
   assert.match(toml, /# STRIPE_PRICE_EMAIL_STARTER = ""/);
   assert.match(toml, /# STRIPE_PRICE_EMAIL_SCALE = ""/);
-  assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*", "23 6 \* \* 1"\]/);
+  assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*", "23 6 \* \* 1", "41 3 \* \* \*"\]/);
   const sql = readFileSync(join(ROOT, "worker", "migrations", "0030_email.sql"), "utf8");
   assert.match(sql, /email_plan/); assert.match(sql, /email_monthly_quota/); assert.match(sql, /emails/);
   assert.match(sql, /email_domain_cache/); assert.match(sql, /email_disposable_domains/);
