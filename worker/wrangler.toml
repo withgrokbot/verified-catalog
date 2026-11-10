@@ -160,6 +160,7 @@ binding = "LOOKUPS"
 dataset = "vc_lookups"
 
 # 0.52.0 spot funnel (free_check / cap_hit / paid), per-day digests only; read at admin GET /v1/admin/funnel
+# 0.69.1: the same route also aggregates vc_lookups (blob6 self tag, blob13 access, blob16 product, blob20 host, double3 status). No new dataset or blobs.
 [[analytics_engine_datasets]]
 binding = "FUNNEL"
 dataset = "vc_funnel"

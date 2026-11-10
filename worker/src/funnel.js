@@ -3,8 +3,16 @@
 // client name or wallet. Read back only through admin-only GET /v1/admin/funnel.
 // Data point layout: index1 = digest; blob1 = event, blob2 = digest, blob3 = UA family (coarse, e.g. "node");
 // double1 = free credits remaining (free_check), double2 = USD charged (paid), double3 = 1 when self-test traffic.
+// 0.69.1 also returns per-UTC-day free_checks / payment_required_402 / paid_events (self vs outside, plus hostTag)
+// by reading vc_lookups fields that were already written (blob6, blob13, blob16, blob20, double3). No new blobs.
+import { hostTag } from "./ops.js";
+
 export const FUNNEL_EVENTS = Object.freeze(["free_check", "cap_hit", "paid"]);
 export const FUNNEL_DATASET = "vc_funnel";
+export const LOOKUPS_DATASET = "vc_lookups";
+export const CALL_KINDS = Object.freeze(["free_checks", "payment_required_402", "paid_events"]);
+const FREE_ACCESS = new Set(["free", "exempt", "partner"]);
+const PAID_ACCESS = new Set(["paid", "paid-unstored"]);
 
 async function sha256hex(s) {
   const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
@@ -46,6 +54,81 @@ export function funnelSql(days) {
   };
 }
 
+/** SQL for the 0.69.1 call counts. days is already clamped. Reads only aggregate columns; never client, IP, wallet or tx. */
+export function callsSql(days) {
+  const d = Math.min(30, Math.max(1, Math.floor(Number(days) || 7)));
+  const free = "(blob16 = 'lookup' OR blob16 = 'spot') AND (blob13 = 'free' OR blob13 = 'exempt' OR blob13 = 'partner')";
+  const paid = "blob13 = 'paid' OR blob13 = 'paid-unstored'";
+  return `SELECT toStartOfDay(timestamp) AS day, blob6 AS reason, blob13 AS access, blob16 AS product, blob20 AS host, double3 AS status, SUM(_sample_interval) AS n FROM ${LOOKUPS_DATASET} WHERE timestamp > NOW() - INTERVAL '${d}' DAY AND ((${free}) OR double3 = 402 OR ${paid}) GROUP BY day, reason, access, product, host, status ORDER BY day FORMAT JSON`;
+}
+
+/** Which call counter a vc_lookups row belongs to. "" = not one of the three (dry runs, views, usage pages). */
+export function callKind({ product = "", access = "", status = 0 } = {}) {
+  const p = String(product || "");
+  const a = String(access || "");
+  if ((p === "lookup" || p === "spot") && FREE_ACCESS.has(a)) return "free_checks";
+  if (PAID_ACCESS.has(a)) return "paid_events";
+  if (Number(status) === 402) return "payment_required_402";
+  return "";
+}
+
+/** self = the tag already stored in blob6. Cron/probes use SELF_CLIENTS; withgrokbot UAs and our own payers are tagged the same way at write time. */
+export function callerClass(reason) {
+  return String(reason || "") === "self" ? "self" : "outside";
+}
+
+/** hostTag (paywall_daily_host) on blob20. An empty host was not recorded (before 0.22.0) and is not called "other". */
+export function callHost(host) {
+  const h = String(host || "").trim();
+  return h ? hostTag(h) : "unrecorded";
+}
+
+const split = () => ({ total: 0, self: 0, outside: 0 });
+const dayCalls = (day) => ({
+  day,
+  free_checks: split(),
+  payment_required_402: split(),
+  paid_events: split(),
+  by_host: {},
+});
+function addSplit(s, caller, n) {
+  s[caller === "self" ? "self" : "outside"] += n;
+  s.total += n;
+}
+
+/** Fold grouped vc_lookups rows into per-UTC-day counts. History is whatever AE still has; nothing new is written. */
+export function callsSummary(rows) {
+  const byDay = {};
+  for (const r of rows || []) {
+    const kind = callKind(r);
+    if (!CALL_KINDS.includes(kind)) continue;
+    const day = String(r.day || "").slice(0, 10);
+    const n = Number(r.n) || 0;
+    if (!day || !n) continue;
+    const caller = callerClass(r.reason);
+    const host = callHost(r.host);
+    const o = (byDay[day] ||= dayCalls(day));
+    addSplit(o[kind], caller, n);
+    const bucket = (o.by_host[host] ||= { free_checks: split(), payment_required_402: split(), paid_events: split() });
+    addSplit(bucket[kind], caller, n);
+  }
+  const list = Object.values(byDay).sort((a, b) => (a.day < b.day ? -1 : 1));
+  for (const o of list) {
+    const hosts = {};
+    for (const h of Object.keys(o.by_host).sort()) hosts[h] = o.by_host[h];
+    o.by_host = hosts;
+  }
+  const totals = { free_checks: split(), payment_required_402: split(), paid_events: split() };
+  for (const o of list) for (const k of CALL_KINDS) {
+    totals[k].self += o[k].self;
+    totals[k].outside += o[k].outside;
+    totals[k].total += o[k].total;
+  }
+  return { daily: list, totals };
+}
+
+export const CALLS_DEFINITION = "Per UTC day from vc_lookups, SUM(_sample_interval). free_checks = product lookup or spot with access free, exempt or partner (a free lookup or free spot-check, including SELF_CLIENTS and the partner pool; dry runs are not included). payment_required_402 = a recorded HTTP 402 (double3), including payment-required and payment-failed. paid_events = a settled call (access paid or paid-unstored). self = blob6 already equal to self (SELF_CLIENTS such as the cron and probes, a withgrokbot user-agent, or a settled spot check whose payer is our payTo or DRILL_WALLETS); every other caller is outside. by_host is hostTag on blob20 (api.402xagent.com, 402xagent.com, workers.dev, payscout, other); an empty host is unrecorded. These columns were already written, so history is the Analytics Engine retention of vc_lookups and host is empty before 0.22.0. No new blobs in 0.69.1. The query does not read and the body does not return a raw IP, wallet, client name or transaction. daily.paid_events above is still the spot-funnel sample count from vc_funnel; calls[].paid_events is settled calls from vc_lookups.";
+
 /** Fold the daily rows into per-day counts plus liteConversion = distinct paid digests / distinct cap_hit digests. */
 export function funnelSummary(dailyRows, topRows, days) {
   const byDay = {};
@@ -85,14 +168,16 @@ export async function handleFunnelAdmin(req, env, { fetchImpl = fetch } = {}) {
   if (!tok || !safeEq(got, tok)) return J({ error: "not found" }, 404);
   if (!env.CF_ACCOUNT_ID || !env.AE_READ_TOKEN) return J({ error: "funnel read not configured (CF_ACCOUNT_ID / AE_READ_TOKEN)" }, 503);
   const q = funnelSql(new URL(req.url).searchParams.get("days"));
+  const callsQuery = callsSql(q.days);
   const run = async (sql) => {
     const r = await fetchImpl(`https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/analytics_engine/sql`, { method: "POST", headers: { authorization: "Bearer " + env.AE_READ_TOKEN }, body: sql });
     if (!r.ok) throw new Error("analytics query failed: HTTP " + r.status);
     return ((await r.json()) || {}).data || [];
   };
   try {
-    const [daily, top] = await Promise.all([run(q.daily), run(q.top)]);
-    return J(funnelSummary(daily, top, q.days));
+    const [daily, top, callRows] = await Promise.all([run(q.daily), run(q.top), run(callsQuery)]);
+    const calls = callsSummary(callRows);
+    return J({ ...funnelSummary(daily, top, q.days), calls_definition: CALLS_DEFINITION, calls: calls.daily, calls_totals: calls.totals });
   } catch (e) {
     return J({ error: String(e && e.message || e).slice(0, 200) }, 502);
   }
