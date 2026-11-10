@@ -30,7 +30,7 @@ export GH_CONFIG_DIR="${VC_GH_CONFIG_DIR:-$(cd "$JOB/../../.." && pwd)/.gh-brand
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 REPO="$TMP/vc"
 clean_or_die() {
-  rm -rf "$REPO" && gh repo clone withgrokbot/verified-catalog "$REPO" -- -q
+  rm -rf "$REPO" && /usr/local/bin/gh repo clone withgrokbot/verified-catalog "$REPO" -- -q
   local d
   d=$(diff -rq --exclude=node_modules --exclude=.wrangler --exclude=receipts-data.js --exclude=saves-data.js "$APP/worker" "$REPO/worker"; diff -rq --exclude=run_tests.py --exclude=__pycache__ "$APP/tests" "$REPO/tests") || true
   if [ -n "$d" ]; then echo "REFUSING ($1): factory tree differs from withgrokbot/verified-catalog HEAD $(git -C "$REPO" rev-parse --short HEAD):"; echo "$d"; exit 1; fi
@@ -112,7 +112,7 @@ echo "live /v1/skips: $GOT"
 # 7) push the commit that was deployed (brand identity only); rebase over any github-actions commit meanwhile
 cd "$REPO"
 if [ "$CHANGED" = "0" ]; then echo "repo already up to date"; else
-  git pull -q --rebase origin main && git push -q origin HEAD:main && echo "pushed $(git rev-parse --short HEAD)"
+  git -c credential.helper= -c credential.helper='!/usr/local/bin/gh auth git-credential' pull -q --rebase origin main && git -c credential.helper= -c credential.helper='!/usr/local/bin/gh auth git-credential' push -q origin HEAD:main && echo "pushed $(git rev-parse --short HEAD)"
 fi
 
 # 8) PayAI free credits left (read-only estimate) + the one-line summary
