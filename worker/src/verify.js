@@ -25,7 +25,7 @@ const coreSrc = () => `const V402 = (${VERIFIER_CORE_SRC})(${JSON.stringify(pinn
 const uiSrc = (allowFetch) => `(function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var box = $("vf-json"), out = $("vf-out"), form = $("vf-form"), idIn = $("vf-id"), fetchBtn = $("vf-fetch"), file = $("vf-file");
+  var box = $("vf-json"), proofBox = $("vf-proof"), out = $("vf-out"), form = $("vf-form"), idIn = $("vf-id"), fetchBtn = $("vf-fetch"), file = $("vf-file");
   if (!box || !out || !form) return;
   var LABEL = { valid: "VALID", invalid: "INVALID", "unsigned-crawl": "UNSIGNED (crawl record)", "unsigned-live": "UNSIGNED (older live-check record)", "unknown-key": "UNKNOWN KEY", "not-a-receipt": "NOT A RECEIPT" };
   function row(dl, k, v) { if (v === null || v === undefined || v === "") return; var dt = document.createElement("dt"); dt.textContent = k; var dd = document.createElement("dd"); dd.textContent = String(v); dl.appendChild(dt); dl.appendChild(dd); }
@@ -37,9 +37,20 @@ const uiSrc = (allowFetch) => `(function () {
     row(dl, "Receipt", res.id); row(dl, "Verdict in receipt", res.verdict); row(dl, "Endpoint", res.url); row(dl, "Key id", res.kid);
     row(dl, "Checked with", res.engine); if (res.signed_bytes) row(dl, "Signed bytes", res.signed_bytes + " bytes, SHA-256 " + (res.signed_sha256 || "n/a"));
     if (dl.childNodes.length) out.appendChild(dl);
+    if (res.anchor && res.anchor.detail) { var ap = document.createElement("p"); ap.className = "vf-detail"; ap.id = "vf-anchor"; ap.textContent = res.anchor.detail; out.appendChild(ap); }
   }
   function busy(t) { out.textContent = ""; out.removeAttribute("data-status"); var p = document.createElement("p"); p.className = "vf-detail"; p.textContent = t; out.appendChild(p); }
-  form.addEventListener("submit", function (e) { e.preventDefault(); busy("Checking on this device..."); V402.verifyText(box.value).then(show, function (err) { show({ status: "not-a-receipt", title: "Error", detail: String(err) }); }); });
+  form.addEventListener("submit", function (e) {
+    e.preventDefault(); busy("Checking on this device...");
+    V402.verifyText(box.value).then(function (res) {
+      var raw = proofBox ? String(proofBox.value || "").trim() : "";
+      if (!raw) { show(res); return; }
+      var receipt, proof;
+      try { receipt = JSON.parse(box.value); } catch (err) { res.anchor = { detail: "Anchor proof was ignored because the receipt is not JSON." }; show(res); return; }
+      try { proof = JSON.parse(raw); } catch (err) { res.anchor = { detail: "The anchor proof is not JSON." }; show(res); return; }
+      return V402.verifyAnchor(receipt, proof).then(function (a) { res.anchor = a; show(res); }, function (err) { res.anchor = { detail: String(err) }; show(res); });
+    }, function (err) { show({ status: "not-a-receipt", title: "Error", detail: String(err) }); });
+  });
   if (file) file.addEventListener("change", function () { var f = file.files && file.files[0]; if (!f) return; var rd = new FileReader(); rd.onload = function () { box.value = String(rd.result || ""); form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event("submit")); }; rd.readAsText(f); });
   ${allowFetch ? `var ID = /^(sc-[0-9a-f]{16}|[0-9a-f]{10})$/;
   function fill() {
@@ -79,12 +90,15 @@ const formHtml = (allowFetch) => `${allowFetch ? `<label for="vf-id"><strong>Rec
 ` : ""}<form id="vf-form" novalidate>
 <label for="vf-json"><strong>Receipt JSON</strong></label>
 <textarea id="vf-json" name="receipt" spellcheck="false" autocomplete="off" placeholder='{"id":"sc-...","verdict":"...","kid":"...","signature":"..."}'></textarea>
+<label for="vf-proof"><strong>Anchor proof JSON</strong> (optional, from /v1/receipts/&lt;id&gt;/proof). Checks the receipt hash and Merkle path against the root on this device.</label>
+<textarea id="vf-proof" name="proof" spellcheck="false" autocomplete="off" placeholder='{"receipt_hash":"...","path":[],"root":"...","status":"pending"}'></textarea>
 <div class="vf-actions"><button type="submit" class="vf-btn" id="vf-go">Verify</button><label>or open a saved .json file: <input type="file" id="vf-file" accept="application/json,.json"></label></div>
 </form>
 <div id="vf-out" role="status" aria-live="polite"></div>`;
 
 const howHtml = () => `<p>What is checked: the Ed25519 signature (RFC 8032) over the RFC 8785 (JCS) canonical JSON of the receipt with only <code>signature</code> removed (so <code>kid</code> is signed), against the pinned key with that <code>kid</code>. A valid signature proves 402xAgent issued the receipt unchanged; it does not change or endorse the verdict.</p>
 <p>Results: <strong>VALID</strong>; <strong>INVALID</strong> (changed after signing); <strong>UNKNOWN KEY</strong> (a key this copy does not pin: get a newer copy); <strong>UNSIGNED (crawl record)</strong> (crawl receipts are not signed, so they are neither valid nor invalid).</p>
+<p>Optional anchor proof: paste the JSON from <code>/v1/receipts/&lt;id&gt;/proof</code>. The check hashes this receipt (SHA-256 over a 0x00 byte plus its RFC 8785 JSON) and walks the Merkle path to the root. A pending status is a calendar submission, not a Bitcoin confirmation. A confirmed status means the proof records a Bitcoin block header attestation; this page does not re-query Bitcoin. With Node: <code>node verify-receipt.mjs receipt.json proof.json</code>.</p>
 <p class="vf-keys">Pinned public keys (the same as <a href="/.well-known/402xagent-keys.json">/.well-known/402xagent-keys.json</a>):</p><ul class="vf-keys">${keysList()}</ul>`;
 
 /** GET /verify */
@@ -139,16 +153,26 @@ ${script}
 export function verifyNodeScript() {
   return `#!/usr/bin/env node
 // 402xAgent offline receipt verifier (Node 18+, no dependencies, public keys pinned below, no network).
-// Usage: node verify-receipt.mjs receipt.json   (or: cat receipt.json | node verify-receipt.mjs -)
-// Exit code: 0 VALID, 1 INVALID, 2 unsigned / unknown key / not a receipt.
+// Usage: node verify-receipt.mjs receipt.json [proof.json]   (or: cat receipt.json | node verify-receipt.mjs -)
+// Exit code: 0 VALID (and, when a proof is passed, the Merkle path matches), 1 INVALID or a failed anchor check, 2 unsigned / unknown key / not a receipt.
+// A proof status of pending is not a Bitcoin confirmation. confirmed means the proof records a Bitcoin block header attestation; this script does not re-query Bitcoin.
 import { readFileSync } from "node:fs";
 ${coreSrc()}
 const arg = process.argv[2];
-if (!arg) { console.error("usage: node verify-receipt.mjs <receipt.json | ->"); process.exit(2); }
+if (!arg) { console.error("usage: node verify-receipt.mjs <receipt.json | -> [proof.json]"); process.exit(2); }
 const text = readFileSync(arg === "-" ? 0 : arg, "utf8");
 const res = await V402.verifyText(text);
 console.log(res.title + (res.id ? " " + res.id : "") + (res.kid ? " (kid " + res.kid + ")" : ""));
 console.log(res.detail);
+const proofPath = process.argv[3];
+if (proofPath) {
+  let receipt, proof;
+  try { receipt = JSON.parse(text); proof = JSON.parse(readFileSync(proofPath, "utf8")); }
+  catch (e) { console.log("ANCHOR FAIL: " + String(e && e.message || e)); process.exit(1); }
+  const a = await V402.verifyAnchor(receipt, proof);
+  console.log((a.ok ? "ANCHOR OK" : "ANCHOR FAIL") + ": " + a.detail);
+  if (!a.ok) process.exit(1);
+}
 process.exit(res.status === "valid" ? 0 : res.status === "invalid" ? 1 : 2);
 `;
 }

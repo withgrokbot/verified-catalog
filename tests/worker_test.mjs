@@ -2708,8 +2708,8 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   assert.equal(svg.headers.get("x-402xagent-badge"), "pay");
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
-  assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*", "23 6 \* \* 1"\]/);
-  assert.equal(VERSION, "0.69.1");
+  assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*", "23 6 \* \* 1", "41 3 \* \* \*"\]/);
+  assert.equal(VERSION, "0.70.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)

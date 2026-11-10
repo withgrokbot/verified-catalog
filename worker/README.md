@@ -131,6 +131,18 @@ Free live checks: 5 per client name per UTC day **and** at most 25 per network (
 
 The SVG and JSON are computed from stored live-check receipts in D1 (`spot_receipts`), not from a logo and not from the weekly crawl list. They show checks observed, the share whose verdict is `pay`, the last verdict, and the same `days_observed` / `first_seen` / `last_checked` as receipt history: `days_observed` is the count of distinct UTC dates among the counted receipts, not the calendar days from first to last; `first_seen` is the earliest of those timestamps and `last_checked` is the latest (ISO UTC). The image links to the public receipts page for that endpoint (`/v1/receipts/by-url`). No matching receipt renders grey **not yet observed**. Our own scheduled (cron) self-check probes count. Dry runs and caller-supplied expectations are not counted. Text in the SVG is escaped. `Cache-Control: public, max-age=300`. The route never fetches the seller and never writes. `SELLER_BADGE=off` only hides the lines in `llms.txt` and OpenAPI; the route still answers.
 
+## Receipt anchors (0.70.0)
+
+Off unless `ANCHORS=1`. Migration `0032_receipt_anchors.sql` (the next one after `0031`). Receipt signing is unchanged: the job only reads `spot_receipts` and writes `receipt_anchors` plus `receipt_anchor_items`.
+
+Cron `41 3 * * *` (03:41 UTC). It builds one SHA-256 Merkle tree over every receipt stored since the previous anchor, ordered by `created_at` then `id`. A leaf is SHA-256 of a `0x00` byte plus the UTF-8 RFC 8785 (JCS) JSON of the anchored receipt (the signed view when the row has one, otherwise the stored body). A parent is SHA-256 of a `0x01` byte, the left child and the right child. An odd node with no sibling is carried up unchanged, not duplicated. One run takes at most 2000 receipts; a larger backlog continues the next night.
+
+The file that is timestamped is the raw 32-byte merkle root. Its SHA-256 is submitted to `https://a.pool.opentimestamps.org` and `https://b.pool.opentimestamps.org` (`POST /digest`, 32 bytes). Those are the public OpenTimestamps calendar pools: free, no API key. They aggregate many digests and pay the Bitcoin transaction. This Worker does not create a Bitcoin transaction. Cost of a night is two small HTTPS requests plus one D1 row for the anchor and one D1 row per receipt in the batch (about $0.002 per 2000 rows at D1's $1 / million writes, and usually far fewer receipts than that).
+
+`status` is `pending` until a later run (`*/20`, the daily cron, or the next night) upgrades the `.ots` proof with a Bitcoin block-header attestation from the calendar. Pending is not a Bitcoin confirmation. `bitcoin_confirmed` is true only when `status` is `confirmed`. `ots verify` checks a confirmed proof against Bitcoin; this service does not run a Bitcoin node.
+
+`GET /anchors` and `GET /anchors.json` list the date, root, receipt count, status and a `.ots` download, with the `ots verify` steps. `GET /anchors/<id>.ots` is the proof (`<id>.bin` is the 32-byte root). `GET /v1/receipts/<id>/proof` returns the receipt hash, Merkle path, root, anchor id and status, or 404 `not yet anchored`. The offline verifier (`/verify`, and `node verify-receipt.mjs receipt.json proof.json`) checks that path. It does not call the network.
+
 ## Local test (no account needed)
 
 ```

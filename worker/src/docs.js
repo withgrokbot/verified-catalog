@@ -10,6 +10,7 @@ import { chromePage, esc, NPM_GUARD } from "./chrome.js";
 import { REASON_CODES } from "./rules.js";
 import { REASON_TEXT } from "./recent.js";
 import { VERIFY_EXAMPLE_ID, VERIFY_NODE_PATH, VERIFY_PATH, VERIFY_STANDALONE_PATH } from "./verify.js";
+import { ANCHOR_DOCS_HTML } from "./anchors.js";
 
 export const DOCS_ANCHORS_PATH = "/docs/anchors.js";
 export const DOCS_EXAMPLE_RECEIPT = "/v1/receipts/sc-85c8963fb57e7b25"; // a stored, signed live-check receipt (never rotates, unlike crawl ids)
@@ -174,6 +175,6 @@ export function docsProductHtml(origin, apiOrigin, slug, opts = {}) {
 <table class="dc-codes"><thead><tr><th scope="col">reason_code</th><th scope="col">verdict</th><th scope="col">meaning</th></tr></thead><tbody>${rows}</tbody></table>
 <p>To stack this check with payment, and with a payee guard such as INAM if you use one, see <a href="/docs#payee-guard">composition</a>.</p>`;
   }
-  if (p.slug === "receipt-verification") content = `${DOCS_VERIFY_OFFLINE}\n${content}\n<p>Example page: a signed live-check receipt, <a href="${DOCS_EXAMPLE_RECEIPT}">${esc(DOCS_EXAMPLE_RECEIPT)}</a> (JSON for scripts, a readable page in a browser). Stored crawl receipts (10-character ids) are unsigned.</p>`;
+  if (p.slug === "receipt-verification") content = `${DOCS_VERIFY_OFFLINE}\n${content}\n<p>Example page: a signed live-check receipt, <a href="${DOCS_EXAMPLE_RECEIPT}">${esc(DOCS_EXAMPLE_RECEIPT)}</a> (JSON for scripts, a readable page in a browser). Stored crawl receipts (10-character ids) are unsigned.</p>${opts.anchors ? "\n" + ANCHOR_DOCS_HTML : ""}`;
   return shell(origin, opts, { slug: p.slug, title: `${p.name} · 402xAgent docs`, desc: `402xAgent docs: ${p.name}. ${p.blurb}`, h1: p.name, lead: esc(p.blurb), content: content + "\n" + nextBlock(opts, p) });
 }

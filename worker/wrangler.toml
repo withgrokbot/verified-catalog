@@ -146,6 +146,9 @@ BILLING_GRACE_DAYS = "3"  # 0.66.1: paid plan kept this long after invoice.payme
 # SMTP probe (off until both are set). 0.68.1 sends the signed request when EMAIL_SMTP_URL is https and the secret is set.
 # EMAIL_SMTP_SECRET is wrangler secret put only, never here. checks.smtp stays "not_checked" while either is unset.
 # EMAIL_SMTP_URL = ""
+# 0.70.0 receipt anchoring (worker/src/anchors.js), OFF: ANCHORS unset = the cron is a no-op and /anchors, /anchors.json
+# and /v1/receipts/{id}/proof are not served. Needs migration 0032. Does not change receipt signing.
+# ANCHORS = "1"
 # 0.49.0 flags, all OFF by default (see docs/deploy-0.49.0.md): EXPLAIN_LINE = "1" (explanation line), RECHECK = "1" (24 h / 10 re-check
 # window; needs migration 0015 + secret RECHECK_PEPPER), BULK_REPORT = "1" (bulk endpoint report; needs 0015, ENDPOINT_REPORT and RECHECK for credits).
 # Payment network (0.46.0): unset = Base mainnet (prod). Local testnet only: --var PAYMENT_PRESET:base-sepolia --var FACILITATOR_URL:https://x402.org/facilitator
@@ -201,5 +204,7 @@ migrations_dir = "migrations"
 # 0.26.0: lean /bazaar refresh; idle steps are one KV read
 # 0.36.0: "17 10 * * *" = daily re-check of the badge hosts (src/daily.js), 10:17 UTC; D1 only, 0 KV writes
 # 0.68.0: "23 6 * * 1" = Monday 06:23 UTC disposable-domain refresh. No-op unless EMAIL=1.
+# 0.70.0: "41 3 * * *" = nightly receipt anchor (03:41 UTC). No-op unless ANCHORS=1. Does not sign receipts.
+# Submits one SHA-256 Merkle root per run to the public OpenTimestamps calendars (free; they pay the Bitcoin tx).
 [triggers]
-crons = ["*/20 * * * *", "17 10 * * *", "23 6 * * 1"]
+crons = ["*/20 * * * *", "17 10 * * *", "23 6 * * 1", "41 3 * * *"]
