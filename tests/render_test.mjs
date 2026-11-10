@@ -176,7 +176,7 @@ test("rate limits: per network per minute, per key per minute; a sudden spike su
 });
 
 test("signup: email required, disposable domains (and their subdomains) refused before any mail; only hashes stored", async () => {
-  for (const [m, ok] of [["a@gmail.com", true], ["A@Example.ORG", true], ["x@mailinator.com", false], ["x@sub.mailinator.com", false], ["x@yopmail.com", false], ["x@guerrillamail.com", false], ["x@10minutemail.com", false], ["nope", false], ["", false], ["a@b", false]]) assert.equal(checkEmail(m).ok, ok, m);
+  for (const [m, ok] of [["a@example.com", true], ["A@Example.ORG", true], ["x@mailinator.com", false], ["x@sub.mailinator.com", false], ["x@yopmail.com", false], ["x@guerrillamail.com", false], ["x@10minutemail.com", false], ["nope", false], ["", false], ["a@b", false]]) assert.equal(checkEmail(m).ok, ok, m);
   assert.equal(checkEmail("x@mailinator.com").reason, "disposable_email");
   const e = env(); mail = [];
   const d = await call(e, RENDER_KEYS_PATH, { email: "throw@mailinator.com" }); assert.equal(d.status, 400); assert.equal((await d.json()).reason, "disposable_email");

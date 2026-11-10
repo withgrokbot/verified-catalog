@@ -259,7 +259,7 @@ test("HMAC, timestamp and replay match the worker request, and a bad signature d
     dns: { async resolveMx() { mx += 1; return [{ priority: 1, exchange: "gmail-smtp-in.l.google.com" }]; }, async resolve4() { throw new Error("resolved"); }, async resolve6() { return []; } },
   });
   const probeUrl = "https://probe.example.com/v1";
-  const built = await buildSmtpProbeRequest({ EMAIL_SMTP_URL: probeUrl, EMAIL_SMTP_SECRET: SECRET }, "user@gmail.com", NOW);
+  const built = await buildSmtpProbeRequest({ EMAIL_SMTP_URL: probeUrl, EMAIL_SMTP_SECRET: SECRET }, "user@example.com", NOW);
   assert.equal(JSON.parse(built.body).ts, Math.floor(NOW.getTime() / 1000));
   assert.equal(built.headers["x-email-probe-signature"], "v1=" + hmacHex(SECRET, built.body));
   const call = (body, sig, when = NOW) => handleProbe(new Request(probeUrl, {
@@ -275,16 +275,16 @@ test("HMAC, timestamp and replay match the worker request, and a bad signature d
   assert.equal(replay.status, 409);
   assert.equal((await replay.json()).reason, "replay");
   assert.equal(mx, 1);
-  const staleBody = JSON.stringify({ v: 1, ts: Math.floor(NOW.getTime() / 1000) - 400, email: "user@gmail.com" });
+  const staleBody = JSON.stringify({ v: 1, ts: Math.floor(NOW.getTime() / 1000) - 400, email: "user@example.com" });
   const stale = await call(staleBody);
   assert.equal(stale.status, 401);
   assert.equal((await stale.json()).reason, "stale");
-  const futureBody = JSON.stringify({ v: 1, ts: Math.floor(NOW.getTime() / 1000) + 400, email: "user@gmail.com" });
+  const futureBody = JSON.stringify({ v: 1, ts: Math.floor(NOW.getTime() / 1000) + 400, email: "user@example.com" });
   assert.equal((await call(futureBody)).status, 401);
   const bad = await call(built.body, "v1=" + "ab".repeat(32));
   assert.equal(bad.status, 401);
   assert.equal((await bad.json()).reason, "bad_signature");
-  const noTs = JSON.stringify({ v: 1, email: "user@gmail.com" });
+  const noTs = JSON.stringify({ v: 1, email: "user@example.com" });
   assert.equal((await call(noTs)).status, 401);
   assert.equal(mx, 1, "rejected requests did not look up MX");
 });

@@ -29,7 +29,7 @@ Each address costs one unit. A batch that does not fit in the remaining quota is
     "catch_all": "not_checked",
     "smtp": "not_checked"
   },
-  "suggestion": "user@gmail.com"
+  "suggestion": "user@example.com"
 }
 ```
 
