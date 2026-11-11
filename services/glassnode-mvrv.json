@@ -40,11 +40,11 @@
   },
   "paid_receipts": 11,
   "latest": {
-    "checked_at": "2026-11-10T20:47:43Z",
+    "checked_at": "2026-11-11T21:22:53Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 506,
+    "latency_ms": 504,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.05",
@@ -56,17 +56,17 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261110T204743Z/glassnode-mvrv.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261110T204743Z/glassnode-mvrv.json"
+    "raw_log": "results/raw/20261111T212252Z/glassnode-mvrv.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261111T212252Z/glassnode-mvrv.json"
   },
   "history_summary": {
-    "checks": 55,
-    "reachable": 55,
-    "x402_challenge_ok": 55,
+    "checks": 56,
+    "reachable": 56,
+    "x402_challenge_ok": 56,
     "paid_checks": 11,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-11-10T20:47:43Z",
-    "days_observed": 42,
+    "last_checked": "2026-11-11T21:22:53Z",
+    "days_observed": 43,
     "first_seen": "2026-09-30T01:01:51Z"
   }
 }

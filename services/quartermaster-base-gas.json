@@ -32,11 +32,11 @@
   "quality_test": null,
   "paid_receipts": 8,
   "latest": {
-    "checked_at": "2026-11-10T20:47:45Z",
+    "checked_at": "2026-11-11T21:22:54Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 1151,
+    "latency_ms": 627,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001",
@@ -48,17 +48,17 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261110T204743Z/quartermaster-base-gas.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261110T204743Z/quartermaster-base-gas.json"
+    "raw_log": "results/raw/20261111T212252Z/quartermaster-base-gas.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261111T212252Z/quartermaster-base-gas.json"
   },
   "history_summary": {
-    "checks": 43,
-    "reachable": 43,
-    "x402_challenge_ok": 43,
+    "checks": 44,
+    "reachable": 44,
+    "x402_challenge_ok": 44,
     "paid_checks": 8,
     "first_checked": "2026-10-06T17:58:57Z",
-    "last_checked": "2026-11-10T20:47:45Z",
-    "days_observed": 36,
+    "last_checked": "2026-11-11T21:22:54Z",
+    "days_observed": 37,
     "first_seen": "2026-10-06T17:58:57Z"
   }
 }

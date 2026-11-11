@@ -35,11 +35,11 @@
   "quality_test": null,
   "paid_receipts": 0,
   "latest": {
-    "checked_at": "2026-11-10T20:47:45Z",
+    "checked_at": "2026-11-11T21:22:54Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 721,
+    "latency_ms": 405,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.001042",
@@ -51,17 +51,17 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261110T204743Z/plainchain-gas.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261110T204743Z/plainchain-gas.json"
+    "raw_log": "results/raw/20261111T212252Z/plainchain-gas.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261111T212252Z/plainchain-gas.json"
   },
   "history_summary": {
-    "checks": 18,
-    "reachable": 18,
-    "x402_challenge_ok": 18,
+    "checks": 19,
+    "reachable": 19,
+    "x402_challenge_ok": 19,
     "paid_checks": 0,
     "first_checked": "2026-10-27T14:53:17Z",
-    "last_checked": "2026-11-10T20:47:45Z",
-    "days_observed": 15,
+    "last_checked": "2026-11-11T21:22:54Z",
+    "days_observed": 16,
     "first_seen": "2026-10-27T14:53:17Z"
   }
 }
