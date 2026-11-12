@@ -41,11 +41,11 @@
   },
   "paid_receipts": 7,
   "latest": {
-    "checked_at": "2026-11-11T21:22:52Z",
+    "checked_at": "2026-11-12T21:27:35Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 524,
+    "latency_ms": 675,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.003",
@@ -57,17 +57,17 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261111T212252Z/apitoll-edgar-filings.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261111T212252Z/apitoll-edgar-filings.json"
+    "raw_log": "results/raw/20261112T212734Z/apitoll-edgar-filings.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261112T212734Z/apitoll-edgar-filings.json"
   },
   "history_summary": {
-    "checks": 53,
-    "reachable": 49,
-    "x402_challenge_ok": 49,
+    "checks": 54,
+    "reachable": 50,
+    "x402_challenge_ok": 50,
     "paid_checks": 7,
     "first_checked": "2026-09-30T01:01:55Z",
-    "last_checked": "2026-11-11T21:22:52Z",
-    "days_observed": 43,
+    "last_checked": "2026-11-12T21:27:35Z",
+    "days_observed": 44,
     "first_seen": "2026-09-30T01:01:55Z"
   }
 }

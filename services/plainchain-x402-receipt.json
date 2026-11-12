@@ -35,11 +35,11 @@
   "quality_test": null,
   "paid_receipts": 0,
   "latest": {
-    "checked_at": "2026-11-11T21:22:54Z",
+    "checked_at": "2026-11-12T21:27:37Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 404,
+    "latency_ms": 642,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.002942",
@@ -51,17 +51,17 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261111T212252Z/plainchain-x402-receipt.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261111T212252Z/plainchain-x402-receipt.json"
+    "raw_log": "results/raw/20261112T212734Z/plainchain-x402-receipt.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261112T212734Z/plainchain-x402-receipt.json"
   },
   "history_summary": {
-    "checks": 19,
-    "reachable": 19,
-    "x402_challenge_ok": 19,
+    "checks": 20,
+    "reachable": 20,
+    "x402_challenge_ok": 20,
     "paid_checks": 0,
     "first_checked": "2026-10-27T14:53:17Z",
-    "last_checked": "2026-11-11T21:22:54Z",
-    "days_observed": 16,
+    "last_checked": "2026-11-12T21:27:37Z",
+    "days_observed": 17,
     "first_seen": "2026-10-27T14:53:17Z"
   }
 }

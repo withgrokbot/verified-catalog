@@ -22,11 +22,11 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-30 00:05:49.421 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-11-11 21:22:53 UTC</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-11-12 21:27:36 UTC</td></tr>
 <tr><th scope="row">Check mode</th><td>dry-run</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>1135 ms</td></tr>
+<tr><th scope="row">Latency</th><td>1227 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.01 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.01</td></tr>
@@ -36,7 +36,7 @@
 <tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.01, exact on aws:base: ? units of iso4217:USD.</p>
-<p>Evidence: <a href="../results/raw/20261111T212252Z/tavily-search.json">raw log for this check</a>. Machine-readable: <a href="tavily-search.json">tavily-search.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261112T212734Z/tavily-search.json">raw log for this check</a>. Machine-readable: <a href="tavily-search.json">tavily-search.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: x402 payment protocol. Passes if: at least 1 result URL on x402.org or github.com/coinbase/x402.</p><p class="notice">Facts only (no pass/fail result is given): On 2026-09-30 the payment settled but the sample request was rejected (HTTP 422). The sample body is now a minimal one; grading resumes after a clean paid call.</p>
 <h2>Paid calls</h2>
@@ -55,10 +55,11 @@
 <tr><td>2026-09-30 20:54:21 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the payment settled but the sample request was rejected (HTTP 422). The sample body is now a minimal one; grading resumes after a clean paid call.)</td><td><a href="https://basescan.org/tx/0x34e9079a5729985b9df2425a6ed472c3e2e860e1ece89eac440cda7c5cba1198">0x34e9079a...</a></td></tr>
 </tbody></table></div>
 <h2>Recent checks</h2>
-<p class="meta">Days observed: 43 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-11 21:22:53 UTC. Days with no stored check are not counted.</p>
+<p class="meta">Days observed: 44 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-12 21:27:36 UTC. Days with no stored check are not counted.</p>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-11-12 21:27:36 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>1227 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261112T212734Z/tavily-search.json">raw log</a></td></tr>
 <tr><td>2026-11-11 21:22:53 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>1135 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261111T212252Z/tavily-search.json">raw log</a></td></tr>
 <tr><td>2026-11-10 20:47:48 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>5035 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261110T204743Z/tavily-search.json">raw log</a></td></tr>
 <tr><td>2026-11-10 18:49:32 UTC</td><td>paid</td><td>yes</td><td>402</td><td>1499 ms</td><td>$0.01</td><td>no</td><td><a href="../results/raw/20261110T184912Z/tavily-search.json">raw log</a></td></tr>
@@ -68,7 +69,6 @@
 <tr><td>2026-11-06 20:25:53 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>1110 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261106T202551Z/tavily-search.json">raw log</a></td></tr>
 <tr><td>2026-11-05 21:04:04 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>1223 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261105T210402Z/tavily-search.json">raw log</a></td></tr>
 <tr><td>2026-11-04 20:48:18 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>1229 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261104T204816Z/tavily-search.json">raw log</a></td></tr>
-<tr><td>2026-11-03 20:29:53 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>1183 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261103T202951Z/tavily-search.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

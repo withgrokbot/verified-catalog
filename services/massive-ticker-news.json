@@ -43,11 +43,11 @@
   },
   "paid_receipts": 11,
   "latest": {
-    "checked_at": "2026-11-11T21:22:53Z",
+    "checked_at": "2026-11-12T21:27:35Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 206,
+    "latency_ms": 199,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.01",
@@ -59,17 +59,17 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261111T212252Z/massive-ticker-news.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261111T212252Z/massive-ticker-news.json"
+    "raw_log": "results/raw/20261112T212734Z/massive-ticker-news.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261112T212734Z/massive-ticker-news.json"
   },
   "history_summary": {
-    "checks": 56,
-    "reachable": 56,
-    "x402_challenge_ok": 56,
+    "checks": 57,
+    "reachable": 57,
+    "x402_challenge_ok": 57,
     "paid_checks": 11,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-11-11T21:22:53Z",
-    "days_observed": 43,
+    "last_checked": "2026-11-12T21:27:35Z",
+    "days_observed": 44,
     "first_seen": "2026-09-30T01:01:51Z"
   }
 }
