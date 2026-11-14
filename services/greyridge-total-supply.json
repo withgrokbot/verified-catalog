@@ -34,11 +34,11 @@
   "quality_test": null,
   "paid_receipts": 0,
   "latest": {
-    "checked_at": "2026-11-13T20:53:26Z",
+    "checked_at": "2026-11-14T19:08:14Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 403,
-    "latency_ms": 40,
+    "latency_ms": 45,
     "x402_challenge": false,
     "x402_version": null,
     "advertised_price_usd": "0.003",
@@ -50,17 +50,17 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261113T205324Z/greyridge-total-supply.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261113T205324Z/greyridge-total-supply.json"
+    "raw_log": "results/raw/20261114T190813Z/greyridge-total-supply.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261114T190813Z/greyridge-total-supply.json"
   },
   "history_summary": {
-    "checks": 21,
-    "reachable": 21,
+    "checks": 22,
+    "reachable": 22,
     "x402_challenge_ok": 18,
     "paid_checks": 0,
     "first_checked": "2026-10-27T14:53:17Z",
-    "last_checked": "2026-11-13T20:53:26Z",
-    "days_observed": 18,
+    "last_checked": "2026-11-14T19:08:14Z",
+    "days_observed": 19,
     "first_seen": "2026-10-27T14:53:17Z"
   }
 }
