@@ -41,11 +41,11 @@
   },
   "paid_receipts": 11,
   "latest": {
-    "checked_at": "2026-11-14T19:08:14Z",
+    "checked_at": "2026-11-15T19:45:10Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 1284,
+    "latency_ms": 980,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.01",
@@ -57,17 +57,17 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261114T190813Z/tavily-search.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261114T190813Z/tavily-search.json"
+    "raw_log": "results/raw/20261115T194509Z/tavily-search.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261115T194509Z/tavily-search.json"
   },
   "history_summary": {
-    "checks": 59,
-    "reachable": 59,
-    "x402_challenge_ok": 59,
+    "checks": 60,
+    "reachable": 60,
+    "x402_challenge_ok": 60,
     "paid_checks": 11,
     "first_checked": "2026-09-30T01:01:52Z",
-    "last_checked": "2026-11-14T19:08:14Z",
-    "days_observed": 46,
+    "last_checked": "2026-11-15T19:45:10Z",
+    "days_observed": 47,
     "first_seen": "2026-09-30T01:01:52Z"
   }
 }
