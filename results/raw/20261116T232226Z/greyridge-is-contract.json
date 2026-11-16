@@ -1,0 +1,25 @@
+{
+  "service_id": "greyridge-is-contract",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.greyridgesignals.ai/chain/is-contract?address=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "json_body": null,
+    "payment_header_sent": false
+  },
+  "response": {
+    "status": 403,
+    "latency_ms": 375,
+    "headers": {
+      "date": "Mon, 16 Nov 2026 23:22:27 GMT",
+      "content-type": "text/html; charset=UTF-8",
+      "content-length": "5664",
+      "server": "cloudflare"
+    },
+    "body_bytes": 5664,
+    "body_sha256": "1739c2d7f7c7a974465e2ed58beb8eead0d76f38e62c1622907c5502278c571e",
+    "body_excerpt": "<!DOCTYPE html><html lang=\"en-US\"><head><title>Just a moment...</title><meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"><meta http-equiv=\"X-UA-Compatible\" content=\"IE=Edge\"><meta name=\"robots\" content=\"noindex,nofollow\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"content-security-policy\" content=\"default-src &#39;none&#39;; script-src &#39;nonce-jnggceHtkw5GYj8GHSoa1D&#39; &#39;unsafe-eval&#39; https://challenges.cloudflare.com; script-src-attr &#39;none&#39;; style-src &#39;unsafe-inline&#39;; img-src &#39;self&#39; https://challenges.cloudflare.com; connect-src &#39;self&#39; https://challenges.cloudflare.com; frame-src &#39;self&#39; https://challenges.cloudflare.com blob:; child-src &#39;self&#39; https://challenges.cloudflare.com blob:; worker-src blob:; form-action http: https:; base-uri &#39;self&#39;\"><style>*{box-sizing:border-box;margin:0;padding:0}html{line-height:1.15;-webkit-text-size-adjust:100%;color:#313131;font-family:system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,\"Helvetica Neue\",Arial,\"Noto Sans\",sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\",\"Segoe UI Symbol\",\"Noto Color Emoji\"}body{display:flex;flex-direction:column;height:100vh;min-height:100vh}.main-content{margin:8rem auto;padding-left:1.5rem;max-width:60rem}@media (width <= 720px){.main-content{margin-top:4rem}}#challenge-error-text{background-image:url(\"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0ibm9uZSI+PHBhdGggZmlsbD0iI0IyMEYwMyIgZD0iTTE2IDNhMTMgMTMgMCAxIDAgMTMgMTNBMTMuMDE1IDEzLjAxNSAwIDAgMCAxNiAzbTAgMjRhMTEgMTEgMCAxIDEgMTEtMTEgMTEuMDEgMTEuMDEgMCAwIDEtMTEgMTEiLz48cGF0aCBmaWxsPSIjQjIwRjAzIiBkPSJNMTcuMDM4IDE4LjYxNUgxNC44N0wxNC41NjMgOS41aDIuNzgzem0tMS4wODQgMS40MjdxLjY2IDAgMS4wNTcuMzg4LjQwNy4zODkuNDA3Ljk5NCAwIC41OTYtLjQwNy45ODQtLjM5Ny4zOS0xLjA1Ny4zODktLjY1IDAtMS4wNTYtLjM4OS0uMzk4LS4zODktLjM5OC0uOTg0IDAtLjU5Ny4zOTgtLjk4NS40MDYtLjM5NyAxLjA1Ni0uMzk3Ii8+PC9zdmc+\");background-repeat:no-repeat;background-size:contain;padding-left:34px}</style><meta http-equiv=\"refresh\" content=\"360\"></head><body><div class=\"main-wrapper\" role=\"main\"><div class=\"main-content\"><noscript><div class=\"h2\"><span id=\"challenge-error-text\">Enable JavaScript and cookies to continue</span></div></noscript></div></div><script nonce=\"jnggceHtkw5GYj8GHSoa1D\">(function(){window._cf_chl_opt = {cFPWv: 'b',cH: 'f0z_3bhU53y6G33EmSZ7DrPCWVoXYyyww1SNmcSZxyM-1794871347-1.2.1.1-281DloYT000l8W1ts4htDtBqw3lesTjhtkTOKOs6FfVDdxLcNLxRejW_bn2gFon3',cITimeS: '1794871347',cN: 'jnggceHtkw5GYj8GHSoa1D',cRay: 'a5ba3ce3d9064291',cTplC:0,cTplO:0,cTplV:5,cType: 'managed',cUPMDTk:\"/chain/is-contract?address=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\\u0026__cf_chl_tk=Q6cBb0SnKFFnXi_Tknv7kjnhn6Ox2HZFACtk9rLRV_U-1794871347-1.0.1.1-631rG8NPkbe083o.UzJh5N7t9i1xR0LwhR360_SGxPA\",cvId: '3',cZone: 'api.greyridgesignals.ai',fa:\"/chain/is-contract?address=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\\u0026__cf_chl_f_tk=Q6cBb0SnKFFnXi_Tknv7kjnhn6Ox2HZFACtk9rLRV_U-1794871347-1.0.1.1-631rG8NPkbe083o.UzJh5N7t9i1xR0LwhR360_SGxPA\",md: 'vgNCifLMIfEPUShW_wMpMhpZLllCcYDbSNplUkb5I.8-1794871347-1.2.1.1-8XrH9s0rgABf0ickzEJ.2FwodKyCAGe.Ieeuv3Swtl5TAt3GOlZ74plqjSp6k9jOsg0m1Lcz9UkQnNK8069M8DoAL5GoAWoRYVJfr8qfI7ZVSlTwaBrgNGaG7rhlazwCdCfbQUFiJt1U6QoCffavdG1lJIrxGFxiXZ8h07hG.txL.P67tN3u5n2MG6YB0dd4bRHjT6VYRsMH2rNKmx5P8ad2DGX8Y.sVqVYKDZo_vCyrus.JYXT81RQ4zuwNElavt11GIWvHGKFCQ1lW.qc31IwZQ.tRmBtyuQf8C7kYvGdQCGId_5sIEtc73TxxrSVHCK2tFopdxdO08KAgGT9KvGpfa4LMvN_Z_4fo7zQvLWZLhiIWHoPZ5HNFkDOy0kATpigXuNWWoqeJpOq7a.l1xzmbRGH5G56D2xgls4A9UnKEWSCEzJoPlGRt6eBSUmKDJuvoiievweKPtrZvcVCL6ulEk4sofzRww9g_zRTEr6xG3dJdeCAoktp7YGxpYEOVB1z8uQvp.HvqQOv3DjsUCjtxdXo612KYwn2fjsazYeooIm4fQLEiObqqeU_6qydf4HO8rZDXEKk_t8uG.xEbSU7pxj6zFcYmB21t0xTKyraG2dBlBu0FDqG.Ri2fsq5SL85rDUFUHlL6nCVyaevFomlIGYb43UtjATkRV9oZsxYgp57zcQyXa6KePuqHBoIQXMm2E0TmD3M84gcpfST68eLTK3m4uoDEB2Z3PdO4rE7JJ6o3mf2d.vOkiHfCZBMMH3oWP_PghJ.Cu3gNnTyEbKiwo4N9SPYoIXRBz.HE2lorVf7rtA_hbZPqpbdAOzgVgQaT5nDnMnpsKTVz1YYRr.s0Q6xmZF_rI9ns_JOyNF9.wj2NeTWuqGz5pBns0YlrX092"
+  },
+  "run_id": "20261116T232226Z",
+  "checked_at": "2026-11-16T23:22:27Z"
+}
