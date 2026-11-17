@@ -4901,6 +4901,7 @@ test("0.57.1 /docs try-it: everything outside the new section is byte-identical 
     // label / dates from RECEIPTS_META) are taken out: the card is cut with HOME_CARD_RE (exactly one, else fail) and the
     // page is rendered with a fixed meta. Everything else on the page is still byte-guarded. home_0599_static was taken on
     // main 0.59.9, whose full page (with main's 2026-10-27 crawl) is byte-identical to the 0.57.1 `home` hash.
+    // Retaken 2026-11-17 when the unused landingHtml aer-badge ("Independently tracked by agenteconomy.report") was removed.
     const { HOME_CARD_RE } = await import("../worker/src/landing.js");
     const FIXED = { crawled_at: "2026-10-27T17:36:57Z", endpoints_covered: 121785 };
     const page = landingHtml("https://402xagent.com", FIXED);

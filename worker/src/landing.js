@@ -365,7 +365,6 @@ ${homeCard(HOME_EXAMPLE)}  <p class="support">Checks read these networks: canoni
 <footer><div class="wrap">
   <div class="foot-brand"><img src="/brand/mark-402.png?v=${V}" width="38" height="20" alt=""><span>Made by <a href="https://github.com/withgrokbot">withgrokbot</a> · API: <span class="mono">api.402xagent.com</span></span></div>
   <nav aria-label="Footer"><a href="https://github.com/withgrokbot/x402-spotcheck">GitHub</a><a href="/mcp" title="Remote MCP endpoint (POST JSON-RPC)">MCP (/mcp)</a><a href="/llms.txt">llms.txt</a><a href="/openapi.json">OpenAPI</a><a href="/v1/skips">Skips</a><a href="/blog">Blog</a></nav>
-  <p class="aer-badge"><a href="https://agenteconomy.report/s/" rel="noopener"><span>Independently tracked by agenteconomy.report</span></a></p>
 </div></footer>
 <script>
 (()=>{const $=(s)=>document.querySelector(s),out=$("#out"),u=$("#u"),go=$("#go");
