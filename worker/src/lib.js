@@ -92,7 +92,7 @@ import { fixFor, fixFor404, toolFix } from "./fix.js"; // 0.71.0
 import { receiptGuard, isVerifiedBot, bulkLimitsOn, skipsPageGuard } from "./receiptguard.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, explain422, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.73.0";
+export const VERSION = "0.73.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 // 0.72.0: the price is derived from the paid 402 amount (SPOT_DEFAULT_PRICE_ATOMIC), not typed.
@@ -540,6 +540,46 @@ export async function quotaKey(req, q, env, now = new Date()) {
   return "ip:" + h.slice(0, 24);
 }
 
+
+// Sliding-window counters (0.73.1): rec.times is a list of take timestamps. A stored {day, used} record
+// with no times (pre-0.73.1) is treated as `used` takes at the start of that period, so an in-flight
+// UTC-minute bucket keeps its remaining time instead of resetting on deploy.
+function periodStartMs(period) {
+  if (!period) return NaN;
+  const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(period) ? period + ":00.000Z" : /^\d{4}-\d{2}-\d{2}$/.test(period) ? period + "T00:00:00.000Z" : "";
+  return iso ? Date.parse(iso) : NaN;
+}
+function slidingTimes(stored, windowMs, nowMs) {
+  if (stored && Array.isArray(stored.times)) return stored.times.filter((t) => Number.isFinite(t) && (nowMs - t) < windowMs);
+  const used = stored && Number.isFinite(stored.used) ? stored.used : 0;
+  if (used > 0 && stored.day) {
+    const start = periodStartMs(stored.day);
+    if (Number.isFinite(start) && (nowMs - start) < windowMs) return Array(used).fill(start);
+  }
+  return [];
+}
+function loadQuotaRec(stored, sp, nowMs) {
+  if (sp.w > 0) {
+    const times = slidingTimes(stored, sp.w, nowMs);
+    return { day: sp.p, used: times.length, times };
+  }
+  const rec = stored || { day: sp.p, used: 0 };
+  if (rec.day !== sp.p) return { day: sp.p, used: 0 };
+  return { day: rec.day, used: rec.used, times: rec.times };
+}
+function takeQuotaRec(rec, sp, nowMs) {
+  if (sp.w > 0) {
+    const times = [...(rec.times || []), nowMs];
+    return { day: sp.p, used: times.length, times };
+  }
+  return { day: rec.day || sp.p, used: rec.used + 1, times: rec.times };
+}
+function slidingRetryAfter(sp, rec, nowMs) {
+  if (!(sp.w > 0)) return null;
+  const oldest = rec.times && rec.times.length ? Math.min(...rec.times) : nowMs;
+  return Math.max(1, Math.ceil((oldest + sp.w - nowMs) / 1000));
+}
+
 // One Durable Object per client key holds {day, used}. take: use one free call if any are left today.
 // peek: read without using one. Free plan: SQLite-backed Durable Objects.
 export class QuotaCounter {
@@ -557,21 +597,27 @@ export class QuotaCounter {
     if (u.pathname === "/multi") {
       // 0.73.0: up to 4 counters in one call (c<i> name, p<i> period, l<i> limit). Takes one unit from each, or from none if any is spent
       // (blocked = index of the first spent counter). One Durable Object round trip for a minute + day budget.
+      // 0.73.1: optional w<i> (window ms) + now (epoch ms) makes that counter a sliding window, so a burst cannot reset at a clock-period boundary.
+      const nowMs = (() => { const n = parseInt(u.searchParams.get("now") || "", 10); return Number.isFinite(n) && n > 0 ? n : Date.now(); })();
       const specs = [];
       for (let i = 0; i < 4; i++) {
         const c = u.searchParams.get("c" + i);
         if (!c) break;
-        specs.push({ c, p: u.searchParams.get("p" + i) || "", l: Math.max(0, parseInt(u.searchParams.get("l" + i) || "0", 10) || 0) });
+        specs.push({ c, p: u.searchParams.get("p" + i) || "", l: Math.max(0, parseInt(u.searchParams.get("l" + i) || "0", 10) || 0), w: Math.max(0, parseInt(u.searchParams.get("w" + i) || "0", 10) || 0) });
       }
       const recs = [];
       for (const sp of specs) {
-        let r = (await this.state.storage.get(sp.c)) || { day: sp.p, used: 0 };
-        if (r.day !== sp.p) r = { day: sp.p, used: 0 };
-        recs.push(r);
+        recs.push(loadQuotaRec(await this.state.storage.get(sp.c), sp, nowMs));
       }
       const blocked = specs.findIndex((sp, i) => recs[i].used >= sp.l);
-      if (blocked >= 0) return Response.json({ free: false, blocked, used: recs.map((r) => r.used) });
-      for (let i = 0; i < specs.length; i++) { recs[i].used += 1; await this.state.storage.put(specs[i].c, recs[i]); }
+      if (blocked >= 0) {
+        const ra = slidingRetryAfter(specs[blocked], recs[blocked], nowMs);
+        return Response.json({ free: false, blocked, used: recs.map((r) => r.used), ...(ra != null ? { retry_after_seconds: ra } : {}) });
+      }
+      for (let i = 0; i < specs.length; i++) {
+        recs[i] = takeQuotaRec(recs[i], specs[i], nowMs);
+        await this.state.storage.put(specs[i].c, recs[i]);
+      }
       return Response.json({ free: true, blocked: -1, used: recs.map((r) => r.used) });
     }
     if (u.pathname === "/credit" || u.pathname === "/spend" || u.pathname === "/balance") {

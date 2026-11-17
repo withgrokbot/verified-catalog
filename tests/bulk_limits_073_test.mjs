@@ -1,4 +1,4 @@
-// 0.73.0 bulk limits on /v1/receipts*: single reads unaffected, paging limited, 429 shape, verified bots keep single pages.
+// 0.73.1 (0.73.0 bulk limits + sliding per-minute window) on /v1/receipts*: single reads unaffected, paging limited, 429 shape, verified bots keep single pages.
 // No network. Runs the real QuotaCounter in an in-memory Durable Object namespace.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -35,7 +35,7 @@ function mk(env0, ip = "198.51.100.10", ua = "curl/8") {
 const SINGLE = "https://402xagent.com/v1/receipts/sc-0123456789abcdef";
 
 test("version and defaults", () => {
-  assert.equal(VERSION, "0.73.0");
+  assert.equal(VERSION, "0.73.1");
   assert.deepEqual([RECEIPT_PAGES_PER_MIN, RECEIPT_PAGES_PER_DAY, RECEIPT_SINGLE_PER_DAY, RECEIPT_RATE_PER_MIN], [6, 40, 300, 120]);
   const c = receiptCaps({ RECEIPT_PAGES_PER_MIN: "2", RECEIPT_SINGLE_PER_DAY: "abc", BULK_LIMITS: "0" });
   assert.equal(c.pagesPerMin, 2); assert.equal(c.singlePerDay, 300, "bad var falls back to the default"); assert.equal(c.on, false, "off unless BULK_LIMITS=1"); assert.equal(receiptCaps({ BULK_LIMITS: "1" }).on, true);
@@ -65,12 +65,12 @@ test("paging is limited per minute, then per day, with a 429 + Retry-After + mac
   for (let i = 0; i < RECEIPT_PAGES_PER_MIN; i++) assert.equal((await go("https://402xagent.com/v1/receipts?type=live&page=" + i)).status, 200, "page " + i);
   const over = await go("https://402xagent.com/v1/receipts?type=live&cursor=zz");
   assert.equal(over.status, 429);
-  assert.equal(over.headers.get("retry-after"), "30", "seconds to the next UTC minute");
+  assert.equal(over.headers.get("retry-after"), "60", "seconds until the oldest page in the 60s window ages out");
   assert.equal(over.headers.get("x-receipt-limit"), "pages_minute");
   assert.equal(over.headers.get("cache-control"), "no-store");
   assert.match(over.headers.get("content-type"), /application\/json/);
   const b = await over.json();
-  assert.equal(b.code, "bulk_limit"); assert.equal(b.scope, "pages_minute"); assert.equal(b.retry_after_seconds, 30);
+  assert.equal(b.code, "bulk_limit"); assert.equal(b.scope, "pages_minute"); assert.equal(b.retry_after_seconds, 60);
   assert.equal(b.bulk_access.url, BULK_ACCESS_URL); assert.equal(b.bulk_access.status, "not_live");
   assert.match(b.bulk_access.note, /bulk export and \.ots bundles are paid and not live/);
   assert.match(b.free_still_works, /Single receipts stay free/);
@@ -91,6 +91,31 @@ test("paging is limited per minute, then per day, with a 429 + Retry-After + mac
   assert.equal(last.headers.get("retry-after"), String(86400 - (lastNow.getUTCHours() * 3600 + lastNow.getUTCMinutes() * 60 + lastNow.getUTCSeconds())), "seconds to 00:00 UTC");
   // next UTC day starts fresh
   assert.equal((await go("https://402xagent.com/v1/receipts?page=2", { now: new Date("2026-11-18T00:00:05Z") })).status, 200);
+});
+
+test("per-minute page cap holds across a UTC minute boundary in the same burst", async () => {
+  // Live smoke: the 7th page in one loop was 429 (pages_minute), then the 8th, still in the same loop, was 200
+  // because the fixed UTC-minute bucket rolled over. A 60s sliding window keeps the cap held.
+  const ns = quotaNs(); const go = mk({ QUOTA: ns });
+  const first = new Date("2026-11-17T18:00:59.200Z");
+  for (let i = 0; i < RECEIPT_PAGES_PER_MIN; i++) {
+    assert.equal((await go("https://402xagent.com/v1/receipts?page=" + i, { now: new Date(first.getTime() + i) })).status, 200, "page " + i);
+  }
+  const seventh = await go("https://402xagent.com/v1/receipts?page=7", { now: new Date("2026-11-17T18:00:59.800Z") });
+  assert.equal(seventh.status, 429);
+  assert.equal(seventh.headers.get("x-receipt-limit"), "pages_minute");
+  const b7 = await seventh.json();
+  assert.equal(b7.scope, "pages_minute");
+  assert.ok(b7.retry_after_seconds >= 1);
+  const eighth = await go("https://402xagent.com/v1/receipts?page=8", { now: new Date("2026-11-17T18:01:00.100Z") });
+  assert.equal(eighth.status, 429, "the cap must still hold after the clock minute rolls");
+  assert.equal(eighth.headers.get("x-receipt-limit"), "pages_minute");
+  // still inside the 60s window that started at 18:00:59.200
+  assert.equal((await go("https://402xagent.com/v1/receipts?page=9", { now: new Date("2026-11-17T18:01:30Z") })).status, 429);
+  // the oldest counted page ages out at 18:01:59.200
+  assert.equal((await go("https://402xagent.com/v1/receipts?page=10", { now: new Date("2026-11-17T18:01:59.200Z") })).status, 200);
+  // Retry-After on the 7th is seconds until that oldest entry expires, not seconds to the next clock minute (which would have been 1)
+  assert.ok(b7.retry_after_seconds >= 59, "retry-after must cover the rest of the 60s window, got " + b7.retry_after_seconds);
 });
 
 test("another client is not affected by one client's paging", async () => {
@@ -125,7 +150,7 @@ test("daily single-read cap: a client past it gets the 429, a normal reader neve
   const env2 = { QUOTA: quotaNs(), RECEIPT_RATE_PER_MIN: "3" }; const g2 = mk(env2, "198.51.100.21");
   for (let i = 0; i < 3; i++) await g2(SINGLE);
   const m = await g2(SINGLE); const mb = await m.json();
-  assert.equal(m.status, 429); assert.equal(mb.code, "rate_limited"); assert.equal(mb.error, "rate limited"); assert.equal(mb.retry_after_seconds, 30);
+  assert.equal(m.status, 429); assert.equal(mb.code, "rate_limited"); assert.equal(mb.error, "rate limited"); assert.equal(mb.retry_after_seconds, 60);
 });
 
 test("heavy clients past the probe also feed the group counter; the group cap then limits a spread-out crawl", async () => {
@@ -190,7 +215,7 @@ test("skips paging: ?page=N (N>1) on /v1/skips and /v1/skips.json shares the rec
   let served = 0, hit = null;
   for (let i = 2; i < 14 && !hit; i++) { const r = await guard((i % 2 ? SKIPS : SKIPS + ".json") + "?page=" + i, "198.51.100.71"); if (r) hit = r; else served++; }
   assert.equal(served, RECEIPT_PAGES_PER_MIN, "HTML and JSON skips pages share one per-minute budget");
-  assert.equal(hit.status, 429); assert.equal(hit.headers.get("x-receipt-limit"), "pages_minute"); assert.equal(hit.headers.get("retry-after"), "30");
+  assert.equal(hit.status, 429); assert.equal(hit.headers.get("x-receipt-limit"), "pages_minute"); assert.equal(hit.headers.get("retry-after"), "60");
   const b = await hit.json(); assert.equal(b.code, "bulk_limit"); assert.equal(b.bulk_access.url, BULK_ACCESS_URL); assert.equal(b.bulk_access.status, "not_live");
   // shared with receipt list pages: the same client's receipt pages are now over budget too, and another client is unaffected
   const rg = mk(env, "198.51.100.71");
