@@ -10,7 +10,7 @@
 import { chromePage, esc } from "./chrome.js";
 import { plainReason } from "./home.js";
 import { observationSpan, observationSpanText } from "./history.js";
-import { PAID_CHECK_NOTE } from "./paidcheck.js";
+import { PAID_CHECK_NOTE, paidCheckBlock } from "./paidcheck.js";
 
 export const RECEIPTS_PAGE_SIZE = 50; // crawl rows per HTML page
 export const LIVE_PAGE_SIZE = 25;
@@ -136,6 +136,17 @@ function termsRow(label, listed, live) {
   return `<tr><th scope="row">${esc(label)}</th><td>${listed == null ? "—" : esc(listed)}</td><td${diff ? ' class="rc-diff"' : ""}>${live == null ? "—" : esc(live)}</td></tr>`;
 }
 
+/** 0.72.0: the "Full check" panel on free (redacted), dry-run and crawl receipt pages. Everything comes from paidCheckBlock
+ *  (price from the paid 402's amount, the request for this URL, what it adds); no hard-coded price. Paid receipts do not get it. */
+export function fullCheckPanel(url) {
+  const b = paidCheckBlock(url);
+  return `<section class="rc-card rc-full" id="full-check"><h2>Full check</h2>
+<p class="rc-note rc-paid">${esc(PAID_CHECK_NOTE)}</p>
+<dl class="rc-dl"><dt>Price</dt><dd>$${esc(b.price_usd)} USDC on Base via x402, per check</dd><dt>Adds</dt><dd>${b.adds.map(esc).join("; ")}</dd><dt>Request</dt><dd><code>${esc(b.how.method)} ${esc(b.how.url)}</code></dd></dl>
+<p class="rc-note">${esc(b.how.steps)}</p>
+<div class="rc-actions"><a href="/pricing#check">Pricing</a><a href="/docs">How to pay</a><a href="/#checker">Run a free check</a></div></section>`;
+}
+
 /** One live-check receipt (sc-), from the public JSON view. */
 export function liveReceiptHtml(origin, r, fp) {
   const hp = hostPath(r.url);
@@ -157,7 +168,7 @@ ${acc.length ? `<p class="rc-note">All payment options in the live 402:</p><tabl
 <section class="rc-card"><div class="rc-verdict">${chip(r.verdict)}${r.reason_code ? `<code>${esc(r.reason_code)}</code>` : ""}${r.confidence ? `<span class="rc-note">confidence ${esc(r.confidence)}</span>` : ""}</div><p class="rc-reason">${esc(liveReason(r))}</p>${rule}</section>
 <section class="rc-card"><h2>What was compared</h2>${terms}${acc ? '<p class="rc-note">Pay to is the seller&rsquo;s wallet from its own 402 terms.</p>' : ""}${diffs}${r.pay_to_changed === true ? '<p class="rc-note rc-diff">The seller wallet changed since the previous receipt for this URL.</p>' : ""}</section>
 <section class="rc-card"><h2>Details</h2><dl class="rc-dl"><dt>Endpoint</dt><dd><code>${esc(r.method || "GET")} ${esc(r.url)}</code></dd><dt>Last checked</dt><dd>${esc(utc(r.checked_at))}</dd><dt>Days observed</dt><dd>${esc(observationSpanText(h || observationSpan([r.checked_at])) || "—")}</dd>${r.probe && r.probe.probed_at ? `<dt>Probed</dt><dd>${esc(utc(r.probe.probed_at))}${r.probe.cached ? " (cached probe)" : ""}</dd>` : ""}<dt>Type</dt><dd>${r.dry_run ? "dry run: nothing signed or paid" : "live check"}</dd><dt>Listing source</dt><dd>${esc(ex.source || "none")}</dd>${hist}${tr}${r.payment_terms_sha256 ? `<dt>Terms digest</dt><dd><code>sha256:${esc(r.payment_terms_sha256)}</code></dd>` : ""}<dt>Receipt id</dt><dd><code>${esc(r.id)}</code></dd></dl>
-<div class="rc-actions"><a href="/v1/receipts/${esc(r.id)}?format=json">View JSON</a><a href="/#checker">Run a fresh check</a></div></section>${r.redacted || r.dry_run ? `\n<p class="rc-note rc-paid">${esc(PAID_CHECK_NOTE)}</p>` : ""}
+<div class="rc-actions"><a href="/v1/receipts/${esc(r.id)}?format=json">View JSON</a><a href="/#checker">Run a fresh check</a></div></section>${r.redacted || r.dry_run ? "\n" + fullCheckPanel(r.url) : ""}
 ${sigBlock(r)}
 </div>`;
   return page({ title: `Receipt ${r.id} · 402xAgent`, desc: `402xAgent live-check receipt: ${r.verdict} for ${hp.host}${hp.path}.`, canonical: origin + "/v1/receipts/" + r.id, alternate: "/v1/receipts/" + r.id + "?format=json", main, footer: fp });
@@ -175,7 +186,7 @@ export function crawlReceiptHtml(origin, r, fp) {
 <p class="rc-note">The live response answered HTTP ${esc(r.http_status ?? "—")}. Pay to is the seller&rsquo;s wallet from its own 402 terms.</p></section>
 <section class="rc-card"><h2>Details</h2><dl class="rc-dl"><dt>Endpoint</dt><dd><code>${esc(r.method || "GET")} ${esc(r.url)}</code></dd><dt>Last checked</dt><dd>${esc(utc(r.timestamp))}</dd><dt>Days observed</dt><dd>${esc(observationSpanText(r.days_observed != null ? r : observationSpan([r.timestamp])) || "—")}</dd>${f ? `<dt>Terms age</dt><dd>${esc(f.terms_age_hours)} h (stale after ${esc(f.terms_max_age_hours)} h)</dd>` : ""}<dt>Listed in</dt><dd>${esc(lists || "—")}</dd><dt>Type</dt><dd>self-checked crawl</dd><dt>Receipt id</dt><dd><code>${esc(r.id)}</code></dd></dl>
 <div class="rc-actions"><a href="/v1/receipts/${esc(r.id)}?format=json">View JSON</a>${r.verdict === "skip" ? '<a href="/v1/skips">All skips</a>' : ""}<a href="/#checker">Run a fresh check</a></div></section>
-<p class="rc-note rc-paid">${esc(PAID_CHECK_NOTE)}</p>
+${fullCheckPanel(r.url)}
 <section class="rc-card rc-unsigned" id="unsigned"><h2>Unsigned crawl receipt</h2><p class="rc-note">Crawl receipts are not signed. This is our record of what the weekly crawl saw, not a signed statement. For a signed answer about this endpoint right now, run a live check: its receipt is signed with Ed25519.</p></section>
 </div>`;
   return page({ title: `Crawl receipt ${r.id} · 402xAgent`, desc: `402xAgent crawl receipt: ${r.verdict} for ${hp.host}${hp.path}.`, canonical: origin + "/v1/receipts/" + r.id, alternate: "/v1/receipts/" + r.id + "?format=json", main, footer: fp });

@@ -87,15 +87,16 @@ import { agentCard, AGENT_CARD_PATHS } from "./agentcard.js"; // 0.61.0
 const WK_ALIAS_PATHS = new Set(["/.well-known/mcp.json", "/.well-known/x402.json", "/.well-known/oauth-protected-resource"]);
 const MCP_JSON = Object.freeze({ mcpServers: { "402xagent": { url: "https://api.402xagent.com/mcp" } } });
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
-import { paidCheckBlock } from "./paidcheck.js";
+import { paidCheckBlock, PAID_CHECK_PRICE_USD } from "./paidcheck.js";
 import { fixFor, fixFor404, toolFix } from "./fix.js"; // 0.71.0
 import { receiptGuard } from "./receiptguard.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, explain422, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.71.0";
+export const VERSION = "0.72.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
-export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
+// 0.72.0: the price is derived from the paid 402 amount (SPOT_DEFAULT_PRICE_ATOMIC), not typed.
+export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $" + PAID_CHECK_PRICE_USD;
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
