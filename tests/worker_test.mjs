@@ -1413,6 +1413,15 @@ test("public receipts: every delivered decision is stored; GET by id and by-url 
   assert.equal(m.body.result.structuredContent.id, free.body.receipt_id);
   const mu = await rpc({ jsonrpc: "2.0", id: 10, method: "tools/call", params: { name: "get_receipt", arguments: { url: "https://spot.target.fixture/api" } } }, { envo: e });
   assert.equal(mu.body.result.structuredContent.latest_live.id, later.body.receipt_id);
+  // 0.72.1: the free receipt read carries the paid_check offer: top-level on the unsigned by-url wrapper; beside (not inside) a signed receipt
+  { const { paidCheckBlock: pcb } = await import("../worker/src/paidcheck.js");
+    assert.deepEqual(mu.body.result.structuredContent.paid_check, pcb("https://spot.target.fixture/api"), "by-url offer");
+    assert.ok(!("paid_check" in m.body.result.structuredContent), "a signed receipt is not modified");
+    assert.deepEqual(m.body.result._meta.paid_check, pcb(m.body.result.structuredContent.url), "offer beside the receipt");
+    assert.deepEqual(JSON.parse(m.body.result.content[1].text), { paid_check: pcb(m.body.result.structuredContent.url) });
+    const mc = await rpc({ jsonrpc: "2.0", id: 11, method: "tools/call", params: { name: "get_receipt", arguments: { id: sk.id } } }, { envo: e });
+    assert.ok(!("paid_check" in mc.body.result.structuredContent), "crawl receipt body untouched");
+    assert.deepEqual(mc.body.result._meta.paid_check, pcb(mc.body.result.structuredContent.url), "crawl receipt offer"); }
   const oa = (await send("/openapi.json", { envo: e })).body;
   assert.ok(oa.paths["/v1/receipts/by-url"] && oa.paths["/v1/receipts/{id}"]);
 });
@@ -2709,7 +2718,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*", "23 6 \* \* 1", "41 3 \* \* \*"\]/);
-  assert.equal(VERSION, "0.72.0");
+  assert.equal(VERSION, "0.72.1");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
