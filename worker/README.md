@@ -529,3 +529,7 @@ Tests: `tests/agentcard_logo_0610_test.mjs`.
 - `GET /v1/render/card?t=&sig=` serves the same image for an `og:image` tag. `sig` is HMAC-SHA256 over `t`, using a secret derived from the API key. A good signature renders (and spends a unit on a cache miss). A tampered query is refused. The route is 404 unless `RENDER=1`.
 
 JSON docs: `GET /v1/render/docs`. Tests: `tests/card_test.mjs`.
+
+## Paid-check offer (0.72.0)
+
+`paid_check` (price, endpoint, what the full report adds) is on every free spot-check and x402 hygiene answer (HTTP and MCP), and receipt pages show a "Full check" panel. The price is derived from `SPOT_DEFAULT_PRICE_ATOMIC`, never typed. See `docs/ship-the-upsell-0.72.0.md`.
