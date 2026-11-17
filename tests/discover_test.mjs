@@ -220,6 +220,7 @@ test("route /v1/discover: 200, unknown param 400, rate limit 429 after DISCOVER_
   const get = (p, h = {}) => worker.fetch(new Request("https://api.402xagent.com" + p, { headers: { "cf-connecting-ip": "203.0.113.9", ...h } }), env, { waitUntil() {} });
   const r = await get("/v1/discover?q=fixture&limit=5"); assert.equal(r.status, 200);
   const b = await r.json(); assert.equal(b.query.limit, 5); assert.ok(b.count >= 1);
+  { const { paidCheckBlock } = await import("../worker/src/paidcheck.js"); assert.deepEqual(b.paid_check, paidCheckBlock(null), "0.72.1: HTTP discover carries the generic paid_check offer"); assert.equal(b.paid_check.price_usd, "0.02"); }
   assert.equal((await get("/v1/discover?foo=1")).status, 400);
   let last; for (let i = 0; i < DISCOVER_PER_MIN + 2; i++) last = await get("/v1/discover", { "user-agent": "flood" });
   assert.equal(last.status, 429); assert.ok(last.headers.get("retry-after"));
@@ -228,8 +229,9 @@ test("route /v1/discover: 200, unknown param 400, rate limit 429 after DISCOVER_
   assert.ok(list.result.tools.find((t) => t.name === "discover"));
   const call = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "discover", arguments: { verdict: "skip" } } });
   assert.equal(call.result.structuredContent.results[0].verdict, "skip");
+  { const { paidCheckBlock } = await import("../worker/src/paidcheck.js"); assert.deepEqual(call.result.structuredContent.paid_check, paidCheckBlock(null), "0.72.1: MCP discover carries the offer"); }
   const bad = await rpc({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "discover", arguments: { verdict: "nope" } } });
-  assert.equal(bad.result.isError, true);
+  assert.equal(bad.result.isError, true); assert.ok(!JSON.stringify(bad.result).includes("paid_check"), "an error answer carries no offer");
 });
 
 let passed = 0;
