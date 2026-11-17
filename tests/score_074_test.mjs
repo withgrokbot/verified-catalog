@@ -87,6 +87,10 @@ test("operator_endpoint: our own hosts and payTo are never scored, ranked or cou
   const r = score(many(10, 10, (d, h) => probe(d, h, { terms: { ...TERMS, pay_to: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674" } })));
   assert.equal(r.band, "operator_endpoint");
   assert.ok(isOperatorHost("API.402xagent.com", CFG) && !isOperatorHost("sellers.example", CFG));
+  // only hosts the Worker serves are ours; the independent demo-target seller is scored like any other seller
+  assert.deepEqual([...OPERATOR_HOSTS_DEFAULT].sort(), ["402xagent.com", "api.402xagent.com", "api.payscout.dev", "payscout.dev", "www.402xagent.com"]);
+  for (const h of ["api.402rates.com", "402rates.com", "www.402rates.com"]) assert.equal(isOperatorHost(h, CFG), false, h);
+  assert.notEqual(computeScore({ url: "https://api.402rates.com/v1/ping", observations: [], now: NOW, cfg: CFG }).band, "operator_endpoint");
   assert.ok(scoreConfig({ SCORE_OPERATOR_HOSTS: "mine.example, other.example" }).operatorHosts.has("other.example"));
   for (const h of OWN_HOSTS) assert.ok(OPERATOR_HOSTS_DEFAULT.includes(h), h + " is in OWN_HOSTS but not an operator host");
 });

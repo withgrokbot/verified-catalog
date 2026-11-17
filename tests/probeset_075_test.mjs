@@ -87,7 +87,7 @@ test("shuffled is a permutation and does not mutate its input", () => {
 test("candidates: public, non-template, non-operator URLs only; ranking weights check demand 2x discover demand", () => {
   const sc = scoreConfig({});
   assert.equal(P.candidateUrl("https://a.seller-fixture.dev/v1/x?key=abc#f", sc), "https://a.seller-fixture.dev/v1/x");
-  for (const bad of ["https://api.402xagent.com/v1/products/endpoint-spot-check", "https://api.402rates.com/v1/ping", "https://verified-catalog-lookup.me.workers.dev/x", "http://127.0.0.1/x", "https://10.0.0.1/x", "https://localhost/x", "https://a.seller-fixture.dev/users/:id/pay", "https://a.seller-fixture.dev/{id}", "ftp://a.seller-fixture.dev/x", "not a url", "https://user:pw@a.seller-fixture.dev/x"])
+  for (const bad of ["https://api.402xagent.com/v1/products/endpoint-spot-check", "https://api.payscout.dev/v1/ping", "https://verified-catalog-lookup.me.workers.dev/x", "http://127.0.0.1/x", "https://10.0.0.1/x", "https://localhost/x", "https://a.seller-fixture.dev/users/:id/pay", "https://a.seller-fixture.dev/{id}", "ftp://a.seller-fixture.dev/x", "not a url", "https://user:pw@a.seller-fixture.dev/x"])
     assert.equal(P.candidateUrl(bad, sc), null, bad);
   const r = P.rankDemand({ checks: [{ url: "u1", c: 3, method: "POST" }, { url: "u2", c: 1 }], discover: [{ url: "u2", d: 4 }, { url: "u3", d: 5 }] });
   assert.deepEqual(r.map((x) => [x.url, x.score]), [["u2", 6], ["u1", 6], ["u3", 5]].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)));
@@ -100,7 +100,7 @@ test("expansion list: top demand up to the cap; excludes our hosts, the curated 
   for (let i = 1; i <= 5; i++) for (let k = 0; k < i; k++) addReceipt(db, { url: U(i), ageH: 30 + k }); // s5 has the most outside checks
   addReceipt(db, { url: U(9), client: "catalog-heartbeat-20261117" }); // test client: not demand
   addReceipt(db, { url: U(8), type: "self-checked", ref: "daily-recheck", ageH: 2 }); // our own probe: not demand
-  addReceipt(db, { url: "https://api.402rates.com/v1/ping" }); addReceipt(db, { url: "https://api.402xagent.com/x" }); // operator hosts
+  addReceipt(db, { url: "https://api.payscout.dev/v1/ping" }); addReceipt(db, { url: "https://api.402xagent.com/x" }); // operator hosts (the Worker's own)
   addReceipt(db, { url: BADGE_HOSTS[0].url });
   addReceipt(db, { url: U(7), type: "dry-run" }); // dry-run checks are demand
   addDemand(db, U(6), 50); addDemand(db, U(3), 10); // discover demand
