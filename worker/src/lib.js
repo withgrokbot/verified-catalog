@@ -44,7 +44,7 @@ import { VERIFY_PATH, VERIFY_SCRIPT_PATH, VERIFY_STANDALONE_PATH, VERIFY_NODE_PA
 import { handleWatch, watchTick, watchOn, EXAMPLE_CREATE as WATCH_EXAMPLE, WATCH_PRICE_ATOMIC, WATCH_PRICE_USD, EXAMPLE_WATCH_ID, WATCH_PERIOD_DAYS, TRIAL_DAYS as WATCH_TRIAL_DAYS } from "./watch.js";
 import { PS_ID, PS_NETWORK, USDC_BASE_LC, parseRequest, readChain, decide, termsMatch, claimPointer, buildBody, newPsId, cacheKey, cacheGet, cachePut, receiptById, readSource, rpcSources } from "./paystatus.js";
 import { discover, DISCOVER_PER_MIN, DISCOVER_MAX } from "./discover.js";
-import { handleSkips, handleReceipts, crawlReceiptForUrl, crawlReceipt, normUrl, skipsPageRows, crawlSchedule } from "./skips.js";
+import { handleSkips, handleReceipts, crawlReceiptForUrl, crawlReceipt, normUrl, skipsPageRows, crawlSchedule, RECEIPT_LIST_CC } from "./skips.js";
 import { docsIndexHtml, docsProductHtml, DOCS_ANCHORS_PATH, DOCS_ANCHORS_JS } from "./docs.js"; // 0.58.6
 import { receiptListHtml, liveReceiptHtml, crawlReceiptHtml, receiptNotFoundHtml, receiptJsonHtml, crawlReasonText, RECEIPTS_PAGE_SIZE, LIVE_PAGE_SIZE } from "./receipts-html.js"; // 0.58.5
 import { RECEIPTS, RECEIPTS_META } from "./receipts-data.js";
@@ -94,7 +94,7 @@ import { fixFor, fixFor404, toolFix } from "./fix.js"; // 0.71.0
 import { receiptGuard, isVerifiedBot, bulkLimitsOn, skipsPageGuard } from "./receiptguard.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, explain422, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.76.0";
+export const VERSION = "0.77.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 // 0.72.0: the price is derived from the paid 402 amount (SPOT_DEFAULT_PRICE_ATOMIC), not typed.
@@ -1862,9 +1862,9 @@ export async function handleReceiptList(env, url) {
   try { got = await receiptListRows(env, { type, ref, cur, limit }); } catch (_) { return rj({ error: "receipt store unavailable, try again shortly" }, 503); }
   const { page, next } = got;
   const qs = (c) => { const n = new URLSearchParams({ type }); if (ref) n.set("ref", ref); n.set("limit", String(limit)); n.set("cursor", c); return CANON_ORIGIN + "/v1/receipts?" + n.toString(); };
-  return rj({ type, ref: ref || null, limit, count: page.length, receipts: await Promise.all(page.map((r) => publicReceipt(env, JSON.parse(r.body)))), next_cursor: next, next: next ? qs(next) : null });
+  return rj({ type, ref: ref || null, limit, count: page.length, receipts: await Promise.all(page.map((r) => publicReceipt(env, JSON.parse(r.body)))), next_cursor: next, next: next ? qs(next) : null }, 200, { "cache-control": RECEIPT_LIST_CC });
 }
-const rj = (o, status = 200) => new Response(JSON.stringify(o, null, 2), { status, headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": status === 200 ? "public, max-age=60" : "no-store" } });
+const rj = (o, status = 200, extra = {}) => new Response(JSON.stringify(o, null, 2), { status, headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": status === 200 ? "public, max-age=60" : "no-store", ...extra } });
 
 // 0.58.5: receipts for browsers. Same rule as /v1/skips: Accept names text/html and no ?format=json. Every page is rendered
 // from the JSON the machine route returns for the same URL (or the same rows the JSON list uses), so it can only show
@@ -1924,9 +1924,9 @@ export async function receiptListView(env, url) {
 }
 async function receiptsHtml(req, env, url, path) {
   const fp = { endpointReport: endpointReportOn(env), watchtower: watchOn(env) };
-  const H = (body, status = 200) => new Response(req.method === "HEAD" ? null : body, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": status === 200 ? "public, max-age=60" : "no-store", vary: "accept", "content-security-policy": HOME_CSP, "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "access-control-allow-origin": "*" } });
+  const H = (body, status = 200, cc = null) => new Response(req.method === "HEAD" ? null : body, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": status === 200 ? (cc || "public, max-age=60") : "no-store", vary: "accept", "content-security-policy": HOME_CSP, "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "access-control-allow-origin": "*" } });
   const pth = path.replace(/\/+$/, "") || "/";
-  if (pth === "/v1/receipts") return H(receiptListHtml(CANON_ORIGIN, await receiptListView(env, url), fp));
+  if (pth === "/v1/receipts") return H(receiptListHtml(CANON_ORIGIN, await receiptListView(env, url), fp), 200, RECEIPT_LIST_CC);
   const id = pth.slice("/v1/receipts/".length);
   if (id === "by-url" || /^(ps|er|eb)-/.test(id)) return null;
   if (LIVE_RECEIPT_RE.test(id)) {
@@ -1971,7 +1971,7 @@ async function handleLiveReceipts(req, env, url, path) {
       },
       note: "Stored receipts are free to read. A fresh live check is a paid 402xAgent check (5 free per client per UTC day, 25 per network).",
       check_now: API_ORIGIN + "/v1/products/endpoint-spot-check?url=" + encodeURIComponent(target),
-    });
+    }, 200, { "cache-control": RECEIPT_LIST_CC });
   }
   const id = path.slice("/v1/receipts/".length);
   let r = null;

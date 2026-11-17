@@ -9,8 +9,11 @@ import { skipsHtml, sourceBreakdown } from "./skips-html.js"; // 0.58.7
 import { observationSpan } from "./history.js"; // 0.66.2
 import { DOCS_CSP as HOME_CSP } from "./tryit.js"; // = home.js HOME_CSP (strict: script-src 'self' + Cloudflare Web Analytics)
 
-const hdrs = (type) => ({ "content-type": type, "access-control-allow-origin": "*", "cache-control": "public, max-age=300", vary: "accept" });
-const j = (o, s = 200) => new Response(JSON.stringify(o, null, 2), { status: s, headers: hdrs("application/json; charset=utf-8") });
+// 0.77.0: list and paged 200s are private, no-store so a cached page cannot bypass the receipt/skips caps.
+// Single crawl receipts still use public, max-age=300 here; receiptGuard overwrites 200s by id with the 0.62.0 TTL.
+export const RECEIPT_LIST_CC = "private, no-store";
+const hdrs = (type, cc = "public, max-age=300") => ({ "content-type": type, "access-control-allow-origin": "*", "cache-control": cc, vary: "accept" });
+const j = (o, s = 200, cc) => new Response(JSON.stringify(o, null, 2), { status: s, headers: hdrs("application/json; charset=utf-8", cc || "public, max-age=300") });
 
 // Same as norm_url() in receipts/scripts/crawl_probe.py. Keep the two in sync (tested).
 const URL_RE = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/?#]*)([^?#]*)(\?[^#]*)?(#.*)?$/;
@@ -151,18 +154,18 @@ export async function handleSkips(req, url, env = {}, fp = {}) {
       // price), checked_at (UTC), receipt_url (redacted view), caller. Same on every page.
       recent_checks_note: `latest ${RECENT_MAX} outside free checks with a clear verdict; one per endpoint per UTC day; query strings removed`,
       recent_checks: await recentChecks(env, origin),
-    });
+    }, 200, RECEIPT_LIST_CC);
   // 0.58.7: the human page (skips-html.js): shared chrome, plain reasons, cards on phones, method text in <details>, no
   // featured callout, no script. Same rows, same ?page=N paging.
   // 0.66.2: JSON gains by_source (a partition of the headline) and, on each row, days_observed / first_seen / last_checked.
   const html = skipsHtml(origin, { meta: m, skips, page, pages, now: Date.now(), freeCheck: { url: FREE_CHECK_URL, exampleUrl: FREE_CHECK_EXAMPLE_URL, example: FREE_CHECK_EXAMPLE }, spotHowTo: spotHowTo(origin), scheduleText: crawlScheduleText(m.crawled_at) }, fp);
-  return new Response(html, { status: 200, headers: { ...hdrs("text/html; charset=utf-8"), "content-security-policy": HOME_CSP, "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin" } });
+  return new Response(html, { status: 200, headers: { ...hdrs("text/html; charset=utf-8", RECEIPT_LIST_CC), "content-security-policy": HOME_CSP, "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin" } });
 }
 
 export async function handleReceipts(url, env = {}) {
   const path = url.pathname.replace(/\/+$/, "");
   const id = path.slice("/v1/receipts".length).replace(/^\//, "");
-  if (!id) return j({ ...skipsSummary(CANON_ORIGIN, env), note: "Every receipt: /v1/receipts/<id> or /v1/receipts/by-url?url=. Skips page by page: /v1/skips.json?page=N. Page 1:", receipts: RECEIPTS.map((r) => ({ ...r, ...observationSpan([r.timestamp]) })) });
+  if (!id) return j({ ...skipsSummary(CANON_ORIGIN, env), note: "Every receipt: /v1/receipts/<id> or /v1/receipts/by-url?url=. Skips page by page: /v1/skips.json?page=N. Page 1:", receipts: RECEIPTS.map((r) => ({ ...r, ...observationSpan([r.timestamp]) })) }, 200, RECEIPT_LIST_CC);
   let r = await crawlReceipt(env, id);
   if (!r) return j({ error: "receipt not found", receipts: CANON_ORIGIN + "/v1/receipts" }, 404);
   // 0.35.0: ?view=redacted (used by /saves): no wallets, and the reason without the wallets it quotes. Default unchanged.
