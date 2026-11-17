@@ -36,7 +36,8 @@ export const VALID_FOR_MS = Object.freeze({ good: HOUR, caution: HOUR, avoid: 15
 export const PROBE_REFS = Object.freeze(["daily-recheck", "bazaar-daily", "stale-recheck", "score-probe"]);
 // Test, audit, deploy-check and heartbeat clients on live receipts. Matched on the client value only.
 export const TEST_CLIENT_RE = /(heartbeat|drill|deploy|verify|audit|selftest|self-test|smoke|rollout|dry|sec-|label-check|^vc-|^sam-|^withgrokbot)/i;
-export const OPERATOR_HOSTS_DEFAULT = Object.freeze(["402xagent.com", "www.402xagent.com", "api.402xagent.com", "payscout.dev", "api.payscout.dev", "api.402rates.com"]);
+export const OPERATOR_HOSTS_DEFAULT = Object.freeze(["402xagent.com", "www.402xagent.com", "api.402xagent.com", "payscout.dev", "api.payscout.dev"])
+// Exactly the hosts this Worker serves (wrangler.toml routes). Third-party services we only test against (for example the demo target in our docs) are NOT listed: they are scored like any other seller.;
 const OPERATOR_HOST_RE = /^verified-catalog-lookup\.[a-z0-9-]+\.workers\.dev$/;
 
 // Reason-code classes. Availability: did the endpoint answer with a usable 402 challenge.
