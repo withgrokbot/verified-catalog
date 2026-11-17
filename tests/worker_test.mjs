@@ -1413,6 +1413,33 @@ test("public receipts: every delivered decision is stored; GET by id and by-url 
   assert.equal(m.body.result.structuredContent.id, free.body.receipt_id);
   const mu = await rpc({ jsonrpc: "2.0", id: 10, method: "tools/call", params: { name: "get_receipt", arguments: { url: "https://spot.target.fixture/api" } } }, { envo: e });
   assert.equal(mu.body.result.structuredContent.latest_live.id, later.body.receipt_id);
+  // 0.72.1: the free receipt read carries the paid_check offer: top-level on the unsigned by-url wrapper; beside (not inside) a signed receipt
+  { const { paidCheckBlock: pcb } = await import("../worker/src/paidcheck.js");
+    assert.deepEqual(mu.body.result.structuredContent.paid_check, pcb("https://spot.target.fixture/api"), "by-url offer");
+    assert.ok(!("paid_check" in m.body.result.structuredContent), "a signed receipt is not modified");
+    assert.deepEqual(m.body.result._meta.paid_check, pcb(m.body.result.structuredContent.url), "offer beside the receipt");
+    assert.deepEqual(JSON.parse(m.body.result.content[1].text), { paid_check: pcb(m.body.result.structuredContent.url) });
+    const mc = await rpc({ jsonrpc: "2.0", id: 11, method: "tools/call", params: { name: "get_receipt", arguments: { id: sk.id } } }, { envo: e });
+    assert.ok(!("paid_check" in mc.body.result.structuredContent), "crawl receipt body untouched");
+    assert.deepEqual(mc.body.result._meta.paid_check, pcb(mc.body.result.structuredContent.url), "crawl receipt offer"); }
+  // 0.73.0 (review of 0.72.1): the signed case for real. Sign a live receipt with a test key, read it through MCP get_receipt by id, and run the
+  // repo's own verifier (ed25519 over JCS of the receipt minus `signature`) on structuredContent. The offer is beside the receipt (_meta), never inside.
+  { const { generateKeyPairSync } = await import("node:crypto");
+    const SG = await import("../worker/src/sign.js"); const { verifierCore: vcore } = await import("../worker/src/verify-core.js"); const { paidCheckBlock: pcb2 } = await import("../worker/src/paidcheck.js");
+    const { privateKey: sk2 } = generateKeyPairSync("ed25519"); const jwk2 = { ...sk2.export({ format: "jwk" }), kid: "test-sig-mcp-0721" };
+    SG._addTestKey({ kid: jwk2.kid, x: jwk2.x }); SG._resetSigner();
+    const db2 = fakeD1(), e2 = spotEnv({ RECEIPTS_DB: db2, RECEIPT_SIGNING_KEY: JSON.stringify(jwk2) });
+    spotTargetMode = "402";
+    const made = await send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/api") + "&claimed_price=0.001&client=mcp-signed-1", { envo: e2 });
+    assert.equal(made.status, 200);
+    const sm = await rpc({ jsonrpc: "2.0", id: 21, method: "tools/call", params: { name: "get_receipt", arguments: { id: made.body.receipt_id } } }, { envo: e2 });
+    const rcpt = sm.body.result.structuredContent;
+    assert.equal(rcpt.kid, jwk2.kid, "the receipt is signed"); assert.match(rcpt.signature, /^[A-Za-z0-9_-]{86}$/);
+    const V2 = vcore([{ kid: jwk2.kid, x: jwk2.x }]);
+    for (const o of [{}, { forceFallback: true }]) { const v = await V2.verifyReceipt(rcpt, o); assert.equal(v.status, "valid", "ed25519 verify on structuredContent: " + JSON.stringify(v).slice(0, 200)); }
+    assert.ok(!("paid_check" in rcpt), "no offer inside the signed receipt");
+    assert.deepEqual(sm.body.result._meta.paid_check, pcb2(rcpt.url), "offer present in _meta");
+    assert.equal((await V2.verifyReceipt({ ...rcpt, paid_check: sm.body.result._meta.paid_check })).status, "invalid", "an offer put inside the receipt would break the signature, which is why it sits beside it"); }
   const oa = (await send("/openapi.json", { envo: e })).body;
   assert.ok(oa.paths["/v1/receipts/by-url"] && oa.paths["/v1/receipts/{id}"]);
 });

@@ -3921,7 +3921,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
       return { content: [{ type: "text", text }, { type: "text", text: JSON.stringify({ fix }) }], structuredContent: { error: String(text).slice(0, 300), fix }, isError: true };
     };
     if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check", "get_receipt", "payment_status", "discover", "x402_hygiene", ...(endpointReportOn(env) ? ["endpoint_report"] : []), ...(p2mOn(env) ? ["page_to_markdown"] : []), ...(pdfOn(env) ? ["pdf_tables"] : [])].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
-    let data;
+    let data, receiptOffer = null;
     try {
       if (name === "x402_hygiene") {
         const hr = await handleHygiene(new Request(API_ORIGIN + "/v1/hygiene?url=" + encodeURIComponent(String(args.url || "")), { headers: { "cf-connecting-ip": req.headers.get("cf-connecting-ip") || "" } }), env, { probeFetchImpl: selfFetch(env, undefined, { allowSpotCheck: true }) });
@@ -3943,6 +3943,14 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         const body = await r.json();
         if (r.status !== 200) return err((body && body.error) || "HTTP " + r.status, r.status === 400);
         data = body;
+        // 0.72.1: the same paid_check offer on free receipt reads (by-url, crawl receipts, free/redacted/dry-run live receipts).
+        // by-url is an unsigned wrapper, so the offer is a top-level key. A single receipt is signed (ed25519 over JCS of the
+        // receipt minus signature), so it is left byte-for-byte as is and the offer rides beside it (second content block and
+        // result._meta.paid_check). Not on full (paid) live receipts or ps-/er- side receipts, which are the paid product.
+        if (!side && body && typeof body === "object" && !Array.isArray(body) && typeof body.url === "string" && body.url) {
+          if (path === "/v1/receipts/by-url") data = { ...body, paid_check: paidCheckBlock(body.url) };
+          else if (body.redacted || body.dry_run || !/^\/v1\/receipts\/sc-/.test(path)) receiptOffer = paidCheckBlock(body.url);
+        }
       } else if (name === "endpoint_report") {
         if (!args.url) return err("url is required", 1);
         const eb = { url: pyStr(args.url), client: MCP_CLIENT };
@@ -4082,6 +4090,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
       if (e instanceof ToolInputError) return err(e.message, 1);
       throw e;
     }
+    if (receiptOffer) return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }, { type: "text", text: JSON.stringify({ paid_check: receiptOffer }) }], structuredContent: data, _meta: { paid_check: receiptOffer } };
     return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }], structuredContent: data };
   }
   throw new RpcError(-32601, `method not found: ${method}`);

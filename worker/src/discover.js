@@ -4,6 +4,7 @@
 // are older than TERMS_MAX_AGE_HOURS (env; production sets 168 = 7 days in wrangler.toml; 24 h when unset) is returned as "recheck" / reason_code
 // terms_stale (original_verdict keeps what the crawl said). Skips are included by default with their reason.
 import { signObject } from "./sign.js";
+import { paidCheckBlock } from "./paidcheck.js";
 import { crawlStoreGet } from "./skips.js";
 import { termsMaxAgeHours, termsStaleText, termsWindowText, TERMS_MAX_AGE_HOURS_DEFAULT } from "./freshness.js";
 
@@ -182,6 +183,7 @@ export async function discover(env, input, origin, now = Date.now()) {
       ...(got.missing.length ? { index_partial: true, missing_shards: got.missing.length } : {}),
       rules: `stale = last crawl older than ${STALE_HOURS} h; a pay whose terms are older than ${termsWindowText(maxH)} (TERMS_MAX_AGE_HOURS = ${maxH}) is returned as recheck (reason_code terms_stale, original_verdict pay); each pay's check_url carries &quote=<receipt id> so the live check flags terms that moved since the crawl. Skips are included by default (filter with verdict=pay|skip|recheck). Facts from our unpaid crawl probe, not endorsements; run the free check right before paying.`,
       results,
+      paid_check: paidCheckBlock(null), // 0.72.1: the generic paid-check offer (HTTP and MCP discover)
     },
   };
 }
