@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import worker from "../worker/src/index.js";
-import { SPOT_PAID_ATOMIC, VERSION } from "../worker/src/lib.js";
+import { SPOT_PAID_ATOMIC, VERSION, FREE_UPSELL } from "../worker/src/lib.js";
 import { SPOT_DEFAULT_PRICE_ATOMIC } from "../worker/src/spotcheck.js";
 import { paidCheckBlock, PAID_CHECK_NOTE, PAID_CHECK_PRICE_USD, PAID_CHECK_AMOUNT_ATOMIC } from "../worker/src/paidcheck.js";
 import { handleHygiene, HYGIENE_FREE_PER_DAY } from "../worker/src/hygiene.js";
@@ -37,6 +37,7 @@ test("price comes from the source of truth: no typed price in paidcheck.js, equa
   const row = /<tr id="check">([\s\S]*?)<\/tr>/.exec(await p.text())[1].replace(/<[^>]+>/g, " ");
   assert.ok(row.includes("$" + PAID_CHECK_PRICE_USD), "the /pricing row shows the same price: " + row.slice(0, 120));
   assert.ok(PAID_CHECK_NOTE.includes("$" + PAID_CHECK_PRICE_USD));
+  assert.equal(FREE_UPSELL, "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $" + PAID_CHECK_PRICE_USD, "FREE_UPSELL price derived, same text as before");
   assert.match(b.how.steps, /^After the 5 free checks per UTC day/);
 });
 

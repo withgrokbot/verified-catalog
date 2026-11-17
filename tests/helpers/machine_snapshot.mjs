@@ -173,8 +173,30 @@ export function strip0720(body) {
   }
   return body;
 }
+// 0.71.0: every 400/422 JSON body, the two default 404s for known wrong URLs and MCP input errors gain one `fix` object.
+// Unless SNAP_KEEP_0710=1 exactly that object is taken back out (the MCP error's second text block and its
+// structuredContent too), so every older fixture still proves every other byte is unchanged; tests/fix_0710_test.mjs
+// checks the additions themselves.
+export function strip0710(body) {
+  if (process.env.SNAP_KEEP_0710 === "1" || typeof body !== "string" || !body.includes('"fix"')) return body;
+  try {
+    const isFix = (f) => f && typeof f === "object" && f.endpoint && f.example && f.docs && f.expected;
+    const drop = (o) => {
+      if (Array.isArray(o)) { o.forEach(drop); return; }
+      if (!o || typeof o !== "object") return;
+      if (isFix(o.fix)) delete o.fix;
+      if (o.structuredContent && Object.keys(o.structuredContent).sort().join() === "error,fix" && isFix(o.structuredContent.fix) && o.isError) delete o.structuredContent;
+      if (Array.isArray(o.content) && o.isError) o.content = o.content.filter((c) => !(c && typeof c.text === "string" && /^\{"fix":\{/.test(c.text)));
+      Object.values(o).forEach(drop);
+    };
+    const j = JSON.parse(body); drop(j);
+    const ind = (/^\{\n( +)"/.exec(body) || [])[1];
+    const nl = body.endsWith("\n") ? "\n" : "";
+    return JSON.stringify(j, null, ind ? ind.length : undefined) + nl;
+  } catch (_) { return body; }
+}
 export function as0589(key, body) {
-  body = as0598(key, strip0610(strip0620(key, strip0720(strip0662(body)))));
+  body = strip0710(as0598(key, strip0610(strip0620(key, strip0720(strip0662(body))))));
   if (process.env.SNAP_KEEP_0590 === "1" || typeof body !== "string") return body;
   if (/\/llms\.txt \[/.test(key)) return body.replace(LLMS_0590_LINE, "");
   if (/\/\.well-known\/402xagent-(keys|receipt-key)\.json \[/.test(key)) return body.replace(KEYS_0590_FIELD, "");

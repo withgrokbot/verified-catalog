@@ -131,6 +131,10 @@ Free live checks: 5 per client name per UTC day **and** at most 25 per network (
 
 The SVG and JSON are computed from stored live-check receipts in D1 (`spot_receipts`), not from a logo and not from the weekly crawl list. They show checks observed, the share whose verdict is `pay`, the last verdict, and the same `days_observed` / `first_seen` / `last_checked` as receipt history: `days_observed` is the count of distinct UTC dates among the counted receipts, not the calendar days from first to last; `first_seen` is the earliest of those timestamps and `last_checked` is the latest (ISO UTC). The image links to the public receipts page for that endpoint (`/v1/receipts/by-url`). No matching receipt renders grey **not yet observed**. Our own scheduled (cron) self-check probes count. Dry runs and caller-supplied expectations are not counted. Text in the SVG is escaped. `Cache-Control: public, max-age=300`. The route never fetches the seller and never writes. `SELLER_BADGE=off` only hides the lines in `llms.txt` and OpenAPI; the route still answers.
 
+## Fix the asking (0.71.0)
+
+Every 400 and 422 JSON answer carries a static `fix` object `{expected, endpoint, example, docs}` (worker/src/fix.js); MCP tool input errors carry it in a second text block and `structuredContent.fix`; a few known wrong URLs (render/card aliases, `GET /v1/render/keys`, `/mcp/mcp`, `/sse`) get it on their 404. Status codes and existing fields are unchanged. No migration, binding or env var. Baseline 4xx numbers and the 7-day re-measure (`scripts/four_xx_rate.py`) are in `docs/fix-the-asking-0.71.0.md`.
+
 ## Receipt anchors (0.70.0)
 
 Off unless `ANCHORS=1`. Migration `0032_receipt_anchors.sql` (the next one after `0031`). Receipt signing is unchanged: the job only reads `spot_receipts` and writes `receipt_anchors` plus `receipt_anchor_items`.

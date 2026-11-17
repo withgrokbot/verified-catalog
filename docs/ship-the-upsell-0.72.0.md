@@ -28,7 +28,7 @@ Not changed: paid and exempt answers (they are the paid check), 400/429 error an
 
 ## Price check
 
-`tests/paidcheck_0720_test.mjs` asserts the price in the offer equals the live 402 amount, the `/pricing` row and `SPOT_PAID_ATOMIC`, and that `paidcheck.js` has no price literal.
+`FREE_UPSELL` in lib.js (the "for $0.02" line on free answers) is built from the same constant. `tests/paidcheck_0720_test.mjs` asserts the price in the offer equals the live 402 amount, the `/pricing` row and `SPOT_PAID_ATOMIC`, and that `paidcheck.js` has no price literal.
 
 ## Deploy
 
