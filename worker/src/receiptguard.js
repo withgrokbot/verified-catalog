@@ -5,12 +5,12 @@
 // 2) Per-client rate limit on everything that misses the cache: RECEIPT_RATE_PER_MIN per client IP per UTC minute on the
 //    existing QuotaCounter Durable Object (takeFree + quotaKey, same primitive as the facilitator check; no KV).
 //    Over it: 429 + Retry-After. Fails open (a counter error never blocks a read).
-// 0.72.0 bulk limits (PR C). Single reads stay free. What is limited is walking the pile:
-//  - paging: GET /v1/receipts with any query (type=, page=, cursor=, ref=, limit=, ...) is a "page". Per client (IP) a few per
+// 0.73.0 bulk limits (PR C). Single reads stay free. What is limited is walking the pile:
+//  - paging: GET /v1/receipts with any query (type=, page=, cursor=, ref=, limit=, ...) is a "page", and so is /v1/skips(.json)?page=N for N > 1 (same budget). Per client (IP) a few per
 //    minute and a daily cap, plus a larger daily cap per group (ASN + User-Agent) so many IPs on one cloud with one UA share a budget.
 //  - uncached single reads (ids that missed the edge cache, /by-url, /proof): the existing per-minute limit, plus a per-client
 //    daily cap. A verified search bot (Cloudflare verified-bot flag, or its own UA from its operator's ASN) is exempt from the
-//    daily single cap, never from the paging caps. The single-read path still makes ONE Durable Object call (minute + day counters
+//    daily single cap, never from the paging caps (see isVerifiedBot below: self-declared search-engine UAs count; AI crawler UAs never do). The single-read path still makes ONE Durable Object call (minute + day counters
 //    in the same call); only a client already past RECEIPT_GROUP_PROBE reads that day pays a second call for the group counter.
 //  Over a limit: 429 + Retry-After + JSON that points to the bulk-access note (/pricing#bulk-access, not live). No D1, no KV.
 //  Defaults below; every one is a wrangler var (RECEIPT_PAGES_PER_MIN, RECEIPT_PAGES_PER_DAY, RECEIPT_PAGES_PER_DAY_GROUP,
@@ -31,7 +31,7 @@ export const RECEIPT_SINGLE_PER_DAY_GROUP = 3000;
 export const RECEIPT_GROUP_PROBE = 25;
 export const BULK_ACCESS_URL = "https://402xagent.com/pricing#bulk-access";
 const posInt = (v, d) => { const n = parseInt(v ?? "", 10); return Number.isFinite(n) && n > 0 ? n : d; };
-/** 0.72.0 flag: the bulk caps, the /pricing#bulk-access note and the OpenAPI 429 exist only when BULK_LIMITS = "1" (unset = exactly the 0.62.0 guard). */
+/** 0.73.0 flag: the bulk caps, the /pricing#bulk-access note and the OpenAPI 429 exist only when BULK_LIMITS = "1" (unset = exactly the 0.62.0 guard). */
 export const bulkLimitsOn = (env) => !!env && env.BULK_LIMITS === "1";
 /** The limits in force: wrangler vars over the defaults above. */
 export function receiptCaps(env = {}) {
@@ -74,23 +74,26 @@ export function receiptRequestClass(url, path) {
   if (path === "/v1/receipts") return [...url.searchParams.keys()].some((k) => k !== "format" && k !== "raw") ? "page" : "list";
   return "single";
 }
-// A search bot is "verified" when Cloudflare says so (request.cf.botManagement.verifiedBot or request.cf.verifiedBotCategory), or, where
-// that signal is absent (no Bot Management on the zone), when its own UA token arrives from that operator's ASN. A UA alone proves nothing.
-const BOT_ASN = [
-  [/googlebot|google-inspectiontool|googleother|storebot-google|adsbot-google/i, [15169]],
-  [/bingbot|bingpreview|msnbot/i, [8075]],
-  [/applebot/i, [714, 6185]],
-  [/yandex(bot|images|metrika)?/i, [13238]],
-  [/baiduspider/i, [38365, 55967]],
-];
+// Search bots keep single pages (SEO); AI crawlers never get that carve-out.
+//  - A self-declared search-engine UA (Googlebot, Bingbot, Applebot, Yandex, Baidu) counts as verified for SINGLE reads even with no
+//    Cloudflare flag and no ASN match. Spoofing it only buys relief from the daily single-read cap: paging is capped for everyone, and the
+//    existing per-minute limit still applies.
+//  - An AI crawler UA (GPTBot, ClaudeBot, CCBot, PerplexityBot, Bytespider, Amazonbot, Google-Extended, meta-externalagent, ...) gets the normal
+//    caps even when Cloudflare marks it verified (flag or an "AI ..." verified-bot category).
+//  - Any other client Cloudflare marks verified (request.cf.botManagement.verifiedBot or request.cf.verifiedBotCategory) counts as verified.
+const AI_CRAWLER_RE = /(gptbot|oai-searchbot|chatgpt-user|openai|claudebot|claude-web|claude-searchbot|claude-user|anthropic|ccbot|perplexity|bytespider|bytedance|amazonbot|google-extended|googleother|google-cloudvertexbot|meta-external|facebookbot|applebot-extended|cohere|diffbot|youbot|ai2bot|petalbot|timpibot|omgili|imagesiftbot|duckassistbot|mistralai)/i;
+const SEARCH_BOT_RE = /(googlebot|google-inspectiontool|storebot-google|adsbot-google|bingbot|bingpreview|msnbot|applebot|yandex(bot|images|metrika)?|baiduspider)/i;
+export const isAiCrawler = (ua) => AI_CRAWLER_RE.test(String(ua || ""));
+export const isSearchEngineUa = (ua) => !isAiCrawler(ua) && SEARCH_BOT_RE.test(String(ua || ""));
 export function isVerifiedBot(req) {
   try {
+    const ua = req.headers.get("user-agent") || "";
+    if (isAiCrawler(ua)) return false; // even if Cloudflare marks it verified
+    if (SEARCH_BOT_RE.test(ua)) return true;
     const cf = req.cf || {};
+    if (/^ai\b/i.test(String(cf.verifiedBotCategory || ""))) return false;
     if (cf.botManagement && cf.botManagement.verifiedBot === true) return true;
-    if (cf.verifiedBotCategory) return true;
-    const ua = req.headers.get("user-agent") || "", asn = Number(cf.asn);
-    if (!ua || !Number.isFinite(asn)) return false;
-    return BOT_ASN.some(([re, asns]) => re.test(ua) && asns.includes(asn));
+    return !!cf.verifiedBotCategory;
   } catch (_) { return false; }
 }
 async function sha(s) { return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, "0")).join(""); }
@@ -131,6 +134,23 @@ function limited(scope, now, caps, extra = {}) {
 }
 const CANON_ID_EXAMPLE = "https://402xagent.com/v1/receipts/<id>";
 
+/** The list-paging cap, shared by every paged list (receipts, skips): per client per minute and per day, then per ASN+UA group per day. Returns a 429 or null. */
+export async function pageLimit(req, env, now, caps = receiptCaps(env), id = null) {
+  const minute = utcMinute(now), day = utcDay(now);
+  id = id || (await quotaKey(req, {}, env, now));
+  const t = await takeMulti(env, "rcptp:" + id, [{ counter: "rcpt-pmin", period: minute, limit: caps.pagesPerMin }, { counter: "rcpt-pday", period: day, limit: caps.pagesPerDay }], now);
+  if (!t.free) return limited(t.blocked === 0 ? "pages_minute" : "pages_day", now, caps);
+  const g = await takeFree(env, "rcptg:" + (await groupKey(req, env, now)), caps.pagesPerDayGroup, now, "take", "rcpt-gpage", day);
+  if (!g.error && !g.free) return limited("pages_group", now, caps);
+  return null;
+}
+/** /v1/skips and /v1/skips.json: ?page=N with N > 1 is a list page under the same cap as receipt list pages (page 1 and the bare page stay free). Flag off or payscout.dev: null. */
+export async function skipsPageGuard(req, env, url, now = new Date()) {
+  const caps = receiptCaps(env);
+  if (!caps.on || isPayscoutRequest(req, url) || !(parseInt(url.searchParams.get("page") || "1", 10) > 1)) return null;
+  return pageLimit(req, env, now, caps);
+}
+
 export async function receiptGuard(req, env, ctx, url, path, inner, { now = new Date(), cache = (globalThis.caches && globalThis.caches.default) || null } = {}) {
   if (env && env.RECEIPT_GUARD === "off") return inner(); // kill switch (var), also used by the pre-0.62.0 snapshot fixtures
   const get = req.method === "GET" || req.method === "HEAD";
@@ -143,10 +163,8 @@ export async function receiptGuard(req, env, ctx, url, path, inner, { now = new 
     const caps = receiptCaps(env), klass = receiptRequestClass(url, path), minute = utcMinute(now), day = utcDay(now);
     const id = await quotaKey(req, {}, env, now);
     if (klass === "page" && caps.on) {
-      const t = await takeMulti(env, "rcptp:" + id, [{ counter: "rcpt-pmin", period: minute, limit: caps.pagesPerMin }, { counter: "rcpt-pday", period: day, limit: caps.pagesPerDay }], now);
-      if (!t.free) return limited(t.blocked === 0 ? "pages_minute" : "pages_day", now, caps);
-      const g = await takeFree(env, "rcptg:" + (await groupKey(req, env, now)), caps.pagesPerDayGroup, now, "take", "rcpt-gpage", day);
-      if (!g.error && !g.free) return limited("pages_group", now, caps);
+      const lim = await pageLimit(req, env, now, caps, id);
+      if (lim) return lim;
     } else {
       const capSingle = caps.on && klass === "single" && !isVerifiedBot(req);
       const specs = [{ counter: RECEIPT_RATE_COUNTER, period: minute, limit: caps.perMin }];

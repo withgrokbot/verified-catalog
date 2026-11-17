@@ -1,10 +1,11 @@
-// 0.72.0 bulk limits on /v1/receipts*: single reads unaffected, paging limited, 429 shape, verified bots keep single pages.
+// 0.73.0 bulk limits on /v1/receipts*: single reads unaffected, paging limited, 429 shape, verified bots keep single pages.
 // No network. Runs the real QuotaCounter in an in-memory Durable Object namespace.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import worker from "../worker/src/index.js";
 import { QuotaCounter, VERSION } from "../worker/src/lib.js";
-import { receiptGuard, receiptCaps, receiptRequestClass, isVerifiedBot, BULK_ACCESS_URL, RECEIPT_PAGES_PER_MIN, RECEIPT_PAGES_PER_DAY, RECEIPT_SINGLE_PER_DAY, RECEIPT_RATE_PER_MIN } from "../worker/src/receiptguard.js";
+import { receiptGuard, skipsPageGuard, isAiCrawler, isSearchEngineUa, receiptCaps, receiptRequestClass, isVerifiedBot, BULK_ACCESS_URL, RECEIPT_PAGES_PER_MIN, RECEIPT_PAGES_PER_DAY, RECEIPT_SINGLE_PER_DAY, RECEIPT_RATE_PER_MIN } from "../worker/src/receiptguard.js";
 import { pricingHtml } from "../worker/src/pricing.js";
 
 function quotaNs({ broken = false } = {}) {
@@ -34,7 +35,7 @@ function mk(env0, ip = "198.51.100.10", ua = "curl/8") {
 const SINGLE = "https://402xagent.com/v1/receipts/sc-0123456789abcdef";
 
 test("version and defaults", () => {
-  assert.equal(VERSION, "0.72.0");
+  assert.equal(VERSION, "0.73.0");
   assert.deepEqual([RECEIPT_PAGES_PER_MIN, RECEIPT_PAGES_PER_DAY, RECEIPT_SINGLE_PER_DAY, RECEIPT_RATE_PER_MIN], [6, 40, 300, 120]);
   const c = receiptCaps({ RECEIPT_PAGES_PER_MIN: "2", RECEIPT_SINGLE_PER_DAY: "abc", BULK_LIMITS: "0" });
   assert.equal(c.pagesPerMin, 2); assert.equal(c.singlePerDay, 300, "bad var falls back to the default"); assert.equal(c.on, false, "off unless BULK_LIMITS=1"); assert.equal(receiptCaps({ BULK_LIMITS: "1" }).on, true);
@@ -147,13 +148,85 @@ test("verified search bots keep single pages (no daily single cap) but are still
     let pages = 0; for (let i = 0; i < 12; i++) if ((await go("https://402xagent.com/v1/receipts?page=" + i, { cf })).status === 200) pages++;
     assert.equal(pages, RECEIPT_PAGES_PER_MIN, "paging capped for a verified bot: " + JSON.stringify(cf));
   }
-  // spoofed: the Googlebot UA with no verified flag and from another ASN (or no ASN) is capped like anyone else
-  for (const cf of [null, { asn: 64500 }]) {
-    const go = mk({ ...env, QUOTA: quotaNs() }, "198.51.100.31", ua); let n = 0;
-    for (let i = 0; i < 12; i++) if ((await go("https://402xagent.com/v1/receipts/0123456789", { cf })).status === 200) n++;
-    assert.equal(n, 5, "spoofed UA capped " + JSON.stringify(cf));
+  assert.equal(isVerifiedBot(new Request("https://x/", { headers: { "user-agent": "curl/8" } })), false);
+});
+
+test("self-declared search-engine UAs count as verified for single reads with no CF flag and no ASN match; AI crawlers never do, even marked verified by CF", async () => {
+  const env = { QUOTA: quotaNs(), RECEIPT_SINGLE_PER_DAY: "5", RECEIPT_RATE_PER_MIN: "1000", RECEIPT_GROUP_PROBE: "1", RECEIPT_SINGLE_PER_DAY_GROUP: "5" };
+  const search = ["Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)", "Mozilla/5.0 (Macintosh) AppleWebKit/605 (Applebot/0.1)", "Mozilla/5.0 (compatible; YandexBot/3.0)", "Mozilla/5.0 (compatible; Baiduspider/2.0)"];
+  for (const ua of search) {
+    assert.ok(isSearchEngineUa(ua), ua);
+    for (const cf of [null, { asn: 64500 }]) {
+      const go = mk({ ...env, QUOTA: quotaNs() }, "198.51.100.32", ua);
+      for (let i = 0; i < 30; i++) assert.equal((await go("https://402xagent.com/v1/receipts/0123456789", { cf })).status, 200, ua + " " + i);
+    }
   }
-  assert.equal(isVerifiedBot(new Request("https://x/", { headers: { "user-agent": "bingbot/2.0" } })), false, "UA alone proves nothing");
+  const ai = ["Mozilla/5.0 AppleWebKit/537.36 (compatible; GPTBot/1.1; +https://openai.com/gptbot)", "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)", "CCBot/2.0 (https://commoncrawl.org/faq/)",
+    "Mozilla/5.0 (compatible; PerplexityBot/1.0)", "Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)", "Mozilla/5.0 (compatible; Amazonbot/0.1)",
+    "Mozilla/5.0 (compatible; Google-Extended)", "Mozilla/5.0 (compatible; meta-externalagent/1.1)", "Mozilla/5.0 (compatible; Applebot-Extended/0.1)"];
+  for (const ua of ai) {
+    assert.ok(isAiCrawler(ua), ua); assert.equal(isSearchEngineUa(ua), false, ua);
+    for (const cf of [null, { botManagement: { verifiedBot: true } }, { verifiedBotCategory: "AI Crawler" }, { verifiedBotCategory: "Search Engine Crawler", asn: 15169 }]) {
+      const go = mk({ ...env, QUOTA: quotaNs() }, "198.51.100.33", ua); let n = 0;
+      for (let i = 0; i < 12; i++) if ((await go("https://402xagent.com/v1/receipts/0123456789", { cf })).status === 200) n++;
+      assert.equal(n, 5, "AI crawler capped like anyone else: " + ua + " " + JSON.stringify(cf));
+    }
+  }
+  // paging stays capped for everyone, search engines included
+  const g = mk({ ...env, QUOTA: quotaNs() }, "198.51.100.34", search[0]); let pages = 0;
+  for (let i = 0; i < 12; i++) if ((await g("https://402xagent.com/v1/receipts?page=" + i, { cf: { botManagement: { verifiedBot: true } } })).status === 200) pages++;
+  assert.equal(pages, RECEIPT_PAGES_PER_MIN);
+  // another CF-verified client with an ordinary UA (e.g. a monitor) is still treated as verified for single reads
+  assert.equal(isVerifiedBot(new Request("https://x/", { headers: { "user-agent": "SomeMonitor/1" } })), false);
+  const mon = new Request("https://x/", { headers: { "user-agent": "SomeMonitor/1" } }); Object.defineProperty(mon, "cf", { value: { verifiedBotCategory: "Monitoring & Analytics" } });
+  assert.equal(isVerifiedBot(mon), true);
+});
+
+const SKIPS = "https://402xagent.com/v1/skips";
+test("skips paging: ?page=N (N>1) on /v1/skips and /v1/skips.json shares the receipt list-paging cap; page 1 and the bare page stay free", async () => {
+  const env = { QUOTA: quotaNs(), BULK_LIMITS: "1" };
+  const guard = (u, ip, ua = "curl/8", cf = null, now = NOW) => { const url = new URL(u); const req = new Request(url, { headers: { "cf-connecting-ip": ip, "user-agent": ua } }); if (cf) Object.defineProperty(req, "cf", { value: cf }); return skipsPageGuard(req, env, url, now); };
+  for (let i = 0; i < 50; i++) { assert.equal(await guard(SKIPS, "198.51.100.70"), null, "bare"); assert.equal(await guard(SKIPS + "?page=1", "198.51.100.70"), null, "page=1"); assert.equal(await guard(SKIPS + ".json?page=junk", "198.51.100.70"), null); }
+  let served = 0, hit = null;
+  for (let i = 2; i < 14 && !hit; i++) { const r = await guard((i % 2 ? SKIPS : SKIPS + ".json") + "?page=" + i, "198.51.100.71"); if (r) hit = r; else served++; }
+  assert.equal(served, RECEIPT_PAGES_PER_MIN, "HTML and JSON skips pages share one per-minute budget");
+  assert.equal(hit.status, 429); assert.equal(hit.headers.get("x-receipt-limit"), "pages_minute"); assert.equal(hit.headers.get("retry-after"), "30");
+  const b = await hit.json(); assert.equal(b.code, "bulk_limit"); assert.equal(b.bulk_access.url, BULK_ACCESS_URL); assert.equal(b.bulk_access.status, "not_live");
+  // shared with receipt list pages: the same client's receipt pages are now over budget too, and another client is unaffected
+  const rg = mk(env, "198.51.100.71");
+  assert.equal((await rg("https://402xagent.com/v1/receipts?page=2")).status, 429);
+  assert.equal(await guard(SKIPS + "?page=2", "198.51.100.72"), null);
+  // verified search bot: still capped on paging
+  let bp = 0; for (let i = 2; i < 14; i++) if (!(await guard(SKIPS + "?page=" + i, "198.51.100.73", "Mozilla/5.0 (compatible; Googlebot/2.1)", { botManagement: { verifiedBot: true } }))) bp++;
+  assert.equal(bp, RECEIPT_PAGES_PER_MIN);
+  // daily cap
+  let day = 0, last; for (let m = 0; m < 20 && !last; m++) for (let i = 0; i < 6; i++) { const r = await guard(SKIPS + "?page=" + (i + 2), "198.51.100.74", "curl/8", null, new Date(NOW.getTime() + m * 60000)); if (r) { last = r; break; } day++; }
+  assert.equal(day, RECEIPT_PAGES_PER_DAY); assert.equal((await last.json()).scope, "pages_day");
+  // payscout.dev never limited; flag off never limited
+  for (let i = 0; i < 12; i++) assert.equal(await guard("https://api.payscout.dev/v1/skips.json?page=" + (i + 2), "198.51.100.75"), null);
+  const off = { QUOTA: quotaNs() };
+  for (let i = 0; i < 12; i++) { const url = new URL(SKIPS + "?page=" + (i + 2)); assert.equal(await skipsPageGuard(new Request(url, { headers: { "cf-connecting-ip": "198.51.100.76" } }), off, url, NOW), null); }
+});
+
+test("skips paging end to end through the Worker: 429 on the 7th page, page 1 answers, scope in analytics blob17", async () => {
+  const points = []; const pending = []; const ctx = { waitUntil: (p) => void pending.push(p) };
+  const env = { BULK_LIMITS: "1", QUOTA: quotaNs(), CLIENT_SALT: "s", LOOKUPS: { writeDataPoint: (d) => points.push(d) }, RECEIPT_PAGES_PER_DAY: "2" };
+  const call = (u, accept = "application/json") => worker.fetch(new Request(u, { headers: { "cf-connecting-ip": "198.51.100.80", "user-agent": "walker/1", accept } }), env, ctx);
+  assert.equal((await call(SKIPS + ".json?page=2")).status, 200);
+  assert.equal((await call(SKIPS + "?page=3", "text/html")).status, 200, "HTML skips page");
+  const r = await call(SKIPS + ".json?page=4");
+  assert.equal(r.status, 429); assert.equal((await r.json()).bulk_access.url, BULK_ACCESS_URL);
+  assert.equal((await call(SKIPS + ".json")).status, 200, "first page still free");
+  await Promise.all(pending);
+  const rl = points.filter((p) => p.blobs[12] === "view-skips" && p.doubles[2] === 429);
+  assert.equal(rl.length, 1); assert.equal(rl[0].blobs[16], "pages_day");
+});
+
+test("wrangler.toml leaves BULK_LIMITS unset (a merge or deploy does not enable the limits); the RECEIPT_* vars are the code defaults", () => {
+  const toml = readFileSync(new URL("../worker/wrangler.toml", import.meta.url), "utf8");
+  assert.doesNotMatch(toml, /^BULK_LIMITS\s*=/m);
+  const num = (k) => Number((new RegExp("^" + k + '\\s*=\\s*"(\\d+)"', "m").exec(toml) || [])[1]);
+  assert.deepEqual([num("RECEIPT_PAGES_PER_MIN"), num("RECEIPT_PAGES_PER_DAY"), num("RECEIPT_PAGES_PER_DAY_GROUP"), num("RECEIPT_SINGLE_PER_DAY"), num("RECEIPT_SINGLE_PER_DAY_GROUP"), num("RECEIPT_GROUP_PROBE")], [6, 40, 400, 300, 3000, 25]);
 });
 
 test("payscout.dev is never limited; BULK_LIMITS=off and a dead counter fail open", async () => {

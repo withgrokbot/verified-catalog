@@ -155,8 +155,48 @@ export function strip0620(key, body) {
   }
   return body.split(HOME_NOTE_0620[0]).join(HOME_NOTE_0620[1]).split(DOCS_NOTE_0620[0]).join(DOCS_NOTE_0620[1]).split(RECEIPT_NOTE_0620).join("");
 }
+// 0.72.0: the free hygiene answer gains the same paid_check offer, and the receipt pages' one-line paid-check note
+// becomes a "Full check" panel. Unless SNAP_KEEP_0720=1 the hygiene paid_check is removed and the panel is turned back
+// into the 0.62.0 one-line note, so every older fixture (and the 0.62.0 test) still proves every other byte is unchanged;
+// tests/paidcheck_0720_test.mjs checks the additions themselves. Runs before strip0620.
+export function strip0720(body) {
+  if (process.env.SNAP_KEEP_0720 === "1" || typeof body !== "string") return body;
+  if (body.includes('id="full-check"')) body = body.replace(/<section class="rc-card rc-full" id="full-check">[\s\S]*?<\/section>/g, () => '<p class="rc-note rc-paid">' + PAID_CHECK_NOTE + "</p>");
+  if (body.includes('"paid_check"') && body.includes('"deductions"')) {
+    try {
+      const drop = (o) => { if (Array.isArray(o)) o.forEach(drop); else if (o && typeof o === "object") { if (o.paid_check && "deductions" in o && "grade" in o) delete o.paid_check; Object.values(o).forEach(drop); } };
+      const j = JSON.parse(body); drop(j);
+      const ind = (/^\{\n( +)"/.exec(body) || [])[1];
+      const nl = body.endsWith("\n") ? "\n" : "";
+      body = JSON.stringify(j, null, ind ? ind.length : undefined) + nl;
+    } catch (_) {}
+  }
+  return body;
+}
+// 0.71.0: every 400/422 JSON body, the two default 404s for known wrong URLs and MCP input errors gain one `fix` object.
+// Unless SNAP_KEEP_0710=1 exactly that object is taken back out (the MCP error's second text block and its
+// structuredContent too), so every older fixture still proves every other byte is unchanged; tests/fix_0710_test.mjs
+// checks the additions themselves.
+export function strip0710(body) {
+  if (process.env.SNAP_KEEP_0710 === "1" || typeof body !== "string" || !body.includes('"fix"')) return body;
+  try {
+    const isFix = (f) => f && typeof f === "object" && f.endpoint && f.example && f.docs && f.expected;
+    const drop = (o) => {
+      if (Array.isArray(o)) { o.forEach(drop); return; }
+      if (!o || typeof o !== "object") return;
+      if (isFix(o.fix)) delete o.fix;
+      if (o.structuredContent && Object.keys(o.structuredContent).sort().join() === "error,fix" && isFix(o.structuredContent.fix) && o.isError) delete o.structuredContent;
+      if (Array.isArray(o.content) && o.isError) o.content = o.content.filter((c) => !(c && typeof c.text === "string" && /^\{"fix":\{/.test(c.text)));
+      Object.values(o).forEach(drop);
+    };
+    const j = JSON.parse(body); drop(j);
+    const ind = (/^\{\n( +)"/.exec(body) || [])[1];
+    const nl = body.endsWith("\n") ? "\n" : "";
+    return JSON.stringify(j, null, ind ? ind.length : undefined) + nl;
+  } catch (_) { return body; }
+}
 export function as0589(key, body) {
-  body = as0598(key, strip0610(strip0620(key, strip0662(body))));
+  body = strip0710(as0598(key, strip0610(strip0620(key, strip0720(strip0662(body))))));
   if (process.env.SNAP_KEEP_0590 === "1" || typeof body !== "string") return body;
   if (/\/llms\.txt \[/.test(key)) return body.replace(LLMS_0590_LINE, "");
   if (/\/\.well-known\/402xagent-(keys|receipt-key)\.json \[/.test(key)) return body.replace(KEYS_0590_FIELD, "");

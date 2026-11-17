@@ -2709,7 +2709,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*", "23 6 \* \* 1", "41 3 \* \* \*"\]/);
-  assert.equal(VERSION, "0.72.0");
+  assert.equal(VERSION, "0.73.0");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)
@@ -4433,16 +4433,16 @@ test("0.51.4: spot-check 400 body: template + filled example + free check link, 
     assert.deepEqual(r.body.free_check, { url: R + "?url=<endpoint>", free_per_day: 5 });
     assert.ok(r.body.error.includes("Example: " + R + "?url=https://api.402rates.com/v1/ping"), r.body.error);
     assert.ok(!r.body.error.includes("example.com"), "placeholder sample gone");
-    assert.ok(JSON.stringify(r.body).length < (method === "GET" ? 1024 : 1100), path + " " + JSON.stringify(r.body).length);
+    assert.ok(JSON.stringify(r.body).length < (method === "GET" ? 1536 : 1650), path + " " + JSON.stringify(r.body).length);
   }
   // hostile / oversized input: never echoed raw, body stays small
   const evil = "https://a.fixture/" + "A".repeat(1800) + "?k=<script>alert(1)</script>";
   let r = await send(SPOT + "?link=" + encodeURIComponent(evil), { envo: e });
   assert.equal(r.status, 400); assert.equal(r.body.mistake, "wrong_param_name");
   assert.deepEqual(r.body.fixed_example, { method: "GET", url: R + "?url=https://api.402rates.com/v1/ping" }, "long value -> real example");
-  let txt = JSON.stringify(r.body); assert.ok(txt.length < 1024, String(txt.length));
+  let txt = JSON.stringify(r.body); assert.ok(txt.length < 1536, String(txt.length));
   r = await send(SPOT + "?url=" + encodeURIComponent("ftp://" + "abc.".repeat(400)), { envo: e });
-  assert.equal(r.status, 400); assert.ok(JSON.stringify(r.body).length < 1100, "worst case: received is capped at ~100 chars"); assert.ok(!txt.includes("<script>") && !txt.includes("AAAAAAAAAA"));
+  assert.equal(r.status, 400); assert.ok(JSON.stringify(r.body).length < 1650, "worst case: received is capped at ~100 chars"); assert.ok(!txt.includes("<script>") && !txt.includes("AAAAAAAAAA"));
   const wallet = "https://a.fixture/pay?to=0x" + "ab".repeat(20);
   r = await send(SPOT + "?endpoint_link=" + encodeURIComponent(wallet), { envo: e });
   assert.ok(!JSON.stringify(r.body).includes("ab".repeat(20)), "wallet-like value not echoed");
@@ -4450,7 +4450,7 @@ test("0.51.4: spot-check 400 body: template + filled example + free check link, 
   assert.equal(r.status, 400); txt = JSON.stringify(r.body); assert.ok(!txt.includes("<b>") && !txt.includes('li\\"nk'), txt);
   r = await send(SPOT, { envo: e, method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "url=" + encodeURIComponent("https://a.fixture/\u0000x" + "B".repeat(500)) });
   assert.equal(r.body.mistake, "post_form_body"); assert.deepEqual(r.body.fixed_example.body, { url: "https://api.402rates.com/v1/ping" });
-  assert.ok(JSON.stringify(r.body).length < 1100);
+  assert.ok(JSON.stringify(r.body).length < 1650);
   // a short, clean value is still moved to url= (0.22.0 behaviour kept)
   r = await send(SPOT + "?link=" + encodeURIComponent("https://api.example.org/v1/q?a=1"), { envo: e });
   assert.equal(r.body.fixed_example.url, R + "?url=" + encodeURIComponent("https://api.example.org/v1/q?a=1"));

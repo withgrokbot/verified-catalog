@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 const codes = (r) => r.deductions.map((d) => d.code).sort();
 const sum = (r) => r.deductions.reduce((a, d) => a + d.points, 0);
 
-test("0.58.9 version", () => assert.equal(VERSION, "0.72.0"));
+test("0.58.9 version", () => assert.equal(VERSION, "0.73.0"));
 
 test("good fixture: 100 / A, no deductions, 402 discipline scored", () => {
   const r = hygiene(GOOD);
@@ -123,7 +123,7 @@ test("GET /v1/hygiene: shape, unpaid normal requests only (no payment headers, n
   const r = await handleHygiene(get("?url=https://seller.fixture/api?q=1"), env, deps(calls));
   assert.equal(r.status, 200);
   const b = await r.json();
-  assert.deepEqual(Object.keys(b).sort(), ["cached", "deductions", "grade", "score", "scored_at", "url"]);
+  assert.deepEqual(Object.keys(b).sort(), ["cached", "deductions", "grade", "paid_check", "score", "scored_at", "url"]);
   assert.equal(b.grade, "A");
   assert.ok(calls.length >= 1 && calls.length <= 3);
   for (const c of calls) {

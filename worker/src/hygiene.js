@@ -5,6 +5,7 @@
 import { assertSafeUrl, resolveHost } from "./spotcheck.js";
 import { isPlaceholderUrl } from "./ops.js";
 import { ipPrefix } from "./lib.js";
+import { paidCheckBlock } from "./paidcheck.js"; // 0.72.0
 
 export const HYGIENE_FREE_PER_DAY = 20;
 export const HYGIENE_TTL_S = 86400;
@@ -143,7 +144,7 @@ export async function handleHygiene(req, env, deps = {}, now = new Date()) {
   if (!safe.ok) return bad("blocked: " + safe.reason);
   const url = target.toString();
   const hit = await cachedHygiene(env, url, now);
-  if (hit) return J({ url, score: hit.score, grade: hit.grade, deductions: hit.deductions, scored_at: hit.scored_at, cached: true });
+  if (hit) return J({ url, score: hit.score, grade: hit.grade, deductions: hit.deductions, scored_at: hit.scored_at, cached: true, paid_check: paidCheckBlock(url) });
   if (!env || !env.RECEIPTS_DB) return J({ error: "hygiene store unavailable, try again shortly" }, 503);
   // free quota: D1 counter keyed by a salted hash of the /24 (/48) prefix; the raw IP and prefix are never stored
   let n;
@@ -163,5 +164,5 @@ export async function handleHygiene(req, env, deps = {}, now = new Date()) {
     await env.RECEIPTS_DB.prepare("DELETE FROM hygiene_cache WHERE scored_at < ?").bind(iso(new Date(now - 2 * HYGIENE_TTL_S * 1000))).run();
     await env.RECEIPTS_DB.prepare("DELETE FROM hygiene_quota WHERE day < ?").bind(iso(new Date(now - 2 * HYGIENE_TTL_S * 1000)).slice(0, 10)).run();
   } catch (_) {}
-  return J({ url, score, grade, deductions, scored_at, cached: false });
+  return J({ url, score, grade, deductions, scored_at, cached: false, paid_check: paidCheckBlock(url) }); // 0.72.0: the same offer the free check carries (not stored in the cache)
 }

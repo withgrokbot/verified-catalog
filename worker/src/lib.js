@@ -87,14 +87,16 @@ import { agentCard, AGENT_CARD_PATHS } from "./agentcard.js"; // 0.61.0
 const WK_ALIAS_PATHS = new Set(["/.well-known/mcp.json", "/.well-known/x402.json", "/.well-known/oauth-protected-resource"]);
 const MCP_JSON = Object.freeze({ mcpServers: { "402xagent": { url: "https://api.402xagent.com/mcp" } } });
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
-import { paidCheckBlock } from "./paidcheck.js";
-import { receiptGuard, isVerifiedBot, bulkLimitsOn } from "./receiptguard.js";
-import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
+import { paidCheckBlock, PAID_CHECK_PRICE_USD } from "./paidcheck.js";
+import { fixFor, fixFor404, toolFix } from "./fix.js"; // 0.71.0
+import { receiptGuard, isVerifiedBot, bulkLimitsOn, skipsPageGuard } from "./receiptguard.js";
+import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, explain422, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.72.0";
+export const VERSION = "0.73.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
-export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $0.02";
+// 0.72.0: the price is derived from the paid 402 amount (SPOT_DEFAULT_PRICE_ATOMIC), not typed.
+export const FREE_UPSELL = "Full 402 details (exact payment terms, pay_to, deadline) for this endpoint for $" + PAID_CHECK_PRICE_USD;
 export const PAYMENT_POLICY =
   "Payment buys query access only. It never changes results, sort order, listings, check results or known-answer outcomes: free, paid and exempt lookups run the same code on the same data and get identical results.";
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -553,7 +555,7 @@ export class QuotaCounter {
     if (rec.day !== day) rec = { day, used: 0 };
     if (u.pathname === "/peek") return Response.json({ free: rec.used < limit, used: rec.used, limit });
     if (u.pathname === "/multi") {
-      // 0.72.0: up to 4 counters in one call (c<i> name, p<i> period, l<i> limit). Takes one unit from each, or from none if any is spent
+      // 0.73.0: up to 4 counters in one call (c<i> name, p<i> period, l<i> limit). Takes one unit from each, or from none if any is spent
       // (blocked = index of the first spent counter). One Durable Object round trip for a minute + day budget.
       const specs = [];
       for (let i = 0; i < 4; i++) {
@@ -3306,7 +3308,7 @@ function openapiBase(origin, env = {}) {
             { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
             { name: "cursor", in: "query", schema: { type: "string" }, description: "next_cursor from the previous page" },
           ],
-          responses: { 200: { description: "JSON receipts" }, 400: { description: "bad type, ref or cursor" }, ...(bulkLimitsOn(env) ? { 429: { description: "Bulk read limit (0.72.0): a few list pages per minute and a daily cap per client; Retry-After says when. JSON body: code, scope, limit, retry_after_seconds, bulk_access.url (full history, bulk export and .ots bundles are paid and not live yet). Single receipts stay free." } } : {}) },
+          responses: { 200: { description: "JSON receipts" }, 400: { description: "bad type, ref or cursor" }, ...(bulkLimitsOn(env) ? { 429: { description: "Bulk read limit (0.73.0): a few list pages per minute and a daily cap per client; Retry-After says when. JSON body: code, scope, limit, retry_after_seconds, bulk_access.url (full history, bulk export and .ots bundles are paid and not live yet). Single receipts stay free." } } : {}) },
         },
       },
       "/mcp": {
@@ -3910,32 +3912,39 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
   if (method === "tools/call") {
     const name = params.name;
     const args = params.arguments || {};
-    const err = (text) => ({ content: [{ type: "text", text }], isError: true });
+    // 0.71.0: an input error (second argument true) also carries the machine-readable fix: a second text block and
+    // structuredContent.fix, built from the tool's own inputSchema. content[0] is unchanged. search_catalog and get_service
+    // are excluded: their answers are pinned byte-for-byte to mcp/server.py (worker_test).
+    const err = (text, inputError = false) => {
+      if (!inputError || name === "search_catalog" || name === "get_service") return { content: [{ type: "text", text }], isError: true };
+      const fix = toolFix(name, [...MCP_TOOLS, ER_MCP_TOOL, P2M_MCP_TOOL, PDF_MCP_TOOL]);
+      return { content: [{ type: "text", text }, { type: "text", text: JSON.stringify({ fix }) }], structuredContent: { error: String(text).slice(0, 300), fix }, isError: true };
+    };
     if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check", "get_receipt", "payment_status", "discover", "x402_hygiene", ...(endpointReportOn(env) ? ["endpoint_report"] : []), ...(p2mOn(env) ? ["page_to_markdown"] : []), ...(pdfOn(env) ? ["pdf_tables"] : [])].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
     let data;
     try {
       if (name === "x402_hygiene") {
         const hr = await handleHygiene(new Request(API_ORIGIN + "/v1/hygiene?url=" + encodeURIComponent(String(args.url || "")), { headers: { "cf-connecting-ip": req.headers.get("cf-connecting-ip") || "" } }), env, { probeFetchImpl: selfFetch(env, undefined, { allowSpotCheck: true }) });
         const hb = await hr.json();
-        if (hr.status !== 200) return err(hb.error);
+        if (hr.status !== 200) return err(hb.error, hr.status === 400);
         data = hb;
       } else if (name === "discover") {
         if (!(await discoverRateOk(req, env))) return err(`rate limited: ${DISCOVER_PER_MIN} calls per minute`);
         const r = await discover(env, args, CANON_ORIGIN);
-        if (r.status !== 200) return err(r.body.error);
+        if (r.status !== 200) return err(r.body.error, r.status === 400);
         data = r.body;
       } else if (name === "get_receipt") {
         let path, u;
         if (args.id) { path = "/v1/receipts/" + encodeURIComponent(pyStr(args.id)); u = new URL(origin + path); }
         else if (args.url) { path = "/v1/receipts/by-url"; u = new URL(origin + path + "?url=" + encodeURIComponent(pyStr(args.url))); }
-        else return err("give id or url");
+        else return err("give id or url", 1);
         const side = /^\/v1\/receipts\/(ps|er)-[0-9a-f]{16}$/.test(path) ? await sideReceipt(env, path.slice("/v1/receipts/".length)) : null;
         const r = side ? Response.json(side) : /^\/v1\/receipts\/(by-url|sc-)/.test(path) ? await handleLiveReceipts(req, env, u, decodeURIComponent(path)) : await handleReceipts(u, env);
         const body = await r.json();
-        if (r.status !== 200) return err((body && body.error) || "HTTP " + r.status);
+        if (r.status !== 200) return err((body && body.error) || "HTTP " + r.status, r.status === 400);
         data = body;
       } else if (name === "endpoint_report") {
-        if (!args.url) return err("url is required");
+        if (!args.url) return err("url is required", 1);
         const eb = { url: pyStr(args.url), client: MCP_CLIENT };
         if (args.commitment_ref) eb.commitment_ref = pyStr(args.commitment_ref);
         if (args.include_current) eb.include_current = true;
@@ -3948,11 +3957,11 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         try { body = await r.json(); } catch (_) { body = null; }
         if (r.status === 200) data = body;
         else if (r.status === 402) return err("Payment required: $0.05 USDC on Base via x402 for endpoint_report (no free tier). Retry this MCP call with a PAYMENT-SIGNATURE header. Requirements: " + JSON.stringify(body));
-        else return err((body && body.error) || "HTTP " + r.status);
+        else return err((body && body.error) || "HTTP " + r.status, r.status === 400);
       } else if (name === "payment_status") {
         const pb = { client: MCP_CLIENT };
         for (const k of ["payment_payload", "tx_hash", "from", "nonce", "valid_before", "seller_url"]) if (args[k] != null && args[k] !== "") pb[k] = pyStr(args[k]);
-        if (!["payment_payload", "tx_hash", "from", "nonce"].some((k) => pb[k])) return err("give payment_payload, or tx_hash, or from + nonce");
+        if (!["payment_payload", "tx_hash", "from", "nonce"].some((k) => pb[k])) return err("give payment_payload, or tx_hash, or from + nonce", 1);
         const u = new URL(origin + PS_ROUTE_PATH);
         const headers = { accept: "application/json", "content-type": "application/json", "user-agent": "verified-catalog-mcp/0.6" };
         const pay = paymentHeader(req);
@@ -3964,9 +3973,9 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         try { body = await r.json(); } catch (_) { body = null; }
         if (r.status === 200) data = body;
         else if (r.status === 402) return err("Payment required: $0.02 USDC on Base via x402 for payment_status after the free quota. Retry this MCP call with a PAYMENT-SIGNATURE header. Requirements: " + JSON.stringify(body));
-        else return err((body && body.error) || "HTTP " + r.status);
+        else return err((body && body.error) || "HTTP " + r.status, r.status === 400);
       } else if (name === "endpoint_spot_check") {
-        if (!args.url) return err("url is required");
+        if (!args.url) return err("url is required", 1);
         const qp = new URLSearchParams({ client: MCP_CLIENT, url: pyStr(args.url) });
         if (args.task) qp.set("task", pyStr(args.task));
         for (const k of ["method", "network", "mode", "ref", "quote"]) if (args[k]) qp.set(k, pyStr(args[k]));
@@ -3974,7 +3983,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         if (payTo) qp.set("pay_to", payTo);
         if (!blank(args.claimed_price)) {
           const d = decStr(args.claimed_price);
-          if (d === null) return err("claimed_price must be a number");
+          if (d === null) return err("claimed_price must be a number", 1);
           qp.set("claimed_price", d);
         }
         const u = new URL(origin + "/v1/products/endpoint-spot-check?" + qp.toString());
@@ -3996,12 +4005,12 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
             " with PAYMENT-SIGNATURE, or retry this MCP call with the same header. Requirements: " + JSON.stringify(body)
           );
         } else if (r.status === 400) {
-          return err((body && body.error) || "bad request");
+          return err((body && body.error) || "bad request", 1);
         } else {
           return err("402xAgent check returned HTTP " + r.status + (body && body.error ? ": " + body.error : ""));
         }
       } else if (name === "page_to_markdown") { // 0.63.0: same route, same free quota and x402 price
-        if (!args.url) return err("url is required");
+        if (!args.url) return err("url is required", 1);
         const u = new URL(origin + P2M_PATH + "?" + new URLSearchParams({ url: pyStr(args.url), format: args.format === "markdown" ? "markdown" : "json" }).toString());
         const headers = { accept: "application/json", "user-agent": "verified-catalog-mcp/0.6" };
         const pay = paymentHeader(req);
@@ -4013,9 +4022,9 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         try { body = await r.json(); } catch (_) { body = null; }
         if (r.status === 200) data = body;
         else if (r.status === 402) return err("Payment required: $" + p2mCfg(env).priceUsd + " USDC on Base via x402 for page_to_markdown after " + p2mCfg(env).freePerDay + " free pages per day. Retry this MCP call with a PAYMENT-SIGNATURE header, or pay at " + u.toString() + ". Requirements: " + JSON.stringify(body));
-        else return err("page_to_markdown: HTTP " + r.status + (body && body.error ? ": " + body.error : "") + (body && body.reason ? " (" + body.reason + ", not charged)" : ""));
+        else return err("page_to_markdown: HTTP " + r.status + (body && body.error ? ": " + body.error : "") + (body && body.reason ? " (" + body.reason + ", not charged)" : ""), r.status === 400 || r.status === 422);
       } else if (name === "pdf_tables") { // draft: same route and x402 quote as /v1/products/pdf-tables
-        if (!args.url) return err("url is required");
+        if (!args.url) return err("url is required", 1);
         const u = new URL(origin + PDF_PATH + "?" + new URLSearchParams({ url: pyStr(args.url), pages: pyStr(args.pages || ""), ocr: args.ocr === "auto" ? "auto" : "never" }).toString());
         const headers = { accept: "application/json", "user-agent": "verified-catalog-mcp/0.6" };
         const pay = paymentHeader(req);
@@ -4027,7 +4036,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         try { body = await r.json(); } catch (_) { body = null; }
         if (r.status === 200) data = body;
         else if (r.status === 402) return err("Payment required: $" + (body && body.price_usd) + " USDC on Base via x402 for pdf_tables (" + (body && body.quoted_pages) + " page(s)). Retry this MCP call with a PAYMENT-SIGNATURE header. Requirements: " + JSON.stringify(body));
-        else return err("pdf_tables: HTTP " + r.status + (body && body.error ? ": " + body.error : "") + (body && body.reason ? " (" + body.reason + ", not charged)" : ""));
+        else return err("pdf_tables: HTTP " + r.status + (body && body.error ? ": " + body.error : "") + (body && body.reason ? " (" + body.reason + ", not charged)" : ""), r.status === 400 || r.status === 422);
       } else if (name === "get_overnight_cos_pack") {
         const u = new URL(origin + "/v1/products/overnight-cos-pack");
         const headers = { accept: "application/json", "user-agent": "verified-catalog-mcp/0.5" };
@@ -4051,7 +4060,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         }
       } else if (name === "lookup") {
         const [d, e] = await mcpLookup(req, env, ctx, origin, args);
-        if (e) return err(e);
+        if (e) return err(e, 1);
         data = d;
       } else {
         let loaded;
@@ -4070,7 +4079,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         }
       }
     } catch (e) {
-      if (e instanceof ToolInputError) return err(e.message);
+      if (e instanceof ToolInputError) return err(e.message, 1);
       throw e;
     }
     return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }], structuredContent: data };
@@ -4144,7 +4153,7 @@ async function opsWrap(req, env, ctx, inner) {
   const bodyCopy = (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") && Number(req.headers.get("content-length") || 0) <= 65536 ? req.clone() : null;
   let res = await inner();
   try {
-    if (res.status === 400 && /json/i.test(res.headers.get("content-type") || "")) res = await explicit400(res, req, url, path, bodyCopy);
+    if ((res.status === 400 || res.status === 422) && /json/i.test(res.headers.get("content-type") || "")) res = await explicit400(res, req, url, path, bodyCopy);
   } catch (_) {}
   const later = (p) => { const q = p.catch(() => {}); if (ctx && ctx.waitUntil) ctx.waitUntil(q); return q; };
   try {
@@ -4180,13 +4189,14 @@ async function explicit400(res, req, url, path, bodyCopy) {
   if (bodyCopy) { try { const t = await bodyCopy.text(); if (t) { const b = JSON.parse(t); jsonBody = b && typeof b === "object" && !Array.isArray(b) ? b : null; } } catch (_) { jsonBody = null; } }
   const ctx = { url, path, method: req.method, jsonBody };
   let out;
-  if (body.jsonrpc) {
+  if (res.status === 422) out = explain422(body, ctx);
+  else if (body.jsonrpc) {
     const e = body.error || {};
     const x = explain400({ error: e.message, field: "body" }, ctx);
-    out = { ...body, error: { ...e, data: { ...(e.data || {}), field: x.field, expected: "a JSON-RPC 2.0 message (JSON object or batch array)", received: x.received, openapi: x.openapi } } };
+    out = { ...body, error: { ...e, data: { ...(e.data || {}), field: x.field, expected: "a JSON-RPC 2.0 message (JSON object or batch array)", received: x.received, openapi: x.openapi, fix: x.fix } } };
   } else out = explain400(body, ctx);
   const h = new Headers(res.headers); h.delete("content-length");
-  return new Response(JSON.stringify(out), { status: 400, headers: h });
+  return new Response(JSON.stringify(out), { status: res.status, headers: h });
 }
 
 export const handler = {
@@ -4198,6 +4208,9 @@ export const handler = {
   },
   async scheduled(event, env, ctx) { return scheduledInner(event, env, ctx); },
 };
+// 0.71.0: a 404 on a URL callers really mistype (render/card, MCP, render keys with GET) also carries the right route as `fix`.
+// Status and the other fields are unchanged; unknown paths get nothing extra.
+const wrongUrlFix = (path, method, env) => { const f = fixFor404(path, method, { render: renderOn(env) }); return f ? { fix: f } : {}; };
 const fetchInner = async (req, env, ctx) => {
     const url = new URL(req.url);
     if (req.method === "OPTIONS")
@@ -4302,8 +4315,8 @@ async function viewPoint(req, env, url, view, status, limitScope = "") {
     let excluded = exclusion(req, q, env, view === "pack" ? url : null);
     if (!excluded && !q.ref && !q.client && headlessBrowserShape(req)) excluded = "headless";
     const qv = { ...q, errors: [], endpoint: (url.pathname + (url.searchParams.get("page") ? "?page=" + url.searchParams.get("page") : "")).slice(0, 200) };
-    // 0.72.0: receipt views carry the bot token the UA matched (+ ":v" when verified) in blob7 (payer is unused on views), so bulk limits can be measured per bot, not per "Mozilla".
-    if (view === "receipts") { const bt = (CRAWLER_RE.exec(ua) || [])[1]; qv.payer = bt ? String(bt).toLowerCase().slice(0, 24) + (isVerifiedBot(req) ? ":v" : "") : (isVerifiedBot(req) ? "verified" : ""); }
+    // 0.73.0: receipt views carry the bot token the UA matched (+ ":v" when verified) in blob7 (payer is unused on views), so bulk limits can be measured per bot, not per "Mozilla".
+    if (view === "receipts" || view === "skips") { const bt = (CRAWLER_RE.exec(ua) || [])[1]; qv.payer = bt ? String(bt).toLowerCase().slice(0, 24) + (isVerifiedBot(req) ? ":v" : "") : (isVerifiedBot(req) ? "verified" : ""); }
     const access = "view-" + view + (view === "pack" ? (status === 402 ? "-402" : "-paid") : "");
     const dp = dataPoint({ product: view === "pack" ? "pack" : "view", cid, q: qv, excluded, candidates: 0, ua, returnedPayTo: [], status, referer: refererHost(req), access, shape: viewHeaderShape(req), failReason: limitScope || "" });
     dp.blobs[5] = excluded || ""; // views: blob6 = bot tag only ("" = possibly real); never qualifying
@@ -4446,9 +4459,10 @@ const routeInnerHolder = {
     // 0.48.0: a wrong method on a known GET route is a 405 with Allow + the right method; on an unknown path it is a 404.
     if (req.method !== "GET" && req.method !== "HEAD") {
       if (isGetRoute(path)) return methodNotAllowed(req.method, "GET, HEAD, OPTIONS", path);
-      return json({ error: "not found", method: req.method.slice(0, 10), openapi: OPENAPI_URL, skill: SKILL_URL }, 404);
+      return json({ error: "not found", method: req.method.slice(0, 10), openapi: OPENAPI_URL, skill: SKILL_URL, ...wrongUrlFix(path, req.method, env) }, 404);
     }
     if (path === "/skill.md") return new Response(skillMd(), { headers: { "content-type": "text/markdown; charset=utf-8", "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" } });
+    if (path === "/v1/skips" || path === "/v1/skips.json") { const lim = await skipsPageGuard(req, env, url); if (lim) return lim; } // 0.73.0: ?page=N>1 shares the receipt list-paging cap (BULK_LIMITS=1 only)
     if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env, { endpointReport: endpointReportOn(env), watchtower: watchOn(env) }); // 0.58.7: footer flags for the HTML page
     if (path === "/v1/discover") return handleDiscover(req, env, url);
     if ((path === "/bazaar" || path === "/bazaar.json") && env.BAZAAR_PAGE !== "off") return handleBazaar(req, url, env, path, CANON_ORIGIN);
@@ -4561,7 +4575,7 @@ const routeInnerHolder = {
         payment_policy: PAYMENT_POLICY,
         privacy: "Raw IPs are never stored. Lookups are counted by a weekly-salted hash of IP /24 + User-Agent, or by the client value you send. The free quota is counted by the client value, or by a daily-salted hash of the IP.",
       }, 200, { vary: "accept" });
-    return json({ error: "not found", usage: CANON_ORIGIN + "/v1/lookup?task=web-search&max_price=0.01&n=5", spot_check: CANON_ORIGIN + "/v1/products/endpoint-spot-check?url=<endpoint>", docs: CANON_ORIGIN + "/openapi.json" }, 404);
+    return json({ error: "not found", usage: CANON_ORIGIN + "/v1/lookup?task=web-search&max_price=0.01&n=5", spot_check: CANON_ORIGIN + "/v1/products/endpoint-spot-check?url=<endpoint>", docs: CANON_ORIGIN + "/openapi.json", ...wrongUrlFix(path, req.method, env) }, 404);
   },
 };
 const GET_ROUTES = new Set(["/", "/v1/skips", "/v1/skips.json", "/v1/discover", "/bazaar", "/bazaar.json", "/v1/receipts", "/v1/receipts/by-url", "/v1/lookup", "/.well-known/x402",

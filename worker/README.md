@@ -131,6 +131,10 @@ Free live checks: 5 per client name per UTC day **and** at most 25 per network (
 
 The SVG and JSON are computed from stored live-check receipts in D1 (`spot_receipts`), not from a logo and not from the weekly crawl list. They show checks observed, the share whose verdict is `pay`, the last verdict, and the same `days_observed` / `first_seen` / `last_checked` as receipt history: `days_observed` is the count of distinct UTC dates among the counted receipts, not the calendar days from first to last; `first_seen` is the earliest of those timestamps and `last_checked` is the latest (ISO UTC). The image links to the public receipts page for that endpoint (`/v1/receipts/by-url`). No matching receipt renders grey **not yet observed**. Our own scheduled (cron) self-check probes count. Dry runs and caller-supplied expectations are not counted. Text in the SVG is escaped. `Cache-Control: public, max-age=300`. The route never fetches the seller and never writes. `SELLER_BADGE=off` only hides the lines in `llms.txt` and OpenAPI; the route still answers.
 
+## Fix the asking (0.71.0)
+
+Every 400 and 422 JSON answer carries a static `fix` object `{expected, endpoint, example, docs}` (worker/src/fix.js); MCP tool input errors carry it in a second text block and `structuredContent.fix`; a few known wrong URLs (render/card aliases, `GET /v1/render/keys`, `/mcp/mcp`, `/sse`) get it on their 404. Status codes and existing fields are unchanged. No migration, binding or env var. Baseline 4xx numbers and the 7-day re-measure (`scripts/four_xx_rate.py`) are in `docs/fix-the-asking-0.71.0.md`.
+
 ## Receipt anchors (0.70.0)
 
 Off unless `ANCHORS=1`. Migration `0032_receipt_anchors.sql` (the next one after `0031`). Receipt signing is unchanged: the job only reads `spot_receipts` and writes `receipt_anchors` plus `receipt_anchor_items`.
@@ -143,7 +147,7 @@ The file that is timestamped is the raw 32-byte merkle root. Its SHA-256 is subm
 
 `GET /anchors` and `GET /anchors.json` list the date, root, receipt count, status and a `.ots` download, with the `ots verify` steps. `GET /anchors/<id>.ots` is the proof (`<id>.bin` is the 32-byte root). `GET /v1/receipts/<id>/proof` returns the receipt hash, Merkle path, root, anchor id and status, or 404 `not yet anchored`. The offline verifier (`/verify`, and `node verify-receipt.mjs receipt.json proof.json`) checks that path. It does not call the network.
 
-## Bulk limits on receipts (0.72.0)
+## Bulk limits on receipts (0.73.0)
 
 Single receipt reads stay free (`/v1/receipts/<id>`, `/v1/receipts/by-url?url=`, `/v1/receipts/<id>/proof`). `src/receiptguard.js` limits walking the pile, per client (IP, same salted key as the free-check quota) with no D1 and no KV, on the existing `QUOTA` Durable Object:
 
@@ -157,7 +161,7 @@ Single receipt reads stay free (`/v1/receipts/<id>`, `/v1/receipts/by-url?url=`,
 | probe: reads a client makes before the group counter is also checked | 25 | `RECEIPT_GROUP_PROBE` |
 | uncached reads per minute (unchanged since 0.62.0) | 120 | `RECEIPT_RATE_PER_MIN` |
 
-Over a limit: `429`, `Retry-After`, `x-receipt-limit: <scope>` and a JSON body (`code: bulk_limit`, `scope`, `limit`, `retry_after_seconds`, `bulk_access.url`). The per-minute limit keeps its 0.62.0 body (`code: rate_limited`). `bulk_access.url` is `/pricing#bulk-access`, which says full history, bulk export and `.ots` bundles are paid and not live yet. A receipt served from the edge cache does not touch any counter. Verified search bots: Cloudflare's verified-bot flag, or a Googlebot/Bingbot/Applebot/Yandex/Baidu UA arriving from that operator's own ASN. They keep single pages; list paging is capped for everyone. On the `view-receipts` Analytics Engine point, blob17 holds the 429 scope and blob7 the bot token the UA matched (`googlebot`, `gptbot`, ...; suffix `:v` when verified), so the effect can be read per bot after deploy. Everything here is behind `BULK_LIMITS = "1"` (the caps, the `/pricing#bulk-access` note and the OpenAPI 429); unset = the 0.62.0 guard exactly, so rollback is one var. Counters fail open.
+Over a limit: `429`, `Retry-After`, `x-receipt-limit: <scope>` and a JSON body (`code: bulk_limit`, `scope`, `limit`, `retry_after_seconds`, `bulk_access.url`). The per-minute limit keeps its 0.62.0 body (`code: rate_limited`). `bulk_access.url` is `/pricing#bulk-access`, which says full history, bulk export and `.ots` bundles are paid and not live yet. A receipt served from the edge cache does not touch any counter. Search bots keep single pages: a self-declared Googlebot, Bingbot, Applebot, Yandex or Baidu UA counts as verified for single reads even without Cloudflare's verified flag or an ASN match (spoofing it only buys relief from the daily single cap; the per-minute limit and all paging caps still apply), and so does any other client Cloudflare marks verified. AI crawlers (GPTBot, ClaudeBot, CCBot, PerplexityBot, Bytespider, Amazonbot, Google-Extended, GoogleOther, meta-externalagent, ...) get the normal caps even when Cloudflare marks them verified. List paging is capped for everyone. `/v1/skips` and `/v1/skips.json` with `?page=N` (N above 1; page 1 and the bare page stay free) share the same list-paging budget as receipt list pages. On the `view-receipts` and `view-skips` Analytics Engine points, blob17 holds the 429 scope and blob7 the bot token the UA matched (`googlebot`, `gptbot`, ...; suffix `:v` when verified), so the effect can be read per bot after deploy. Everything here is behind `BULK_LIMITS = "1"`, which is left unset in `wrangler.toml` until the owner says yes (the caps, the `/pricing#bulk-access` note and the OpenAPI 429); unset = the 0.62.0 guard exactly, so rollback is one var. Counters fail open.
 
 ## Local test (no account needed)
 
@@ -545,3 +549,7 @@ Tests: `tests/agentcard_logo_0610_test.mjs`.
 - `GET /v1/render/card?t=&sig=` serves the same image for an `og:image` tag. `sig` is HMAC-SHA256 over `t`, using a secret derived from the API key. A good signature renders (and spends a unit on a cache miss). A tampered query is refused. The route is 404 unless `RENDER=1`.
 
 JSON docs: `GET /v1/render/docs`. Tests: `tests/card_test.mjs`.
+
+## Paid-check offer (0.72.0)
+
+`paid_check` (price, endpoint, what the full report adds) is on every free spot-check and x402 hygiene answer (HTTP and MCP), and receipt pages show a "Full check" panel. The price is derived from `SPOT_DEFAULT_PRICE_ATOMIC`, never typed. See `docs/ship-the-upsell-0.72.0.md`.

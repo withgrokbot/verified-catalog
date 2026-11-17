@@ -149,11 +149,12 @@ BILLING_GRACE_DAYS = "3"  # 0.66.1: paid plan kept this long after invoice.payme
 # 0.70.0 receipt anchoring (worker/src/anchors.js), ON since 2026-11-17: ANCHORS unset = the cron is a no-op and /anchors, /anchors.json
 # and /v1/receipts/{id}/proof are not served. Needs migration 0032. Does not change receipt signing.
 ANCHORS = "1"  # 0.70.0 on 2026-11-17 (owner-approved; migration 0032 applied remotely)
-# 0.72.0 bulk limits on /v1/receipts* (receiptguard.js). Single receipt reads stay free; these cap list pages and heavy repeated reads.
-# Every value below is the code default; change it here without a code change. BULK_LIMITS = "1" turns on the new caps, the /pricing#bulk-access
+# 0.73.0 bulk limits on /v1/receipts* (receiptguard.js). Single receipt reads stay free; these cap list pages and heavy repeated reads.
+# Every value below is the code default (inert while the flag is off); change it here without a code change. BULK_LIMITS = "1" turns on the new caps, the /pricing#bulk-access
 # note and the OpenAPI 429; unset or anything else = exactly the 0.62.0 guard (RECEIPT_GUARD = "off" still disables the whole guard).
 # Counters live in the existing QUOTA Durable Object: no new binding, no D1, no KV.
-BULK_LIMITS = "1"
+# LEFT UNSET on purpose: a merge or deploy does not enable the limits. Add the line below only when the owner approves.
+# BULK_LIMITS = "1"
 RECEIPT_PAGES_PER_MIN = "6"            # list pages (/v1/receipts with any query) per client per minute
 RECEIPT_PAGES_PER_DAY = "40"           # list pages per client per UTC day
 RECEIPT_PAGES_PER_DAY_GROUP = "400"    # list pages per UTC day per ASN + User-Agent
