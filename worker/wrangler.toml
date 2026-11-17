@@ -223,6 +223,16 @@ migrations_dir = "migrations"
 #                       between probes and a rotated generic client User-Agent; every cron probe is stamped probe_origin "cron". Never pays.
 #   SCORE_DEMAND = "1"  count how often an endpoint is among the first discover results shown to a real caller (table endpoint_demand_daily, migration
 #                       0033 must be applied first; without it the write fails open and the expansion ranks by check demand only).
+# 0.76.0 free band for the reliability score (scorestore.js, migration 0034). LEFT UNSET on purpose (unset = off).
+#   SCORE_BAND = "shadow"  the daily rollup records every probed endpoint's band in endpoint_score_daily (batched across the */20
+#                          steps, D1 only) and cron probes are stamped probe_origin "cron". Nothing is served.
+#   SCORE_BAND = "on"      shadow + GET /v1/score, /score-rules.json, a band on discover rows and the MCP tool safe_to_pay.
+#   0034 must be applied first (without it the rollup and reads fail open). Set SCORE_ORIGIN_FROM to the deploy time (ISO) when
+#   stamping starts, so earlier cron rows that carry only the (spoofable) client name stop counting. Optional:
+#   SCORE_OPERATOR_HOSTS (extra own hosts, comma-separated), SCORE_ROLLUP_BATCH (endpoints scored per step, default 60, max 150).
+# SCORE_BAND = "shadow"
+# SCORE_ORIGIN_FROM = "2026-12-01T00:00:00Z"
+# SCORE_ROLLUP_BATCH = "60"
 # Every value below is the code default (inert while the flags are off).
 # SCORE_PROBES = "1"
 # SCORE_DEMAND = "1"
