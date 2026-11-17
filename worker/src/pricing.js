@@ -155,7 +155,8 @@ ${body}
 </div>
 <div class="pr-notes">
 <div class="pr-note"><h2>Free to read</h2><p>Skips, receipts, Bazaar check, badges, rules, OpenAPI and MCP. <a href="/v1/skips">Latest skips</a></p></div>
-<div class="pr-note"><h2>Check endpoint</h2><p><code>${esc(p.apiOrigin)}/v1/products/endpoint-spot-check?url=&lt;endpoint&gt;</code></p></div>
+${p.bulkAccess ? `<div class="pr-note" id="bulk-access"><h2>Bulk access (not live)</h2><p>Single receipts stay free to read. Receipt list pages are limited per client (a few a minute and a daily cap). Full history, bulk export and <code>.ots</code> bundles are paid and are not live yet; nothing is on sale today. If you need them, open an issue under Contact below.</p></div>
+` : ""}<div class="pr-note"><h2>Check endpoint</h2><p><code>${esc(p.apiOrigin)}/v1/products/endpoint-spot-check?url=&lt;endpoint&gt;</code></p></div>
 <div class="pr-note"><h2>Other API routes</h2><p>Catalog lookup (<code>/v1/lookup</code>): ${n(p.lookupFreePerDay)} free per client per UTC day, then ${usd(p.lookupAtomic)} per call. Details: <a href="/rules">rules</a> · <a href="/openapi.json">OpenAPI</a> · <a href="/docs">docs</a></p></div>
 </div>
 </div>

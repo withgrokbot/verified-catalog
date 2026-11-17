@@ -147,6 +147,22 @@ The file that is timestamped is the raw 32-byte merkle root. Its SHA-256 is subm
 
 `GET /anchors` and `GET /anchors.json` list the date, root, receipt count, status and a `.ots` download, with the `ots verify` steps. `GET /anchors/<id>.ots` is the proof (`<id>.bin` is the 32-byte root). `GET /v1/receipts/<id>/proof` returns the receipt hash, Merkle path, root, anchor id and status, or 404 `not yet anchored`. The offline verifier (`/verify`, and `node verify-receipt.mjs receipt.json proof.json`) checks that path. It does not call the network.
 
+## Bulk limits on receipts (0.73.0)
+
+Single receipt reads stay free (`/v1/receipts/<id>`, `/v1/receipts/by-url?url=`, `/v1/receipts/<id>/proof`). `src/receiptguard.js` limits walking the pile, per client (IP, same salted key as the free-check quota) with no D1 and no KV, on the existing `QUOTA` Durable Object:
+
+| What | Default | Var |
+|---|---|---|
+| list pages (`/v1/receipts` with any query: `type`, `page`, `cursor`, `ref`, `limit`) per minute | 6 | `RECEIPT_PAGES_PER_MIN` |
+| list pages per UTC day | 40 | `RECEIPT_PAGES_PER_DAY` |
+| list pages per UTC day per ASN + User-Agent | 400 | `RECEIPT_PAGES_PER_DAY_GROUP` |
+| uncached single reads per UTC day (verified search bots exempt) | 300 | `RECEIPT_SINGLE_PER_DAY` |
+| same, per ASN + User-Agent, counted only for clients past the probe | 3000 | `RECEIPT_SINGLE_PER_DAY_GROUP` |
+| probe: reads a client makes before the group counter is also checked | 25 | `RECEIPT_GROUP_PROBE` |
+| uncached reads per minute (unchanged since 0.62.0) | 120 | `RECEIPT_RATE_PER_MIN` |
+
+Over a limit: `429`, `Retry-After`, `x-receipt-limit: <scope>` and a JSON body (`code: bulk_limit`, `scope`, `limit`, `retry_after_seconds`, `bulk_access.url`). The per-minute limit keeps its 0.62.0 body (`code: rate_limited`). `bulk_access.url` is `/pricing#bulk-access`, which says full history, bulk export and `.ots` bundles are paid and not live yet. A receipt served from the edge cache does not touch any counter. Search bots keep single pages: a self-declared Googlebot, Bingbot, Applebot, Yandex or Baidu UA counts as verified for single reads even without Cloudflare's verified flag or an ASN match (spoofing it only buys relief from the daily single cap; the per-minute limit and all paging caps still apply), and so does any other client Cloudflare marks verified. AI crawlers (GPTBot, ClaudeBot, CCBot, PerplexityBot, Bytespider, Amazonbot, Google-Extended, GoogleOther, meta-externalagent, ...) get the normal caps even when Cloudflare marks them verified. List paging is capped for everyone. `/v1/skips` and `/v1/skips.json` with `?page=N` (N above 1; page 1 and the bare page stay free) share the same list-paging budget as receipt list pages. On the `view-receipts` and `view-skips` Analytics Engine points, blob17 holds the 429 scope and blob7 the bot token the UA matched (`googlebot`, `gptbot`, ...; suffix `:v` when verified), so the effect can be read per bot after deploy. Everything here is behind `BULK_LIMITS = "1"`, which is left unset in `wrangler.toml` until the owner says yes (the caps, the `/pricing#bulk-access` note and the OpenAPI 429); unset = the 0.62.0 guard exactly, so rollback is one var. Counters fail open.
+
 ## Local test (no account needed)
 
 ```

@@ -89,10 +89,10 @@ const MCP_JSON = Object.freeze({ mcpServers: { "402xagent": { url: "https://api.
 import { funnelDigest, funnelEvent, handleFunnelAdmin } from "./funnel.js";
 import { paidCheckBlock, PAID_CHECK_PRICE_USD } from "./paidcheck.js";
 import { fixFor, fixFor404, toolFix } from "./fix.js"; // 0.71.0
-import { receiptGuard } from "./receiptguard.js";
+import { receiptGuard, isVerifiedBot, bulkLimitsOn, skipsPageGuard } from "./receiptguard.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, explain422, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.72.1";
+export const VERSION = "0.73.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 // 0.72.0: the price is derived from the paid 402 amount (SPOT_DEFAULT_PRICE_ATOMIC), not typed.
@@ -554,6 +554,26 @@ export class QuotaCounter {
     let rec = (await this.state.storage.get(counter)) || { day, used: 0 };
     if (rec.day !== day) rec = { day, used: 0 };
     if (u.pathname === "/peek") return Response.json({ free: rec.used < limit, used: rec.used, limit });
+    if (u.pathname === "/multi") {
+      // 0.73.0: up to 4 counters in one call (c<i> name, p<i> period, l<i> limit). Takes one unit from each, or from none if any is spent
+      // (blocked = index of the first spent counter). One Durable Object round trip for a minute + day budget.
+      const specs = [];
+      for (let i = 0; i < 4; i++) {
+        const c = u.searchParams.get("c" + i);
+        if (!c) break;
+        specs.push({ c, p: u.searchParams.get("p" + i) || "", l: Math.max(0, parseInt(u.searchParams.get("l" + i) || "0", 10) || 0) });
+      }
+      const recs = [];
+      for (const sp of specs) {
+        let r = (await this.state.storage.get(sp.c)) || { day: sp.p, used: 0 };
+        if (r.day !== sp.p) r = { day: sp.p, used: 0 };
+        recs.push(r);
+      }
+      const blocked = specs.findIndex((sp, i) => recs[i].used >= sp.l);
+      if (blocked >= 0) return Response.json({ free: false, blocked, used: recs.map((r) => r.used) });
+      for (let i = 0; i < specs.length; i++) { recs[i].used += 1; await this.state.storage.put(specs[i].c, recs[i]); }
+      return Response.json({ free: true, blocked: -1, used: recs.map((r) => r.used) });
+    }
     if (u.pathname === "/credit" || u.pathname === "/spend" || u.pathname === "/balance") {
       // Prepaid router credits: a balance that never resets (day is ignored).
       const b = (await this.state.storage.get(counter + ":bal")) || { bal: 0 };
@@ -3288,7 +3308,7 @@ function openapiBase(origin, env = {}) {
             { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
             { name: "cursor", in: "query", schema: { type: "string" }, description: "next_cursor from the previous page" },
           ],
-          responses: { 200: { description: "JSON receipts" }, 400: { description: "bad type, ref or cursor" } },
+          responses: { 200: { description: "JSON receipts" }, 400: { description: "bad type, ref or cursor" }, ...(bulkLimitsOn(env) ? { 429: { description: "Bulk read limit (0.73.0): a few list pages per minute and a daily cap per client; Retry-After says when. JSON body: code, scope, limit, retry_after_seconds, bulk_access.url (full history, bulk export and .ots bundles are paid and not live yet). Single receipts stay free." } } : {}) },
         },
       },
       "/mcp": {
@@ -4219,7 +4239,7 @@ const fetchInner = async (req, env, ctx) => {
     const view = viewName(path);
     if (view) {
       const res = await routeInner(req, env, ctx, url, path);
-      ctx && ctx.waitUntil ? ctx.waitUntil(viewPoint(req, env, url, view, res.status)) : await viewPoint(req, env, url, view, res.status);
+      ctx && ctx.waitUntil ? ctx.waitUntil(viewPoint(req, env, url, view, res.status, res.headers.get("x-receipt-limit") || "")) : await viewPoint(req, env, url, view, res.status, res.headers.get("x-receipt-limit") || "");
       return res;
     }
     return routeInner(req, env, ctx, url, path);
@@ -4295,7 +4315,7 @@ export function viewHeaderShape(req) {
   const h = (k) => req.headers.get(k) || "";
   return `sfm:${h("sec-fetch-mode").slice(0, 12) || "-"}|al:${h("accept-language") ? 1 : 0}|chua:${h("sec-ch-ua") ? 1 : 0}`;
 }
-async function viewPoint(req, env, url, view, status) {
+async function viewPoint(req, env, url, view, status, limitScope = "") {
   try {
     if (view === "pack" && status !== 402 && status !== 200) return; // the pack handler's own errors
     const q = parseQuery(url);
@@ -4304,8 +4324,10 @@ async function viewPoint(req, env, url, view, status) {
     let excluded = exclusion(req, q, env, view === "pack" ? url : null);
     if (!excluded && !q.ref && !q.client && headlessBrowserShape(req)) excluded = "headless";
     const qv = { ...q, errors: [], endpoint: (url.pathname + (url.searchParams.get("page") ? "?page=" + url.searchParams.get("page") : "")).slice(0, 200) };
+    // 0.73.0: receipt views carry the bot token the UA matched (+ ":v" when verified) in blob7 (payer is unused on views), so bulk limits can be measured per bot, not per "Mozilla".
+    if (view === "receipts" || view === "skips") { const bt = (CRAWLER_RE.exec(ua) || [])[1]; qv.payer = bt ? String(bt).toLowerCase().slice(0, 24) + (isVerifiedBot(req) ? ":v" : "") : (isVerifiedBot(req) ? "verified" : ""); }
     const access = "view-" + view + (view === "pack" ? (status === 402 ? "-402" : "-paid") : "");
-    const dp = dataPoint({ product: view === "pack" ? "pack" : "view", cid, q: qv, excluded, candidates: 0, ua, returnedPayTo: [], status, referer: refererHost(req), access, shape: viewHeaderShape(req) });
+    const dp = dataPoint({ product: view === "pack" ? "pack" : "view", cid, q: qv, excluded, candidates: 0, ua, returnedPayTo: [], status, referer: refererHost(req), access, shape: viewHeaderShape(req), failReason: limitScope || "" });
     dp.blobs[5] = excluded || ""; // views: blob6 = bot tag only ("" = possibly real); never qualifying
     dp.doubles[0] = 0;
     writePoint(env, dp);
@@ -4449,6 +4471,7 @@ const routeInnerHolder = {
       return json({ error: "not found", method: req.method.slice(0, 10), openapi: OPENAPI_URL, skill: SKILL_URL, ...wrongUrlFix(path, req.method, env) }, 404);
     }
     if (path === "/skill.md") return new Response(skillMd(), { headers: { "content-type": "text/markdown; charset=utf-8", "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" } });
+    if (path === "/v1/skips" || path === "/v1/skips.json") { const lim = await skipsPageGuard(req, env, url); if (lim) return lim; } // 0.73.0: ?page=N>1 shares the receipt list-paging cap (BULK_LIMITS=1 only)
     if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env, { endpointReport: endpointReportOn(env), watchtower: watchOn(env) }); // 0.58.7: footer flags for the HTML page
     if (path === "/v1/discover") return handleDiscover(req, env, url);
     if ((path === "/bazaar" || path === "/bazaar.json") && env.BAZAAR_PAGE !== "off") return handleBazaar(req, url, env, path, CANON_ORIGIN);
@@ -4471,7 +4494,7 @@ const routeInnerHolder = {
     if (path === "/pricing") {
       const sc = spotCfg(env), lc = cfg(env);
       // 0.58.3: every price and term on the page comes from these constants (sources listed in pricing.js); the router pack and the overnight pack are not shown
-      const body = pricingHtml(CANON_ORIGIN, { endpointReport: endpointReportOn(env), watchtower: watchOn(env), freePerDay: sc.freePerDay, freePerIpDay: sc.freePerIpDay, paidAtomic: SPOT_PAID_ATOMIC, erAtomic: ER_PAID_ATOMIC, watchAtomic: WATCH_PRICE_ATOMIC, watchDays: WATCH_PERIOD_DAYS, trialDays: WATCH_TRIAL_DAYS, facilPerMin: FACIL_CHECK_PER_MIN, facilHostPerMin: FACIL_HOST_PER_MIN, hostedFree: HOSTED_FREE_TOTAL, hostedVolAfter: HOSTED_VOLUME_AFTER, hostedStdAtomic: HOSTED_STANDARD_ATOMIC, hostedVolAtomic: HOSTED_VOLUME_ATOMIC, lookupFreePerDay: lc.freePerDay, lookupAtomic: lc.priceAtomic, apiOrigin: API_ORIGIN });
+      const body = pricingHtml(CANON_ORIGIN, { bulkAccess: bulkLimitsOn(env), endpointReport: endpointReportOn(env), watchtower: watchOn(env), freePerDay: sc.freePerDay, freePerIpDay: sc.freePerIpDay, paidAtomic: SPOT_PAID_ATOMIC, erAtomic: ER_PAID_ATOMIC, watchAtomic: WATCH_PRICE_ATOMIC, watchDays: WATCH_PERIOD_DAYS, trialDays: WATCH_TRIAL_DAYS, facilPerMin: FACIL_CHECK_PER_MIN, facilHostPerMin: FACIL_HOST_PER_MIN, hostedFree: HOSTED_FREE_TOTAL, hostedVolAfter: HOSTED_VOLUME_AFTER, hostedStdAtomic: HOSTED_STANDARD_ATOMIC, hostedVolAtomic: HOSTED_VOLUME_ATOMIC, lookupFreePerDay: lc.freePerDay, lookupAtomic: lc.priceAtomic, apiOrigin: API_ORIGIN });
       return new Response(body, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*", "content-security-policy": HOME_CSP } });
     }
     if (path === "/blog" || path === "/blog/") return new Response(blogListHtml(CANON_ORIGIN, BLOG_POSTS), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
