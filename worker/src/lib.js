@@ -54,6 +54,7 @@ import { resolveHosted, hostedAccess, recordHosted, integratorMe, HOSTED_FREE_TO
 import { expiryOpts, applyExpiry } from "./expiry.js";
 import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
 import { staleStep, STALE_REF } from "./stale.js";
+import { SCORE_PROBE_REF, probesOn, probeStep, probeUserAgents, pickUa, recordDemandAsync, discoverShownUrls } from "./probeset.js"; // 0.75.0 (flags off: SCORE_PROBES, SCORE_DEMAND)
 import { dailySeed, dailyStep, DAILY_CRON, DAILY_REF } from "./daily.js";
 import { privateFree, scrubView } from "./privacy.js";
 import { ER_ID, ER_ROUTE_PATH, ER_PAID_ATOMIC, ER_PRICE_USD, ER_RECEIPT_RE, COMMIT_KEYS, GRADES, lockedBlock, commitSnapshots, loadCommitment, pruneCommitments, driftSnapshot, driftTeaser, hygieneSnapshot, receiptV2, gradeFor, explainOn, explainFree, explainPaid, explainReport, comparedFields, EXPLAIN_V, recheckOn, issueCredit, redeemCredit, refundCredit, pruneCredits, RECHECK_SECRET_RE, RECHECK_FAIL_PER_DAY, bulkOn, BULK_ROUTE_PATH, BULK_MAX, bulkAtomic, BULK_RETRY_DAYS } from "./report.js";
@@ -1549,7 +1550,7 @@ export function storedUrl(u) {
     return String(u || "").split(/[?#]/)[0];
   }
 }
-export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText, pm, termsHash, exp, now = new Date(), checkType = "dry-run", mode = "live", ref = "", caller = null, client = null, probedAt = null, cached = false, normKey = null, accessTier = null }) {
+export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText, pm, termsHash, exp, now = new Date(), checkType = "dry-run", mode = "live", ref = "", caller = null, client = null, probedAt = null, cached = false, normKey = null, accessTier = null, probeOrigin = null }) {
   return {
     id,
     url: storedUrl(url),
@@ -1565,6 +1566,7 @@ export function buildLiveReceipt({ id, origin, url, method, probe, d, reasonText
     ref: ref || null,
     caller: caller || ref || null,
     client: client ? String(client).slice(0, 64) : null, // 0.42.3: the client param, on the same receipt write
+    ...(probeOrigin ? { probe_origin: probeOrigin } : {}), // 0.75.0: "cron" only when the Worker's own scheduler made the probe (SCORE_PROBES=1); a caller cannot set it
     listing: exp.source ? { claimed_price_usd: exp.claimed, pay_to: exp.pay_to, network: exp.network, source: exp.source } : null,
     live_demand: liveDemand(probe),
     verdict: d.verdict,
@@ -2260,13 +2262,13 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
     const quality = qualityFor(probe);
     await recordQuality(env, hk, hostOf(q.url), quality, pr.probedAt, fresh);
     // cron self-checks (bazaar / stale / daily) keep their D1 budget: nobody reads those answers, so no reputation read
-    const internal = selfChecked && (q.ref === BAZAAR_REF || q.ref === STALE_REF || q.ref === DAILY_REF);
+    const internal = selfChecked && (q.ref === BAZAAR_REF || q.ref === STALE_REF || q.ref === DAILY_REF || q.ref === SCORE_PROBE_REF);
     const reputation = internal ? null : await hostReputation(env, hostOf(q.url), historyKey);
     const v2 = await receiptV2({ probe, exp, pm0, listing, history, quality, ptc, method: q.method, url: q.url, normalized: safeNorm(q.url), crawlMeta: RECEIPTS_META && RECEIPTS_META.crawled_at ? String(RECEIPTS_META.crawled_at).slice(0, 10) : null });
     let saved = false;
     const receiptFields = { receipt_id: rid, receipt_url: rid ? CANON_ORIGIN + "/v1/receipts/" + rid : null, pay_to_changed: ptc.pay_to_changed, history };
     if (rid) {
-      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked || (access && access.self_test) ? "self-test" : null, client: q.client || null, checkType: access && access.self_test ? "self-checked" : checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && (q.ref === STALE_REF || q.ref === DAILY_REF) ? "auto" : (access && access.tier) || null });
+      const rec = buildLiveReceipt({ id: rid, origin: CANON_ORIGIN, url: q.url, method: q.method, probe, d, reasonText: spotLossReason(d, exp.claimed).replace(/, details locked$/, ""), pm: payment, termsHash, exp, ref: q.ref, caller: selfChecked || (access && access.self_test) ? "self-test" : null, client: q.client || null, checkType: access && access.self_test ? "self-checked" : checkType, probedAt: pr.probedAt, cached: pr.cached, normKey: pr.key, probeOrigin: probeOpts && probeOpts.cronOrigin === true ? "cron" : null, accessTier: selfChecked && q.ref === BAZAAR_REF ? "bazaar" : selfChecked && (q.ref === STALE_REF || q.ref === DAILY_REF || q.ref === SCORE_PROBE_REF) ? "auto" : (access && access.tier) || null });
       Object.assign(rec, ptc, { history }, rf, { receipt_v2: v2 });
       if (access && (access.tier === "paid" || access.tier === "router-pack")) rec.payment_received = paymentReceived(access, cd.priceAtomic, cd); // 0.40.1
       if (access && access.tier === "hosted") { const { tier: _t, ...hv } = access; rec.hosted = hv; } // 0.41.0: signed with the receipt
@@ -2356,7 +2358,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   const hostedOk = hosted && hosted.ok ? hosted : null;
 
   // 0.57.0: cron self-checks (bazaar / stale / daily) never confirm (review); everything else may (see buildResult)
-  const cronSelf = selfChecked && (q.ref === BAZAAR_REF || q.ref === STALE_REF || q.ref === DAILY_REF);
+  const cronSelf = selfChecked && (q.ref === BAZAAR_REF || q.ref === STALE_REF || q.ref === DAILY_REF || q.ref === SCORE_PROBE_REF);
   const pr = await getProbe(env, q, probeOpts, new Date(), { wouldPay: cronSelf ? null : wouldPayFor(exp, q, listing) });
   const probe = pr.probe;
   // 0.55.0 (review): a host that does not resolve (after the one retry) is answered before any quota, credit, hosted
@@ -3978,6 +3980,7 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         if (!(await discoverRateOk(req, env))) return err(`rate limited: ${DISCOVER_PER_MIN} calls per minute`);
         const r = await discover(env, args, CANON_ORIGIN);
         if (r.status !== 200) return err(r.body.error, r.status === 400);
+        demandNote(req, env, ctx, r.body); // 0.75.0 (SCORE_DEMAND=1 only)
         data = r.body;
       } else if (name === "get_receipt") {
         let path, u;
@@ -4150,7 +4153,11 @@ export async function discoverRateOk(req, env, now = new Date()) {
   const t = await takeFree(env, "disc:" + cid.id, DISCOVER_PER_MIN, now, "take", "dsc", utcMinute(now));
   return t.free;
 }
-async function handleDiscover(req, env, url) {
+// 0.75.0: count the first discover results as "shown to a real caller" (off unless SCORE_DEMAND=1); never affects the answer
+function demandNote(req, env, ctx, body) {
+  try { recordDemandAsync(env, ctx, { urls: discoverShownUrls(body), skip: exclusion(req, parseQuery(new URL(req.url)), env) }); } catch (_) {}
+}
+async function handleDiscover(req, env, url, ctx) {
   const noStore = { "cache-control": "no-store" };
   if (!(await discoverRateOk(req, env)))
     return json({ error: "rate limited", limit: `${DISCOVER_PER_MIN} requests per minute`, retry_after_seconds: 60 - new Date().getUTCSeconds() }, 429, { ...noStore, "retry-after": String(60 - new Date().getUTCSeconds()) });
@@ -4158,6 +4165,7 @@ async function handleDiscover(req, env, url) {
   for (const k of ["q", "verdict", "limit"]) if (url.searchParams.has(k)) input[k] = url.searchParams.get(k);
   for (const k of url.searchParams.keys()) if (!["q", "verdict", "limit", "client", "ref"].includes(k)) return json({ error: `unknown parameter ${k.slice(0, 40)}`, allowed: ["q", "verdict", "limit"] }, 400, noStore);
   const r = await discover(env, input, CANON_ORIGIN);
+  if (r.status === 200) demandNote(req, env, ctx, r.body); // 0.75.0 (SCORE_DEMAND=1 only)
   return json(r.body, r.status, r.status === 200 ? { "cache-control": "public, max-age=300" } : noStore);
 }
 
@@ -4309,7 +4317,10 @@ async function scheduledInner(event, env, ctx) {
     // 0.52.0: one chunk of the daily feed snapshot per */20 tick (5000 endpoints; ~25 ticks for 123k). D1 only.
     if (feedOn(env) && !(event && event.cron === DAILY_CRON)) { try { await feedTick(env, new Date(event && event.scheduledTime ? event.scheduledTime : Date.now())); } catch (e) { console.log(JSON.stringify({ feed: "snapshot_error", error: String((e && e.message) || e).slice(0, 200) })); } }
     if (env.BAZAAR_PAGE === "off") return;
-    const runCheck = (u) => { const url = new URL(u); return handleEndpointSpotCheck(new Request(url, { method: "GET", headers: { accept: "application/json", "user-agent": "402xagent-bazaar/1" } }), env, ctx, url); };
+    // 0.75.0 (SCORE_PROBES=1 only): every cron probe is stamped probe_origin "cron" and sends one of a few honest generic client User-Agents (see probeset.js)
+    const scoreProbes = probesOn(env);
+    const uas = scoreProbes ? probeUserAgents(env) : null;
+    const runCheck = (u, extra = {}) => { const url = new URL(u); return handleEndpointSpotCheck(new Request(url, { method: "GET", headers: { accept: "application/json", "user-agent": "402xagent-bazaar/1" } }), env, ctx, url, scoreProbes ? { cronOrigin: true, userAgent: pickUa(uas), ...extra } : {}); };
     const now = new Date(event && event.scheduledTime ? event.scheduledTime : Date.now());
     // 0.36.0: the daily trigger (DAILY_CRON) seeds today's badge-host queue and checks one batch; nothing else.
     if (event && event.cron === DAILY_CRON) {
@@ -4328,6 +4339,8 @@ async function scheduledInner(event, env, ctx) {
       const dq = env.DAILY_RECHECK === "off" ? { did: "none" } : await dailyStep(env, { now, runCheck, origin: API_ORIGIN });
       if (dq.did !== "checked" && env.STALE_RECHECK !== "off") await staleStep(env, { now, runCheck, origin: API_ORIGIN });
     }
+    // 0.75.0: capped, jittered expansion of the probed set (SCORE_PROBES=1; off = nothing runs, nothing is read or written)
+    if (scoreProbes) { try { await probeStep(env, { now, runCheck, origin: API_ORIGIN }); } catch (e) { console.log(JSON.stringify({ score_probe: "step_error", error: String((e && e.message) || e).slice(0, 200) })); } }
 }
 
 // 0.11.0: one cheap Analytics Engine point per hit on the routes that had none (pack, skips, receipts, docs).
@@ -4519,7 +4532,7 @@ const routeInnerHolder = {
     if (path === "/skill.md") return new Response(skillMd(), { headers: { "content-type": "text/markdown; charset=utf-8", "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" } });
     if (path === "/v1/skips" || path === "/v1/skips.json") { const lim = await skipsPageGuard(req, env, url); if (lim) return lim; } // 0.73.0: ?page=N>1 shares the receipt list-paging cap (BULK_LIMITS=1 only)
     if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env, { endpointReport: endpointReportOn(env), watchtower: watchOn(env) }); // 0.58.7: footer flags for the HTML page
-    if (path === "/v1/discover") return handleDiscover(req, env, url);
+    if (path === "/v1/discover") return handleDiscover(req, env, url, ctx);
     if ((path === "/bazaar" || path === "/bazaar.json") && env.BAZAAR_PAGE !== "off") return handleBazaar(req, url, env, path, CANON_ORIGIN);
     if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return receiptGuard(req, env, ctx, url, path, () => receiptRoutes(req, env, url, path)); // 0.62.0 edge cache + per-client limit
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
