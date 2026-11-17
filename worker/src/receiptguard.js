@@ -12,9 +12,9 @@
 //    daily cap. A verified search bot (Cloudflare verified-bot flag, or its own UA from its operator's ASN) is exempt from the
 //    daily single cap, never from the paging caps (see isVerifiedBot below: self-declared search-engine UAs count; AI crawler UAs never do). The single-read path still makes ONE Durable Object call (minute + day counters
 //    in the same call); only a client already past RECEIPT_GROUP_PROBE reads that day pays a second call for the group counter.
-//  Over a limit: 429 + Retry-After + JSON that points to the bulk-access note (/pricing#bulk-access, not live). No D1, no KV.
+//  Over a limit (only when the flag is on): 429 + Retry-After + JSON that points to the bulk-access note (/pricing#bulk-access, not live). No D1, no KV.
 //  Defaults below; every one is a wrangler var (RECEIPT_PAGES_PER_MIN, RECEIPT_PAGES_PER_DAY, RECEIPT_PAGES_PER_DAY_GROUP,
-//  RECEIPT_SINGLE_PER_DAY, RECEIPT_SINGLE_PER_DAY_GROUP, RECEIPT_GROUP_PROBE, RECEIPT_RATE_PER_MIN). Off unless BULK_LIMITS = "1" (then the caps, the /pricing#bulk-access note and the OpenAPI 429 appear; unset = the 0.62.0 guard exactly).
+//  RECEIPT_SINGLE_PER_DAY, RECEIPT_SINGLE_PER_DAY_GROUP, RECEIPT_GROUP_PROBE, RECEIPT_RATE_PER_MIN). Off unless BULK_LIMITS = "1" (then the caps, the /pricing#bulk-access note and the OpenAPI 429 appear; unset or anything else = the 0.62.0 guard exactly, including the original 120/min 429 body and headers).
 // RECEIPT_GUARD=off (wrangler var) turns both off.
 // payscout.dev traffic (host, Origin or Referer) is never limited: the old host and its redirect path keep working.
 import { takeFree, quotaKey, utcMinute, utcDay, ipQuotaPrefix, VERSION } from "./lib.js";
@@ -113,7 +113,13 @@ export async function takeMulti(env, key, specs, now) {
   } catch (_) { return { free: true, error: "quota-error" }; }
 }
 const secsToNextUtcDay = (now) => 86400 - (now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds());
+// The 0.62.0 429: used when BULK_LIMITS is off/unset. Body and headers must stay this shape (no scope, free_still_works, bulk_access, x-receipt-limit or Link).
+function limited0620(now, perMin = RECEIPT_RATE_PER_MIN) {
+  const ra = String(60 - now.getUTCSeconds());
+  return new Response(JSON.stringify({ error: "rate limited", code: "rate_limited", limit: `${perMin} receipt reads per minute per client (cached receipts excluded)`, retry_after_seconds: Number(ra) }), { status: 429, headers: { "content-type": "application/json; charset=utf-8", "retry-after": ra, "cache-control": "no-store", "access-control-allow-origin": "*" } });
+}
 function limited(scope, now, caps, extra = {}) {
+  if (!caps.on) return limited0620(now, caps.perMin);
   const day = scope !== "minute" && scope !== "pages_minute";
   const ra = day ? secsToNextUtcDay(now) : 60 - now.getUTCSeconds();
   const limitText = {

@@ -272,3 +272,33 @@ test("flag off (default): the guard is the 0.62.0 one: no page cap, no pricing n
   const env = { QUOTA: quotaNs() }; const req = (i) => { const url = new URL("https://402xagent.com/v1/receipts?page=" + i); return receiptGuard(new Request(url, { headers: { "cf-connecting-ip": "198.51.100.61" } }), env, null, url, url.pathname, ok, { now: NOW, cache: null }); };
   for (let i = 0; i < 20; i++) assert.equal((await req(i)).status, 200);
 });
+
+test("flag off/unset: the 120/min cap returns the exact 0.62.0 429 JSON body and headers", async () => {
+  const now = NOW; // 18:00:30Z, so retry-after is 30
+  const ra = String(60 - now.getUTCSeconds());
+  const expectedBody = JSON.stringify({ error: "rate limited", code: "rate_limited", limit: `${RECEIPT_RATE_PER_MIN} receipt reads per minute per client (cached receipts excluded)`, retry_after_seconds: Number(ra) });
+  const expectedHeaders = new Headers({ "content-type": "application/json; charset=utf-8", "retry-after": ra, "cache-control": "no-store", "access-control-allow-origin": "*" });
+  const dump = (h) => [...h.entries()].map(([k, v]) => k + ": " + v).join("\n");
+  for (const flag of [undefined, "0", "", "off"]) {
+    const env = { QUOTA: quotaNs() };
+    if (flag !== undefined) env.BULK_LIMITS = flag;
+    const go = async () => {
+      const url = new URL(SINGLE);
+      const req = new Request(url, { headers: { "cf-connecting-ip": "198.51.100.77", "user-agent": "curl/8" } });
+      return receiptGuard(req, env, null, url, url.pathname, ok, { now, cache: null });
+    };
+    for (let i = 0; i < RECEIPT_RATE_PER_MIN; i++) assert.equal((await go()).status, 200, "under the limit " + i + " flag=" + flag);
+    const over = await go();
+    assert.equal(over.status, 429, "flag=" + flag);
+    const body = await over.text();
+    assert.equal(body, expectedBody, "body must match 0.62.0 byte-for-byte; flag=" + flag);
+    assert.equal(over.headers.get("x-receipt-limit"), null, "no x-receipt-limit when flag off");
+    assert.equal(over.headers.get("link"), null, "no Link header when flag off");
+    // Drop any runtime-added length header so the comparison is the 0.62.0 header set.
+    const got = new Headers(over.headers);
+    got.delete("content-length");
+    assert.equal(dump(got), dump(expectedHeaders), "headers must match 0.62.0; flag=" + flag);
+    assert.ok(!/"scope"|"free_still_works"|"bulk_access"|pricing#bulk-access/.test(body), "no new 429 fields when flag off");
+  }
+});
+
