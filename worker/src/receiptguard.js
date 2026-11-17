@@ -7,7 +7,7 @@
 //    Over it: 429 + Retry-After. Fails open (a counter error never blocks a read).
 // 0.73.0 bulk limits (PR C). Single reads stay free. What is limited is walking the pile:
 //  - paging: GET /v1/receipts with any query (type=, page=, cursor=, ref=, limit=, ...) is a "page", and so is /v1/skips(.json)?page=N for N > 1 (same budget). Per client (IP) a few per
-//    minute and a daily cap, plus a larger daily cap per group (ASN + User-Agent) so many IPs on one cloud with one UA share a budget.
+//    60-second sliding window (0.73.1: not a UTC clock minute, so a burst cannot reset at the minute boundary) and a daily cap, plus a larger daily cap per group (ASN + User-Agent) so many IPs on one cloud with one UA share a budget.
 //  - uncached single reads (ids that missed the edge cache, /by-url, /proof): the existing per-minute limit, plus a per-client
 //    daily cap. A verified search bot (Cloudflare verified-bot flag, or its own UA from its operator's ASN) is exempt from the
 //    daily single cap, never from the paging caps (see isVerifiedBot below: self-declared search-engine UAs count; AI crawler UAs never do). The single-read path still makes ONE Durable Object call (minute + day counters
@@ -103,13 +103,18 @@ export async function groupKey(req, env, now) {
   return "g:" + (await sha(`${env.CLIENT_SALT || "unsalted-dev"}|rgrp|${utcDay(now)}|${asn}|${req.headers.get("user-agent") || ""}`)).slice(0, 24);
 }
 /** One Durable Object call that takes one unit from every counter, or none if any is spent. Fails open. */
+export const RECEIPT_MINUTE_WINDOW_MS = 60_000;
 export async function takeMulti(env, key, specs, now) {
   try {
     if (!env.QUOTA || typeof env.QUOTA.idFromName !== "function") return { free: true, error: "no-quota-binding" };
-    const q = specs.map((s, i) => `c${i}=${encodeURIComponent(s.counter)}&p${i}=${encodeURIComponent(s.period)}&l${i}=${s.limit}`).join("&");
+    const q = specs.map((s, i) => {
+      let x = `c${i}=${encodeURIComponent(s.counter)}&p${i}=${encodeURIComponent(s.period)}&l${i}=${s.limit}`;
+      if (s.window > 0) x += `&w${i}=${s.window}`;
+      return x;
+    }).join("&") + "&now=" + now.getTime();
     const r = await env.QUOTA.get(env.QUOTA.idFromName(key)).fetch("https://quota.internal/multi?" + q);
     const j = await r.json();
-    return { free: !!j.free, blocked: j.blocked ?? -1, used: j.used || [] };
+    return { free: !!j.free, blocked: j.blocked ?? -1, used: j.used || [], retry_after_seconds: j.retry_after_seconds };
   } catch (_) { return { free: true, error: "quota-error" }; }
 }
 const secsToNextUtcDay = (now) => 86400 - (now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds());
@@ -118,10 +123,10 @@ function limited0620(now, perMin = RECEIPT_RATE_PER_MIN) {
   const ra = String(60 - now.getUTCSeconds());
   return new Response(JSON.stringify({ error: "rate limited", code: "rate_limited", limit: `${perMin} receipt reads per minute per client (cached receipts excluded)`, retry_after_seconds: Number(ra) }), { status: 429, headers: { "content-type": "application/json; charset=utf-8", "retry-after": ra, "cache-control": "no-store", "access-control-allow-origin": "*" } });
 }
-function limited(scope, now, caps, extra = {}) {
+function limited(scope, now, caps, extra = {}, retryAfter = null) {
   if (!caps.on) return limited0620(now, caps.perMin);
   const day = scope !== "minute" && scope !== "pages_minute";
-  const ra = day ? secsToNextUtcDay(now) : 60 - now.getUTCSeconds();
+  const ra = retryAfter != null ? retryAfter : (day ? secsToNextUtcDay(now) : 60 - now.getUTCSeconds());
   const limitText = {
     minute: `${caps.perMin} receipt reads per minute per client (cached receipts excluded)`,
     pages_minute: `${caps.pagesPerMin} receipt list pages per minute per client`,
@@ -144,8 +149,8 @@ const CANON_ID_EXAMPLE = "https://402xagent.com/v1/receipts/<id>";
 export async function pageLimit(req, env, now, caps = receiptCaps(env), id = null) {
   const minute = utcMinute(now), day = utcDay(now);
   id = id || (await quotaKey(req, {}, env, now));
-  const t = await takeMulti(env, "rcptp:" + id, [{ counter: "rcpt-pmin", period: minute, limit: caps.pagesPerMin }, { counter: "rcpt-pday", period: day, limit: caps.pagesPerDay }], now);
-  if (!t.free) return limited(t.blocked === 0 ? "pages_minute" : "pages_day", now, caps);
+  const t = await takeMulti(env, "rcptp:" + id, [{ counter: "rcpt-pmin", period: minute, limit: caps.pagesPerMin, window: RECEIPT_MINUTE_WINDOW_MS }, { counter: "rcpt-pday", period: day, limit: caps.pagesPerDay }], now);
+  if (!t.free) return limited(t.blocked === 0 ? "pages_minute" : "pages_day", now, caps, {}, Number.isFinite(t.retry_after_seconds) ? t.retry_after_seconds : null);
   const g = await takeFree(env, "rcptg:" + (await groupKey(req, env, now)), caps.pagesPerDayGroup, now, "take", "rcpt-gpage", day);
   if (!g.error && !g.free) return limited("pages_group", now, caps);
   return null;
@@ -173,11 +178,11 @@ export async function receiptGuard(req, env, ctx, url, path, inner, { now = new 
       if (lim) return lim;
     } else {
       const capSingle = caps.on && klass === "single" && !isVerifiedBot(req);
-      const specs = [{ counter: RECEIPT_RATE_COUNTER, period: minute, limit: caps.perMin }];
+      const specs = [{ counter: RECEIPT_RATE_COUNTER, period: minute, limit: caps.perMin, window: RECEIPT_MINUTE_WINDOW_MS }];
       if (capSingle) specs.push({ counter: "rcpt-sday", period: day, limit: caps.singlePerDay });
-      // Flag off: the 0.62.0 call exactly (takeFree on the minute counter). Flag on: one combined call for minute + day.
+      // Flag off: the 0.62.0 call exactly (takeFree on the minute counter, UTC-minute bucket). Flag on: one combined call for minute + day; the minute counter is a 60s sliding window (0.73.1).
       const t = caps.on ? await takeMulti(env, "rcpt:" + id, specs, now) : await takeFree(env, "rcpt:" + id, caps.perMin, now, "take", RECEIPT_RATE_COUNTER, minute);
-      if (!t.error && !t.free) return limited(!caps.on || t.blocked === 0 ? "minute" : "single_day", now, caps);
+      if (!t.error && !t.free) return limited(!caps.on || t.blocked === 0 ? "minute" : "single_day", now, caps, {}, Number.isFinite(t.retry_after_seconds) ? t.retry_after_seconds : null);
       // Only a client already past the probe that day pays a second call; ordinary readers never do.
       if (capSingle && !t.error && Number((t.used || [])[1]) > caps.groupProbe) {
         const g = await takeFree(env, "rcptg:" + (await groupKey(req, env, now)), caps.singlePerDayGroup, now, "take", "rcpt-gsingle", day);
