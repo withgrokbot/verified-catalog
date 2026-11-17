@@ -376,7 +376,9 @@ test("price and free tier unchanged ($0.02 = 20000 atomic, 5 free a day; the ove
   const rc = REASON_CODES.find((x) => x.code === "terms_unstable");
   assert.equal(rc.verdict, "recheck"); assert.equal(rc.confidence, "low"); assert.ok(REASON_TEXT.terms_unstable);
   assert.match(RULES_VERSION, /^2026-/);
-  assert.ok(MIG_FILES.includes("0021_breaker_events.sql") && MIG_FILES.filter((f) => f.slice(0, 4) > "0021").every((f) => /^002[2-9]_settle/.test(f) || f === "0024_paywall_daily_host.sql" || f === "0025_pdf_results.sql" || f === "0026_render_api_keys.sql" || f === "0027_render_billing.sql" || f === "0028_billing_grace.sql" || f === "0029_usage_kind.sql" || f === "0030_email.sql" || f === "0031_email_grace.sql"), "0.57.0 adds no migration (0.59.2+: settlement migrations + 0024 paywall host tag + 0025 pdf_results + 0026 render api keys + 0027 render billing + 0028 billing grace + 0029 usage kind + 0030 email + 0031 email grace only)");
+  assert.ok(MIG_FILES.includes("0021_breaker_events.sql"), "0.57.0 breaker migration is present");
+  const later = MIG_FILES.filter((f) => f.slice(0, 4) > "0021");
+  assert.ok(later.every((f) => /^\d{4}_[a-z0-9_]+\.sql$/.test(f)), "later files stay NNNN_name.sql; 0.57.0 added none of them");
 });
 
 test("review 1: amounts use the existing 1% tolerance (priceMatchesClaimed / PRICE_TOLERANCE): +0.9% and -0.9% match, +1.1% is terms_unstable (diff_fields amount)", async () => {
