@@ -54,13 +54,17 @@ const rpc = async (env, method, params) => (await (await call(env, "/mcp", { met
 const cron = (env, i = 0) => worker.scheduled({ cron: "*/20 * * * *", scheduledTime: NOW.getTime() + i * 1200e3 }, env, { waitUntil() {} });
 const rows = (db) => db.raw.prepare("SELECT * FROM endpoint_score_daily ORDER BY url").all();
 
-test("version is 0.77.0; SCORE_BAND defaults to off and is only commented out in wrangler.toml", () => {
+test("version is 0.77.0; SCORE_BAND is shadow in wrangler.toml (owner-approved 7-day hidden test); code still defaults off when unset", () => {
   assert.equal(VERSION, "0.77.0");
   assert.equal(S.scoreMode({}), "off"); assert.equal(S.scoreMode({ SCORE_BAND: "bogus" }), "off");
   assert.equal(S.scoreMode({ SCORE_BAND: "Shadow" }), "shadow"); assert.equal(S.scoreMode({ SCORE_BAND: "on" }), "on");
   assert.equal(S.scoreServeOn({ SCORE_BAND: "shadow" }), false); assert.equal(S.scoreRecordOn({ SCORE_BAND: "shadow" }), true);
   assert.equal(S.scoreRecordOn({}), false); assert.equal(S.scoreServeOn({ SCORE_BAND: "on" }), true);
-  for (const line of readFileSync(join(ROOT, "worker", "wrangler.toml"), "utf8").split("\n")) if (/SCORE_BAND|SCORE_ROLLUP/.test(line)) assert.ok(line.trim().startsWith("#"), "must be commented out: " + line);
+  const toml = readFileSync(join(ROOT, "worker", "wrangler.toml"), "utf8");
+  assert.match(toml, /^SCORE_BAND\s*=\s*"shadow"/m);
+  assert.match(toml, /^SCORE_ORIGIN_FROM\s*=\s*"20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"/m);
+  assert.doesNotMatch(toml, /^SCORE_BAND\s*=\s*"on"/m);
+  for (const line of toml.split("\n")) if (/SCORE_ROLLUP/.test(line)) assert.ok(line.trim().startsWith("#"), "rollup batch stays at the code default: " + line);
 });
 
 test("migration 0034 is additive and creates endpoint_score_daily with both bands, keyed by (day, url)", () => {

@@ -161,6 +161,28 @@ RECEIPT_PAGES_PER_DAY_GROUP = "400"    # list pages per UTC day per ASN + User-A
 RECEIPT_SINGLE_PER_DAY = "300"         # uncached single reads per client per UTC day (verified search bots exempt)
 RECEIPT_SINGLE_PER_DAY_GROUP = "3000"  # per ASN + User-Agent, counted only for clients already past RECEIPT_GROUP_PROBE
 RECEIPT_GROUP_PROBE = "25"
+# 0.75.0 / 0.76.0 reliability score: ON since 2026-11-17 for the owner-approved 7-day hidden shadow run.
+#   SCORE_PROBES = "1"  daily queue of up to SCORE_PROBE_CAP top-demand endpoints, probed by the existing */20 cron in random-sized slices with a random pause
+#                       between probes and a rotated generic client User-Agent; every cron probe is stamped probe_origin "cron". Never pays.
+#   SCORE_DEMAND = "1"  count how often an endpoint is among the first discover results shown to a real caller (table endpoint_demand_daily, migration 0033).
+#   SCORE_BAND = "shadow"  the daily rollup records every probed endpoint band in endpoint_score_daily (batched across the */20
+#                          steps, D1 only) and cron probes are stamped probe_origin "cron". Nothing is served.
+#   SCORE_BAND = "on"      shadow + GET /v1/score, /score-rules.json, a band on discover rows and the MCP tool safe_to_pay. Not set.
+#   SCORE_ORIGIN_FROM is the deploy time (ISO): cron rows from before this that only carry the spoofable client name stop counting.
+# Optional (code defaults, left commented): SCORE_OPERATOR_HOSTS, SCORE_ROLLUP_BATCH (default 60, max 150),
+# SCORE_PROBE_CAP, SCORE_PROBE_BATCH, SCORE_PROBE_SKIP_P, SCORE_PROBE_JITTER_MS, SCORE_PROBE_MIN_GAP_H, SCORE_DEMAND_DAYS, SCORE_PROBE_UAS.
+SCORE_PROBES = "1"
+SCORE_DEMAND = "1"
+SCORE_BAND = "shadow"  # 7-day hidden score test, owner-approved 2026-11-17; records only, nothing served
+SCORE_ORIGIN_FROM = "2026-11-17T19:34:29Z"  # deploy time; earlier unstamped cron rows stop counting
+# SCORE_ROLLUP_BATCH = "60"
+# SCORE_PROBE_CAP = "1000"        # endpoints in the daily expansion (max 5000)
+# SCORE_PROBE_BATCH = "24"        # max probes per */20 step; a step does between half and all of this (max 60)
+# SCORE_PROBE_SKIP_P = "0.15"     # chance a step is skipped entirely (0..0.9)
+# SCORE_PROBE_JITTER_MS = "1500"  # max random pause between probes in a step (max 5000)
+# SCORE_PROBE_MIN_GAP_H = "20"    # an endpoint already probed by another cron within this many hours is left out
+# SCORE_DEMAND_DAYS = "30"        # demand window
+# SCORE_PROBE_UAS = "..."         # optional "|"-separated override of the generic User-Agent list; crawler/browser/product-like strings are dropped
 # 0.49.0 flags, all OFF by default (see docs/deploy-0.49.0.md): EXPLAIN_LINE = "1" (explanation line), RECHECK = "1" (24 h / 10 re-check
 # window; needs migration 0015 + secret RECHECK_PEPPER), BULK_REPORT = "1" (bulk endpoint report; needs 0015, ENDPOINT_REPORT and RECHECK for credits).
 # Payment network (0.46.0): unset = Base mainnet (prod). Local testnet only: --var PAYMENT_PRESET:base-sepolia --var FACILITATOR_URL:https://x402.org/facilitator
@@ -218,31 +240,6 @@ migrations_dir = "migrations"
 # 0.68.0: "23 6 * * 1" = Monday 06:23 UTC disposable-domain refresh. No-op unless EMAIL=1.
 # 0.70.0: "41 3 * * *" = nightly receipt anchor (03:41 UTC). No-op unless ANCHORS=1. Does not sign receipts.
 # Submits one SHA-256 Merkle root per run to the public OpenTimestamps calendars (free; they pay the Bitcoin tx).
-# 0.75.0 probe-set expansion for the reliability score (probeset.js). BOTH FLAGS LEFT UNSET on purpose: a merge or deploy does not enable them.
-#   SCORE_PROBES = "1"  daily queue of up to SCORE_PROBE_CAP top-demand endpoints, probed by the existing */20 cron in random-sized slices with a random pause
-#                       between probes and a rotated generic client User-Agent; every cron probe is stamped probe_origin "cron". Never pays.
-#   SCORE_DEMAND = "1"  count how often an endpoint is among the first discover results shown to a real caller (table endpoint_demand_daily, migration
-#                       0033 must be applied first; without it the write fails open and the expansion ranks by check demand only).
-# 0.76.0 free band for the reliability score (scorestore.js, migration 0034). LEFT UNSET on purpose (unset = off).
-#   SCORE_BAND = "shadow"  the daily rollup records every probed endpoint's band in endpoint_score_daily (batched across the */20
-#                          steps, D1 only) and cron probes are stamped probe_origin "cron". Nothing is served.
-#   SCORE_BAND = "on"      shadow + GET /v1/score, /score-rules.json, a band on discover rows and the MCP tool safe_to_pay.
-#   0034 must be applied first (without it the rollup and reads fail open). Set SCORE_ORIGIN_FROM to the deploy time (ISO) when
-#   stamping starts, so earlier cron rows that carry only the (spoofable) client name stop counting. Optional:
-#   SCORE_OPERATOR_HOSTS (extra own hosts, comma-separated), SCORE_ROLLUP_BATCH (endpoints scored per step, default 60, max 150).
-# SCORE_BAND = "shadow"
-# SCORE_ORIGIN_FROM = "2026-12-01T00:00:00Z"
-# SCORE_ROLLUP_BATCH = "60"
-# Every value below is the code default (inert while the flags are off).
-# SCORE_PROBES = "1"
-# SCORE_DEMAND = "1"
-# SCORE_PROBE_CAP = "1000"        # endpoints in the daily expansion (max 5000)
-# SCORE_PROBE_BATCH = "24"        # max probes per */20 step; a step does between half and all of this (max 60)
-# SCORE_PROBE_SKIP_P = "0.15"     # chance a step is skipped entirely (0..0.9)
-# SCORE_PROBE_JITTER_MS = "1500"  # max random pause between probes in a step (max 5000)
-# SCORE_PROBE_MIN_GAP_H = "20"    # an endpoint already probed by another cron within this many hours is left out
-# SCORE_DEMAND_DAYS = "30"        # demand window
-# SCORE_PROBE_UAS = "..."         # optional "|"-separated override of the generic User-Agent list; crawler/browser/product-like strings are dropped
 
 [triggers]
 crons = ["*/20 * * * *", "17 10 * * *", "23 6 * * 1", "41 3 * * *"]
