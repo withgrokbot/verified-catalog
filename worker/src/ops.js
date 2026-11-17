@@ -6,6 +6,7 @@
 // Storage: aggregate daily counts in D1 (migration 0014). Never stored: IPs, wallets, payment proofs, tx hashes,
 // query strings, client values. The self/drill decision uses the signer at request time and keeps only the label.
 
+import { fixFor } from "./fix.js";
 export const OPENAPI_URL = "https://api.402xagent.com/openapi.json";
 export const SKILL_URL = "https://api.402xagent.com/skill.md";
 export const FAIL_REASONS = ["bad_sig", "wrong_network_or_asset", "insufficient_amount", "expired", "facilitator_error", "other"];
@@ -240,7 +241,11 @@ export function explain400(body, ctx) {
   const expected = body.expected || (unknownParam ? "one of: " + (body.allowed || []).join(", ") : EXPECTED[field] || String(body.problem || body.error || body.message || "see openapi.json").replace(/\. Example:.*$/s, "").slice(0, 300));
   let received = receivedFor(field, ctx);
   if (unknownParam) received = sanitizeReceived(field, ctx.url.searchParams.get(field));
-  return { ...body, field, expected, received: body.received !== undefined ? body.received : (received === null ? "[not sent]" : received), openapi: body.openapi || OPENAPI_URL };
+  return { ...body, field, expected, received: body.received !== undefined ? body.received : (received === null ? "[not sent]" : received), openapi: body.openapi || OPENAPI_URL, fix: body.fix || fixFor(ctx.path, ctx.method, 400) };
+}
+/** 0.71.0: a 422 keeps its body as is (the page or file was the problem) and only gains the `fix` object. */
+export function explain422(body, ctx) {
+  return body.fix ? body : { ...body, fix: fixFor(ctx.path, ctx.method, 422) };
 }
 
 // ------------------------------------------------------------------ 0.49.2 placeholder hosts

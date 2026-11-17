@@ -17,6 +17,7 @@
 // 15 s browser time per call; 2 MB input HTML; 10 MB output; per-network and per-key per-minute limits; a key that bursts to
 // RENDER_SPIKE_FACTOR x its per-minute limit inside one minute is suspended automatically.
 import { assertSafeUrl, isBlockedIp, API_ORIGIN } from "./spotcheck.js";
+import { fixFor } from "./fix.js";
 import { cfg, checkPayload, decodePaymentHeader, verifyAndSettle, paymentRequirements, takeFree } from "./lib.js";
 import { disposableDomains } from "./disposable-domains.js";
 import { billingOn, billingDocs, applyPlanEnd, hmacHex, timingSafeEqual } from "./billing.js";
@@ -645,7 +646,8 @@ export async function handleCard(req, env, ctx, url, opts = {}) {
   const now = opts.now || new Date();
   if (req.method === "GET" || req.method === "HEAD") {
     const v = await verifyCardQuery(env, url.searchParams.get("t") || "", (url.searchParams.get("sig") || "").toLowerCase(), now);
-    if (!v.ok) return J({ error: v.reason === "suspended" ? "api key suspended" : "bad signature", reason: v.reason, charged: false }, v.status || 401);
+    if (!v.ok) return J({ error: v.reason === "suspended" ? "api key suspended" : "bad signature", reason: v.reason, charged: false, // 0.71.0: GET without t and sig is the common mix-up (a card is made by POST); the 401 says so
+      ...(!url.searchParams.has("t") && !url.searchParams.has("sig") ? { fix: fixFor(RENDER_CARD_PATH, "POST", 401) } : {}) }, v.status || 401);
     const raw = inputFromPayload(v.payload);
     if (!raw) return J({ error: "bad signature", reason: "bad_signature", charged: false }, 401);
     const built = await finishCardSpec(raw, opts);
