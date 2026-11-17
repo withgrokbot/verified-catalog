@@ -205,6 +205,38 @@ export function as0589(key, body) {
   if (/\/v1\/receipts\/sc-/.test(key)) return body.replace(RECEIPT_0590_LINK, '<a href="/docs#receipt-signatures">Verify offline');
   return body;
 }
+// 0.73.2: list and paged 200s (and /v1/receipts/by-url, which is counted by the uncached-read caps) send
+// Cache-Control: private, no-store so a cached page cannot bypass the caps. Unless SNAP_KEEP_0732=1,
+// snapshots restore the older public max-age so every older fixture still proves every other header and
+// body byte is unchanged; tests/list_cache_0732_test.mjs checks the new headers themselves.
+export function restoreListCache0732(key, headers) {
+  if (process.env.SNAP_KEEP_0732 === "1" || !headers || headers["cache-control"] !== "private, no-store") return headers;
+  const m = /^GET (https:\/\/\S+) \[([^\]]+)\]$/.exec(key);
+  if (!m) return headers;
+  let u;
+  try { u = new URL(m[1]); } catch { return headers; }
+  const path = u.pathname.replace(/\/+$/, "") || "/";
+  const accept = m[2];
+  const wantsHtml = (accept === "html" || accept === "htmljson") && u.searchParams.get("format") !== "json" && !u.searchParams.has("raw");
+  const out = { ...headers };
+  if (path === "/v1/skips" || path === "/v1/skips.json" || path === "/skips.json") {
+    out["cache-control"] = "public, max-age=300";
+    return out;
+  }
+  if (path === "/v1/receipts/by-url") {
+    out["cache-control"] = "public, max-age=60";
+    return out;
+  }
+  if (path !== "/v1/receipts") return headers;
+  out["cache-control"] = (wantsHtml || u.searchParams.has("type")) ? "public, max-age=60" : "public, max-age=300";
+  return out;
+}
+function snapHeaders(key, res, norm) {
+  const headers = {};
+  for (const [k, v] of [...res.headers.entries()].sort()) headers[k] = norm(v);
+  return restoreListCache0732(key, headers);
+}
+
 export async function snapshot(workerPath, onResponse = null) { // 0.58.9: optional onResponse(key, res, body) tap (bodies402.mjs)
   const mod = await import(pathToFileURL(resolve(workerPath)).href);
   const lib = await import(pathToFileURL(resolve(workerPath, "..", "lib.js")).href);
@@ -216,8 +248,7 @@ export async function snapshot(workerPath, onResponse = null) { // 0.58.9: optio
   const run = async (key, req) => {
     const res = await worker.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
     const body = as0589(key, res.status === 204 || req.method === "HEAD" ? "" : await res.text());
-    const headers = {};
-    for (const [k, v] of [...res.headers.entries()].sort()) headers[k] = norm(v);
+    const headers = snapHeaders(key, res, norm);
     out[key] = { status: res.status, headers, sha256: createHash("sha256").update(norm(body)).digest("hex") };
     if (onResponse) onResponse(key, res, body);
   };
@@ -252,8 +283,7 @@ export async function snapshotExtra(workerPath) {
   const run = async (key, req) => {
     const res = await worker.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
     const body = as0589(key, await res.text()); // 0.59.6: /docs payee-guard block removed (see as0589)
-    const headers = {};
-    for (const [k, v] of [...res.headers.entries()].sort()) headers[k] = norm(v);
+    const headers = snapHeaders(key, res, norm);
     out[key] = { status: res.status, headers, sha256: createHash("sha256").update(norm(body)).digest("hex") };
   };
   const HTML = { accept: "text/html,application/xhtml+xml,*/*;q=0.8", "user-agent": "Mozilla/5.0", "cf-connecting-ip": "203.0.113.9" };
@@ -292,9 +322,9 @@ export async function snapshot0583(workerPath) {
     const [accept, ua] = a ? a.split("|") : [null, null];
     const headers = an === "html" ? HTML : { "cf-connecting-ip": "203.0.113.9", ...(ua ? { "user-agent": ua } : {}), ...(accept ? { accept } : {}) };
     const res = await mod.default.fetch(new Request(h + "/pricing", { headers }), env, { waitUntil() {}, passThroughOnException() {} });
-    const body = strip0610(strip0620("", await res.text())); const hd = {}; // 0.61.0
-    for (const [k, v] of [...res.headers.entries()].sort()) hd[k] = norm(v);
-    out[`GET ${h}/pricing [${an}]`] = { status: res.status, headers: hd, sha256: createHash("sha256").update(norm(body)).digest("hex") };
+    const body = strip0610(strip0620("", await res.text())); // 0.61.0
+    const key = `GET ${h}/pricing [${an}]`;
+    out[key] = { status: res.status, headers: snapHeaders(key, res, norm), sha256: createHash("sha256").update(norm(body)).digest("hex") };
   }
   return out;
 }
@@ -351,9 +381,9 @@ export async function snapshotReceipts(workerPath) {
     const [accept, ua] = a ? a.split("|") : [null, null];
     const req = new Request(h + p, { headers: { "cf-connecting-ip": "203.0.113.9", ...(ua ? { "user-agent": ua } : {}), ...(accept ? { accept } : {}) } });
     const res = await mod.default.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
-    const body = as0589(`GET ${h}${p} [${an}]`, await res.text()); const hd = {};
-    for (const [k, v] of [...res.headers.entries()].sort()) hd[k] = norm(v);
-    out[`GET ${h}${p} [${an}]`] = { status: res.status, headers: hd, sha256: createHash("sha256").update(norm(body)).digest("hex") };
+    const key = `GET ${h}${p} [${an}]`;
+    const body = as0589(key, await res.text());
+    out[key] = { status: res.status, headers: snapHeaders(key, res, norm), sha256: createHash("sha256").update(norm(body)).digest("hex") };
   }
   return out;
 }
@@ -390,9 +420,9 @@ export async function snapshotSkips(workerPath) {
     const [accept, ua] = a ? a.split("|") : [null, null];
     const req = new Request(h + p, { headers: { "cf-connecting-ip": "203.0.113.9", ...(ua ? { "user-agent": ua } : {}), ...(accept ? { accept } : {}) } });
     const res = await mod.default.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
-    const body = strip0662(await res.text()); const hd = {};
-    for (const [k, v] of [...res.headers.entries()].sort()) hd[k] = norm(v);
-    out[`GET ${h}${p} [${an}]`] = { status: res.status, headers: hd, sha256: createHash("sha256").update(norm(body)).digest("hex"), length: body.length };
+    const key = `GET ${h}${p} [${an}]`;
+    const body = strip0662(await res.text());
+    out[key] = { status: res.status, headers: snapHeaders(key, res, norm), sha256: createHash("sha256").update(norm(body)).digest("hex"), length: body.length };
   }
   return out;
 }

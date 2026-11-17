@@ -2,6 +2,8 @@
 // 1) Edge cache: one receipt by id is cached with the Cache API (caches.default) and served with Cache-Control, so a
 //    repeat read never reaches D1. Live / side receipts (sc-, ps-, er-, eb-) are immutable once stored; crawl receipts
 //    (10 hex) carry a read-time freshness block (terms age), so they get a 1 h TTL instead of immutable.
+// 0.73.2: list and paged 200s (and /v1/receipts/by-url) set Cache-Control: private, no-store in the inner handler, so a
+//    cached list page cannot bypass the caps. receiptCacheControl stays by-id only; this overwrite does not run on lists.
 // 2) Per-client rate limit on everything that misses the cache: RECEIPT_RATE_PER_MIN per client IP per UTC minute on the
 //    existing QuotaCounter Durable Object (takeFree + quotaKey, same primitive as the facilitator check; no KV).
 //    Over it: 429 + Retry-After. Fails open (a counter error never blocks a read).
