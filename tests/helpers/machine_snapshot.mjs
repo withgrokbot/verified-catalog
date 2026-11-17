@@ -205,12 +205,12 @@ export function as0589(key, body) {
   if (/\/v1\/receipts\/sc-/.test(key)) return body.replace(RECEIPT_0590_LINK, '<a href="/docs#receipt-signatures">Verify offline');
   return body;
 }
-// 0.73.2: list and paged 200s (and /v1/receipts/by-url, which is counted by the uncached-read caps) send
-// Cache-Control: private, no-store so a cached page cannot bypass the caps. Unless SNAP_KEEP_0732=1,
+// 0.77.0: list and paged 200s (and /v1/receipts/by-url, which is counted by the uncached-read caps) send
+// Cache-Control: private, no-store so a cached page cannot bypass the caps. Unless SNAP_KEEP_0770=1,
 // snapshots restore the older public max-age so every older fixture still proves every other header and
-// body byte is unchanged; tests/list_cache_0732_test.mjs checks the new headers themselves.
-export function restoreListCache0732(key, headers) {
-  if (process.env.SNAP_KEEP_0732 === "1" || !headers || headers["cache-control"] !== "private, no-store") return headers;
+// body byte is unchanged; tests/list_cache_0770_test.mjs checks the new headers themselves.
+export function restoreListCache0770(key, headers) {
+  if (process.env.SNAP_KEEP_0770 === "1" || !headers || headers["cache-control"] !== "private, no-store") return headers;
   const m = /^GET (https:\/\/\S+) \[([^\]]+)\]$/.exec(key);
   if (!m) return headers;
   let u;
@@ -234,7 +234,7 @@ export function restoreListCache0732(key, headers) {
 function snapHeaders(key, res, norm) {
   const headers = {};
   for (const [k, v] of [...res.headers.entries()].sort()) headers[k] = norm(v);
-  return restoreListCache0732(key, headers);
+  return restoreListCache0770(key, headers);
 }
 
 export async function snapshot(workerPath, onResponse = null) { // 0.58.9: optional onResponse(key, res, body) tap (bodies402.mjs)

@@ -1,4 +1,4 @@
-// 0.73.2: 200 list/paged receipt and skips responses (and /v1/receipts/by-url, which is counted by the uncached-read caps)
+// 0.77.0: 200 list/paged receipt and skips responses (and /v1/receipts/by-url, which is counted by the uncached-read caps)
 // send Cache-Control: private, no-store so a cached page cannot bypass the caps. Single-by-id caching stays as-is.
 // The new header is set whether BULK_LIMITS is on or off: a cached 200 would also bypass the flag-off 120/min cap.
 import { test } from "node:test";
@@ -8,7 +8,7 @@ import { VERSION } from "../worker/src/lib.js";
 import { RECEIPT_LIST_CC } from "../worker/src/skips.js";
 import { RECEIPT_IMMUTABLE_CC, RECEIPT_CRAWL_CC } from "../worker/src/receiptguard.js";
 import { CRAWL_RECEIPT_ID } from "./helpers/crawl_fixtures.mjs";
-import { fakeReceiptsD1, fakeSkipsD1, restoreListCache0732 } from "./helpers/machine_snapshot.mjs";
+import { fakeReceiptsD1, fakeSkipsD1, restoreListCache0770 } from "./helpers/machine_snapshot.mjs";
 
 const CTX = { waitUntil() {}, passThroughOnException() {} };
 const LIVE_ID = "sc-85c8963fb57e7b25";
@@ -34,8 +34,8 @@ async function go(path, { flag, headers = {}, e } = {}) {
   return res;
 }
 
-test("0.73.2 version and list Cache-Control constant", () => {
-  assert.equal(VERSION, "0.73.2");
+test("0.77.0 version and list Cache-Control constant", () => {
+  assert.equal(VERSION, "0.77.0");
   assert.equal(RECEIPT_LIST_CC, "private, no-store");
 });
 
@@ -81,26 +81,26 @@ for (const flag of [undefined, "0", "1"]) {
   });
 }
 
-test("a missing crawl receipt 404 keeps the pre-0.73.2 Cache-Control", async () => {
+test("a missing crawl receipt 404 keeps the pre-0.77.0 Cache-Control", async () => {
   const res = await go("/v1/receipts/ffffffffff");
   assert.equal(res.status, 404);
   assert.equal(res.headers.get("cache-control"), "public, max-age=300");
 });
 
-test("snapshot restorer puts the older public max-age back unless SNAP_KEEP_0732=1", () => {
-  const prev = process.env.SNAP_KEEP_0732;
-  delete process.env.SNAP_KEEP_0732;
+test("snapshot restorer puts the older public max-age back unless SNAP_KEEP_0770=1", () => {
+  const prev = process.env.SNAP_KEEP_0770;
+  delete process.env.SNAP_KEEP_0770;
   const no = { "cache-control": "private, no-store", vary: "accept" };
-  assert.equal(restoreListCache0732("GET https://402xagent.com/v1/skips [none]", no)["cache-control"], "public, max-age=300");
-  assert.equal(restoreListCache0732("GET https://402xagent.com/v1/skips.json?page=2 [json]", no)["cache-control"], "public, max-age=300");
-  assert.equal(restoreListCache0732("GET https://402xagent.com/v1/receipts [none]", no)["cache-control"], "public, max-age=300");
-  assert.equal(restoreListCache0732("GET https://402xagent.com/v1/receipts?page=2 [json]", no)["cache-control"], "public, max-age=300");
-  assert.equal(restoreListCache0732("GET https://402xagent.com/v1/receipts?type=dry-run [none]", no)["cache-control"], "public, max-age=60");
-  assert.equal(restoreListCache0732("GET https://402xagent.com/v1/receipts [html]", no)["cache-control"], "public, max-age=60");
-  assert.equal(restoreListCache0732("GET https://402xagent.com/v1/receipts/by-url?url=https://api.402rates.com/v1/ping [none]", no)["cache-control"], "public, max-age=60");
+  assert.equal(restoreListCache0770("GET https://402xagent.com/v1/skips [none]", no)["cache-control"], "public, max-age=300");
+  assert.equal(restoreListCache0770("GET https://402xagent.com/v1/skips.json?page=2 [json]", no)["cache-control"], "public, max-age=300");
+  assert.equal(restoreListCache0770("GET https://402xagent.com/v1/receipts [none]", no)["cache-control"], "public, max-age=300");
+  assert.equal(restoreListCache0770("GET https://402xagent.com/v1/receipts?page=2 [json]", no)["cache-control"], "public, max-age=300");
+  assert.equal(restoreListCache0770("GET https://402xagent.com/v1/receipts?type=dry-run [none]", no)["cache-control"], "public, max-age=60");
+  assert.equal(restoreListCache0770("GET https://402xagent.com/v1/receipts [html]", no)["cache-control"], "public, max-age=60");
+  assert.equal(restoreListCache0770("GET https://402xagent.com/v1/receipts/by-url?url=https://api.402rates.com/v1/ping [none]", no)["cache-control"], "public, max-age=60");
   const single = { "cache-control": "public, max-age=3600" };
-  assert.equal(restoreListCache0732("GET https://402xagent.com/v1/receipts/006776f7b6 [none]", single)["cache-control"], "public, max-age=3600");
-  process.env.SNAP_KEEP_0732 = "1";
-  assert.equal(restoreListCache0732("GET https://402xagent.com/v1/receipts [none]", no)["cache-control"], "private, no-store");
-  if (prev === undefined) delete process.env.SNAP_KEEP_0732; else process.env.SNAP_KEEP_0732 = prev;
+  assert.equal(restoreListCache0770("GET https://402xagent.com/v1/receipts/006776f7b6 [none]", single)["cache-control"], "public, max-age=3600");
+  process.env.SNAP_KEEP_0770 = "1";
+  assert.equal(restoreListCache0770("GET https://402xagent.com/v1/receipts [none]", no)["cache-control"], "private, no-store");
+  if (prev === undefined) delete process.env.SNAP_KEEP_0770; else process.env.SNAP_KEEP_0770 = prev;
 });

@@ -9,7 +9,7 @@ import { skipsHtml, sourceBreakdown } from "./skips-html.js"; // 0.58.7
 import { observationSpan } from "./history.js"; // 0.66.2
 import { DOCS_CSP as HOME_CSP } from "./tryit.js"; // = home.js HOME_CSP (strict: script-src 'self' + Cloudflare Web Analytics)
 
-// 0.73.2: list and paged 200s are private, no-store so a cached page cannot bypass the receipt/skips caps.
+// 0.77.0: list and paged 200s are private, no-store so a cached page cannot bypass the receipt/skips caps.
 // Single crawl receipts still use public, max-age=300 here; receiptGuard overwrites 200s by id with the 0.62.0 TTL.
 export const RECEIPT_LIST_CC = "private, no-store";
 const hdrs = (type, cc = "public, max-age=300") => ({ "content-type": type, "access-control-allow-origin": "*", "cache-control": cc, vary: "accept" });
