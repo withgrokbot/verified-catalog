@@ -218,5 +218,21 @@ migrations_dir = "migrations"
 # 0.68.0: "23 6 * * 1" = Monday 06:23 UTC disposable-domain refresh. No-op unless EMAIL=1.
 # 0.70.0: "41 3 * * *" = nightly receipt anchor (03:41 UTC). No-op unless ANCHORS=1. Does not sign receipts.
 # Submits one SHA-256 Merkle root per run to the public OpenTimestamps calendars (free; they pay the Bitcoin tx).
+# 0.75.0 probe-set expansion for the reliability score (probeset.js). BOTH FLAGS LEFT UNSET on purpose: a merge or deploy does not enable them.
+#   SCORE_PROBES = "1"  daily queue of up to SCORE_PROBE_CAP top-demand endpoints, probed by the existing */20 cron in random-sized slices with a random pause
+#                       between probes and a rotated generic client User-Agent; every cron probe is stamped probe_origin "cron". Never pays.
+#   SCORE_DEMAND = "1"  count how often an endpoint is among the first discover results shown to a real caller (table endpoint_demand_daily, migration
+#                       0033 must be applied first; without it the write fails open and the expansion ranks by check demand only).
+# Every value below is the code default (inert while the flags are off).
+# SCORE_PROBES = "1"
+# SCORE_DEMAND = "1"
+# SCORE_PROBE_CAP = "1000"        # endpoints in the daily expansion (max 5000)
+# SCORE_PROBE_BATCH = "24"        # max probes per */20 step; a step does between half and all of this (max 60)
+# SCORE_PROBE_SKIP_P = "0.15"     # chance a step is skipped entirely (0..0.9)
+# SCORE_PROBE_JITTER_MS = "1500"  # max random pause between probes in a step (max 5000)
+# SCORE_PROBE_MIN_GAP_H = "20"    # an endpoint already probed by another cron within this many hours is left out
+# SCORE_DEMAND_DAYS = "30"        # demand window
+# SCORE_PROBE_UAS = "..."         # optional "|"-separated override of the generic User-Agent list; crawler/browser/product-like strings are dropped
+
 [triggers]
 crons = ["*/20 * * * *", "17 10 * * *", "23 6 * * 1", "41 3 * * *"]

@@ -19,7 +19,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const API = "https://api.402xagent.com";
 const PAY_TO = "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674";
 
-test("0.72.0 version", () => assert.equal(VERSION, "0.74.0"));
+test("0.72.0 version", () => assert.equal(VERSION, "0.75.0"));
 
 test("price comes from the source of truth: no typed price in paidcheck.js, equal to the live 402 amount, the pricing row and SPOT_PAID_ATOMIC", async () => {
   const code = readFileSync(join(HERE, "..", "worker", "src", "paidcheck.js"), "utf8").split("\n").map((l) => l.replace(/\/\/.*$/, "")).join("\n");

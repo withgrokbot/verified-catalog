@@ -419,7 +419,7 @@ export async function spotProbe(rawUrl, opts = {}) {
       try {
         const headers = {
           accept: "application/json, text/plain, */*",
-          "user-agent": "verified-catalog-spotcheck/0.7.0",
+          "user-agent": typeof opts.userAgent === "string" && opts.userAgent ? opts.userAgent : "verified-catalog-spotcheck/0.7.0", // 0.75.0: cron probes may rotate a generic client string (SCORE_PROBES=1)
           // Explicitly do NOT send payment headers
         };
         const init = { method, redirect: "manual", signal: ac.signal, headers };
