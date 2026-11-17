@@ -92,7 +92,7 @@ import { fixFor, fixFor404, toolFix } from "./fix.js"; // 0.71.0
 import { receiptGuard, isVerifiedBot, bulkLimitsOn, skipsPageGuard } from "./receiptguard.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, explain422, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.73.0";
+export const VERSION = "0.74.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 // 0.72.0: the price is derived from the paid 402 amount (SPOT_DEFAULT_PRICE_ATOMIC), not typed.
