@@ -222,9 +222,9 @@ test("skips paging end to end through the Worker: 429 on the 7th page, page 1 an
   assert.equal(rl.length, 1); assert.equal(rl[0].blobs[16], "pages_day");
 });
 
-test("wrangler.toml leaves BULK_LIMITS unset (a merge or deploy does not enable the limits); the RECEIPT_* vars are the code defaults", () => {
+test("wrangler.toml has BULK_LIMITS = \"1\" (owner-approved 2026-11-17); the RECEIPT_* vars are the code defaults", () => {
   const toml = readFileSync(new URL("../worker/wrangler.toml", import.meta.url), "utf8");
-  assert.doesNotMatch(toml, /^BULK_LIMITS\s*=/m);
+  assert.match(toml, /^BULK_LIMITS\s*=\s*"1"/m);
   const num = (k) => Number((new RegExp("^" + k + '\\s*=\\s*"(\\d+)"', "m").exec(toml) || [])[1]);
   assert.deepEqual([num("RECEIPT_PAGES_PER_MIN"), num("RECEIPT_PAGES_PER_DAY"), num("RECEIPT_PAGES_PER_DAY_GROUP"), num("RECEIPT_SINGLE_PER_DAY"), num("RECEIPT_SINGLE_PER_DAY_GROUP"), num("RECEIPT_GROUP_PROBE")], [6, 40, 400, 300, 3000, 25]);
 });
