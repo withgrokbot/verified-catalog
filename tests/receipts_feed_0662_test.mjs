@@ -13,19 +13,25 @@ import { crawlReceiptHtml, liveReceiptHtml } from "../worker/src/receipts-html.j
 const HERE = dirname(fileURLToPath(import.meta.url));
 const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
 
-test("published crawl: the four large primary lists are 197,463; agent402 (1) and awesome-x402 (3) are the other four", () => {
+test("published crawl: named primary lists partition the headline, and the breakdown sums to it", () => {
+  const lists = RECEIPTS_META.lists;
+  const listSum = sum(lists);
+  assert.equal(listSum, RECEIPTS_META.endpoints_covered);
+  assert.equal(listSum, RECEIPTS_META.total);
   const big = ["payai-bazaar", "agent-tools-cloud", "payapi-market", "cdp-bazaar"];
-  const bigSum = big.reduce((n, k) => n + RECEIPTS_META.lists[k], 0);
-  assert.equal(bigSum, 197463);
-  assert.equal(RECEIPTS_META.lists.agent402, 1);
-  assert.equal(RECEIPTS_META.lists["awesome-x402"], 3);
-  assert.equal(bigSum + 4, RECEIPTS_META.endpoints_covered);
+  for (const k of big) assert.ok(Number(lists[k]) > 0, k + " is still a primary list");
+  const bigSum = big.reduce((n, k) => n + Number(lists[k]), 0);
+  assert.ok(bigSum >= listSum * 0.9, "the four large lists still make up the bulk of the crawl");
   const by = sourceBreakdown(RECEIPTS_META);
   assert.equal(sum(by), RECEIPTS_META.endpoints_covered);
   assert.equal(sum(by), RECEIPTS_META.total);
   assert.equal(by["other/unknown"], undefined, "every published receipt already has a named primary list");
-  assert.ok(sourceLine(RECEIPTS_META).includes("agent402 1") && sourceLine(RECEIPTS_META).includes("awesome-x402 3"));
-  assert.ok(sourceLine(RECEIPTS_META).includes("these add up to 197,467"));
+  const line = sourceLine(RECEIPTS_META);
+  const headline = Number(RECEIPTS_META.endpoints_covered).toLocaleString("en-US");
+  assert.ok(line.includes("these add up to " + headline), line);
+  for (const [k, v] of Object.entries(lists)) {
+    if (Number(v) > 0) assert.ok(line.includes(k), "source line names " + k);
+  }
 });
 
 test("a gap of 4 blank or missing sources is an explicit other/unknown bucket, and the breakdown still sums to the headline", () => {

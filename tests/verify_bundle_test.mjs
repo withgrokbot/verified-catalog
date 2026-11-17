@@ -29,6 +29,10 @@ test("deploy bundle: verifier surfaces contain no __name", { skip: process.env.V
   let dir = process.env.VC_BUNDLE_DIR;
   if (!dir) {
     dir = mkdtempSync(join(tmpdir(), "vc-bundle-"));
+    if (!existsSync(join(workerDir, "node_modules", "@cloudflare", "puppeteer"))) {
+      const inst = spawnSync("npm", ["install", "--omit=dev", "--no-package-lock"], { cwd: workerDir, encoding: "utf8", timeout: 180000 });
+      assert.equal(inst.status, 0, "npm install in worker/ failed: " + (inst.stderr || inst.stdout || "").slice(-2000));
+    }
     const env = { ...process.env, WRANGLER_CACHE_DIR: process.env.WRANGLER_CACHE_DIR || "/tmp/wrangler-cache" };
     delete env.CF_API_TOKEN; delete env.CLOUDFLARE_API_TOKEN;
     const r = spawnSync("npx", ["-y", "-p", "node@22", "-p", "wrangler@4.154.0", "wrangler", "deploy", "--dry-run", "--outdir", dir],

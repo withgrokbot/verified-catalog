@@ -8,6 +8,8 @@ import { resolve } from "node:path";
 
 import { CRAWLED_AT, CRAWL_RECEIPT_ID, SNAP_NOW, readFixture } from "./crawl_fixtures.mjs";
 import { HISTORY_SPAN_CLAUSE, RULES_SPAN_SUFFIX, MCP_HISTORY_NEW, MCP_HISTORY_OLD, SKIPS_SUMMARY_SUFFIX, LLMS_HISTORY_LINE, SKILL_HISTORY_LINE } from "../../worker/src/history.js";
+import { RECEIPTS_META } from "../../worker/src/receipts-data.js";
+import { sourceLine } from "../../worker/src/skips-html.js";
 export { CRAWLED_AT, CRAWL_RECEIPT_ID, readFixture };
 // 0.59.10: frozen clock relative to the bundled crawl (crawl_fixtures.mjs SNAP_NOW), was a fixed 2026-10-28T12:00:00Z.
 const FIXED = SNAP_NOW;
@@ -105,9 +107,18 @@ export const guardEnv0620 = () => (process.env.SNAP_KEEP_0620 === "1" ? {} : { R
 // 0.66.2: by_source on the skips summary, days_observed / first_seen / last_checked on history, and the docs
 // sentences that name them. Unless SNAP_KEEP_0662=1 those additions are taken back out so older fixtures still match;
 // tests/receipts_feed_0662_test.mjs checks the additions themselves.
+function listedInLine(meta = RECEIPTS_META) {
+  // Pre-0.66.2 skips summary: listed_in (a receipt can appear on several lists), no "these add up to" clause.
+  const num = (n) => (typeof n === "number" && Number.isFinite(n) ? n.toLocaleString("en-US") : n == null ? "—" : String(n));
+  const listed = Object.entries(meta.listed_in || meta.lists || {}).map(([k, v]) => k + " " + num(v)).join(", ");
+  return "lists: " + listed;
+}
 export function strip0662(body) {
   if (process.env.SNAP_KEEP_0662 === "1" || typeof body !== "string") return body;
   body = body.split(HISTORY_SPAN_CLAUSE).join("").split(RULES_SPAN_SUFFIX).join("").split(MCP_HISTORY_NEW).join(MCP_HISTORY_OLD).split(SKIPS_SUMMARY_SUFFIX).join("").split("\n" + LLMS_HISTORY_LINE).join("").split("\n" + SKILL_HISTORY_LINE).join("");
+  const neu = sourceLine(RECEIPTS_META), old = listedInLine(RECEIPTS_META);
+  if (neu && neu !== old) body = body.split(neu).join(old);
+  body = body.replace(/<dt>Days observed<\/dt><dd>[^<]*<\/dd>/g, "").replace(/<dt>Last checked<\/dt>/g, "<dt>Checked</dt>");
   if (!body.includes('"by_source"') && !body.includes('"days_observed"')) return body;
   try {
     const j = JSON.parse(body);
