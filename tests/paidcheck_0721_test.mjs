@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import worker from "../worker/src/index.js";
 import { VERSION } from "../worker/src/lib.js";
 
-test("0.72.1 version", () => assert.equal(VERSION, "0.74.0"));
+test("0.72.1 version", () => assert.equal(VERSION, "0.75.0"));
 
 test("facilitator/check and payment-status answers carry no paid_check (live routes, non-404)", async () => {
   const env = { CLIENT_SALT: "t", PAY_TO: "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674" };

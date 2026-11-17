@@ -234,6 +234,27 @@ test("route /v1/discover: 200, unknown param 400, rate limit 429 after DISCOVER_
   assert.equal(bad.result.isError, true); assert.ok(!JSON.stringify(bad.result).includes("paid_check"), "an error answer carries no offer");
 });
 
+test("0.75.0 demand: SCORE_DEMAND=1 counts discover results shown to a real caller (HTTP and MCP), never ours or bots; off = no write", async () => {
+  const mk = async (flag) => {
+    const env = await envFor([row("a000000001", "pay", 1), row("b000000002", "skip", 2)], iso(Date.now() - H), flag ? { SCORE_DEMAND: "1", SELF_CLIENTS: "withgrokbot,withgrokbot-selftest" } : {});
+    env.batches = []; const inner = env.RECEIPTS_DB; inner.batch = async (st) => { env.batches.push(st.map((x) => x.b)); return []; };
+    return env;
+  };
+  const call = async (env, path, h = {}) => { const pending = []; const r = await worker.fetch(new Request("https://api.402xagent.com" + path, { headers: { "cf-connecting-ip": "203.0.113.50", "user-agent": "agent-x/1.0", ...h } }), env, { waitUntil: (p) => pending.push(p) }); await Promise.all(pending); return r; };
+  const mcp = async (env, h = {}) => { const pending = []; const r = await worker.fetch(new Request("https://api.402xagent.com/mcp", { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream", "cf-connecting-ip": "203.0.113.51", "user-agent": "agent-x/1.0", ...h }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "discover", arguments: { limit: 2 } } }) }), env, { waitUntil: (p) => pending.push(p) }); await Promise.all(pending); return r; };
+  const off = await mk(false);
+  assert.equal((await call(off, "/v1/discover?limit=2")).status, 200); assert.equal((await mcp(off)).status, 200);
+  assert.equal(off.batches.length, 0, "flag off: nothing is written");
+  const on = await mk(true);
+  assert.equal((await call(on, "/v1/discover?limit=2")).status, 200);
+  assert.equal(on.batches.length, 1); assert.ok(on.batches[0].length >= 1 && on.batches[0].length <= 5);
+  for (const b of on.batches[0]) { assert.match(b[0], /^\d{4}-\d{2}-\d{2}$/); assert.match(b[1], /^https:\/\/[^?#]+$/); assert.equal(b[2], "discover"); }
+  assert.equal((await mcp(on)).status, 200); assert.equal(on.batches.length, 2, "MCP discover counts too");
+  await call(on, "/v1/discover?limit=2&client=withgrokbot"); await call(on, "/v1/discover?limit=2", { "user-agent": "Googlebot/2.1 (+http://www.google.com/bot.html)" }); await call(on, "/v1/discover?limit=2", { "user-agent": "402xagent-bazaar/1" });
+  assert.equal(on.batches.length, 2, "our own client, crawlers and our own agents are never counted");
+  assert.equal((await call(on, "/v1/discover?foo=1")).status, 400); assert.equal(on.batches.length, 2, "an error answer counts nothing");
+});
+
 let passed = 0;
 for (const [n, f] of T) { try { await f(); passed++; console.log("PASS " + n); } catch (e) { console.log("FAIL " + n + "\n  " + (e.stack || e).toString().split("\n").slice(0, 8).join("\n  ")); } }
 console.log(`${passed}/${T.length} discover tests passed`); process.exit(passed === T.length ? 0 : 1);
