@@ -1,0 +1,279 @@
+{
+ "label": "baseline-20261117",
+ "window_utc": {
+  "start": "2026-11-10T17:08:20Z",
+  "end": "2026-11-17T17:08:20Z",
+  "days": 7.0
+ },
+ "source": "Analytics Engine vc_lookups (routes that write a data point only); D1 notfound_daily for 404",
+ "total": {
+  "requests": 267401,
+  "paywall_402": 19818,
+  "four_xx": 3617,
+  "rate_pct": 1.35,
+  "four_xx_per_day": 516.7,
+  "by_status": {
+   "400": 256,
+   "404": 3219,
+   "405": 142
+  }
+ },
+ "by_family": {
+  "lookup": {
+   "requests": 3428,
+   "paywall_402": 0,
+   "four_xx": 3,
+   "requests_outside": 3428,
+   "four_xx_outside": 3,
+   "by_status": {
+    "400": 3
+   },
+   "rate_pct": 0.09,
+   "rate_pct_outside": 0.09
+  },
+  "lookup-paid": {
+   "requests": 8580,
+   "paywall_402": 8578,
+   "four_xx": 2,
+   "requests_outside": 8579,
+   "four_xx_outside": 2,
+   "by_status": {
+    "400": 2
+   },
+   "rate_pct": 0.02,
+   "rate_pct_outside": 0.02
+  },
+  "mcp": {
+   "requests": 57,
+   "paywall_402": 0,
+   "four_xx": 0,
+   "requests_outside": 47,
+   "four_xx_outside": 0,
+   "by_status": {},
+   "rate_pct": 0.0,
+   "rate_pct_outside": 0.0
+  },
+  "pack": {
+   "requests": 266,
+   "paywall_402": 266,
+   "four_xx": 0,
+   "requests_outside": 266,
+   "four_xx_outside": 0,
+   "by_status": {},
+   "rate_pct": 0.0,
+   "rate_pct_outside": 0.0
+  },
+  "paystatus": {
+   "requests": 80,
+   "paywall_402": 3,
+   "four_xx": 72,
+   "requests_outside": 80,
+   "four_xx_outside": 72,
+   "by_status": {
+    "400": 72
+   },
+   "rate_pct": 90.0,
+   "rate_pct_outside": 90.0
+  },
+  "spot": {
+   "requests": 11795,
+   "paywall_402": 10971,
+   "four_xx": 65,
+   "requests_outside": 11113,
+   "four_xx_outside": 65,
+   "by_status": {
+    "400": 65
+   },
+   "rate_pct": 0.55,
+   "rate_pct_outside": 0.58
+  },
+  "view": {
+   "requests": 243195,
+   "paywall_402": 0,
+   "four_xx": 3475,
+   "requests_outside": 243195,
+   "four_xx_outside": 3475,
+   "by_status": {
+    "400": 114,
+    "404": 3219,
+    "405": 142
+   },
+   "rate_pct": 1.43,
+   "rate_pct_outside": 1.43
+  }
+ },
+ "detail": [
+  {
+   "product": "view",
+   "access": "view-receipts",
+   "status": 404,
+   "self": false,
+   "n": 3219
+  },
+  {
+   "product": "view",
+   "access": "view-receipts",
+   "status": 400,
+   "self": false,
+   "n": 96
+  },
+  {
+   "product": "paystatus",
+   "access": "ps-bad-params",
+   "status": 400,
+   "self": false,
+   "n": 72
+  },
+  {
+   "product": "spot",
+   "access": "spot-bad-params",
+   "status": 400,
+   "self": false,
+   "n": 65
+  },
+  {
+   "product": "view",
+   "access": "view-receipts",
+   "status": 405,
+   "self": false,
+   "n": 48
+  },
+  {
+   "product": "view",
+   "access": "view-docs-home",
+   "status": 405,
+   "self": false,
+   "n": 46
+  },
+  {
+   "product": "view",
+   "access": "view-saves",
+   "status": 405,
+   "self": false,
+   "n": 30
+  },
+  {
+   "product": "view",
+   "access": "view-badge",
+   "status": 400,
+   "self": false,
+   "n": 16
+  },
+  {
+   "product": "view",
+   "access": "view-skips",
+   "status": 405,
+   "self": false,
+   "n": 14
+  },
+  {
+   "product": "view",
+   "access": "view-docs-rules",
+   "status": 405,
+   "self": false,
+   "n": 4
+  },
+  {
+   "product": "lookup",
+   "access": "",
+   "status": 400,
+   "self": false,
+   "n": 3
+  },
+  {
+   "product": "view",
+   "access": "view-reputation",
+   "status": 400,
+   "self": false,
+   "n": 2
+  },
+  {
+   "product": "lookup-paid",
+   "access": "",
+   "status": 400,
+   "self": false,
+   "n": 2
+  }
+ ],
+ "d1_404": {
+  "total": 14428,
+  "top": [
+   {
+    "method": "GET",
+    "path": "/v1/receipts/:hex",
+    "n": 2359
+   },
+   {
+    "method": "GET",
+    "path": "/v1/receipts/:hex\",",
+    "n": 924
+   },
+   {
+    "method": "GET",
+    "path": "/wp-admin/install.php",
+    "n": 185
+   },
+   {
+    "method": "GET",
+    "path": "/.well-known/oauth-protected-resource",
+    "n": 116
+   },
+   {
+    "method": "GET",
+    "path": "/.well-known/ai-catalog.json",
+    "n": 99
+   },
+   {
+    "method": "GET",
+    "path": "/.well-known/ard.json",
+    "n": 85
+   },
+   {
+    "method": "GET",
+    "path": "/v1/receipts/null",
+    "n": 74
+   },
+   {
+    "method": "GET",
+    "path": "/.well-known/glama.json",
+    "n": 71
+   },
+   {
+    "method": "GET",
+    "path": "/.well-known/oauth-authorization-server",
+    "n": 60
+   },
+   {
+    "method": "GET",
+    "path": "/.well-known/oauth-protected-resource/mcp",
+    "n": 54
+   },
+   {
+    "method": "POST",
+    "path": "/message:send",
+    "n": 52
+   },
+   {
+    "method": "GET",
+    "path": "/.well-known/agents.json",
+    "n": 48
+   },
+   {
+    "method": "GET",
+    "path": "/.well-known/x402.json",
+    "n": 47
+   },
+   {
+    "method": "GET",
+    "path": "/mcp/server-card",
+    "n": 46
+   },
+   {
+    "method": "POST",
+    "path": "/mcp/mcp",
+    "n": 44
+   }
+  ],
+  "per_day": 2061.1
+ }
+}
