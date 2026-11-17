@@ -37,35 +37,40 @@
     "facts_only": false,
     "facts_only_reason": null
   },
-  "paid_receipts": 11,
+  "paid_receipts": 12,
   "latest": {
-    "checked_at": "2026-11-16T23:22:26Z",
-    "mode": "dry-run",
+    "checked_at": "2026-11-17T18:50:51Z",
+    "mode": "paid",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 9,
+    "latency_ms": 238,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.01",
     "quoted_price_usd": "0.01",
     "price_matches_listing": true,
-    "paid": false,
-    "charged_price_usd": null,
-    "delivered_valid": null,
+    "paid": true,
+    "charged_price_usd": "0.01",
+    "delivered_valid": true,
     "payment_refused_reason": null,
     "error": null,
-    "quality": null,
-    "raw_log": "results/raw/20261116T232226Z/x402atlas-ssl-check.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261116T232226Z/x402atlas-ssl-check.json"
+    "quality": {
+      "result": "pass",
+      "reason": "hostname matches; expiry equals our own TLS handshake",
+      "facts_only": false,
+      "graded_at": "2026-11-17T18:50:52Z"
+    },
+    "raw_log": "results/raw/20261117T185026Z/x402atlas-ssl-check.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261117T185026Z/x402atlas-ssl-check.json"
   },
   "history_summary": {
-    "checks": 61,
-    "reachable": 61,
-    "x402_challenge_ok": 61,
-    "paid_checks": 11,
+    "checks": 62,
+    "reachable": 62,
+    "x402_challenge_ok": 62,
+    "paid_checks": 12,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-11-16T23:22:26Z",
-    "days_observed": 48,
+    "last_checked": "2026-11-17T18:50:51Z",
+    "days_observed": 49,
     "first_seen": "2026-09-30T01:01:51Z"
   }
 }
