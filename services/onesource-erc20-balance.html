@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-28 09:34:55.243 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-11-16 23:22:26 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-11-17 18:50:26 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>169 ms</td></tr>
+<tr><th scope="row">Latency</th><td>352 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.003 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.003</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.003</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>passed (balance equals public-RPC balanceOf at block 26436669)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.003, batch-settlement on eip155:8453: $0.003.</p>
-<p>Evidence: <a href="../results/raw/20261116T232226Z/onesource-erc20-balance.json">raw log for this check</a>. Machine-readable: <a href="onesource-erc20-balance.json">onesource-erc20-balance.json</a>.</p>
+<p>Evidence: <a href="../results/raw/20261117T185026Z/onesource-erc20-balance.json">raw log for this check</a>. Machine-readable: <a href="onesource-erc20-balance.json">onesource-erc20-balance.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: USDT balance of vitalik.eth (0xd8da...6045) on Ethereum. Passes if: balance equals balanceOf from a free public Ethereum RPC at one of the 6 newest blocks when we check.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-11-17 18:50:26 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>passed (balance equals public-RPC balanceOf at block 26436669)</td><td><a href="https://basescan.org/tx/0x5c93f9a98bf3ff5d8ea31c8adecf077ec9b3689e4408a3f1b4c23ffe4a0a24bf">0x5c93f9a9...</a></td></tr>
 <tr><td>2026-11-10 18:49:13 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>passed (balance equals public-RPC balanceOf at block 26386410)</td><td><a href="https://basescan.org/tx/0x504447fabc45fc517bbd20ab94a2c0e84550c7593b2b47fb46942ce5439e14be">0x504447fa...</a></td></tr>
 <tr><td>2026-11-03 18:49:34 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>passed (balance equals public-RPC balanceOf at block 26336174)</td><td><a href="https://basescan.org/tx/0xb2be5ac5e1d0f9f1a512e790b0f6b7f3a6b1d9037f6271d7f2de8a870595ae4a">0xb2be5ac5...</a></td></tr>
 <tr><td>2026-10-27 17:52:06 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>passed (balance equals public-RPC balanceOf at block 26285661)</td><td><a href="https://basescan.org/tx/0x1322cca37c0c39e19e535c6e8a713c201c42ece1663f49a7a3959a1182072042">0x1322cca3...</a></td></tr>
@@ -52,13 +53,13 @@
 <tr><td>2026-10-13 17:56:39 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>passed (balance equals public-RPC balanceOf at block 26185205)</td><td><a href="https://basescan.org/tx/0xab22f95028febebec79cd9263621d61e5c9cbd5c0a964e64dfadff53b2452261">0xab22f950...</a></td></tr>
 <tr><td>2026-10-06 17:58:14 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>passed (balance equals public-RPC balanceOf at block 26134975)</td><td><a href="https://basescan.org/tx/0x63bfc44a2191467be6a03917b858687ce21c37194e8624379d0f780bf0e46d48">0x63bfc44a...</a></td></tr>
 <tr><td>2026-10-02 18:48:43 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>passed (balance equals public-RPC balanceOf at block 26106531)</td><td><a href="https://basescan.org/tx/0xaa0302179414b663b3b3e8a18000c1e634b45acbb13fe049af3512c77867c639">0xaa030217...</a></td></tr>
-<tr><td>2026-09-30 20:54:09 UTC</td><td>$0.003</td><td>yes</td><td>200</td><td>passed (balance equals public-RPC balanceOf at block 26092813)</td><td><a href="https://basescan.org/tx/0x92870c2e0e4cb59cae5edff30a9d2455c1f65970cba0e8ad9303dd70bfca4db5">0x92870c2e...</a></td></tr>
 </tbody></table></div>
 <h2>Recent checks</h2>
-<p class="meta">Days observed: 48 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-16 23:22:26 UTC. Days with no stored check are not counted.</p>
+<p class="meta">Days observed: 49 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-17 18:50:26 UTC. Days with no stored check are not counted.</p>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-11-17 18:50:26 UTC</td><td>paid</td><td>yes</td><td>402</td><td>352 ms</td><td>$0.003</td><td>yes</td><td><a href="../results/raw/20261117T185026Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-11-16 23:22:26 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>169 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261116T232226Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-11-15 19:45:09 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>94 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261115T194509Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-11-14 19:08:13 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>254 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261114T190813Z/onesource-erc20-balance.json">raw log</a></td></tr>
@@ -68,7 +69,6 @@
 <tr><td>2026-11-10 20:47:43 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>299 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261110T204743Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-11-10 18:49:13 UTC</td><td>paid</td><td>yes</td><td>402</td><td>604 ms</td><td>$0.003</td><td>yes</td><td><a href="../results/raw/20261110T184912Z/onesource-erc20-balance.json">raw log</a></td></tr>
 <tr><td>2026-11-09 23:25:45 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>407 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261109T232545Z/onesource-erc20-balance.json">raw log</a></td></tr>
-<tr><td>2026-11-08 18:48:45 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>71 ms</td><td>$0.003</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261108T184845Z/onesource-erc20-balance.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>
