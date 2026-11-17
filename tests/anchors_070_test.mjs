@@ -26,13 +26,12 @@ const V = verifierCore([]);
 const ctx = { waitUntil() {}, passThroughOnException() {} };
 const realFetch = globalThis.fetch;
 
-test("0.70.0 version, migration 0032, ANCHORS off, nightly cron", () => {
+test("0.70.0 version, migration 0032, ANCHORS on, nightly cron", () => {
   assert.equal(VERSION, "0.70.0");
   const files = readdirSync(join(ROOT, "..", "worker", "migrations")).filter((f) => f.endsWith(".sql")).sort();
   assert.equal(files.at(-1), "0032_receipt_anchors.sql");
   const toml = readFileSync(join(ROOT, "..", "worker", "wrangler.toml"), "utf8");
-  assert.match(toml, /# ANCHORS = "1"/);
-  assert.doesNotMatch(toml, /^ANCHORS\s*=/m);
+  assert.match(toml, /^ANCHORS\s*=\s*"1"/m);
   assert.match(toml, new RegExp(ANCHOR_CRON.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   const sql = readFileSync(join(ROOT, "..", "worker", "migrations", "0032_receipt_anchors.sql"), "utf8");
   assert.match(sql, /CREATE TABLE IF NOT EXISTS receipt_anchors/);

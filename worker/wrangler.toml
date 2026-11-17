@@ -146,9 +146,9 @@ BILLING_GRACE_DAYS = "3"  # 0.66.1: paid plan kept this long after invoice.payme
 # SMTP probe (off until both are set). 0.68.1 sends the signed request when EMAIL_SMTP_URL is https and the secret is set.
 # EMAIL_SMTP_SECRET is wrangler secret put only, never here. checks.smtp stays "not_checked" while either is unset.
 # EMAIL_SMTP_URL = ""
-# 0.70.0 receipt anchoring (worker/src/anchors.js), OFF: ANCHORS unset = the cron is a no-op and /anchors, /anchors.json
+# 0.70.0 receipt anchoring (worker/src/anchors.js), ON since 2026-11-17: ANCHORS unset = the cron is a no-op and /anchors, /anchors.json
 # and /v1/receipts/{id}/proof are not served. Needs migration 0032. Does not change receipt signing.
-# ANCHORS = "1"
+ANCHORS = "1"  # 0.70.0 on 2026-11-17 (owner-approved; migration 0032 applied remotely)
 # 0.49.0 flags, all OFF by default (see docs/deploy-0.49.0.md): EXPLAIN_LINE = "1" (explanation line), RECHECK = "1" (24 h / 10 re-check
 # window; needs migration 0015 + secret RECHECK_PEPPER), BULK_REPORT = "1" (bulk endpoint report; needs 0015, ENDPOINT_REPORT and RECHECK for credits).
 # Payment network (0.46.0): unset = Base mainnet (prod). Local testnet only: --var PAYMENT_PRESET:base-sepolia --var FACILITATOR_URL:https://x402.org/facilitator
