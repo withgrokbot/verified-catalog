@@ -54,6 +54,7 @@ import { resolveHosted, hostedAccess, recordHosted, integratorMe, HOSTED_FREE_TO
 import { expiryOpts, applyExpiry } from "./expiry.js";
 import { handleBazaar, bazaarStep, BAZAAR_REF } from "./bazaar.js";
 import { staleStep, STALE_REF } from "./stale.js";
+import { scoreMode, scoreServeOn, scoreRecordOn, scoreTick, handleScore, scoreAnswer, scoreRulesJson, annotateDiscover, SAFE_TO_PAY_TOOL, SCORE_OPENAPI_PATHS } from "./scorestore.js"; // 0.76.0 (SCORE_BAND off | shadow | on; default off)
 import { SCORE_PROBE_REF, probesOn, probeStep, probeUserAgents, pickUa, recordDemandAsync, discoverShownUrls } from "./probeset.js"; // 0.75.0 (flags off: SCORE_PROBES, SCORE_DEMAND)
 import { dailySeed, dailyStep, DAILY_CRON, DAILY_REF } from "./daily.js";
 import { privateFree, scrubView } from "./privacy.js";
@@ -3374,6 +3375,7 @@ function openapiBase(origin, env = {}) {
       [FACIL_CHECK_PATH]: { post: { operationId: "facilitatorCheck", security: [], summary: `Free pre-settle check for facilitators (${FACIL_CHECK_PER_MIN}/min per caller IP and ${FACIL_HOST_PER_MIN} probes/min per seller host; does not use the check's 5 free per day). Re-reads the seller's live x402 402 terms for the resource (unpaid probe, SSRF guards, timeout, size cap; never pays) and compares scheme, network (CAIP-2), amount, asset and payTo (EVM case-insensitive) with the paymentRequirements about to be settled. Send only the requirements; a paymentPayload is ignored and never stored.`,
         requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["paymentRequirements"], properties: { paymentRequirements: { type: "object", required: ["scheme", "network", "amount", "asset", "payTo"], properties: { scheme: { type: "string" }, network: { type: "string", description: "CAIP-2, e.g. eip155:8453 (x402 v1 names like base are accepted)" }, amount: { type: "string", description: "atomic units (maxAmountRequired accepted)" }, asset: { type: "string" }, payTo: { type: "string" }, resource: { description: "resource URL (string or {url})" } } }, url: { type: "string", description: "resource URL; else resource / paymentRequirements.resource(.url)" }, method: { type: "string", enum: ["GET", "POST"] } } }, example: FACIL_EXAMPLE } } },
         responses: { 200: { description: "{match, mismatches[{field, expected, live}], live_terms_sha256, checked_at, recommendation: settle|hold}; settle only when one live accepts entry matches every field" }, 400: { description: "bad input or blocked url (code bad_input | ssrf_blocked), recommendation hold, nothing probed" }, 429: { description: "rate limited (code rate_limited: per caller IP; host_rate_limited: per seller host, nothing probed), recommendation hold, retry_after_seconds" }, 502: { description: "seller unreachable or redirect blocked, recommendation hold" }, 503: { description: "busy, or limiter_unavailable (a rate-limit counter error fails closed: nothing probed), recommendation hold" }, 504: { description: "seller timed out, recommendation hold" } } } },
+      ...(scoreServeOn(env) ? SCORE_OPENAPI_PATHS : {}), // 0.76.0
       "/v1/skips.json": { get: { operationId: "skipsJson", security: [], summary: "Skips page as JSON (free)" + SKIPS_SUMMARY_SUFFIX, responses: { 200: { description: "self-checked x402 endpoints and the ones to skip" } } } },
       "/badge/{host}": { get: { operationId: "badgePage", security: [], summary: "Badge page for a host (HTML, free): the SVG, its embed code and the receipt", parameters: [{ name: "host", in: "path", required: true, schema: { type: "string" }, example: "api.402rates.com", description: "seller host, e.g. api.402rates.com" }], responses: { 200: { description: "HTML" }, 400: { description: "invalid host" } } } },
       ...(sellerBadgeOn(env) ? {
@@ -3954,7 +3956,8 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
     const tools = MCP_TOOLS.map((t) => (t.name === "discover" ? { ...t, description: t.description.replace("older than 7 days (TERMS_MAX_AGE_HOURS)", `older than ${win} (TERMS_MAX_AGE_HOURS)`) }
       : t.name === "endpoint_spot_check" ? { ...t, description: t.description.replace("after 24 h (TRANSIENT_SKIP_AFTER_HOURS)", `after ${tw} (TRANSIENT_SKIP_AFTER_HOURS)`) } : t));
     const t2 = endpointReportOn(env) ? tools.concat([ER_MCP_TOOL]) : tools;
-    const t3 = p2mOn(env) ? t2.concat([P2M_MCP_TOOL]) : t2; // 0.63.0
+    const t3a = p2mOn(env) ? t2.concat([P2M_MCP_TOOL]) : t2; // 0.63.0
+    const t3 = scoreServeOn(env) ? t3a.concat([SAFE_TO_PAY_TOOL]) : t3a; // 0.76.0 (SCORE_BAND=on only)
     return { tools: pdfOn(env) ? t3.concat([PDF_MCP_TOOL]) : t3 }; // pdf-tables draft (off unless PDF_TABLES=1)
   }
   if (method === "tools/call") {
@@ -3965,10 +3968,10 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
     // are excluded: their answers are pinned byte-for-byte to mcp/server.py (worker_test).
     const err = (text, inputError = false) => {
       if (!inputError || name === "search_catalog" || name === "get_service") return { content: [{ type: "text", text }], isError: true };
-      const fix = toolFix(name, [...MCP_TOOLS, ER_MCP_TOOL, P2M_MCP_TOOL, PDF_MCP_TOOL]);
+      const fix = toolFix(name, [...MCP_TOOLS, ER_MCP_TOOL, P2M_MCP_TOOL, PDF_MCP_TOOL, ...(scoreServeOn(env) ? [SAFE_TO_PAY_TOOL] : [])]);
       return { content: [{ type: "text", text }, { type: "text", text: JSON.stringify({ fix }) }], structuredContent: { error: String(text).slice(0, 300), fix }, isError: true };
     };
-    if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check", "get_receipt", "payment_status", "discover", "x402_hygiene", ...(endpointReportOn(env) ? ["endpoint_report"] : []), ...(p2mOn(env) ? ["page_to_markdown"] : []), ...(pdfOn(env) ? ["pdf_tables"] : [])].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
+    if (!["search_catalog", "get_service", "lookup", "get_overnight_cos_pack", "endpoint_spot_check", "get_receipt", "payment_status", "discover", "x402_hygiene", ...(endpointReportOn(env) ? ["endpoint_report"] : []), ...(p2mOn(env) ? ["page_to_markdown"] : []), ...(pdfOn(env) ? ["pdf_tables"] : []), ...(scoreServeOn(env) ? ["safe_to_pay"] : [])].includes(name)) throw new RpcError(-32601, `unknown tool ${name === undefined ? "None" : `'${name}'`}`);
     let data, receiptOffer = null;
     try {
       if (name === "x402_hygiene") {
@@ -3981,6 +3984,12 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
         const r = await discover(env, args, CANON_ORIGIN);
         if (r.status !== 200) return err(r.body.error, r.status === 400);
         demandNote(req, env, ctx, r.body); // 0.75.0 (SCORE_DEMAND=1 only)
+        if (scoreServeOn(env)) await annotateDiscover(env, r.body.results); // 0.76.0 (SCORE_BAND=on only)
+        data = r.body;
+      } else if (name === "safe_to_pay") { // 0.76.0 (SCORE_BAND=on only; the name is not accepted otherwise)
+        if (!(await discoverRateOk(req, env))) return err(`rate limited: ${DISCOVER_PER_MIN} calls per minute`);
+        const r = await scoreAnswer(env, args.url, args.method, new Date(), scoreDeps());
+        if (r.status !== 200) return err(r.body.error, r.status === 400);
         data = r.body;
       } else if (name === "get_receipt") {
         let path, u;
@@ -4157,6 +4166,7 @@ export async function discoverRateOk(req, env, now = new Date()) {
 function demandNote(req, env, ctx, body) {
   try { recordDemandAsync(env, ctx, { urls: discoverShownUrls(body), skip: exclusion(req, parseQuery(new URL(req.url)), env) }); } catch (_) {}
 }
+const scoreDeps = () => ({ historyKey, listingForAsync }); // 0.76.0
 async function handleDiscover(req, env, url, ctx) {
   const noStore = { "cache-control": "no-store" };
   if (!(await discoverRateOk(req, env)))
@@ -4166,6 +4176,7 @@ async function handleDiscover(req, env, url, ctx) {
   for (const k of url.searchParams.keys()) if (!["q", "verdict", "limit", "client", "ref"].includes(k)) return json({ error: `unknown parameter ${k.slice(0, 40)}`, allowed: ["q", "verdict", "limit"] }, 400, noStore);
   const r = await discover(env, input, CANON_ORIGIN);
   if (r.status === 200) demandNote(req, env, ctx, r.body); // 0.75.0 (SCORE_DEMAND=1 only)
+  if (r.status === 200 && scoreServeOn(env)) await annotateDiscover(env, r.body.results); // 0.76.0 (SCORE_BAND=on only)
   return json(r.body, r.status, r.status === 200 ? { "cache-control": "public, max-age=300" } : noStore);
 }
 
@@ -4320,7 +4331,8 @@ async function scheduledInner(event, env, ctx) {
     // 0.75.0 (SCORE_PROBES=1 only): every cron probe is stamped probe_origin "cron" and sends one of a few honest generic client User-Agents (see probeset.js)
     const scoreProbes = probesOn(env);
     const uas = scoreProbes ? probeUserAgents(env) : null;
-    const runCheck = (u, extra = {}) => { const url = new URL(u); return handleEndpointSpotCheck(new Request(url, { method: "GET", headers: { accept: "application/json", "user-agent": "402xagent-bazaar/1" } }), env, ctx, url, scoreProbes ? { cronOrigin: true, userAgent: pickUa(uas), ...extra } : {}); };
+    const stampOrigin = scoreProbes || scoreRecordOn(env); // 0.76.0: SCORE_BAND shadow/on also stamps probe_origin so the scorer can tell our probes from spoofable client names
+    const runCheck = (u, extra = {}) => { const url = new URL(u); return handleEndpointSpotCheck(new Request(url, { method: "GET", headers: { accept: "application/json", "user-agent": "402xagent-bazaar/1" } }), env, ctx, url, stampOrigin ? { cronOrigin: true, ...(scoreProbes ? { userAgent: pickUa(uas) } : {}), ...extra } : {}); };
     const now = new Date(event && event.scheduledTime ? event.scheduledTime : Date.now());
     // 0.36.0: the daily trigger (DAILY_CRON) seeds today's badge-host queue and checks one batch; nothing else.
     if (event && event.cron === DAILY_CRON) {
@@ -4341,6 +4353,8 @@ async function scheduledInner(event, env, ctx) {
     }
     // 0.75.0: capped, jittered expansion of the probed set (SCORE_PROBES=1; off = nothing runs, nothing is read or written)
     if (scoreProbes) { try { await probeStep(env, { now, runCheck, origin: API_ORIGIN }); } catch (e) { console.log(JSON.stringify({ score_probe: "step_error", error: String((e && e.message) || e).slice(0, 200) })); } }
+    // 0.76.0: daily score rollup, batched across the */20 steps (SCORE_BAND shadow|on; off = nothing runs). D1 only.
+    if (scoreRecordOn(env)) { try { await scoreTick(env, { now, deps: scoreDeps() }); } catch (e) { console.log(JSON.stringify({ score_rollup: "step_error", error: String((e && e.message) || e).slice(0, 200) })); } }
 }
 
 // 0.11.0: one cheap Analytics Engine point per hit on the routes that had none (pack, skips, receipts, docs).
@@ -4533,6 +4547,8 @@ const routeInnerHolder = {
     if (path === "/v1/skips" || path === "/v1/skips.json") { const lim = await skipsPageGuard(req, env, url); if (lim) return lim; } // 0.73.0: ?page=N>1 shares the receipt list-paging cap (BULK_LIMITS=1 only)
     if (path === "/v1/skips" || path === "/v1/skips.json") return handleSkips(req, url, env, { endpointReport: endpointReportOn(env), watchtower: watchOn(env) }); // 0.58.7: footer flags for the HTML page
     if (path === "/v1/discover") return handleDiscover(req, env, url, ctx);
+    if (scoreServeOn(env) && req.method === "GET" && path === "/v1/score") return handleScore(req, env, url, { rateOk: () => discoverRateOk(req, env), deps: scoreDeps() }); // 0.76.0 (SCORE_BAND=on only; otherwise this path does not exist)
+    if (scoreServeOn(env) && req.method === "GET" && path === "/score-rules.json") return json(scoreRulesJson(), 200, { "cache-control": "public, max-age=3600" });
     if ((path === "/bazaar" || path === "/bazaar.json") && env.BAZAAR_PAGE !== "off") return handleBazaar(req, url, env, path, CANON_ORIGIN);
     if (path === "/v1/receipts" || path.startsWith("/v1/receipts/")) return receiptGuard(req, env, ctx, url, path, () => receiptRoutes(req, env, url, path)); // 0.62.0 edge cache + per-client limit
     if (path === "/v1/lookup") return handleLookup(req, env, ctx, url);
