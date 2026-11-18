@@ -560,9 +560,11 @@ Tests: `tests/agentcard_logo_0610_test.mjs`.
 
 JSON docs: `GET /v1/render/docs`. Tests: `tests/card_test.mjs`.
 
-## Paid-check offer (0.72.0)
+## Paid-check offer (0.72.0, 0.77.2)
 
 `paid_check` (price, endpoint, what the full report adds) is on every free spot-check and x402 hygiene answer (HTTP and MCP), and receipt pages show a "Full check" panel. The price is derived from `SPOT_DEFAULT_PRICE_ATOMIC`, never typed. See `docs/ship-the-upsell-0.72.0.md`.
+
+0.77.2: the same `paid_check` block is also on the free-check network-cap 429 (the reply after a network uses its free live checks for the UTC day: HTTP 429, `Retry-After` until 00:00 UTC). Other fields and headers on that 429 stay as they were. The bulk-limit 429, other rate-limit or abuse 429s, 400/422 fix objects and signed receipts are unchanged. MCP `endpoint_spot_check` shares that free-check quota, so its quota-exhausted result carries the same block. MCP `x402_hygiene` has its own quota and is unchanged.
 
 ## Endpoint reliability score: pure scorer (0.74.0, not wired)
 

@@ -14,6 +14,7 @@ import worker from "../worker/src/index.js";
 import { normUrl, receiptIdFor } from "../worker/src/skips.js";
 import { RECEIPTS_META } from "../worker/src/receipts-data.js";
 import { VERSION, listingFor, pickPayment, termsSha256, applyPayment, paymentObject, _resetCache, isoWeek, ipPrefix, saltPeriod, QuotaCounter, takeFree, quotaKey, PAYMENT_POLICY } from "../worker/src/lib.js";
+import { paidCheckBlock } from "../worker/src/paidcheck.js";
 import { LANDING_EXAMPLES } from "../worker/src/landing.js";
 
 const BASE = "https://data.fixture/vc/";
@@ -2527,11 +2528,12 @@ test("0.33.0: free live checks capped at 25 per network per UTC day across clien
   const go = (cl, i, extra = "") => send(SPOT + "?url=" + encodeURIComponent("https://spot.target.fixture/ip" + i) + "&client=" + cl + extra, { envo: e, ip });
   let n = 0;
   for (let c = 0; c < 5; c++) for (let i = 0; i < 5; i++) { const r = await go("rot-" + c, n++); assert.equal(r.status, 200, "free #" + n); assert.equal(r.body.access.tier, "free"); }
+  const overI = n;
   const over = await go("rot-new", n++);
   assert.equal(over.status, 429, "26th free check from one network is 429 even with a fresh client name");
   assert.match(over.body.error, /25 free live checks per UTC day from one network/);
   assert.match(over.body.router_pack.price, /\$0\.20 USDC for 10 checks \(\$0\.02 each\)/);
-  assert.match(over.body.paid_check.url, /endpoint-spot-check\?url=/);
+  assert.deepEqual(over.body.paid_check, paidCheckBlock("https://spot.target.fixture/ip" + overI), "0.77.2: structured paid_check offer");
   const ra = Number(over.headers.get("retry-after"));
   assert.ok(ra > 0 && ra <= 86400 && Math.abs(ra - secondsToUtcMidnight()) < 5);
   assert.ok(!JSON.stringify(over.body).includes(ip));
@@ -2736,7 +2738,7 @@ test("0.36.0: Last checked line + last_checked field on /saves, /saves.json, /ba
   const { readFileSync } = await import("node:fs");
   const toml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "wrangler.toml"), "utf8");
   assert.match(toml, /crons = \["\*\/20 \* \* \* \*", "17 10 \* \* \*", "23 6 \* \* 1", "41 3 \* \* \*"\]/);
-  assert.equal(VERSION, "0.77.1");
+  assert.equal(VERSION, "0.77.2");
 });
 
 // 0.37.0: response quality + seller reputation (additive only; verdicts and reason codes unchanged)

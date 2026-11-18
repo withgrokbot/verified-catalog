@@ -94,7 +94,7 @@ import { fixFor, fixFor404, toolFix } from "./fix.js"; // 0.71.0
 import { receiptGuard, isVerifiedBot, bulkLimitsOn, skipsPageGuard } from "./receiptguard.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, explain422, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.77.1";
+export const VERSION = "0.77.2";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 // 0.72.0: the price is derived from the paid 402 amount (SPOT_DEFAULT_PRICE_ATOMIC), not typed.
@@ -2424,7 +2424,7 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
         product: SPOT_ID,
         resets: "00:00 UTC",
         retry_after_s: retry,
-        paid_check: { url: API_ORIGIN + "/v1/products/endpoint-spot-check?url=" + encodeURIComponent(q.url), price: "$0.02 USDC on Base via x402 (send the request without a payment header to get the 402)" },
+        paid_check: paidCheckBlock(q.url), // 0.77.2: same structured offer a free 200 already carries
         router_pack: { price: "$" + (rcfg.packAtomic / 1e6).toFixed(2) + " USDC for " + Math.floor(rcfg.packAtomic / rcfg.perCheckAtomic) + " checks ($" + rcfg.perCheckAtomic / 1e6 + " each)", how: "router tier: ask for a router client id, then pay one pack via x402" },
         free_dry_runs: "still available: add &mode=dry-run",
         rules: CANON_ORIGIN + "/rules.json",
@@ -4072,6 +4072,15 @@ async function mcpDispatch(msg, req, env, ctx, origin) {
           );
         } else if (r.status === 400) {
           return err((body && body.error) || "bad request", 1);
+        } else if (r.status === 429 && body && body.paid_check) {
+          // 0.77.2: MCP endpoint_spot_check shares the HTTP free-check quota (client=vc-mcp, same IP cap).
+          const text = "402xAgent check returned HTTP 429" + (body.error ? ": " + body.error : "");
+          return {
+            content: [{ type: "text", text }, { type: "text", text: JSON.stringify({ paid_check: body.paid_check }) }],
+            structuredContent: body,
+            _meta: { paid_check: body.paid_check },
+            isError: true,
+          };
         } else {
           return err("402xAgent check returned HTTP " + r.status + (body && body.error ? ": " + body.error : ""));
         }
