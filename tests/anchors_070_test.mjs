@@ -27,7 +27,7 @@ const ctx = { waitUntil() {}, passThroughOnException() {} };
 const realFetch = globalThis.fetch;
 
 test("0.70.0 version, migration 0032, ANCHORS on, nightly cron", () => {
-  assert.equal(VERSION, "0.77.0");
+  assert.equal(VERSION, "0.77.1");
   const files = readdirSync(join(ROOT, "..", "worker", "migrations")).filter((f) => f.endsWith(".sql")).sort();
   assert.ok(files.includes("0032_receipt_anchors.sql"), "migration 0032 present (later migrations may follow)");
   const toml = readFileSync(join(ROOT, "..", "worker", "wrangler.toml"), "utf8");
@@ -50,6 +50,11 @@ test("SHA-256 matches Node, including the verifier fallback", () => {
   assert.equal(allowedCalendar("https://a.pool.opentimestamps.org"), true);
   assert.equal(allowedCalendar("http://a.pool.opentimestamps.org"), false);
   assert.equal(allowedCalendar("https://evil.example/digest"), false);
+  assert.equal(allowedCalendar("https://alice.btc.calendar.opentimestamps.org"), true);
+  assert.equal(allowedCalendar("https://bob.btc.calendar.opentimestamps.org"), true);
+  assert.equal(allowedCalendar("https://alice.btc.calendar.opentimestamps.org.evil.com"), false);
+  assert.equal(allowedCalendar("http://alice.btc.calendar.opentimestamps.org"), false);
+  assert.equal(allowedCalendar("http://bob.btc.calendar.opentimestamps.org"), false);
   assert.deepEqual(DEFAULT_CALENDARS.length >= 2, true);
 });
 
@@ -295,7 +300,7 @@ test("proof endpoint, page, pending then confirmed, and the offline verifier", a
   assert.match(llms, /a\.pool\.opentimestamps\.org/);
   assert.match(llms, /b\.pool\.opentimestamps\.org/);
   const api = await (await worker.fetch(new Request("https://api.402xagent.com/openapi.json"), env, ctx)).json();
-  assert.equal(api.info.version, "0.77.0");
+  assert.equal(api.info.version, "0.77.1");
   assert.ok(api.paths["/anchors.json"]);
   assert.ok(api.paths["/v1/receipts/{id}/proof"]);
   assert.match(JSON.stringify(api.paths["/v1/receipts/{id}/proof"]), /not a Bitcoin confirmation/);

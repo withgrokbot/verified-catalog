@@ -53,8 +53,8 @@ const addDemand = (db, url, n, day = "2026-11-17") => db.raw.prepare("INSERT INT
 const queue = (db, day = P.queueDay(NOW)) => db.raw.prepare("SELECT url, method, done_at, verdict, receipt_id FROM daily_queue WHERE day = ? AND url != ? ORDER BY rowid").all(day, P.SEED_MARK);
 const seeded = (rnd = () => 0.5) => rnd;
 
-test("version is 0.77.0; SCORE_PROBES and SCORE_DEMAND are on in wrangler.toml (owner-approved 7-day shadow run); code still defaults off when unset", () => {
-  assert.equal(VERSION, "0.77.0");
+test("version is 0.77.1; SCORE_PROBES and SCORE_DEMAND are on in wrangler.toml (owner-approved 7-day shadow run); code still defaults off when unset", () => {
+  assert.equal(VERSION, "0.77.1");
   assert.equal(P.probesOn({}), false); assert.equal(P.demandOn({}), false);
   assert.equal(P.probesOn({ SCORE_PROBES: "1" }), true); assert.equal(P.probesOn({ SCORE_PROBES: "true" }), false);
   const toml = readFileSync(join(ROOT, "worker", "wrangler.toml"), "utf8");

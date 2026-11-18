@@ -22,8 +22,8 @@ function crawl(daysAgo, o = {}) { return { id: "c-" + ++seq, at: iso(NOW - daysA
 const many = (n, days, mk = probe) => Array.from({ length: n }, (_, i) => mk(Math.floor((i * days) / n), (i * 7) % 20));
 const score = (observations, extra = {}) => computeScore({ url: URL1, observations, now: NOW, cfg: CFG, ...extra });
 
-test("version is 0.77.0 and the module is not wired to any route", async () => {
-  assert.equal(VERSION, "0.77.0");
+test("version is 0.77.1 and the module is not wired to any route", async () => {
+  assert.equal(VERSION, "0.77.1");
   const fs = await import("node:fs");
   const lib = fs.readFileSync(new URL("../worker/src/lib.js", import.meta.url), "utf8");
   assert.ok(!/from "\.\/score\.js"/.test(lib), "score.js must not be imported by lib.js in PR 1");

@@ -1,4 +1,6 @@
 // 0.70.0: nightly OpenTimestamps anchoring. OFF unless ANCHORS=1.
+// 0.77.1: every cron run (including success) writes one vc_lookups Analytics Engine point
+// with blob16='anchor' (see anchorRunPoint). Does not change who is anchored or how.
 // A cron builds one SHA-256 Merkle root over spot_receipts stored since the previous anchor
 // (created_at, id order) and submits SHA-256 of the raw 32-byte root to the public calendars
 // https://a.pool.opentimestamps.org and https://b.pool.opentimestamps.org. Those pools are free
@@ -17,6 +19,67 @@ export const ANCHOR_CRON = "41 3 * * *"; // 03:41 UTC, clear of the other crons
 export const ANCHOR_MAX_PER_RUN = 2000;
 export const ANCHOR_PAGE = 200;
 export const anchorsOn = (env) => String((env && env.ANCHORS) || "") === "1";
+
+// 0.77.1: one vc_lookups point per nightly run. blob16='anchor' keeps these out of funnel and
+// 429 queries that filter on product. double3 stays 0 so a calendar HTTP 402 cannot match the
+// funnel's `double3 = 402` clause. No new dataset and no D1 migration.
+export const ANCHOR_AE_PRODUCT = "anchor";
+export const ANCHOR_RUN_REASONS = Object.freeze(["created", "calendar_failed", "write_error", "read_error", "tick_error", "nothing_to_anchor"]);
+const clip = (s, n) => String(s == null ? "" : s).slice(0, n);
+export function calendarAttemptsJson(attempts) {
+  const rows = (attempts || []).map((a) => ({
+    host: clip(a && a.host, 80),
+    status: Number.isFinite(Number(a && a.status)) ? Number(a.status) : 0,
+    bytes: Number.isFinite(Number(a && a.bytes)) ? Number(a.bytes) : 0,
+    error: clip(a && a.error, 160),
+  }));
+  return clip(JSON.stringify(rows), 1000);
+}
+export function anchorRunPoint({ reason, count = 0, id = "", attempts = [], durationMs = 0, error = "", version = "" } = {}) {
+  const why = ANCHOR_RUN_REASONS.includes(reason) ? reason : clip(reason, 32);
+  return {
+    indexes: [ANCHOR_AE_PRODUCT],
+    blobs: [
+      ANCHOR_AE_PRODUCT, // blob1 marker
+      "", // blob2
+      "", // blob3
+      "", // blob4
+      "", // blob5
+      why, // blob6 outcome: created | calendar_failed | write_error | read_error | tick_error | nothing_to_anchor
+      "", // blob7
+      "", // blob8
+      "", // blob9
+      clip(version, 32), // blob10 worker version
+      "", // blob11
+      "", // blob12
+      "", // blob13 left empty (not an access tier)
+      "", // blob14
+      "", // blob15
+      ANCHOR_AE_PRODUCT, // blob16 product tag
+      clip(id, 32), // blob17 anchor id if created
+      calendarAttemptsJson(attempts), // blob18 [{host,status,bytes,error}]
+      clip(error, 160), // blob19 write/read/tick error text
+      "", // blob20
+    ],
+    // double1 receipt count attempted, double2 duration ms, double3 0 (not an HTTP status),
+    // double4 calendar attempts recorded, double5 0, double6 -1 unused (same convention as lookup points)
+    doubles: [Number(count) || 0, Math.max(0, Number(durationMs) || 0), 0, Array.isArray(attempts) ? attempts.length : 0, 0, -1],
+  };
+}
+export function writeAnchorRunPoint(env, info) {
+  try {
+    if (env && env.LOOKUPS && typeof env.LOOKUPS.writeDataPoint === "function") env.LOOKUPS.writeDataPoint(anchorRunPoint(info));
+  } catch (_) { /* counting must never break the cron */ }
+}
+function runInfoFromCreated(created, attempts, durationMs, version) {
+  const did = created && created.did;
+  let reason = "tick_error";
+  if (did === "idle") reason = "nothing_to_anchor";
+  else if (did === "created" || did === "calendar_failed" || did === "write_error" || did === "read_error" || did === "tick_error") reason = did;
+  else if (did === "off") reason = "read_error";
+  const error = (did === "off" && !(created && created.error)) ? "no_db" : clip(created && created.error, 160);
+  return { reason, count: Number(created && created.count) || 0, id: (created && created.id) || "", attempts: attempts || [], durationMs, error, version: version || "" };
+}
 
 export const HASH_DOC = "Leaf hash is SHA-256 of a 0x00 byte followed by the UTF-8 RFC 8785 (JCS) JSON of the anchored receipt. A signed receipt is anchored as its signed view (the public receipt, including kid and signature). An unsigned receipt is anchored as the stored JSON body. Parent hash is SHA-256 of a 0x01 byte, the left child, and the right child. An odd node with no sibling is carried up unchanged. Receipt order is created_at ascending, then id ascending.";
 export const PENDING_NOTE = "status pending means the digest was submitted to OpenTimestamps calendars. It is not a Bitcoin confirmation.";
@@ -131,18 +194,20 @@ export async function anchorNew(env, now = new Date(), opts = {}) {
   if (!anchorsOn(env) || !env.RECEIPTS_DB) return { did: "off" };
   const db = env.RECEIPTS_DB;
   const fetchImpl = opts.fetchImpl || globalThis.fetch;
+  const attempts = Array.isArray(opts.attempts) ? opts.attempts : [];
   let collected;
   try { collected = await collectReceipts(db); }
   catch (e) {
-    console.log(JSON.stringify({ anchor: "read_error", error: String((e && e.message) || e).slice(0, 200) }));
-    return { did: "read_error" };
+    const error = String((e && e.message) || e).slice(0, 200);
+    console.log(JSON.stringify({ anchor: "read_error", error }));
+    return { did: "read_error", error };
   }
-  if (!collected.length) return { did: "idle" };
+  if (!collected.length) return { did: "idle", count: 0 };
   const { root } = merkle(collected.map((r) => r.raw));
   const rootHex = hex(root);
   const fileDigest = sha256(root);
   const calendars = calendarList(env).filter(allowedCalendar);
-  const submitted = await submitDigest(fileDigest, { fetchImpl, calendars });
+  const submitted = await submitDigest(fileDigest, { fetchImpl, calendars, attempts });
   if (!submitted) {
     console.log(JSON.stringify({ anchor: "calendar_failed", count: collected.length }));
     return { did: "calendar_failed", count: collected.length };
@@ -163,8 +228,9 @@ export async function anchorNew(env, now = new Date(), opts = {}) {
   } catch (e) {
     try { await db.prepare("DELETE FROM receipt_anchor_items WHERE anchor_id = ?").bind(id).run(); } catch (_) {}
     try { await db.prepare("DELETE FROM receipt_anchors WHERE id = ?").bind(id).run(); } catch (_) {}
-    console.log(JSON.stringify({ anchor: "write_error", error: String((e && e.message) || e).slice(0, 200) }));
-    return { did: "write_error" };
+    const error = String((e && e.message) || e).slice(0, 200);
+    console.log(JSON.stringify({ anchor: "write_error", error }));
+    return { did: "write_error", count: collected.length, error };
   }
   console.log(JSON.stringify({ anchor: "created", id, count: collected.length, calendars: submitted.calendars.length, status: "pending", capped: collected.length === ANCHOR_MAX_PER_RUN }));
   return { did: "created", id, count: collected.length, status: "pending" };
@@ -173,9 +239,19 @@ export async function anchorNew(env, now = new Date(), opts = {}) {
 /** Upgrade pending proofs, then anchor receipts stored since the last anchor. */
 export async function anchorTick(env, now = new Date(), opts = {}) {
   if (!anchorsOn(env)) return { did: "off" };
-  const upgraded = await upgradePendingAnchors(env, now, opts);
-  const created = await anchorNew(env, now, opts);
-  return { did: "tick", upgraded, created };
+  const t0 = Date.now();
+  const attempts = Array.isArray(opts.attempts) ? opts.attempts : [];
+  const version = opts.version || "";
+  try {
+    const upgraded = await upgradePendingAnchors(env, now, opts);
+    const created = await anchorNew(env, now, { ...opts, attempts });
+    writeAnchorRunPoint(env, runInfoFromCreated(created, attempts, Date.now() - t0, version));
+    return { did: "tick", upgraded, created };
+  } catch (e) {
+    const error = String((e && e.message) || e).slice(0, 200);
+    writeAnchorRunPoint(env, { reason: "tick_error", attempts, durationMs: Date.now() - t0, error, version });
+    throw e;
+  }
 }
 
 function publicAnchor(row, origin) {

@@ -148,6 +148,8 @@ BILLING_GRACE_DAYS = "3"  # 0.66.1: paid plan kept this long after invoice.payme
 # EMAIL_SMTP_URL = ""
 # 0.70.0 receipt anchoring (worker/src/anchors.js), ON since 2026-11-17: ANCHORS unset = the cron is a no-op and /anchors, /anchors.json
 # and /v1/receipts/{id}/proof are not served. Needs migration 0032. Does not change receipt signing.
+# 0.77.1: every nightly run writes one vc_lookups point (blob16='anchor') with the outcome, calendar HTTP
+# results, receipt count, anchor id and duration. No new dataset or migration.
 ANCHORS = "1"  # 0.70.0 on 2026-11-17 (owner-approved; migration 0032 applied remotely)
 # 0.73.0 bulk limits on /v1/receipts* (receiptguard.js). Single receipt reads stay free; these cap list pages and heavy repeated reads.
 # Every value below is the code default; change it here without a code change. BULK_LIMITS = "1" turns on the new caps, the /pricing#bulk-access

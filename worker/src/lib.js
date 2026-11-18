@@ -94,7 +94,7 @@ import { fixFor, fixFor404, toolFix } from "./fix.js"; // 0.71.0
 import { receiptGuard, isVerifiedBot, bulkLimitsOn, skipsPageGuard } from "./receiptguard.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, explain422, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.77.0";
+export const VERSION = "0.77.1";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 // 0.72.0: the price is derived from the paid 402 amount (SPOT_DEFAULT_PRICE_ATOMIC), not typed.
@@ -2995,7 +2995,7 @@ export function dataPoint({ cid, q, excluded, candidates, ua, returnedPayTo, sta
       access || "", // blob13 access: free | paid | exempt | payment-required | payment-failed
       String(tx || "").slice(0, 80), // blob14 settlement tx (paid only)
       String(paidBy || "").toLowerCase().slice(0, 64), // blob15 paying wallet (paid: from the facilitator; payment-failed: the signer, 0.19.0)
-      String(product || "").slice(0, 32), // blob16 product/route (0.19.0): spot | lookup | lookup-paid | pack | mcp | view
+      String(product || "").slice(0, 32), // blob16 product/route (0.19.0): spot | lookup | lookup-paid | pack | mcp | view | anchor (0.77.1 nightly receipt-anchor run)
       String(failReason || "").slice(0, 160), // blob17 why a signed payment failed (payment-failed, 0.19.0) | the caller's mistake (spot-bad-params / url_query_unencoded, 0.22.0)
       String(shape || "").slice(0, 200), // blob18 request shape, names only: METHOD|content-type|param,keys (check route, 0.22.0)
       String(verdict || "").slice(0, 12), // blob19 verdict answered: pay | skip | recheck (check route 200s incl. dry runs, 0.22.0)
@@ -4318,7 +4318,7 @@ async function scheduledInner(event, env, ctx) {
     }
     // 0.70.0: nightly receipt anchor. No-op unless ANCHORS=1, and it never runs the other jobs.
     if (event && event.cron === ANCHOR_CRON) {
-      if (anchorsOn(env)) { try { await anchorTick(env, new Date(event && event.scheduledTime ? event.scheduledTime : Date.now())); } catch (e) { console.log(JSON.stringify({ anchor: "tick_error", error: String((e && e.message) || e).slice(0, 200) })); } }
+      if (anchorsOn(env)) { try { await anchorTick(env, new Date(event && event.scheduledTime ? event.scheduledTime : Date.now()), { version: VERSION }); } catch (e) { console.log(JSON.stringify({ anchor: "tick_error", error: String((e && e.message) || e).slice(0, 200) })); } }
       return;
     }
     // Later runs (the */20 and daily crons) upgrade pending .ots proofs once a calendar returns a Bitcoin attestation.
