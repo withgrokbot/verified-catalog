@@ -30,7 +30,7 @@ def stage(r):
 def sql(since):
     return f"""SELECT blob1 AS client, blob3 AS task, blob4 AS endpoint, blob6 AS reason, blob9 AS ua, blob11 AS ref,
  blob13 AS access, blob16 AS product, blob17 AS detail, blob18 AS shape, blob19 AS verdict, blob20 AS host, toUInt32(timestamp) AS ts
- FROM vc_lookups WHERE timestamp >= toDateTime('{since.strftime('%Y-%m-%d %H:%M:%S')}') LIMIT 200000"""
+ FROM vc_lookups WHERE timestamp >= toDateTime('{since.strftime('%Y-%m-%d %H:%M:%S')}') AND blob16 != 'anchor' LIMIT 200000"""
 
 
 def report(rows):
