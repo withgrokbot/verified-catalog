@@ -18,7 +18,10 @@ assert s["total"]["by_status"] == {400: 6, 404: 34}, s["total"]
 assert s["by_family"]["spot"]["four_xx"] == 6 and s["by_family"]["spot"]["paywall_402"] == 100
 assert s["by_family"]["view"]["four_xx_outside"] == 30 and s["by_family"]["view"]["four_xx"] == 34
 assert s["total"]["four_xx_per_day"] == round(40 / 7, 1) and s["d1_404"]["per_day"] == 10.0
-assert "SELECT" in f.ae_sql(a, b) and "2026-11-10 00:00:00" in f.ae_sql(a, b)
+sql = f.ae_sql(a, b)
+assert "SELECT" in sql and "2026-11-10 00:00:00" in sql
+assert "blob16 != 'anchor'" in sql, sql
+
 buf = io.StringIO()
 with contextlib.redirect_stdout(buf):
     f.show(s); f.compare(s, s)

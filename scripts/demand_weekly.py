@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Weekly demand report for the reliability-lookup test -> results/demand_weekly.json.
 
-Reads the lookup Worker's Analytics Engine dataset (one data point per lookup; see worker/src/lib.js dataPoint()):
+Reads the lookup Worker's Analytics Engine dataset (one data point per lookup; see worker/src/lib.js dataPoint()).
+Nightly receipt-anchor runs also write a vc_lookups point (blob16='anchor'); both queries exclude those so they
+cannot count as a client or as qualifying demand (their double1 is a receipt count, not the 1/0 qualifying flag).
+
   blob1 client id, blob6 why not qualifying ("" = qualifying), blob7 payer, blob8 returned vendor pay_to list,
   double1 qualifying (1/0), timestamp.
   Paid lookups (Worker 0.3.0+): blob13 access ("paid"), blob14 settlement tx, blob15 paying wallet, blob11 ref,
@@ -46,7 +49,7 @@ def sql_rows(since):
   blob6 AS reason, blob3 AS task, blob4 AS endpoint, blob5 AS max_price, blob9 AS ua, blob13 AS access,
   toUInt32(timestamp) AS ts, _sample_interval AS weight
 FROM {DATASET}
-WHERE timestamp >= toDateTime('{since.strftime('%Y-%m-%d %H:%M:%S')}')
+WHERE timestamp >= toDateTime('{since.strftime('%Y-%m-%d %H:%M:%S')}') AND blob16 != 'anchor'
 ORDER BY ts
 LIMIT 100000"""
 
@@ -55,7 +58,7 @@ def sql_paid(since):
     return f"""SELECT blob1 AS client, blob6 AS reason, blob11 AS ref, blob14 AS tx, blob15 AS payer, double5 AS amount_usd,
   toUInt32(timestamp) AS ts, _sample_interval AS weight
 FROM {DATASET}
-WHERE timestamp >= toDateTime('{since.strftime('%Y-%m-%d %H:%M:%S')}') AND blob13 = 'paid'
+WHERE timestamp >= toDateTime('{since.strftime('%Y-%m-%d %H:%M:%S')}') AND blob13 = 'paid' AND blob16 != 'anchor'
 ORDER BY ts
 LIMIT 100000"""
 

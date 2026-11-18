@@ -5,6 +5,7 @@
 Source 1 (HTTP status per request): the Worker's Analytics Engine dataset vc_lookups (worker/src/lib.js dataPoint()).
   blob16 product (spot, lookup, lookup-paid, pack, paystatus, mcp, view), blob13 access (e.g. spot-bad-params,
   ps-bad-params, view-receipts), blob6 'self' for our own clients, double3 HTTP status, _sample_interval for sampling.
+  Nightly receipt-anchor points (blob16='anchor') are excluded so they do not inflate the request count or skew the 4xx rate.
   It sees only the routes that write a data point: the free check, lookup, pack, payment-status and the page views. The
   render, page-to-markdown, pdf-tables, endpoint-report, watch, feed and MCP-protocol routes write none, so their 4xx
   are NOT in this number (before or after): compare like with like.
@@ -31,6 +32,7 @@ def ae_sql(start, end):
     f = "%Y-%m-%d %H:%M:%S"
     return (f"SELECT blob16 AS product, blob13 AS access, double3 AS status, if(blob6 = 'self', 1, 0) AS self, SUM(_sample_interval) AS n "
             f"FROM vc_lookups WHERE timestamp >= toDateTime('{start.strftime(f)}') AND timestamp < toDateTime('{end.strftime(f)}') "
+            f"AND blob16 != 'anchor' "
             f"GROUP BY product, access, status, self ORDER BY n DESC LIMIT 5000 FORMAT JSON")
 
 
