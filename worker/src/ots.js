@@ -17,11 +17,20 @@ const MAX_MSG = 4096;
 const MAX_PAYLOAD = 8192;
 
 // Public calendars. a.pool and b.pool are the OpenTimestamps project pools (free, no key).
-// The other two are well-known public calendars an operator can name in ANCHOR_CALENDARS.
+// Those pools are Foxglove aggregators: a /digest response carries a pending attestation of
+// the upstream calendar. Confirmed 2026-11-18 with throwaway 32-byte POSTs (Worker parser):
+// a.pool -> https://alice.btc.calendar.opentimestamps.org (HTTP 200),
+// b.pool -> https://bob.btc.calendar.opentimestamps.org (HTTP 200).
+// Those exact upstream hosts are allowlisted so a successful stamp is kept and later upgrade
+// GETs can follow the attestation URI. Host matching is exact (no wildcards, no suffix match), https only.
+// a.pool.eternitywall.com and ots.btc.catallaxy.com remain optional calendars an operator can
+// name in ANCHOR_CALENDARS. finney.calendar.eternitywall.com was not returned by either default pool.
 export const DEFAULT_CALENDARS = ["https://a.pool.opentimestamps.org", "https://b.pool.opentimestamps.org"];
 const CALENDAR_HOSTS = new Set([
   "a.pool.opentimestamps.org",
   "b.pool.opentimestamps.org",
+  "alice.btc.calendar.opentimestamps.org",
+  "bob.btc.calendar.opentimestamps.org",
   "a.pool.eternitywall.com",
   "ots.btc.catallaxy.com",
 ]);

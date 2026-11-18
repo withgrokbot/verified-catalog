@@ -50,6 +50,11 @@ test("SHA-256 matches Node, including the verifier fallback", () => {
   assert.equal(allowedCalendar("https://a.pool.opentimestamps.org"), true);
   assert.equal(allowedCalendar("http://a.pool.opentimestamps.org"), false);
   assert.equal(allowedCalendar("https://evil.example/digest"), false);
+  assert.equal(allowedCalendar("https://alice.btc.calendar.opentimestamps.org"), true);
+  assert.equal(allowedCalendar("https://bob.btc.calendar.opentimestamps.org"), true);
+  assert.equal(allowedCalendar("https://alice.btc.calendar.opentimestamps.org.evil.com"), false);
+  assert.equal(allowedCalendar("http://alice.btc.calendar.opentimestamps.org"), false);
+  assert.equal(allowedCalendar("http://bob.btc.calendar.opentimestamps.org"), false);
   assert.deepEqual(DEFAULT_CALENDARS.length >= 2, true);
 });
 

@@ -1,5 +1,6 @@
 // 0.77.1: every nightly receipt-anchor run writes one vc_lookups point (blob16='anchor'),
-// including success. Calendar HTTP is mocked; tests never touch the network.
+// including success. Also allowlists the upstream calendar hosts the default pools attest.
+// Calendar HTTP is mocked; tests never touch the network.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
@@ -26,7 +27,7 @@ function put(d, receipt, at) {
   return d.prepare("INSERT INTO spot_receipts (id, url, created_at, verdict, reason, check_type, body) VALUES (?, ?, ?, ?, 'price_ok', 'live', ?)")
     .bind(receipt.id, "https://seller.example/" + receipt.id, at, receipt.verdict, JSON.stringify(body)).run();
 }
-function calendars({ upgrade = false, fail = new Set(), attestationUri, body, throwOn } = {}) {
+function calendars({ upgrade = false, fail = new Set(), attestationUri, attestationUris = {}, body, throwOn } = {}) {
   const calls = [];
   const fetchImpl = async (url, init = {}) => {
     calls.push({ url: String(url), method: init.method || "GET", len: init.body ? init.body.length : 0 });
@@ -42,7 +43,7 @@ function calendars({ upgrade = false, fail = new Set(), attestationUri, body, th
       if (!init.body || init.body.length !== 32) throw new Error("digest was not 32 bytes");
       const base = u.slice(0, -"/digest".length);
       if (body !== undefined) return new Response(body, { status: 200 });
-      const uri = attestationUri || base;
+      const uri = attestationUris[host] || attestationUri || base;
       return new Response(pendingCalendarBody(new Uint8Array(init.body), uri, utf8(host)));
     }
     if (u.includes("/timestamp/")) {
@@ -240,18 +241,58 @@ test("a calendar timeout is recorded as timeout text and does not throw", async 
   assert.ok(cals.every((c) => c.status === 0 && c.bytes === 0 && /^timeout/.test(c.error)));
 });
 
-test("an unallowed pending attestation URI is recorded and treated as calendar_failed (current behavior)", async () => {
+test("an accepted upstream https attestation URI produces a created anchor", async () => {
   const d = db();
   await put(d, { id: id("a"), verdict: "pay" }, "2026-11-02T00:00:00Z");
   const env = envOf(d);
   const points = rec(env);
-  // a.pool / b.pool are aggregators; live responses attest the upstream calendar host, which is not in the allowlist.
-  const mock = calendars({ attestationUri: "https://alice.btc.calendar.opentimestamps.org" });
+  // Live pool responses attest these exact upstream hosts (confirmed 2026-11-18).
+  const mock = calendars({
+    attestationUris: {
+      "a.pool.opentimestamps.org": "https://alice.btc.calendar.opentimestamps.org",
+      "b.pool.opentimestamps.org": "https://bob.btc.calendar.opentimestamps.org",
+    },
+  });
+  const out = await withNoNet(() => anchorTick(env, new Date("2026-11-18T03:41:00Z"), { fetchImpl: mock.fetchImpl, version: VERSION }));
+  assert.equal(out.created.did, "created");
+  assert.equal(out.created.count, 1);
+  const p = pointOf(points);
+  assert.equal(reasonOf(p), "created");
+  assert.equal(idOf(p), out.created.id);
+  assert.ok(calsOf(p).every((c) => c.status === 200 && c.error === ""));
+  assert.equal(await d.prepare("SELECT COUNT(*) AS n FROM receipt_anchors").first().then((r) => r.n), 1);
+});
+
+test("a look-alike attestation host is rejected and no row is written", async () => {
+  const d = db();
+  await put(d, { id: id("a"), verdict: "pay" }, "2026-11-02T00:00:00Z");
+  const env = envOf(d);
+  const points = rec(env);
+  const mock = calendars({ attestationUri: "https://alice.btc.calendar.opentimestamps.org.evil.com" });
   const out = await withNoNet(() => anchorTick(env, new Date("2026-11-18T03:41:00Z"), { fetchImpl: mock.fetchImpl, version: VERSION }));
   assert.equal(out.created.did, "calendar_failed");
   const p = pointOf(points);
   assert.equal(reasonOf(p), "calendar_failed");
   assert.ok(calsOf(p).every((c) => c.status === 200 && c.bytes > 0 && c.error === "no allowed pending attestation"));
+  assert.equal(await d.prepare("SELECT COUNT(*) AS n FROM receipt_anchors").first().then((r) => r.n), 0);
+});
+
+test("an http URI for an allowed calendar host is rejected", async () => {
+  const d = db();
+  await put(d, { id: id("a"), verdict: "pay" }, "2026-11-02T00:00:00Z");
+  const env = envOf(d);
+  const points = rec(env);
+  const mock = calendars({
+    attestationUris: {
+      "a.pool.opentimestamps.org": "http://alice.btc.calendar.opentimestamps.org",
+      "b.pool.opentimestamps.org": "http://bob.btc.calendar.opentimestamps.org",
+    },
+  });
+  const out = await withNoNet(() => anchorTick(env, new Date("2026-11-18T03:41:00Z"), { fetchImpl: mock.fetchImpl, version: VERSION }));
+  assert.equal(out.created.did, "calendar_failed");
+  const p = pointOf(points);
+  assert.equal(reasonOf(p), "calendar_failed");
+  assert.ok(calsOf(p).every((c) => c.status === 200 && c.error === "no allowed pending attestation"));
   assert.equal(await d.prepare("SELECT COUNT(*) AS n FROM receipt_anchors").first().then((r) => r.n), 0);
 });
 
