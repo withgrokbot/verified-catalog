@@ -54,8 +54,8 @@ const rpc = async (env, method, params) => (await (await call(env, "/mcp", { met
 const cron = (env, i = 0) => worker.scheduled({ cron: "*/20 * * * *", scheduledTime: NOW.getTime() + i * 1200e3 }, env, { waitUntil() {} });
 const rows = (db) => db.raw.prepare("SELECT * FROM endpoint_score_daily ORDER BY url").all();
 
-test("version is 0.77.0; SCORE_BAND is shadow in wrangler.toml (owner-approved 7-day hidden test); code still defaults off when unset", () => {
-  assert.equal(VERSION, "0.77.0");
+test("version is 0.77.1; SCORE_BAND is shadow in wrangler.toml (owner-approved 7-day hidden test); code still defaults off when unset", () => {
+  assert.equal(VERSION, "0.77.1");
   assert.equal(S.scoreMode({}), "off"); assert.equal(S.scoreMode({ SCORE_BAND: "bogus" }), "off");
   assert.equal(S.scoreMode({ SCORE_BAND: "Shadow" }), "shadow"); assert.equal(S.scoreMode({ SCORE_BAND: "on" }), "on");
   assert.equal(S.scoreServeOn({ SCORE_BAND: "shadow" }), false); assert.equal(S.scoreRecordOn({ SCORE_BAND: "shadow" }), true);

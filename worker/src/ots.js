@@ -346,17 +346,33 @@ export function calendarList(env) {
 
 async function readBody(res) { return new Uint8Array(await res.arrayBuffer()); }
 
+function calendarHost(base) {
+  try { return new URL(base).hostname.slice(0, 80); } catch (_) { return String(base || "").slice(0, 80); }
+}
+function attemptError(e) {
+  const msg = String((e && e.message) || e || "").slice(0, 160);
+  const name = e && e.name;
+  if (name === "TimeoutError" || name === "AbortError" || /timeout|aborted/i.test(String(name || "") + " " + msg)) {
+    return msg && !/^timeout$/i.test(msg) ? ("timeout: " + msg).slice(0, 160) : "timeout";
+  }
+  return msg;
+}
+
 /**
  * POST each calendar /digest with the 32-byte file digest. Returns a merged timestamp of that digest,
  * or null when every calendar fails. `fetchImpl` is required so tests never touch the network.
+ * If `attempts` is an array, each calendar is pushed as {host, status, bytes, error} (error is "" on
+ * success). Recording does not change which responses are accepted.
  */
-export async function submitDigest(digest, { fetchImpl, calendars, timeoutMs = 8000 }) {
+export async function submitDigest(digest, { fetchImpl, calendars, timeoutMs = 8000, attempts } = {}) {
   if (!fetchImpl) throw new Error("fetchImpl required");
   if (digest.length !== 32) throw new Error("digest");
   const root = { msg: new Uint8Array(digest), attestations: [], ops: [] };
   const used = [];
+  const rec = (row) => { if (attempts && Array.isArray(attempts)) attempts.push(row); };
   for (const base of calendars) {
     if (!allowedCalendar(base)) continue;
+    const host = calendarHost(base);
     try {
       const res = await fetchImpl(base + "/digest", {
         method: "POST",
@@ -364,16 +380,38 @@ export async function submitDigest(digest, { fetchImpl, calendars, timeoutMs = 8
         body: digest,
         signal: typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined,
       });
-      if (!res || !res.ok) continue;
-      const ts = parseTimestamp(await readBody(res), digest);
+      const status = res && Number.isFinite(Number(res.status)) ? Number(res.status) : 0;
+      if (!res || !res.ok) {
+        let bytes = 0;
+        try { if (res) bytes = (await readBody(res)).byteLength; } catch (_) { /* size unknown */ }
+        rec({ host, status, bytes, error: res ? ("http " + status) : "no response" });
+        continue;
+      }
+      let body;
+      try { body = await readBody(res); } catch (e) {
+        rec({ host, status, bytes: 0, error: attemptError(e) });
+        continue;
+      }
+      const bytes = body.byteLength;
+      let ts;
+      try { ts = parseTimestamp(body, digest); } catch (e) {
+        rec({ host, status, bytes, error: attemptError(e) });
+        continue;
+      }
       const pend = walkAttestations(ts).filter((x) => x.att.kind === "pending");
-      if (!pend.length || pend.some((x) => !allowedCalendar(x.att.uri))) continue;
+      if (!pend.length || pend.some((x) => !allowedCalendar(x.att.uri))) {
+        rec({ host, status, bytes, error: "no allowed pending attestation" });
+        continue;
+      }
       if (!root.ops.length && !root.attestations.length) {
         root.attestations = ts.attestations;
         root.ops = ts.ops;
       } else merge(root, ts);
+      rec({ host, status, bytes, error: "" });
       used.push(base);
-    } catch (_) { /* one calendar down: try the next */ }
+    } catch (e) {
+      rec({ host, status: 0, bytes: 0, error: attemptError(e) });
+    }
   }
   if (!used.length) return null;
   return { timestamp: root, calendars: used, ots: serializeDetached(digest, root) };

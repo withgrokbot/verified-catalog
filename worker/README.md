@@ -143,6 +143,16 @@ Cron `41 3 * * *` (03:41 UTC). It builds one SHA-256 Merkle tree over every rece
 
 The file that is timestamped is the raw 32-byte merkle root. Its SHA-256 is submitted to `https://a.pool.opentimestamps.org` and `https://b.pool.opentimestamps.org` (`POST /digest`, 32 bytes). Those are the public OpenTimestamps calendar pools: free, no API key. They aggregate many digests and pay the Bitcoin transaction. This Worker does not create a Bitcoin transaction. Cost of a night is two small HTTPS requests plus one D1 row for the anchor and one D1 row per receipt in the batch (about $0.002 per 2000 rows at D1's $1 / million writes, and usually far fewer receipts than that).
 
+0.77.1: every nightly run, including success, writes one Analytics Engine point to the existing `vc_lookups` dataset (`blob16 = 'anchor'`). `blob6` is the outcome (`created`, `calendar_failed`, `write_error`, `read_error`, `tick_error`, `nothing_to_anchor`), `blob10` the worker version, `blob17` the anchor id if one was created, `blob18` a JSON array of `{host, status, bytes, error}` per calendar, `blob19` the write/read/tick error text, `double1` the receipt count attempted, `double2` the duration in ms, `double3` always 0, `double4` the number of calendar attempts. This does not change who is anchored or how, and needs no migration. Read recent runs with:
+
+```
+SELECT timestamp, blob10 AS version, blob6 AS reason, blob17 AS anchor_id, blob18 AS calendars, blob19 AS error, double1 AS receipt_count, double2 AS duration_ms, double4 AS calendar_attempts
+FROM vc_lookups
+WHERE timestamp > NOW() - INTERVAL '14' DAY AND blob16 = 'anchor'
+ORDER BY timestamp DESC
+FORMAT JSON
+```
+
 `status` is `pending` until a later run (`*/20`, the daily cron, or the next night) upgrades the `.ots` proof with a Bitcoin block-header attestation from the calendar. Pending is not a Bitcoin confirmation. `bitcoin_confirmed` is true only when `status` is `confirmed`. `ots verify` checks a confirmed proof against Bitcoin; this service does not run a Bitcoin node.
 
 `GET /anchors` and `GET /anchors.json` list the date, root, receipt count, status and a `.ots` download, with the `ots verify` steps. `GET /anchors/<id>.ots` is the proof (`<id>.bin` is the 32-byte root). `GET /v1/receipts/<id>/proof` returns the receipt hash, Merkle path, root, anchor id and status, or 404 `not yet anchored`. The offline verifier (`/verify`, and `node verify-receipt.mjs receipt.json proof.json`) checks that path. It does not call the network.
