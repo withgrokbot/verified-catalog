@@ -81,7 +81,7 @@ import { handlePageToMarkdown, p2mOn, p2mCfg, p2mDocs, P2M_PATH, P2M_MCP_TOOL } 
 import { handleCheckout, handlePortal, handleWebhook, BILLING_CHECKOUT_PATH, BILLING_PORTAL_PATH, BILLING_WEBHOOK_PATH } from "./billing.js"; // 0.66.0, BILLING=1 only
 import { handleRender, handleRenderSignup, handleRenderVerify, RENDER_VERIFY_PATH, handleRenderUnsubscribe, RENDER_UNSUB_PATH, renderOn, renderCfg, renderDocs, RENDER_PDF_PATH, RENDER_SHOT_PATH, RENDER_CARD_PATH, RENDER_KEYS_PATH, RENDER_PLANS, CARD_FIELD_MAX, CARD_MAX_EDGE, CARD_CACHE_TTL_S, handleCard } from "./render.js"; // 0.65.0 render, 0.67.0 cards; RENDER=1 only
 import { handleEmailValidate, handleEmailBatch, emailOn, emailDocs, emailOpenApiPaths, emailLlmsLine, EMAIL_VALIDATE_PATH, EMAIL_BATCH_PATH, EMAIL_DOCS_PATH, EMAIL_DISPOSABLE_CRON, refreshDisposableDomains } from "./email.js"; // 0.68.0, EMAIL=1 only, unreleased
-import { anchorsOn, ANCHOR_CRON, anchorTick, upgradePendingAnchors, handleAnchors, handleReceiptProof, proofPathId, anchorsOpenApiPaths, anchorsLlmsLine } from "./anchors.js"; // 0.70.0, ANCHORS=1 only
+import { anchorsOn, ANCHOR_CRON, anchorTick, upgradePendingAnchors, handleAnchors, OTS_RE as ANCHOR_OTS_RE, handleReceiptProof, proofPathId, anchorsOpenApiPaths, anchorsLlmsLine } from "./anchors.js"; // 0.70.0, ANCHORS=1 only
 import { handlePdfTables, pdfOn, pdfCfg, pdfDocs, pdfOcrBillingNote, PDF_PATH, PDF_MCP_TOOL } from "./pdftables.js"; // draft, PDF_TABLES=1 only
 import { agentCard, AGENT_CARD_PATHS } from "./agentcard.js"; // 0.61.0
 // well-known aliases: /.well-known/mcp.json (= repo-root .mcp.json), /.well-known/x402.json (= /.well-known/x402),
@@ -94,7 +94,7 @@ import { fixFor, fixFor404, toolFix } from "./fix.js"; // 0.71.0
 import { receiptGuard, isVerifiedBot, bulkLimitsOn, skipsPageGuard } from "./receiptguard.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, explain422, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.77.2";
+export const VERSION = "0.77.3";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 // 0.72.0: the price is derived from the paid 402 amount (SPOT_DEFAULT_PRICE_ATOMIC), not typed.
@@ -4539,7 +4539,7 @@ const routeInnerHolder = {
       catch (_) { return json({ error: "ops counters not available (migration 0014 applied?)", code: "store_unavailable" }, 503, { "cache-control": "no-store" }); }
     }
     // 0.70.0 receipt anchors. Absent unless ANCHORS=1, so the default 404 body of every other path is unchanged.
-    if (anchorsOn(env) && (path === "/anchors" || path === "/anchors.json" || /^\/anchors\/an-[0-9a-f]{16}\.ots$/.test(path))) {
+    if (anchorsOn(env) && (path === "/anchors" || path === "/anchors.json" || ANCHOR_OTS_RE.test(path))) {
       if (req.method !== "GET" && req.method !== "HEAD") return methodNotAllowed(req.method, "GET, HEAD, OPTIONS", path);
       return handleAnchors(req, env, url, path, CANON_ORIGIN);
     }

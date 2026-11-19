@@ -35,7 +35,7 @@ async function go(path, { flag, headers = {}, e } = {}) {
 }
 
 test("0.77.1 version and list Cache-Control constant", () => {
-  assert.equal(VERSION, "0.77.2");
+  assert.equal(VERSION, "0.77.3");
   assert.equal(RECEIPT_LIST_CC, "private, no-store");
 });
 
