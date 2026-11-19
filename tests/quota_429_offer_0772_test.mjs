@@ -12,7 +12,7 @@ import { handleHygiene, HYGIENE_FREE_PER_DAY } from "../worker/src/hygiene.js";
 import { sqliteD1 } from "./helpers/sqlite_d1.mjs";
 import { GOOD } from "./fixtures/hygiene.mjs";
 
-test("0.77.2 version", () => assert.equal(VERSION, "0.77.2"));
+test("0.77.2 version", () => assert.equal(VERSION, "0.77.3"));
 
 const PAY_TO = "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674";
 const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";

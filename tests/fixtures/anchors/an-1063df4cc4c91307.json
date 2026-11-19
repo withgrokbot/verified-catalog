@@ -1,0 +1,9 @@
+{
+  "note": "Real proof of the first nightly anchor, read back byte for byte from the prod D1 row (ots_proof, 373 bytes) on 2026-11-19. Both calendar responses (a.pool, b.pool) are merged in it. Public data: the same bytes are served at /anchors/an-1063df4cc4c91307.ots.",
+  "id": "an-1063df4cc4c91307",
+  "merkle_root": "e3bd11c2fa9e818a66c1fa322586612e28ceb6027155c84136198a2c4cac08de",
+  "file_sha256": "cf56854ff092d32530302013bfeb587cf3b40530cfa6687e43d390e5a669480d",
+  "created_at": "2026-11-19T03:41:32Z",
+  "calendars": ["https://alice.btc.calendar.opentimestamps.org", "https://bob.btc.calendar.opentimestamps.org"],
+  "ots_bytes": 373
+}

@@ -76,7 +76,7 @@ function calsOf(p) { return JSON.parse(p.blobs[17] || "[]"); }
 function errOf(p) { return p.blobs[18]; }
 
 test("0.77.1 version, no new migration, ANCHORS still on, AE reason list", () => {
-  assert.equal(VERSION, "0.77.2");
+  assert.equal(VERSION, "0.77.3");
   const files = readdirSync(join(ROOT, "..", "worker", "migrations")).filter((f) => f.endsWith(".sql")).sort();
   assert.ok(files.includes("0032_receipt_anchors.sql"));
   assert.equal(files.some((f) => f.startsWith("0035")), false, "no migration added for the run log");
@@ -104,7 +104,7 @@ test("a successful tick writes one created point with id, count, version and bot
   const p = pointOf(points);
   assert.equal(reasonOf(p), "created");
   assert.equal(productOf(p), "anchor");
-  assert.equal(versionOf(p), "0.77.2");
+  assert.equal(versionOf(p), "0.77.3");
   assert.equal(idOf(p), out.created.id);
   assert.match(idOf(p), /^an-[0-9a-f]{16}$/);
   assert.equal(p.doubles[0], 2);
@@ -334,7 +334,7 @@ test("the nightly cron writes the point through the Worker scheduled handler", a
   } finally { globalThis.fetch = realFetch; }
   const p = pointOf(points);
   assert.equal(reasonOf(p), "created");
-  assert.equal(versionOf(p), "0.77.2");
+  assert.equal(versionOf(p), "0.77.3");
   assert.equal(p.doubles[0], 1);
   assert.equal(mock.calls.filter((c) => c.method === "POST").length, 2);
 

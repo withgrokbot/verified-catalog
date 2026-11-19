@@ -12,7 +12,7 @@ import { canonicalize } from "./sign.js";
 import { chromePage, esc } from "./chrome.js";
 import {
   sha256, hex, hexToBytes, concat, calendarList, submitDigest, upgradeTimestamp, parseDetached,
-  serializeDetached, hasBitcoin, bitcoinHeight, allowedCalendar,
+  serializeDetached, hasBitcoin, bitcoinHeight, allowedCalendar, OTS_HEADER,
 } from "./ots.js";
 
 export const ANCHOR_CRON = "41 3 * * *"; // 03:41 UTC, clear of the other crons
@@ -86,18 +86,30 @@ export const PENDING_NOTE = "status pending means the digest was submitted to Op
 export const CONFIRMED_NOTE = "status confirmed means the .ots proof contains a Bitcoin block header attestation. ots verify checks that attestation against Bitcoin. This service does not re-query Bitcoin.";
 export const VERIFY_DOC = "The .ots file is a detached OpenTimestamps proof of the 32-byte merkle root (raw bytes, not the hex text). Save that file as <id>.bin and the proof as <id>.bin.ots, then run: ots verify <id>.bin.ots. While the status is pending, ots upgrade <id>.bin.ots asks the calendars again. Pending is not a Bitcoin confirmation.";
 
-const OTS_RE = /^\/anchors\/(an-[0-9a-f]{16})\.ots$/;
+// 0.77.3: both /anchors/<id>.ots and /anchors/<id>.bin.ots serve the same proof. The page's download
+// link and Content-Disposition name the file <id>.bin.ots, which is the name `ots verify` needs next to <id>.bin.
+export const OTS_RE = /^\/anchors\/(an-[0-9a-f]{16})(?:\.bin)?\.ots$/;
 const PROOF_RE = /^\/v1\/receipts\/([A-Za-z0-9_-]{1,64})\/proof$/;
 const stampOf = (now) => now.toISOString().replace(/\.\d{3}Z$/, "Z");
 const json = (obj, status = 200, extra = {}) => new Response(JSON.stringify(obj, null, 2), {
   status, headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*", "cache-control": status === 200 ? "public, max-age=60" : "no-store", ...extra },
 });
 
-function asBytes(v) {
+// 0.77.3: D1 hands a BLOB column back as a plain Array of byte numbers, not a Uint8Array or ArrayBuffer
+// (in-memory SQLite test doubles return a Uint8Array, which is why this went unseen). Before 0.77.3
+// the Array fell through to the empty default, so every stored .ots proof was served as 200 with 0 bytes.
+export function asBytes(v) {
   if (v instanceof Uint8Array) return v;
+  if (Array.isArray(v)) return Uint8Array.from(v);
   if (v instanceof ArrayBuffer) return new Uint8Array(v);
   if (ArrayBuffer.isView(v)) return new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
   return new Uint8Array();
+}
+
+function otsMagic(b) {
+  if (b.length <= OTS_HEADER.length) return false;
+  for (let i = 0; i < OTS_HEADER.length; i++) if (b[i] !== OTS_HEADER[i]) return false;
+  return true;
 }
 
 /** The object that is hashed. Signed rows use signed_view so it matches the public receipt. */
@@ -303,7 +315,7 @@ function statusCell(r) {
 }
 
 export function anchorsPageHtml(origin, rows) {
-  const tr = rows.map((r) => `<tr><td><time datetime="${esc(r.created_at)}">${esc(String(r.created_at).slice(0, 10))}</time></td><td><code>${esc(r.merkle_root)}</code></td><td>${esc(r.receipt_count)}</td><td>${statusCell(r)}</td><td><a href="/anchors/${esc(r.id)}.ots">${esc(r.id)}.bin.ots</a></td></tr>`).join("");
+  const tr = rows.map((r) => `<tr><td><time datetime="${esc(r.created_at)}">${esc(String(r.created_at).slice(0, 10))}</time></td><td><code>${esc(r.merkle_root)}</code></td><td>${esc(r.receipt_count)}</td><td>${statusCell(r)}</td><td><a href="/anchors/${esc(r.id)}.bin.ots">${esc(r.id)}.bin.ots</a></td></tr>`).join("");
   const table = rows.length
     ? `<table class="an-table"><thead><tr><th scope="col">Date</th><th scope="col">Merkle root</th><th scope="col">Receipts</th><th scope="col">Status</th><th scope="col">Proof</th></tr></thead><tbody>${tr}</tbody></table>`
     : `<p>No anchors yet. The nightly job has not stored one.</p>`;
@@ -341,9 +353,13 @@ export async function handleAnchors(req, env, url, path, origin) {
     if (ots) {
       const row = await env.RECEIPTS_DB.prepare("SELECT id, status, ots_proof FROM receipt_anchors WHERE id = ?").bind(ots[1]).first();
       if (!row) return json({ error: "anchor not found", id: ots[1] }, 404);
+      // Never a 200 with an empty body: no proof stored -> 404, stored but unreadable or not a detached OTS file -> 503.
+      if (row.ots_proof == null) return json({ error: "no proof stored for this anchor", id: row.id }, 404);
       const bytes = asBytes(row.ots_proof);
+      if (!bytes.length || !otsMagic(bytes)) return json({ error: "proof not ready", id: row.id }, 503, { "retry-after": "60" });
       const headers = {
         "content-type": "application/vnd.opentimestamps.ots",
+        "content-length": String(bytes.length),
         "content-disposition": `attachment; filename="${row.id}.bin.ots"`,
         "cache-control": row.status === "confirmed" ? "public, max-age=86400" : "public, max-age=60",
         "x-content-type-options": "nosniff",
@@ -424,7 +440,8 @@ export function anchorsOpenApiPaths(origin) {
   return {
     "/anchors": { get: { operationId: "anchorsPage", security: [], summary: "HTML list of receipt anchors (0.70.0, ANCHORS=1). Date, merkle root, receipt count, status, .ots download, and ots verify instructions. Pending is not a Bitcoin confirmation.", responses: { 200: { description: "HTML" }, 404: { description: "ANCHORS is not 1" } } } },
     "/anchors.json": { get: { operationId: "anchorsJson", security: [], summary: "JSON list of receipt anchors (0.70.0, ANCHORS=1). " + PENDING_NOTE + " " + CONFIRMED_NOTE, responses: { 200: { description: "anchors, hash algorithm, verify instructions", content: { "application/json": { schema: { type: "object", properties: { anchors: { type: "array", items: anchorSchema }, hash: { type: "string" }, verify: { type: "string" }, pending: { type: "string" }, confirmed: { type: "string" } } } } } }, 404: { description: "ANCHORS is not 1" } } } },
-    "/anchors/{id}.ots": { get: { operationId: "anchorOts", security: [], summary: "Detached OpenTimestamps proof of the 32-byte merkle root (0.70.0, ANCHORS=1). Save the root bytes as <id>.bin and this file as <id>.bin.ots, then: ots verify <id>.bin.ots", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", pattern: "^an-[0-9a-f]{16}$" } }], responses: { 200: { description: "application/vnd.opentimestamps.ots", content: { "application/vnd.opentimestamps.ots": { schema: { type: "string", format: "binary" } } } }, 404: { description: "unknown id, or ANCHORS is not 1" } } } },
+    "/anchors/{id}.ots": { get: { operationId: "anchorOts", security: [], summary: "Detached OpenTimestamps proof of the 32-byte merkle root (0.70.0, ANCHORS=1). Save the root bytes as <id>.bin and this file as <id>.bin.ots, then: ots verify <id>.bin.ots", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", pattern: "^an-[0-9a-f]{16}$" } }], responses: { 200: { description: "application/vnd.opentimestamps.ots", content: { "application/vnd.opentimestamps.ots": { schema: { type: "string", format: "binary" } } } }, 404: { description: "unknown id, no proof stored, or ANCHORS is not 1" }, 503: { description: "proof not ready or unreadable; retry (never a 200 with an empty body)" } } } },
+    "/anchors/{id}.bin.ots": { get: { operationId: "anchorOtsBin", security: [], summary: "Same proof file as the .ots path, under the name ots verify expects next to <id>.bin. Detached OpenTimestamps proof of the 32-byte merkle root (0.70.0, ANCHORS=1). Save the root bytes as <id>.bin and this file as <id>.bin.ots, then: ots verify <id>.bin.ots", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", pattern: "^an-[0-9a-f]{16}$" } }], responses: { 200: { description: "application/vnd.opentimestamps.ots", content: { "application/vnd.opentimestamps.ots": { schema: { type: "string", format: "binary" } } } }, 404: { description: "unknown id, no proof stored, or ANCHORS is not 1" }, 503: { description: "proof not ready or unreadable; retry (never a 200 with an empty body)" } } } },
     "/v1/receipts/{id}/proof": { get: { operationId: "receiptAnchorProof", security: [], summary: "Merkle proof that a stored receipt is in an anchor (0.70.0, ANCHORS=1). 404 not yet anchored when it is not. bitcoin_confirmed is true only when status is confirmed. " + PENDING_NOTE + " " + HASH_DOC, parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" }, description: "receipt id" }], responses: {
       200: { description: "receipt_hash, path[{sibling, side:left|right}], root, anchor_id, status, bitcoin_confirmed", content: { "application/json": { schema: { type: "object", required: ["receipt_id", "receipt_hash", "path", "root", "anchor_id", "status", "bitcoin_confirmed"], properties: {
         receipt_id: { type: "string" }, receipt_hash: { type: "string" },

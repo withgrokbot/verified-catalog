@@ -157,6 +157,8 @@ FORMAT JSON
 
 `GET /anchors` and `GET /anchors.json` list the date, root, receipt count, status and a `.ots` download, with the `ots verify` steps. `GET /anchors/<id>.ots` is the proof (`<id>.bin` is the 32-byte root). `GET /v1/receipts/<id>/proof` returns the receipt hash, Merkle path, root, anchor id and status, or 404 `not yet anchored`. The offline verifier (`/verify`, and `node verify-receipt.mjs receipt.json proof.json`) checks that path. It does not call the network.
 
+0.77.3: `GET /anchors/<id>.bin.ots` serves the same file as `GET /anchors/<id>.ots` (the name `ots verify` needs next to `<id>.bin`; the page links to it). The proof is stored in D1 as a BLOB and D1 returns a BLOB as an Array of numbers, so 0.70.0 to 0.77.2 served every `.ots` as a 200 with an empty body even though the bytes were stored; the route now converts them. The route never returns a 200 with an empty body: no proof stored is 404, an empty or non-OTS stored value is 503 with `Retry-After: 60`. The same read fed the nightly upgrade, so before 0.77.3 no pending anchor could be upgraded to confirmed. Post-deploy checks: `scripts/anchors_acceptance.sh`.
+
 ## Bulk limits on receipts (0.73.0, per-minute window 0.73.1, list cache 0.77.0)
 
 Single receipt reads stay free (`/v1/receipts/<id>`, `/v1/receipts/by-url?url=`, `/v1/receipts/<id>/proof`). `src/receiptguard.js` limits walking the pile, per client (IP, same salted key as the free-check quota) with no D1 and no KV, on the existing `QUOTA` Durable Object:
