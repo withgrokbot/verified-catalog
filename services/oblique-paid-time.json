@@ -35,11 +35,11 @@
   },
   "paid_receipts": 12,
   "latest": {
-    "checked_at": "2026-11-21T20:29:51Z",
+    "checked_at": "2026-11-22T20:42:42Z",
     "mode": "dry-run",
     "reachable": true,
     "http_status": 402,
-    "latency_ms": 367,
+    "latency_ms": 368,
     "x402_challenge": true,
     "x402_version": 2,
     "advertised_price_usd": "0.01",
@@ -51,17 +51,17 @@
     "payment_refused_reason": null,
     "error": null,
     "quality": null,
-    "raw_log": "results/raw/20261121T202951Z/oblique-paid-time.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261121T202951Z/oblique-paid-time.json"
+    "raw_log": "results/raw/20261122T204241Z/oblique-paid-time.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261122T204241Z/oblique-paid-time.json"
   },
   "history_summary": {
-    "checks": 67,
-    "reachable": 67,
-    "x402_challenge_ok": 67,
+    "checks": 68,
+    "reachable": 68,
+    "x402_challenge_ok": 68,
     "paid_checks": 12,
     "first_checked": "2026-09-30T01:01:50Z",
-    "last_checked": "2026-11-21T20:29:51Z",
-    "days_observed": 53,
+    "last_checked": "2026-11-22T20:42:42Z",
+    "days_observed": 54,
     "first_seen": "2026-09-30T01:01:50Z"
   }
 }
