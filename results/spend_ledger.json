@@ -1973,6 +1973,174 @@
       "amount_usd": "0.001",
       "status": "settled",
       "tx": "0x768c70d0a2972698cb3cc544577e32628327491ec6f68b3dbad485e3a1f5e879"
+    },
+    {
+      "ts": "2026-11-24T17:52:42Z",
+      "day": "2026-11-24",
+      "service_id": "onesource-erc20-balance",
+      "amount_usd": "0.003",
+      "status": "settled",
+      "tx": "0x67ad15248890570777bb52b59f500e514d159dde24417626d3e693156d16d93b"
+    },
+    {
+      "ts": "2026-11-24T17:52:44Z",
+      "day": "2026-11-24",
+      "service_id": "exa-search",
+      "amount_usd": "0.007",
+      "status": "settled",
+      "tx": "0x9409ace33aa6be66f6a939367d4a30e63bbc1a4ad2886e978d300aab3b329a29"
+    },
+    {
+      "ts": "2026-11-24T17:52:45Z",
+      "day": "2026-11-24",
+      "service_id": "otto-crypto-news",
+      "amount_usd": "0.001",
+      "status": "settled",
+      "tx": "0x1575754612b5f42262bce4309659bed2a0335c6509f813462d90a0f43ce0038d"
+    },
+    {
+      "ts": "2026-11-24T17:52:48Z",
+      "day": "2026-11-24",
+      "service_id": "bitrefill-gift-card-search",
+      "amount_usd": "0.002",
+      "status": "settled",
+      "tx": "0xa51499c097f23ca7d9fe55af3fc77b9862624ac60bc2dc6dd774ddb1cbd66369"
+    },
+    {
+      "ts": "2026-11-24T17:52:49Z",
+      "day": "2026-11-24",
+      "service_id": "x402atlas-web-search",
+      "amount_usd": "0.01",
+      "status": "settled",
+      "tx": "0x008cdaf59e2151b83fc83a9d77e371a35a9f700404c9426b79e26d09023a245a"
+    },
+    {
+      "ts": "2026-11-24T17:52:51Z",
+      "day": "2026-11-24",
+      "service_id": "apitoll-edgar-filings",
+      "amount_usd": "0.003",
+      "status": "settled",
+      "tx": "0x46b0292b3a00077f0f1c9fca50fe084bcfaad48950ae367ad6391f831c66b257"
+    },
+    {
+      "ts": "2026-11-24T17:52:53Z",
+      "day": "2026-11-24",
+      "service_id": "oblique-paid-time",
+      "amount_usd": "0.01",
+      "status": "settled",
+      "tx": "0xc5540609a9e7feaf3a3d7cb91e4ecbaeeaab51ffe74d7b01e33d1675281dcba5"
+    },
+    {
+      "ts": "2026-11-24T17:52:55Z",
+      "day": "2026-11-24",
+      "service_id": "you-search",
+      "amount_usd": "0.005",
+      "status": "settled",
+      "tx": "0x724796d325ae930c57e97cecff807284f8900beb43f1a5987a06ca7ae630d8cd"
+    },
+    {
+      "ts": "2026-11-24T17:52:57Z",
+      "day": "2026-11-24",
+      "service_id": "tavily-search",
+      "amount_usd": "0.01",
+      "status": "not delivered (HTTP 402)",
+      "tx": null
+    },
+    {
+      "ts": "2026-11-24T17:52:58Z",
+      "day": "2026-11-24",
+      "service_id": "glassnode-mvrv",
+      "amount_usd": "0.05",
+      "status": "settled",
+      "tx": "0xca24771a4f451006628c00e3bbffc6315d7f9e483c7b701dc361fbd21968bff4"
+    },
+    {
+      "ts": "2026-11-24T17:53:00Z",
+      "day": "2026-11-24",
+      "service_id": "minifetch-url-check",
+      "amount_usd": "0.001",
+      "status": "settled",
+      "tx": "0x1e57c771192343a0c8ab26553197ca6b5938c4a3bdf9a96e97d45c587601bd5e"
+    },
+    {
+      "ts": "2026-11-24T17:53:02Z",
+      "day": "2026-11-24",
+      "service_id": "massive-ticker-news",
+      "amount_usd": "0.01",
+      "status": "settled",
+      "tx": "0xec6739fc748f42bea5aebd09d34f8f2b0143f5d632fb0103425d2d0f1000e52f"
+    },
+    {
+      "ts": "2026-11-24T17:53:04Z",
+      "day": "2026-11-24",
+      "service_id": "x402scan-merchants",
+      "amount_usd": "0.01",
+      "status": "settled",
+      "tx": "0xd7804aeda5bf0069d76f000a218c4457ace4fdc985038487372b2f0061d6343b"
+    },
+    {
+      "ts": "2026-11-24T17:53:17Z",
+      "day": "2026-11-24",
+      "service_id": "x402atlas-ssl-check",
+      "amount_usd": "0.01",
+      "status": "settled",
+      "tx": "0xfabc5a8735b32cbc2adfc0957e5db028fe244609f5c2433b3fb67c08fdd63393"
+    },
+    {
+      "ts": "2026-11-24T17:53:18Z",
+      "day": "2026-11-24",
+      "service_id": "brasil-dados-cambio",
+      "amount_usd": "0.002",
+      "status": "settled",
+      "tx": "0xb75f223e8876b7bc7af1b6b7591bc04d5a3b458c92d7def0447419a02fb85709"
+    },
+    {
+      "ts": "2026-11-24T17:53:21Z",
+      "day": "2026-11-24",
+      "service_id": "kronos-btc-liquidations",
+      "amount_usd": "0.02",
+      "status": "settled",
+      "tx": "0x61619183ad02836575ae8573230b4c0a8732f508541d51f5bbcdaa60e1603699"
+    },
+    {
+      "ts": "2026-11-24T17:53:24Z",
+      "day": "2026-11-24",
+      "service_id": "hyperextend-btc-candles",
+      "amount_usd": "0.002",
+      "status": "settled",
+      "tx": "0xeb9881ed4cf2f2acf617561621ff05d6db34c3f7e55a01735cc1eac99cd3f02b"
+    },
+    {
+      "ts": "2026-11-24T17:53:26Z",
+      "day": "2026-11-24",
+      "service_id": "hypernatt-liq-radar",
+      "amount_usd": "0.001",
+      "status": "delivered",
+      "tx": null
+    },
+    {
+      "ts": "2026-11-24T17:53:30Z",
+      "day": "2026-11-24",
+      "service_id": "rubric-hedera-exchange-rate",
+      "amount_usd": "0.001",
+      "status": "settled",
+      "tx": "0x91ce5cca821eb5fb161cffabb4de3954414b57a993695c848c264a1c29bb17aa"
+    },
+    {
+      "ts": "2026-11-24T17:53:31Z",
+      "day": "2026-11-24",
+      "service_id": "402rates-ping",
+      "amount_usd": "0.001",
+      "status": "settled",
+      "tx": "0x4ef00f94440b7a8b072264d03390f7d5e794c01c27740c4d10a328457da1aec0"
+    },
+    {
+      "ts": "2026-11-24T17:53:33Z",
+      "day": "2026-11-24",
+      "service_id": "quartermaster-base-gas",
+      "amount_usd": "0.001",
+      "status": "settled",
+      "tx": "0x6725ee8ac1818265dc4efe82dee782eff8610afc0a3deb4814dd788cf86f7149"
     }
   ]
 }

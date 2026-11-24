@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-30 (listing last updated 2026-09-29 13:06:00 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-11-24 01:38:36 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-11-24 17:53:21 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>326 ms</td></tr>
+<tr><th scope="row">Latency</th><td>288 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.02 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.02</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.02</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>no pass/fail (no known-answer test for this service)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.02.</p>
-<p>Evidence: <a href="../results/raw/20261124T013834Z/kronos-btc-liquidations.json">raw log for this check</a>. Machine-readable: <a href="kronos-btc-liquidations.json">kronos-btc-liquidations.json</a>.</p>
+<p>Evidence: <a href="../results/raw/paid-20261124/kronos-btc-liquidations.json">raw log for this check</a>. Machine-readable: <a href="kronos-btc-liquidations.json">kronos-btc-liquidations.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>No known-answer test for this service.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-11-24 17:53:21 UTC</td><td>$0.02</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x61619183ad02836575ae8573230b4c0a8732f508541d51f5bbcdaa60e1603699">0x61619183...</a></td></tr>
 <tr><td>2026-11-17 18:50:56 UTC</td><td>$0.02</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0xeb1d234ea7931f8b200deb38031638ad9cb20836d31d219c362ae66b447fa530">0xeb1d234e...</a></td></tr>
 <tr><td>2026-11-10 18:49:47 UTC</td><td>$0.02</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x80af276da3f99dd2ef075ed297d722545b64f6a19452a7e738997009fd5562e9">0x80af276d...</a></td></tr>
 <tr><td>2026-11-03 18:50:07 UTC</td><td>$0.02</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0x89e8b2f33089e778f5de73bd0238fcd8e91f84a7d289a3ce3c965791187e6ace">0x89e8b2f3...</a></td></tr>
@@ -54,10 +55,11 @@
 <tr><td>2026-10-06 17:58:46 UTC</td><td>$0.02</td><td>yes</td><td>200</td><td>no pass/fail (no known-answer test for this service)</td><td><a href="https://basescan.org/tx/0xe0b322a075fed748207369fb33492efdf1badef3c127c2beff5e01d4f831cd4f">0xe0b322a0...</a></td></tr>
 </tbody></table></div>
 <h2>Recent checks</h2>
-<p class="meta">Days observed: 49 distinct UTC dates in the stored checks. First seen 2026-10-06 is the earliest of those dates, already included in the count. Last checked: 2026-11-24 01:38:36 UTC. Days with no stored check are not counted.</p>
+<p class="meta">Days observed: 49 distinct UTC dates in the stored checks. First seen 2026-10-06 is the earliest of those dates, already included in the count. Last checked: 2026-11-24 17:53:21 UTC. Days with no stored check are not counted.</p>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-11-24 17:53:21 UTC</td><td>paid</td><td>yes</td><td>402</td><td>288 ms</td><td>$0.02</td><td>yes</td><td><a href="../results/raw/paid-20261124/kronos-btc-liquidations.json">raw log</a></td></tr>
 <tr><td>2026-11-24 01:38:36 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>326 ms</td><td>$0.02</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261124T013834Z/kronos-btc-liquidations.json">raw log</a></td></tr>
 <tr><td>2026-11-22 20:42:42 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>377 ms</td><td>$0.02</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261122T204241Z/kronos-btc-liquidations.json">raw log</a></td></tr>
 <tr><td>2026-11-21 20:29:52 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>375 ms</td><td>$0.02</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261121T202951Z/kronos-btc-liquidations.json">raw log</a></td></tr>
@@ -67,7 +69,6 @@
 <tr><td>2026-11-17 22:17:44 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>322 ms</td><td>$0.02</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261117T221743Z/kronos-btc-liquidations.json">raw log</a></td></tr>
 <tr><td>2026-11-17 18:50:56 UTC</td><td>paid</td><td>yes</td><td>402</td><td>346 ms</td><td>$0.02</td><td>yes</td><td><a href="../results/raw/20261117T185026Z/kronos-btc-liquidations.json">raw log</a></td></tr>
 <tr><td>2026-11-16 23:22:26 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>142 ms</td><td>$0.02</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261116T232226Z/kronos-btc-liquidations.json">raw log</a></td></tr>
-<tr><td>2026-11-15 19:45:10 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>226 ms</td><td>$0.02</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261115T194509Z/kronos-btc-liquidations.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>
