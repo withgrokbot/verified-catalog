@@ -27,7 +27,7 @@ const ctx = { waitUntil() {}, passThroughOnException() {} };
 const realFetch = globalThis.fetch;
 
 test("0.70.0 version, migration 0032, ANCHORS on, nightly cron", () => {
-  assert.equal(VERSION, "0.78.1");
+  assert.equal(VERSION, "0.79.0");
   const files = readdirSync(join(ROOT, "..", "worker", "migrations")).filter((f) => f.endsWith(".sql")).sort();
   assert.ok(files.includes("0032_receipt_anchors.sql"), "migration 0032 present (later migrations may follow)");
   const toml = readFileSync(join(ROOT, "..", "worker", "wrangler.toml"), "utf8");
@@ -300,7 +300,7 @@ test("proof endpoint, page, pending then confirmed, and the offline verifier", a
   assert.match(llms, /a\.pool\.opentimestamps\.org/);
   assert.match(llms, /b\.pool\.opentimestamps\.org/);
   const api = await (await worker.fetch(new Request("https://api.402xagent.com/openapi.json"), env, ctx)).json();
-  assert.equal(api.info.version, "0.78.1");
+  assert.equal(api.info.version, "0.79.0");
   assert.ok(api.paths["/anchors.json"]);
   assert.ok(api.paths["/v1/receipts/{id}/proof"]);
   assert.match(JSON.stringify(api.paths["/v1/receipts/{id}/proof"]), /not a Bitcoin confirmation/);

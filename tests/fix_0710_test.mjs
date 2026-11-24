@@ -39,7 +39,7 @@ const SHAPE = (f, path, method) => {
   assert.ok(JSON.stringify(f).length < 2600, "fix stays small: " + JSON.stringify(f).length);
 };
 
-test("0.71.0 version", () => assert.equal(VERSION, "0.78.1"));
+test("0.71.0 version", () => assert.equal(VERSION, "0.79.0"));
 
 test("fix table: every route family has a complete, static fix; unknown routes fall back to the free check", () => {
   const ids = new Set();

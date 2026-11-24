@@ -65,7 +65,7 @@ function scenario() {
   return { db, logs };
 }
 
-test("0.78.0 version", () => assert.equal(VERSION, "0.78.1"));
+test("0.78.0 version", () => assert.equal(VERSION, "0.79.0"));
 
 test("classify: exact, near (own tier), none; tolerance documented as 5% with a 1-unit floor", () => {
   assert.equal(classify("20000", "20000"), "exact");
