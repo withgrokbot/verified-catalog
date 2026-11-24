@@ -591,3 +591,18 @@ Cost with 1,000 endpoints a day (estimates; measure in the shadow run): about 5 
 Cost per rollup step (60 endpoints): about 6 D1 queries each (receipts by (url, created_at), delivery, quality, crawl shard, upsert, queue update), about 360 of the 1,000 D1 queries allowed per invocation, no outbound subrequests, a few ms of CPU per endpoint for the scorer.
 
 Shadow-run report (read-only), per day: `SELECT band, internal_band, confidence, COUNT(*) FROM endpoint_score_daily WHERE day = ? AND band != 'operator_endpoint' GROUP BY 1, 2, 3`.
+
+## Settlement matching (0.78.0, off)
+
+Record-only, behind `SETTLE_MATCH=1` (not set). No route, nothing in openapi, llms.txt or the site. Code: `src/settle.js`; schema: `migrations/0035_settlement_observed.sql` (not applied by merging).
+
+- Input: live spot checks (`spot_receipts.check_type = 'live'`) whose 402 quoted Base USDC (`eip155:8453`, `0x8335...2913`, scheme `exact`). Each quote becomes a `settle_checks` row with the seller payTo, quoted amount, our verdict and `checked_at`.
+- Watch: on each */20 run, `eth_getLogs` for USDC `Transfer` with the watched payTo addresses in `topics[2]`, 5,000-block ranges, 50 addresses per query, a block cursor in `settle_state`, at most 12,000 blocks and 24 log queries per run, 60 blocks behind head. A cursor more than one window behind jumps ahead and counts `gap_blocks`.
+- Window: a transfer counts for a check only if it lands between `checked_at` and `checked_at + SETTLE_WINDOW_H` (6 h).
+- Tiers: `exact` (high confidence) = value equals the quote; `near` (low confidence) = `0 < |value - quote| <= max(1, quote x 5%)`, kept in `near_*` columns and never added to `exact_n`. Each transfer counts once: exact first, then the latest check of that payTo whose window covers it; `ambiguous_n` counts transfers another endpoint sharing the payTo could also claim. Transfers from our own wallets (`PAY_TO`, `DRILL_WALLETS`, `SETTLE_SELF_WALLETS`) are dropped.
+- Stored: counts, quoted/near amounts, a delay bucket (`lt1m`, `1_5m`, `5_15m`, `15_60m`, `1_6h`, `6_24h`) and a UTC day. Never stored, logged or returned: the sender wallet, tx hash, block number, log index or exact transfer time.
+- Framing: settlement activity per endpoint (does it settle, how often, amounts, time to settle, split by our verdict). We cannot link a payer to whoever requested a check, so this is not a measure of callers acting on our verdicts.
+- Caveat: absence of an observed settlement never means "not paid" (other networks or assets, outside the window, another address, batched or off-chain settlement, skipped blocks, RPC misses).
+- Report: `/v1/ops/stats` (Bearer `WATCH_STATS_TOKEN`) gains `settlement_activity` when the flag is on; `scripts/ops_weekly.sh` prints the same section. Both carry the caveat.
+- RPC: `SETTLE_RPC_URL` (optional secret), else `RPC3_BASE_URL`, else the keyless publicnode default. No new secret is required.
+
