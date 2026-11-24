@@ -10,7 +10,7 @@
 // given (observations, now, cfg), so an answer can be re-derived from the public receipts behind it (inputs_digest).
 import { QUALITY_SCORE } from "./quality.js";
 
-export const SCORE_VERSION = "score-2026-11-24";
+export const SCORE_VERSION = "score-2026-11-24b";
 export const SCORE_WINDOW_DAYS = 30;
 export const SCORE_DELIVERY_WINDOW_DAYS = 90;
 const HOUR = 3600e3, DAY = 86400e3;
@@ -147,7 +147,10 @@ const termsSig = (t) => (t && t.pay_to && t.network ? [t.network, lc(t.asset), l
 const fieldsOf = (t) => (t ? { pay_to: lc(t.pay_to), pay_to_raw: String(t.pay_to == null ? "" : t.pay_to), network: lc(t.network), asset: lc(t.asset), amount: String(t.amount == null ? "" : t.amount) } : null);
 
 /** One raw observation -> the counted shape. */
-function shape(raw, cls, alt = null) {
+// 0.80.0: a price claim counts only when it is a real price: a listing price of $0 is a placeholder, and when the current
+// listing names no price any more (listingClaims === false) an older price_mismatch was measured against a price nobody lists.
+const claimIsPrice = (raw, listingClaims) => !(raw.claimed != null && !(Number(raw.claimed) > 0)) && listingClaims !== false;
+function shape(raw, cls, alt = null, listingClaims = null) {
   const code = lc(raw.reason_code || raw.reason);
   const status = raw.http_status == null ? null : Number(raw.http_status);
   let avail = null;
@@ -168,7 +171,9 @@ function shape(raw, cls, alt = null) {
     const want = raw.expected_network ? netKey(raw.expected_network) : null;
     altListed = accs.some((a) => a && (!want || netKey(a.network) === want) && altHas(alt, a.network, a.pay_to));
   }
+  const noPriceClaim = claim && code === "price_mismatch" && !claimIsPrice(raw, listingClaims);
   if (altListed) penalty = 0;
+  else if (noPriceClaim) penalty = null; // 0.80.0: no claim to compare with (the price itself still counts as availability)
   else if (claim && CLAIM_PENALTY[code] != null) {
     penalty = CLAIM_PENALTY[code];
     if (code === "pay_to_mismatch" || code === "network_mismatch") hard.push(code);
@@ -287,13 +292,14 @@ export function computeScore({ url, method = "GET", observations = [], delivery 
   }
   // 1) classify + shape, drop out-of-window and unusable rows
   const alt = listedPayTos(listing);
+  const listingClaims = listing && "claimed_price_usd" in listing ? Number(listing.claimed_price_usd) > 0 : null;
   let list = [];
   for (const raw of observations || []) {
     const cls = classifyObservation(raw, c);
     if (cls.excluded) { excluded[cls.excluded] = (excluded[cls.excluded] || 0) + 1; continue; }
     const t = Date.parse(raw.at);
     if (!Number.isFinite(t) || t > nowMs + 5 * 60e3 || nowMs - t > SCORE_WINDOW_DAYS * DAY) continue;
-    list.push(shape(raw, cls, alt));
+    list.push(shape(raw, cls, alt, listingClaims));
   }
   list.sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));
   list = dedupeHours(list, excluded);
@@ -455,6 +461,7 @@ export const SCORE_RULES = Object.freeze({
   public_avoid: "no public avoid label until the appeal path ships: it is served as caution with the specific flags",
   public_min_confidence: `${PUBLIC_MIN_CONFIDENCE}: below it the public band is unknown (low_data)`,
   listed_pay_to: "a 402 paying any wallet the listing names on the same network (any accepts entry, any Bazaar, or the same site's other endpoints) is a match, not pay_to_mismatch; moving between two listed wallets is not pay_to_changed",
+  price_claim: "a listing price of $0, or a listing that no longer names a price, is no claim: price_mismatch against it is not price_above_listing",
   low_confidence_pay_to: "a confirmed pay_to flag at low confidence gives unknown, not caution",
   hysteresis: "a band changes only when two consecutive daily computations agree (reason band_held while waiting); failing_now, delivery_failed_recent, stale_data, not_x402, crawl_only apply at once",
   flags: { hard: HARD_FLAGS, soft: SOFT_FLAGS, confirm: "same fact in >= 2 observations on >= 2 UTC days, or in the newest two", clear: `${BAND_RULES.flag_clear_clean} clean observations over >= 2 days`, expire_days: BAND_RULES.flag_expiry_days },

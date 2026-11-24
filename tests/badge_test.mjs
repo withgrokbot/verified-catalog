@@ -11,7 +11,7 @@ import { VERSION } from "../worker/src/lib.js";
 
 const STALE_CLAIM = "Independently tracked by agenteconomy.report";
 
-test("version (0.49.3 badge, now 0.58.9)", () => assert.equal(VERSION, "0.79.0"));
+test("version (0.49.3 badge, now 0.58.9)", () => assert.equal(VERSION, "0.80.0"));
 
 test("landingHtml: no stale agenteconomy.report tracked claim, no badge img", () => {
   const html = landingHtml("https://402xagent.com");

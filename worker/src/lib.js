@@ -95,7 +95,7 @@ import { fixFor, fixFor404, toolFix } from "./fix.js"; // 0.71.0
 import { receiptGuard, isVerifiedBot, bulkLimitsOn, skipsPageGuard } from "./receiptguard.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, explain422, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.79.0";
+export const VERSION = "0.80.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 // 0.72.0: the price is derived from the paid 402 amount (SPOT_DEFAULT_PRICE_ATOMIC), not typed.
@@ -1427,6 +1427,16 @@ const isUsdcAsset = (network, asset) => {
   if (isSolana(network)) return String(asset ?? "") === (caip(network) === "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp" ? USDC_SOLANA_MAINNET : USDC_SOLANA_DEVNET);
   return want === lc(asset);
 };
+// 0.80.0: a wallet counts as listed when it is the expected pay_to or one of the listing's other payTos on the SAME network
+// (listed_pay_tos from the weekly crawl, 0.79.0: every accepts entry in both Bazaars plus the same site's wallets). Only a
+// listing widens the set; a pay_to the caller sends stays the only one accepted (exp.pay_tos is null then).
+export function payToListed(a, exp = {}) {
+  if (!a || !exp) return false;
+  if (exp.pay_to && sameAddr(a.payTo, exp.pay_to, a.network)) return true;
+  return Array.isArray(exp.pay_tos) && exp.pay_tos.some((e) => e && e.pay_to && caip(e.network) === caip(a.network) && sameAddr(a.payTo, e.pay_to, a.network));
+}
+// 0.80.0: a listing price of $0 (or none) is not a claim: Bazaar entries with maxAmountRequired "0" are placeholders.
+export const listingClaim = (listing) => (listing && listing.claimed_price_usd != null && Number(listing.claimed_price_usd) > 0 ? Number(listing.claimed_price_usd) : null);
 export function pickPayment(probe, exp = {}) {
   // 0.23.1: "upto" (x402 v2) is read on Solana networks only (its amount is the maximum that may be charged; exact
   // wins ties). On Base/EVM only exact counts, as before 0.23.0 (an upto-only 402 there is skip/bad_challenge).
@@ -1436,10 +1446,10 @@ export function pickPayment(probe, exp = {}) {
   // 0.27.0 fix (false skip): a listing that names only a testnet, when the same 402 also offers supported-mainnet USDC
   // to the listed wallet, is judged on the mainnet offer (before, the testnet offer won and the answer was skip).
   const listedTest = exp.network ? accepts.filter((x) => caip(x.network) === caip(exp.network)) : [];
-  const sameSeller = (a) => (exp.pay_to ? sameAddr(a.payTo, exp.pay_to, a.network) : listedTest.some((x) => sameAddr(a.payTo, x.payTo, a.network)));
+  const sameSeller = (a) => (exp.pay_to ? payToListed(a, exp) : listedTest.some((x) => sameAddr(a.payTo, x.payTo, a.network)));
   const mainnetOk = (a) => !!USDC_BY_NETWORK[caip(a.network)] && usdc(a) === true && sameSeller(a);
   const expNet = exp.network && TESTNET_USDC_BY_NETWORK[caip(exp.network)] && accepts.some(mainnetOk) ? null : exp.network;
-  const score = (a) => (expNet && caip(a.network) === caip(expNet) ? 8 : 0) + (!expNet && exp.network && mainnetOk(a) ? 8 : 0) + (exp.pay_to && sameAddr(a.payTo, exp.pay_to, a.network) ? 4 : 0) + (usdc(a) === true ? 2 : 0) + (a.scheme !== "upto" ? 1 : 0);
+  const score = (a) => (expNet && caip(a.network) === caip(expNet) ? 8 : 0) + (!expNet && exp.network && mainnetOk(a) ? 8 : 0) + (exp.pay_to && sameAddr(a.payTo, exp.pay_to, a.network) ? 4 : exp.pay_to && payToListed(a, exp) ? 3 : 0) + (usdc(a) === true ? 2 : 0) + (a.scheme !== "upto" ? 1 : 0);
   const a = [...accepts].sort((x, y) => score(y) - score(x))[0];
   const isUsdc = usdc(a);
   const testnet = !USDC_BY_NETWORK[caip(a.network)] && !!TESTNET_USDC_BY_NETWORK[caip(a.network)];
@@ -1989,14 +1999,15 @@ export function applyNoTermsListing(d, probe, q, listing) {
   if (!listing) return out;
   const l = (v) => String(v || "").toLowerCase();
   const skip = (reason) => ({ verdict: "skip", reason });
-  if (q.claimed_price != null && listing.claimed_price_usd != null && priceMatchesClaimed(listing.claimed_price_usd, q.claimed_price) === false) return skip("price_mismatch");
+  if (q.claimed_price != null && listingClaim(listing) != null && priceMatchesClaimed(listingClaim(listing), q.claimed_price) === false) return skip("price_mismatch");
   const net = listing.listed_network || listing.network || q.network;
   if (q.network && listing.listed_network && caip(q.network) !== caip(listing.listed_network)) return skip("network_mismatch");
-  if (q.pay_to && listing.listed_pay_to && !sameAddr(q.pay_to, listing.listed_pay_to, net)) return skip("pay_to_mismatch");
-  if (listing.pay_to && listing.listed_pay_to && !sameAddr(listing.pay_to, listing.listed_pay_to, net)) return skip("pay_to_mismatch");
+  const lexp = { pay_to: listing.listed_pay_to, pay_tos: Array.isArray(listing.listed_pay_tos) ? listing.listed_pay_tos : null }; // 0.80.0
+  if (q.pay_to && listing.listed_pay_to && !payToListed({ payTo: q.pay_to, network: net }, lexp)) return skip("pay_to_mismatch");
+  if (listing.pay_to && listing.listed_pay_to && !payToListed({ payTo: listing.pay_to, network: listing.network || net }, lexp)) return skip("pay_to_mismatch");
   if (listing.network && listing.listed_network && caip(listing.network) !== caip(listing.listed_network)) return skip("network_mismatch");
   // 0.28.0: the crawl's 402 asking LESS than listed is not a mismatch to skip on
-  if (listing.quoted_price_usd != null && listing.claimed_price_usd != null && priceMatchesClaimed(listing.quoted_price_usd, listing.claimed_price_usd) === false && Number(listing.quoted_price_usd) > Number(listing.claimed_price_usd)) return skip("price_mismatch");
+  if (listing.quoted_price_usd != null && listingClaim(listing) != null && priceMatchesClaimed(listing.quoted_price_usd, listingClaim(listing)) === false && Number(listing.quoted_price_usd) > listingClaim(listing)) return skip("price_mismatch");
   return out;
 }
 
@@ -2007,7 +2018,7 @@ export function applyExpected(d, probe, exp) {
   const accepts = Array.isArray(probe.accepts) ? probe.accepts : [];
   if (exp.network && accepts.length && !accepts.some((a) => caip(a.network) === caip(exp.network)))
     return { verdict: "skip", reason: "network_mismatch" };
-  if (exp.pay_to && accepts.length && !accepts.some((a) => sameAddr(a.payTo, exp.pay_to, a.network)))
+  if (exp.pay_to && accepts.length && !accepts.some((a) => payToListed(a, exp))) // 0.80.0: any listed wallet on that network
     return { verdict: "skip", reason: "pay_to_mismatch" };
   return d;
 }
@@ -2214,8 +2225,9 @@ async function handleEndpointSpotCheck(req, env, ctx, url, probeOpts = {}) {
   }
   const listing = await listingForAsync(env, q.url);
   const exp = {
-    claimed: q.claimed_price !== null ? q.claimed_price : listing && listing.claimed_price_usd != null ? Number(listing.claimed_price_usd) : null,
+    claimed: q.claimed_price !== null ? q.claimed_price : listingClaim(listing), // 0.80.0: a $0 listing price is no claim
     pay_to: q.pay_to || (listing && listing.listed_pay_to) || null,
+    pay_tos: !q.pay_to && listing && Array.isArray(listing.listed_pay_tos) ? listing.listed_pay_tos.slice(0, 16) : null, // 0.80.0
     network: q.network || (listing && listing.listed_network) || null,
     source: q.pay_to || q.network || q.claimed_price !== null ? "request" : listing ? "listing" : null,
   };
