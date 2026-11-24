@@ -23,7 +23,7 @@ const many = (n, days, mk = probe) => Array.from({ length: n }, (_, i) => mk(Mat
 const score = (observations, extra = {}) => computeScore({ url: URL1, observations, now: NOW, cfg: CFG, ...extra });
 
 test("version is 0.77.1 and the module is not wired to any route", async () => {
-  assert.equal(VERSION, "0.78.1");
+  assert.equal(VERSION, "0.79.0");
   const fs = await import("node:fs");
   const lib = fs.readFileSync(new URL("../worker/src/lib.js", import.meta.url), "utf8");
   assert.ok(!/from "\.\/score\.js"/.test(lib), "score.js must not be imported by lib.js in PR 1");

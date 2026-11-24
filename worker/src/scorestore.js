@@ -4,7 +4,7 @@
 //           Nothing is served: /v1/score and /score-rules.json answer like any unknown path, no MCP tool, no discover field.
 //   on      shadow + GET /v1/score?url=, /score-rules.json, a `band` on discover rows, and the MCP tool safe_to_pay.
 // Every served answer is Ed25519-signed like a receipt (signObject). The public band never says avoid (see score.js).
-import { computeScore, publicAnswer, inputsDigest, scoreConfig, SCORE_RULES, SCORE_VERSION, isOperatorHost, hostOf } from "./score.js";
+import { computeScore, publicAnswer, inputsDigest, scoreConfig, SCORE_RULES, SCORE_VERSION, isOperatorHost, hostOf, holdBand, PUBLIC_MIN_CONFIDENCE } from "./score.js";
 import { publicUrl } from "./recent.js";
 import { signObject } from "./sign.js";
 import { paidCheckBlock } from "./paidcheck.js";
@@ -46,15 +46,26 @@ const RECEIPT_SQL = `SELECT id, created_at AS at, verdict, check_type, ref,
   COALESCE(json_extract(body, '$.approved_payment.pay_to'), json_extract(body, '$.live_402.accepts[0].pay_to')) AS pay_to,
   COALESCE(json_extract(body, '$.approved_payment.network'), json_extract(body, '$.live_402.accepts[0].network')) AS network,
   COALESCE(json_extract(body, '$.approved_payment.asset'), json_extract(body, '$.live_402.accepts[0].asset')) AS asset,
-  COALESCE(json_extract(body, '$.approved_payment.amount_atomic'), json_extract(body, '$.live_402.accepts[0].amount_atomic')) AS amount
+  COALESCE(json_extract(body, '$.approved_payment.amount_atomic'), json_extract(body, '$.live_402.accepts[0].amount_atomic')) AS amount,
+  CASE WHEN COALESCE(json_extract(body, '$.reason_code'), reason) = 'pay_to_mismatch' THEN json_extract(body, '$.live_402.accepts') END AS accepts,
+  json_extract(body, '$.expected.network') AS expected_network
   FROM spot_receipts WHERE url IN (?, ?) AND created_at >= ? ORDER BY created_at DESC LIMIT 600`;
 
+/** 0.79.0: the 402's accepts entries (pay_to_mismatch rows only), reduced to network + pay_to + asset, at most 8. */
+export function acceptsOf(j) {
+  let a = null;
+  try { a = typeof j === "string" ? JSON.parse(j) : j; } catch (_) { return null; }
+  if (!Array.isArray(a)) return null;
+  const out = a.filter((x) => x && typeof x === "object").slice(0, 8).map((x) => ({ network: x.network, pay_to: x.pay_to || x.payTo, asset: x.asset }));
+  return out.length ? out : null;
+}
 /** One receipt row -> the scorer's raw observation. */
 export function receiptObservation(r) {
   return {
     id: r.id, at: r.at, source: "receipt", check_type: r.check_type, ref: r.ref, client: r.client, caller: r.caller, origin: r.origin,
     verdict: r.verdict, reason_code: r.reason_code, http_status: r.http_status, x402_challenge: r.challenge == null ? undefined : !!r.challenge,
     listing_source: r.listing_source, terms: r.pay_to && r.network ? { pay_to: r.pay_to, network: r.network, asset: r.asset, amount: r.amount } : null,
+    ...(r.accepts ? { accepts: acceptsOf(r.accepts) } : {}), ...(r.expected_network ? { expected_network: r.expected_network } : {}),
   };
 }
 /** Weekly crawl row -> one low-weight observation. Only a pay is read as an outcome; a crawl never penalises (no reason code, no terms). */
@@ -81,18 +92,35 @@ export async function loadScoreInputs(env, url, now, deps = {}) {
     const q = (await rowsSafe(db, "SELECT code FROM endpoint_quality WHERE hkey = ? ORDER BY observed_at DESC LIMIT 1", hk))[0];
     quality = q ? { code: q.code } : null;
   }
+  let listing = null;
   if (deps.listingForAsync) {
-    try { const c = crawlObservation(await deps.listingForAsync(env, uv.url)); if (c) observations.push(c); } catch (_) {}
+    try {
+      const l = await deps.listingForAsync(env, uv.url);
+      const c = crawlObservation(l); if (c) observations.push(c);
+      // 0.79.0: the listed wallets (listed_pay_to + listed_pay_tos) so a 402 paying another listed wallet is not a mismatch
+      if (l && (l.listed_pay_to || Array.isArray(l.listed_pay_tos))) listing = { listed_pay_to: l.listed_pay_to || null, listed_network: l.listed_network || null, listed_pay_tos: Array.isArray(l.listed_pay_tos) ? l.listed_pay_tos : [] };
+    } catch (_) {}
   }
   const method = (recs.find((r) => String(r.method || "").toUpperCase() === "POST") && "POST") || "GET";
-  return { url: uv.url, method, observations, delivery, quality };
+  return { url: uv.url, method, observations, delivery, quality, listing };
 }
+
+/** 0.79.0 hysteresis knob: SCORE_HOLD = "0" turns it off (default on). Not a mode change: off/shadow/on is SCORE_BAND. */
+export const scoreHoldOn = (env) => String((env && env.SCORE_HOLD) ?? "1") !== "0";
 
 /** Internal result for one endpoint (band may be avoid). */
 export async function scoreEndpoint(env, url, now = new Date(), deps = {}) {
   const inp = await loadScoreInputs(env, url, now, deps);
   if (!inp) return null;
-  const res = computeScore({ url: inp.url, method: inp.method, observations: inp.observations, delivery: inp.delivery, quality: inp.quality, now, cfg: scoreConfig(env) });
+  const cfg = scoreConfig(env);
+  const args = { url: inp.url, method: inp.method, observations: inp.observations, delivery: inp.delivery, quality: inp.quality, listing: inp.listing, cfg };
+  let res = computeScore({ ...args, now });
+  // 0.79.0 hysteresis: compare with the band recorded yesterday; when it differs, the change needs yesterday's inputs to agree
+  if (scoreHoldOn(env) && env.RECEIPTS_DB && res.band !== "operator_endpoint") {
+    const prev = (await rowsSafe(env.RECEIPTS_DB, "SELECT internal_band FROM endpoint_score_daily WHERE url = ? AND day = ? LIMIT 1", inp.url, dayOf(new Date(now.getTime() - 86400e3))))[0];
+    const prevBand = prev && prev.internal_band;
+    if (prevBand && prevBand !== res.band) res = holdBand(res, prevBand, computeScore({ ...args, now: new Date(now.getTime() - 86400e3) }).band);
+  }
   res.inputs_digest = await inputsDigest(res.input_ids);
   return res;
 }
@@ -208,7 +236,10 @@ export async function annotateDiscover(env, results, now = new Date()) {
     const u = publicUrl(r.endpoint);
     if (u && isOperatorHost(hostOf(u), cfg)) { r.band = "operator_endpoint"; continue; }
     const s = u && by.get(u);
-    r.band = s ? s.band : "unknown";
+    // 0.79.0: never avoid, and nothing but unknown below medium confidence, whatever an older stored row says
+    const rank = { none: 0, low: 1, medium: 2, high: 3 };
+    const ok = s && (rank[s.confidence] || 0) >= rank[PUBLIC_MIN_CONFIDENCE];
+    r.band = !s ? "unknown" : !ok ? "unknown" : s.band === "avoid" ? "caution" : s.band;
     r.band_confidence = s ? s.confidence : "none";
     r.band_url = SCORE_API + "/v1/score?url=" + encodeURIComponent(r.endpoint);
   }

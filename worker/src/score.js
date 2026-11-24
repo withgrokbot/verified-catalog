@@ -10,7 +10,7 @@
 // given (observations, now, cfg), so an answer can be re-derived from the public receipts behind it (inputs_digest).
 import { QUALITY_SCORE } from "./quality.js";
 
-export const SCORE_VERSION = "score-2026-11-18";
+export const SCORE_VERSION = "score-2026-11-24";
 export const SCORE_WINDOW_DAYS = 30;
 export const SCORE_DELIVERY_WINDOW_DAYS = 90;
 const HOUR = 3600e3, DAY = 86400e3;
@@ -47,13 +47,45 @@ const AVAIL_NULL = new Set(["rate_limited", "rate_limited_persistent", "waf_chal
 const CLAIM_PENALTY = { pay_to_mismatch: 1, network_mismatch: 1, price_mismatch: 0.5 };
 export const HARD_FLAGS = Object.freeze(["pay_to_mismatch", "network_mismatch", "pay_to_changed", "network_changed", "failing_now", "delivery_failed_recent"]);
 export const SOFT_FLAGS = Object.freeze(["price_above_listing", "live_probe_disagree", "price_changed", "quality_issue"]);
-export const REASON_CODES_SCORE = Object.freeze(["probes_ok", "terms_stable", ...HARD_FLAGS, ...SOFT_FLAGS, "low_score", "stale_data", "low_data", "crawl_only", "not_x402", "operator_endpoint"]);
+export const REASON_CODES_SCORE = Object.freeze(["probes_ok", "terms_stable", ...HARD_FLAGS, ...SOFT_FLAGS, "low_score", "stale_data", "low_data", "crawl_only", "not_x402", "operator_endpoint", "band_held"]);
 export const PUBLIC_BANDS = Object.freeze(["good", "caution", "unknown", "operator_endpoint"]);
+// 0.79.0 (shadow review, Nov 24): a confirmed pay_to flag at LOW confidence is "unknown", not avoid/caution; the public view
+// shows a band only at medium or high confidence; a band changes only when two daily computations agree (hysteresis), except
+// for the facts below, which apply at once.
+export const PAY_TO_FLAGS = Object.freeze(["pay_to_mismatch", "pay_to_changed"]);
+export const PUBLIC_MIN_CONFIDENCE = "medium";
+export const HOLD_IMMEDIATE_REASONS = Object.freeze(["failing_now", "delivery_failed_recent", "stale_data", "not_x402", "operator_endpoint", "crawl_only"]);
 
 const r1 = (x) => (x == null ? null : Math.round(x * 10) / 10);
 const r3 = (x) => (x == null ? null : Math.round(x * 1000) / 1000);
 const isoUtc = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 const lc = (s) => String(s == null ? "" : s).toLowerCase();
+// 0.79.0 listed payTo alternatives. Network names as the Worker spells them (CAIP-2); EVM addresses compare case-insensitively,
+// Solana base58 exactly (same rule as lib.js sameAddr).
+const NET_ALIAS = { base: "eip155:8453", ethereum: "eip155:1", optimism: "eip155:10", polygon: "eip155:137", arbitrum: "eip155:42161", avalanche: "eip155:43114", solana: "solana:5eykt4usfv8p8njdtrepy1vzqkqzkvdp", "base-sepolia": "eip155:84532" };
+export const netKey = (n) => NET_ALIAS[lc(n)] || lc(n);
+export const addrKey = (a, n) => { const x = String(a == null ? "" : a).trim(); return netKey(n).startsWith("solana:") ? x : x.toLowerCase(); };
+/**
+ * Every payTo a listing names, by network: the single expected one (listed_pay_to on listed_network) plus the crawl's
+ * listed_pay_tos (all accepts entries of this endpoint in every Bazaar, and the same site's wallets on the same networks).
+ * Returns Map<network, Set<addrKey>> or null when the listing names fewer than two wallets (nothing to widen).
+ */
+export function listedPayTos(listing) {
+  if (!listing) return null;
+  const m = new Map();
+  const add = (network, payTo) => {
+    const k = netKey(network), a = addrKey(payTo, network);
+    if (!k || !a) return;
+    if (!m.has(k)) m.set(k, new Set());
+    m.get(k).add(a);
+  };
+  if (listing.listed_pay_to) add(listing.listed_network || "eip155:8453", listing.listed_pay_to);
+  for (const e of Array.isArray(listing.listed_pay_tos) ? listing.listed_pay_tos.slice(0, 16) : []) if (e && e.pay_to && e.network) add(e.network, e.pay_to);
+  let n = 0;
+  for (const set of m.values()) n += set.size;
+  return n > 1 ? m : null;
+}
+const altHas = (alt, network, payTo) => !!(alt && payTo && alt.has(netKey(network)) && alt.get(netKey(network)).has(addrKey(payTo, network)));
 
 /** cfg from the Worker env (all optional). Pure: callers pass env, nothing is read globally. */
 export function scoreConfig(env = {}) {
@@ -112,10 +144,10 @@ function claimCounts(kind, listingSource) {
   return lc(listingSource) === "listing";
 }
 const termsSig = (t) => (t && t.pay_to && t.network ? [t.network, lc(t.asset), lc(t.pay_to), String(t.amount == null ? "" : t.amount)].join("|") : null);
-const fieldsOf = (t) => (t ? { pay_to: lc(t.pay_to), network: lc(t.network), asset: lc(t.asset), amount: String(t.amount == null ? "" : t.amount) } : null);
+const fieldsOf = (t) => (t ? { pay_to: lc(t.pay_to), pay_to_raw: String(t.pay_to == null ? "" : t.pay_to), network: lc(t.network), asset: lc(t.asset), amount: String(t.amount == null ? "" : t.amount) } : null);
 
 /** One raw observation -> the counted shape. */
-function shape(raw, cls) {
+function shape(raw, cls, alt = null) {
   const code = lc(raw.reason_code || raw.reason);
   const status = raw.http_status == null ? null : Number(raw.http_status);
   let avail = null;
@@ -128,14 +160,23 @@ function shape(raw, cls) {
   const claim = claimCounts(cls.kind, raw.listing_source);
   let penalty = null; // terms-integrity penalty from a claim comparison
   const hard = [], soft = [];
-  if (claim && CLAIM_PENALTY[code] != null) {
+  // 0.79.0: a pay_to_mismatch where the 402 pays a wallet the listing ALSO names on the same network (another accepts entry,
+  // the other Bazaar, or the same site's other endpoints) is a match: no penalty, no flag.
+  let altListed = false;
+  if (claim && code === "pay_to_mismatch" && alt) {
+    const accs = Array.isArray(raw.accepts) && raw.accepts.length ? raw.accepts : raw.terms ? [raw.terms] : [];
+    const want = raw.expected_network ? netKey(raw.expected_network) : null;
+    altListed = accs.some((a) => a && (!want || netKey(a.network) === want) && altHas(alt, a.network, a.pay_to));
+  }
+  if (altListed) penalty = 0;
+  else if (claim && CLAIM_PENALTY[code] != null) {
     penalty = CLAIM_PENALTY[code];
     if (code === "pay_to_mismatch" || code === "network_mismatch") hard.push(code);
     if (code === "price_mismatch") soft.push("price_above_listing");
   } else if (claim && (code === "price_ok" || code === "price_below_listing")) penalty = 0;
   return {
     id: String(raw.id || ""), at: Date.parse(raw.at), kind: cls.kind, weight: cls.weight,
-    avail, challenge, nopay: code === "no_paywall", terms: fieldsOf(raw.terms), sig: termsSig(raw.terms), penalty, hard, soft, code, verdict: lc(raw.verdict),
+    avail, challenge, nopay: code === "no_paywall", terms: fieldsOf(raw.terms), sig: termsSig(raw.terms), penalty, hard, soft, code: altListed ? "pay_to_alt_listed" : code, verdict: lc(raw.verdict), alt_listed: altListed,
   };
 }
 
@@ -174,14 +215,16 @@ function capCrawl(list) {
 
 // Terms transitions between consecutive term-bearing observations (oldest first): pay_to / network / asset change = 1 and a
 // hard flag; price-only change = 0.5 and a soft flag. Applied to the later observation.
-function applyTransitions(list) {
+function applyTransitions(list, alt = null) {
   let prev = null;
   for (const o of list) {
     if (!o.sig) continue;
     if (prev) {
       const a = prev.terms, b = o.terms;
       let pen = 0;
-      if (a.pay_to !== b.pay_to) { pen = 1; o.hard.push("pay_to_changed"); }
+      // 0.79.0: moving between two wallets the listing names on this network is not a change
+      const bothListed = altHas(alt, b.network, a.pay_to_raw) && altHas(alt, b.network, b.pay_to_raw) && netKey(a.network) === netKey(b.network);
+      if (a.pay_to !== b.pay_to && !bothListed) { pen = 1; o.hard.push("pay_to_changed"); }
       if (a.network !== b.network || a.asset !== b.asset) { pen = 1; if (!o.hard.includes("network_changed")) o.hard.push("network_changed"); }
       if (pen === 0 && a.amount !== b.amount) { pen = 0.5; o.soft.push("price_changed"); }
       if (pen > 0) o.penalty = Math.max(o.penalty == null ? 0 : o.penalty, pen);
@@ -231,7 +274,7 @@ const confRank = { none: 0, low: 1, medium: 2, high: 3 };
  * @param {object} a { url, method?, observations: raw[], delivery?: [{at, flag, payer?, pay_to?}], quality?: {code}|null, now?: Date, cfg? }
  * @returns internal result. `band` here may be "avoid"; use publicAnswer() for anything served.
  */
-export function computeScore({ url, method = "GET", observations = [], delivery = [], quality = null, now = new Date(), cfg } = {}) {
+export function computeScore({ url, method = "GET", observations = [], delivery = [], quality = null, listing = null, now = new Date(), cfg } = {}) {
   const c = need(cfg);
   const nowMs = now.getTime();
   const base = { url: String(url || ""), method: String(method || "GET").toUpperCase(), formula_version: SCORE_VERSION, computed_at: isoUtc(nowMs) };
@@ -243,19 +286,20 @@ export function computeScore({ url, method = "GET", observations = [], delivery 
       flags: [], reasons: ["operator_endpoint"], excluded: {}, stale: false, ranked: false, breakdown: null, input_ids: [], crawl_hint: null };
   }
   // 1) classify + shape, drop out-of-window and unusable rows
+  const alt = listedPayTos(listing);
   let list = [];
   for (const raw of observations || []) {
     const cls = classifyObservation(raw, c);
     if (cls.excluded) { excluded[cls.excluded] = (excluded[cls.excluded] || 0) + 1; continue; }
     const t = Date.parse(raw.at);
     if (!Number.isFinite(t) || t > nowMs + 5 * 60e3 || nowMs - t > SCORE_WINDOW_DAYS * DAY) continue;
-    list.push(shape(raw, cls));
+    list.push(shape(raw, cls, alt));
   }
   list.sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));
   list = dedupeHours(list, excluded);
   list = capLivePerDay(list, excluded);
   list = capCrawl(list);
-  applyTransitions(list);
+  applyTransitions(list, alt);
 
   const real = list.filter((o) => o.kind !== "crawl");
   const nEff = list.reduce((s, o) => s + o.weight, 0);
@@ -316,6 +360,8 @@ export function computeScore({ url, method = "GET", observations = [], delivery 
   else if (!anyChallenge && real.filter((o) => o.nopay).length * 2 >= real.length && real.some((o) => o.nopay)) { band = "unknown"; reasons.push("not_x402"); }
   else if (!real.length) { band = "unknown"; reasons.push("crawl_only"); }
   else if (conf === "none") { band = "unknown"; reasons.push("low_data"); }
+  // 0.79.0: at low confidence a confirmed pay_to flag alone is not enough to call it: unknown (the flag stays in reasons)
+  else if (conf === "low" && confirmedHard.length && confirmedHard.every((f) => PAY_TO_FLAGS.includes(f.code))) { band = "unknown"; reasons.push("low_data"); for (const f of confirmedHard) reasons.push(f.code); }
   else if (confirmedHard.length) { band = "avoid"; for (const f of confirmedHard) reasons.push(f.code); }
   else if (shrunk != null && shrunk < BAND_RULES.avoid_below && confRank[conf] >= confRank.medium) { band = "avoid"; reasons.push("low_score"); }
   else if (conf === "low") { band = "unknown"; reasons.push("low_data"); }
@@ -336,6 +382,7 @@ export function computeScore({ url, method = "GET", observations = [], delivery 
     confidence: conf, confidence_score: r3(confScore), n_eff: r1(nEff), observations: list.length, days_observed: sp.days,
     first_seen: sp.first, last_checked: sp.last, flags, reasons: [...new Set(reasons)], excluded, stale, ranked: true,
     breakdown: Object.keys(breakdown).length ? breakdown : null, input_ids: list.map((o) => o.id).filter(Boolean).sort(), crawl_hint: band === "unknown" ? crawlHint : null,
+    pay_to_alt_listed: list.filter((o) => o.alt_listed).length,
   };
 }
 
@@ -359,7 +406,9 @@ export const BAND_MEANING = Object.freeze({
  */
 export function publicAnswer(result, { now = new Date() } = {}) {
   const r = result;
-  const band = r.band === "avoid" ? "caution" : r.band;
+  // 0.79.0: below medium confidence nothing but unknown is shown (the internal band may still be avoid/caution)
+  const confOk = (confRank[r.confidence] || 0) >= confRank[PUBLIC_MIN_CONFIDENCE];
+  const band = r.band === "operator_endpoint" || r.band === "unknown" ? r.band : !confOk ? "unknown" : r.band === "avoid" ? "caution" : r.band;
   const computed = Date.parse(r.computed_at) || now.getTime();
   const validMs = VALID_FOR_MS[r.band] || HOUR;
   const out = {
@@ -367,7 +416,7 @@ export function publicAnswer(result, { now = new Date() } = {}) {
     meaning: BAND_MEANING[band],
     confidence: r.confidence,
     basis: { observations: r.observations, days_observed: r.days_observed, first_seen: r.first_seen, last_checked: r.last_checked },
-    reasons: r.reasons.slice(),
+    reasons: band === "unknown" && r.band !== "unknown" ? [...new Set(["low_data", ...r.reasons])] : r.reasons.slice(),
     flags: r.flags.map((f) => ({ code: f.code, severity: f.severity, confirmed: !!f.confirmed })),
     stale: !!r.stale,
     ...(band === "operator_endpoint" ? { ranked: false } : {}),
@@ -375,6 +424,21 @@ export function publicAnswer(result, { now = new Date() } = {}) {
     formula_version: r.formula_version, computed_at: r.computed_at, valid_until: isoUtc(computed + validMs),
   };
   return out;
+}
+
+/**
+ * 0.79.0 hysteresis. A band changes only when the new band holds on two consecutive daily computations; until then the band
+ * recorded yesterday is kept (reason band_held). Facts in HOLD_IMMEDIATE_REASONS (failing now, a failed delivery, stale data,
+ * not x402, crawl only, our own endpoint) apply at once. Pure.
+ * @param today      computeScore() result for now
+ * @param prevBand   the internal band recorded for this endpoint on the previous UTC day (null = none: no hold)
+ * @param prevCandidate the band computeScore() gives for the same inputs 24 hours earlier (null = unknown: hold)
+ */
+export function holdBand(today, prevBand, prevCandidate) {
+  if (!today || !prevBand || prevBand === today.band) return today;
+  if ((today.reasons || []).some((x) => HOLD_IMMEDIATE_REASONS.includes(x))) return today;
+  if (prevCandidate === today.band) return today;
+  return { ...today, band: prevBand, candidate_band: today.band, reasons: [...new Set([...(today.reasons || []), "band_held"])] };
 }
 
 /** Published verbatim at /score-rules.json (served in a later PR). */
@@ -389,6 +453,10 @@ export const SCORE_RULES = Object.freeze({
   confidence: CONFIDENCE_RULES,
   bands: { good: `score >= ${BAND_RULES.good_min}, confidence >= medium, no hard flag, latest check ok, no soft flag`, caution: "everything else with enough data, and any internal avoid", unknown: "confidence none/low, stale (> 7 days), crawl-only, not an x402 endpoint", operator_endpoint: "our own hosts" },
   public_avoid: "no public avoid label until the appeal path ships: it is served as caution with the specific flags",
+  public_min_confidence: `${PUBLIC_MIN_CONFIDENCE}: below it the public band is unknown (low_data)`,
+  listed_pay_to: "a 402 paying any wallet the listing names on the same network (any accepts entry, any Bazaar, or the same site's other endpoints) is a match, not pay_to_mismatch; moving between two listed wallets is not pay_to_changed",
+  low_confidence_pay_to: "a confirmed pay_to flag at low confidence gives unknown, not caution",
+  hysteresis: "a band changes only when two consecutive daily computations agree (reason band_held while waiting); failing_now, delivery_failed_recent, stale_data, not_x402, crawl_only apply at once",
   flags: { hard: HARD_FLAGS, soft: SOFT_FLAGS, confirm: "same fact in >= 2 observations on >= 2 UTC days, or in the newest two", clear: `${BAND_RULES.flag_clear_clean} clean observations over >= 2 days`, expire_days: BAND_RULES.flag_expiry_days },
   reasons: REASON_CODES_SCORE,
 });

@@ -71,7 +71,7 @@ async function seedAnchor(raw, anchorTime = "2026-11-19T03:41:00Z") {
   return out.created.id;
 }
 
-test("0.77.3 version", () => assert.equal(VERSION, "0.78.1"));
+test("0.77.3 version", () => assert.equal(VERSION, "0.79.0"));
 
 test("asBytes turns a D1 BLOB (Array of numbers) into the same bytes, and never invents bytes", () => {
   assert.deepEqual(Array.from(asBytes([0, 79, 112, 255])), [0, 79, 112, 255]);

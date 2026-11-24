@@ -157,13 +157,60 @@ def _json(name, default):
     try: return json.load(open(_f(name)))
     except Exception: return default
 
+# 0.79.0 listed payTo alternatives. A seller can list one endpoint with several accepts entries (one per network, or the
+# same network twice) and in both Bazaars with different payTo, and often runs the same wallets across its other endpoints.
+# The crawl keeps every listed payTo per normalized URL ("endpoint") plus the payTos the same site lists for its other
+# endpoints on the same networks ("site"), so the Worker's reliability score can treat a 402 paying any LISTED wallet as a
+# match instead of a pay_to_mismatch. Site = registrable name; on shared hosting (workers.dev, onrender.com, ...) one more
+# label, so two strangers on the same platform never share a site.
+SHARED_SUFFIXES = {"workers.dev", "pages.dev", "onrender.com", "vercel.app", "netlify.app", "github.io", "fly.dev", "herokuapp.com",
+                   "railway.app", "up.railway.app", "replit.app", "repl.co", "deno.dev", "web.app", "firebaseapp.com", "supabase.co",
+                   "azurewebsites.net", "amazonaws.com", "cloudfront.net", "ngrok.io", "ngrok-free.app", "ngrok.app", "trycloudflare.com",
+                   "sslip.io", "nip.io", "chatgpt.site", "glitch.me", "run.app", "a.run.app", "modal.run", "hf.space", "lovable.app",
+                   "co.uk", "org.uk", "com.au", "co.jp", "com.br", "co.in", "co.nz", "com.cn"}
+LISTED_ALTS_CAP = 8
+
+def site_key(host):
+    p = str(host or "").lower().rstrip(".").split(":")[0].split(".")
+    if len(p) >= 4 and re.fullmatch(r"[\d.]+", ".".join(p)): return ".".join(p)  # IP literal: the host itself
+    for n in (3, 2):
+        if len(p) > n and ".".join(p[-n:]) in SHARED_SUFFIXES: return ".".join(p[-(n + 1):])
+    return ".".join(p[-2:])
+
+def listed_alts(norm, lead, by_url, by_site):
+    """Distinct listed payTos for one endpoint: its own accepts entries (all Bazaar sources) first, then the same site's on the
+    same networks. Returned only when there is more than one wallet (else the single listed_pay_to already says it); capped."""
+    own = by_url.get(norm) or []
+    nets = {e["network"] for e in own} or ({net(lead.get("network"))} if lead.get("network") else set())
+    site = by_site.get(site_key(urlparse(norm).hostname or "")) or []
+    out, seen = [], set()
+    for scope, rows in (("endpoint", own), ("site", [e for e in site if e["network"] in nets])):
+        for e in rows:
+            k = (e["network"], e["pay_to"] if e["network"].lower().startswith("solana") else e["pay_to"].lower())
+            if k in seen: continue
+            seen.add(k)
+            out.append({"network": e["network"], "pay_to": e["pay_to"], "scope": scope})
+    wallets = {o["pay_to"].lower() for o in out}
+    return out[:LISTED_ALTS_CAP] if len(wallets) > 1 else None
+
+def _alt_entry(a):
+    p = a.get("payTo")
+    if not isinstance(p, str) or not p.strip(): return None
+    return {"network": net(a.get("network")), "pay_to": p.strip()}
+
 def load_candidates():
     out = []
+    by_url, by_site = collections.defaultdict(list), collections.defaultdict(list)  # 0.79.0 listed payTo alternatives
     for src, pat in (("payai-bazaar", "payai_*.json"), ("cdp-bazaar", "cdp_*.json")):
         for f in sorted(glob.glob(_f(pat)), key=lambda p: int(re.findall(r"_(\d+)", p)[-1])):
             for it in json.load(open(f)).get("items", []):
                 if it.get("type") not in (None, "http") or not it.get("accepts") or not it.get("resource"): continue
                 accs = it["accepts"]
+                n_ = norm_url(it["resource"])
+                for a in accs:
+                    e = _alt_entry(a) if isinstance(a, dict) else None
+                    if e:
+                        by_url[n_].append(e); by_site[site_key(urlparse(n_).hostname or "")].append(e)
                 lead = next((a for a in accs if net(a.get("network")) == "eip155:8453"), accs[0])
                 info = ((it.get("extensions") or {}).get("bazaar") or {}).get("info") or {}
                 inp = info.get("input") or (lead.get("outputSchema") or {}).get("input") or {}
@@ -212,6 +259,9 @@ def load_candidates():
             if c["source_list"] != best[n]["source_list"] and c["source_list"] not in best[n]["also"]: best[n]["also"].append(c["source_list"])
             continue
         c["norm"] = n; c["also"] = []; best[n] = c
+    for n, c in best.items():
+        alts = listed_alts(n, c["listing"], by_url, by_site) if c["source_list"] in ("payai-bazaar", "cdp-bazaar") else None
+        if alts: c["listed_alts"] = alts
     return list(best.values())
 
 # 0.62.0 B1 scheme census: tag each endpoint's x402 scheme from its 402 accepts (stored on the receipt row as x402_scheme).
@@ -250,6 +300,7 @@ def probe(c):
                pay_to=None, verdict=None, reason=None, timestamp=None, source_list=c["source_list"], check_type="self-checked",
                method=c["method"], http_status=None, network=None, asset=None, listed_pay_to=lead.get("payTo"),
                listed_network=net(lead.get("network")) or None, x402_scheme="unknown")
+    if c.get("listed_alts"): rec["listed_pay_tos"] = c["listed_alts"]  # 0.79.0
     def done(v, why):
         rec.update(verdict=v, reason=why, timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"))
         return rec

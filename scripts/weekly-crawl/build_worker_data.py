@@ -13,7 +13,7 @@ FEATURED = "b5e13e8271"  # README's featured case while it is still a skip
 name = open(os.path.join(ROOT, "latest.txt")).read().strip()
 rs = [mainnet_policy(json.loads(l)) for l in open(os.path.join(ROOT, name))]  # 0.14.0: testnet / non-canonical USDC pays -> skip
 keep = ["id", "url", "claimed_price_usd", "quoted_price_usd", "pay_to", "verdict", "reason", "timestamp", "source_list",
-        "also_listed_in", "check_type", "method", "http_status", "network", "listed_network", "listed_pay_to", "free_trial_remaining", "x402_scheme"]
+        "also_listed_in", "check_type", "method", "http_status", "network", "listed_network", "listed_pay_to", "listed_pay_tos", "free_trial_remaining", "x402_scheme"]
 rs = [{k: r.get(k) for k in keep if r.get(k) not in (None, [])} | {"id": r["id"], "url": r["url"], "verdict": r["verdict"]} for r in rs]
 for r in rs:
     r.setdefault("reason", ""); r.setdefault("timestamp", "")
