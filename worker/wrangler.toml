@@ -181,7 +181,7 @@ SCORE_ORIGIN_FROM = "2026-11-17T19:34:29Z"  # deploy time; earlier unstamped cro
 # (no D1 read, no RPC call). Turning it on needs migration 0035 applied remotely and the owner's OK.
 # Reads Base USDC Transfer logs to checked payTo addresses via SETTLE_RPC_URL (optional secret), else RPC3_BASE_URL,
 # else the keyless Allnodes publicnode default (RPC2_BASE_URL). Counts only: never a sender wallet, tx hash, block or log index.
-# SETTLE_MATCH = "1"
+SETTLE_MATCH = "1"  # 0.78.0 on 2026-11-24 (owner-approved; migration 0035 applied remotely); record-only, nothing served
 # SETTLE_WINDOW_H = "6"            # hours after checked_at a transfer can count (1..24)
 # SETTLE_NEAR_BPS = "500"          # near tolerance: |value - quote| <= max(1 unit, 5%); never merged into exact
 # SETTLE_BLOCKS_PER_RUN = "12000"  # Base ~0.2 s blocks = 6,000 per 20 min; 2x lets the cursor catch up
