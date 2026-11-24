@@ -194,3 +194,63 @@ test("/v1/ops/stats: settlement section only with SETTLE_MATCH=1, with the cavea
     assert.equal(r.status, 404);
   }
 });
+
+// Follow-up: ambiguous attribution, DRILL_WALLETS exclusion, ops_weekly.sh gated on SETTLE_MATCH.
+test("ambiguous_n: two endpoints share a payTo and amount; the transfer counts once, on the latest check, flagged ambiguous", async () => {
+  const db = sqliteD1();
+  receipt(db, { id: "sc-old", url: "https://x.test/one", at: "2026-11-24T11:48:00Z", accepts: [base(P1, "20000")] });
+  receipt(db, { id: "sc-new", url: "https://x.test/two", at: "2026-11-24T11:50:00Z", verdict: "recheck", accepts: [base(P1, "20000")] });
+  const logs = [mkLog({ to: P1, value: 20000, at: "2026-11-24T11:51:00Z" })];
+  const [r] = await quiet(() => settleTick(ENV(db), NOW, { fetchImpl: mockRpc(logs).fetchImpl }));
+  const sc = Object.fromEntries(rows(db, "settle_checks").map((x) => [x.check_id, x]));
+  assert.equal(r.exact_n, 1);
+  assert.equal(sc["sc-new"].exact_n, 1);
+  assert.equal(sc["sc-new"].ambiguous_n, 1);
+  assert.equal(sc["sc-old"].exact_n, 0);
+  assert.equal(sc["sc-old"].ambiguous_n, 0);
+  // same endpoint checked twice is not ambiguous
+  const db2 = sqliteD1();
+  receipt(db2, { id: "sc-1", url: "https://x.test/one", at: "2026-11-24T11:48:00Z", accepts: [base(P1, "20000")] });
+  receipt(db2, { id: "sc-2", url: "https://x.test/one", at: "2026-11-24T11:50:00Z", accepts: [base(P1, "20000")] });
+  await quiet(() => settleTick(ENV(db2), NOW, { fetchImpl: mockRpc(logs).fetchImpl }));
+  assert.deepEqual(rows(db2, "settle_checks").map((x) => [x.check_id, x.exact_n, x.ambiguous_n]).sort(), [["sc-1", 0, 0], ["sc-2", 1, 0]]);
+});
+
+test("DRILL_WALLETS and SETTLE_SELF_WALLETS senders are excluded and never stored", async () => {
+  const DRILL = "0xa880153A381Fc8d9AF0933a4c8a69fA32De6Ef22", EXTRA = "0x7777777777777777777777777777777777777777";
+  const db = sqliteD1();
+  receipt(db, { id: "sc-a", url: "https://a.test/api", at: "2026-11-24T11:50:00Z", accepts: [base(P1, "20000")] });
+  const logs = [
+    mkLog({ to: P1, value: 20000, at: "2026-11-24T11:51:00Z", from: DRILL }),
+    mkLog({ to: P1, value: 20000, at: "2026-11-24T11:52:00Z", from: EXTRA }),
+    mkLog({ to: P1, value: 20500, at: "2026-11-24T11:53:00Z", from: DRILL }),
+  ];
+  const [r, lines] = await quiet(() => settleTick({ ...ENV(db), DRILL_WALLETS: DRILL + ", not-a-wallet", SETTLE_SELF_WALLETS: EXTRA }, NOW, { fetchImpl: mockRpc(logs).fetchImpl }));
+  assert.equal(r.self_excluded, 3);
+  assert.equal(r.exact_n, 0);
+  assert.equal(r.near_n, 0);
+  const sc = rows(db, "settle_checks")[0];
+  assert.equal(sc.exact_n, 0); assert.equal(sc.near_n, 0);
+  assert.equal(rows(db, "settle_runs_daily")[0].self_excluded, 3);
+  const blob = (JSON.stringify([rows(db, "settle_checks"), rows(db, "settle_runs_daily"), rows(db, "settle_state")]) + lines.join("\n")).toLowerCase();
+  for (const w of [DRILL, EXTRA]) assert.ok(!blob.includes(w.toLowerCase().slice(2)));
+  // without DRILL_WALLETS the same drill transfer would count: the exclusion is what kept it out
+  const db2 = sqliteD1();
+  receipt(db2, { id: "sc-a", url: "https://a.test/api", at: "2026-11-24T11:50:00Z", accepts: [base(P1, "20000")] });
+  const [r2] = await quiet(() => settleTick(ENV(db2), NOW, { fetchImpl: mockRpc([logs[0]]).fetchImpl }));
+  assert.equal(r2.exact_n, 1);
+});
+
+test("ops_weekly.sh: settlement section only when wrangler.toml sets SETTLE_MATCH = \"1\"; caveat inside the gated block", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { join, dirname } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const sh = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "worker", "scripts", "ops_weekly.sh"), "utf8");
+  const i = sh.indexOf("if grep -Eq '^SETTLE_MATCH *= *\"1\"' wrangler.toml; then");
+  assert.ok(i > 0);
+  const block = sh.slice(i, sh.indexOf("\nfi", i));
+  assert.match(block, /never means the endpoint was not paid/);
+  assert.match(block, /settle_checks/);
+  assert.match(block, /else\n  echo "== settlement activity: SETTLE_MATCH is off/);
+  assert.equal(sh.slice(0, i).includes("settle_checks"), false, "no settle query outside the gate");
+});
