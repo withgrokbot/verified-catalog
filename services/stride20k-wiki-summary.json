@@ -39,11 +39,11 @@
   },
   "paid_receipts": 3,
   "latest": {
-    "checked_at": "2026-11-22T20:43:01Z",
+    "checked_at": "2026-11-24T01:38:45Z",
     "mode": "dry-run",
     "reachable": false,
     "http_status": null,
-    "latency_ms": 19062,
+    "latency_ms": 10011,
     "x402_challenge": false,
     "x402_version": null,
     "advertised_price_usd": "0.003",
@@ -55,17 +55,17 @@
     "payment_refused_reason": null,
     "error": "URLError: [Errno -3] Temporary failure in name resolution",
     "quality": null,
-    "raw_log": "results/raw/20261122T204241Z/stride20k-wiki-summary.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261122T204241Z/stride20k-wiki-summary.json"
+    "raw_log": "results/raw/20261124T013834Z/stride20k-wiki-summary.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261124T013834Z/stride20k-wiki-summary.json"
   },
   "history_summary": {
-    "checks": 66,
+    "checks": 67,
     "reachable": 29,
     "x402_challenge_ok": 8,
     "paid_checks": 3,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-11-22T20:43:01Z",
-    "days_observed": 54,
+    "last_checked": "2026-11-24T01:38:45Z",
+    "days_observed": 55,
     "first_seen": "2026-09-30T01:01:51Z"
   }
 }

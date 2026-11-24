@@ -32,11 +32,11 @@
   "quality_test": null,
   "paid_receipts": 0,
   "latest": {
-    "checked_at": "2026-11-22T20:42:43Z",
+    "checked_at": "2026-11-24T01:38:36Z",
     "mode": "dry-run",
     "reachable": false,
     "http_status": null,
-    "latency_ms": 24,
+    "latency_ms": 50,
     "x402_challenge": false,
     "x402_version": null,
     "advertised_price_usd": "0.025",
@@ -48,17 +48,17 @@
     "payment_refused_reason": null,
     "error": "URLError: [Errno -2] Name or service not known",
     "quality": null,
-    "raw_log": "results/raw/20261122T204241Z/bilbop-tts.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261122T204241Z/bilbop-tts.json"
+    "raw_log": "results/raw/20261124T013834Z/bilbop-tts.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261124T013834Z/bilbop-tts.json"
   },
   "history_summary": {
-    "checks": 31,
+    "checks": 32,
     "reachable": 0,
     "x402_challenge_ok": 0,
     "paid_checks": 0,
     "first_checked": "2026-10-27T14:53:17Z",
-    "last_checked": "2026-11-22T20:42:43Z",
-    "days_observed": 27,
+    "last_checked": "2026-11-24T01:38:36Z",
+    "days_observed": 28,
     "first_seen": "2026-10-27T14:53:17Z"
   }
 }
