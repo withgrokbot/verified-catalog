@@ -81,6 +81,7 @@ import { handlePageToMarkdown, p2mOn, p2mCfg, p2mDocs, P2M_PATH, P2M_MCP_TOOL } 
 import { handleCheckout, handlePortal, handleWebhook, BILLING_CHECKOUT_PATH, BILLING_PORTAL_PATH, BILLING_WEBHOOK_PATH } from "./billing.js"; // 0.66.0, BILLING=1 only
 import { handleRender, handleRenderSignup, handleRenderVerify, RENDER_VERIFY_PATH, handleRenderUnsubscribe, RENDER_UNSUB_PATH, renderOn, renderCfg, renderDocs, RENDER_PDF_PATH, RENDER_SHOT_PATH, RENDER_CARD_PATH, RENDER_KEYS_PATH, RENDER_PLANS, CARD_FIELD_MAX, CARD_MAX_EDGE, CARD_CACHE_TTL_S, handleCard } from "./render.js"; // 0.65.0 render, 0.67.0 cards; RENDER=1 only
 import { handleEmailValidate, handleEmailBatch, emailOn, emailDocs, emailOpenApiPaths, emailLlmsLine, EMAIL_VALIDATE_PATH, EMAIL_BATCH_PATH, EMAIL_DOCS_PATH, EMAIL_DISPOSABLE_CRON, refreshDisposableDomains } from "./email.js"; // 0.68.0, EMAIL=1 only, unreleased
+import { settleOn, settleTick, settleWeekly } from "./settle.js"; // 0.78.0, SETTLE_MATCH=1 only (record-only)
 import { anchorsOn, ANCHOR_CRON, anchorTick, upgradePendingAnchors, handleAnchors, OTS_RE as ANCHOR_OTS_RE, handleReceiptProof, proofPathId, anchorsOpenApiPaths, anchorsLlmsLine } from "./anchors.js"; // 0.70.0, ANCHORS=1 only
 import { handlePdfTables, pdfOn, pdfCfg, pdfDocs, pdfOcrBillingNote, PDF_PATH, PDF_MCP_TOOL } from "./pdftables.js"; // draft, PDF_TABLES=1 only
 import { agentCard, AGENT_CARD_PATHS } from "./agentcard.js"; // 0.61.0
@@ -94,7 +95,7 @@ import { fixFor, fixFor404, toolFix } from "./fix.js"; // 0.71.0
 import { receiptGuard, isVerifiedBot, bulkLimitsOn, skipsPageGuard } from "./receiptguard.js";
 import { inputError, INPUT_ERROR_HEADER, isPlaceholderUrl, placeholderInputError, placeholder400, PLACEHOLDER_MESSAGE, PLACEHOLDER_HEADER, paywallRoute, segmentOf, selfTestOf, funnelRows, writeFunnel, writeNotFound, opsStats, methodNotAllowed, explain400, explain422, normalizePath, OPENAPI_URL, SKILL_URL } from "./ops.js";
 export { landingHtml };
-export const VERSION = "0.77.3";
+export const VERSION = "0.78.0";
 // 0.27.0: one source for the crawl size quoted on discovery surfaces (was a hard-coded "500").
 const COVERED = () => Number((RECEIPTS_META && RECEIPTS_META.endpoints_covered) || 0).toLocaleString("en-US");
 // 0.72.0: the price is derived from the paid 402 amount (SPOT_DEFAULT_PRICE_ATOMIC), not typed.
@@ -4336,6 +4337,8 @@ async function scheduledInner(event, env, ctx) {
     if (watchOn(env) && !(event && event.cron === DAILY_CRON)) { try { await watchTick(env, new Date(event && event.scheduledTime ? event.scheduledTime : Date.now())); } catch (e) { console.log(JSON.stringify({ watchtower: "tick_error", error: String((e && e.message) || e).slice(0, 200) })); } }
     // 0.52.0: one chunk of the daily feed snapshot per */20 tick (5000 endpoints; ~25 ticks for 123k). D1 only.
     if (feedOn(env) && !(event && event.cron === DAILY_CRON)) { try { await feedTick(env, new Date(event && event.scheduledTime ? event.scheduledTime : Date.now())); } catch (e) { console.log(JSON.stringify({ feed: "snapshot_error", error: String((e && e.message) || e).slice(0, 200) })); } }
+    // 0.78.0 settlement matching: record-only, */20 trigger only, off unless SETTLE_MATCH=1 (migration 0035). Counts only.
+    if (settleOn(env) && !(event && event.cron === DAILY_CRON)) { try { await settleTick(env, new Date(event && event.scheduledTime ? event.scheduledTime : Date.now())); } catch (e) { console.log(JSON.stringify({ settle: "tick_error", error: String((e && e.message) || e).slice(0, 200) })); } }
     if (env.BAZAAR_PAGE === "off") return;
     // 0.75.0 (SCORE_PROBES=1 only): every cron probe is stamped probe_origin "cron" and sends one of a few honest generic client User-Agents (see probeset.js)
     const scoreProbes = probesOn(env);
@@ -4535,7 +4538,13 @@ const routeInnerHolder = {
       if (!tok || (req.headers.get("authorization") || "") !== "Bearer " + tok) return json({ error: "not found" }, 404, { "cache-control": "no-store" });
       if (req.method !== "GET" && req.method !== "HEAD") return methodNotAllowed(req.method, "GET, HEAD, OPTIONS", path);
       if (!env.RECEIPTS_DB) return json({ error: "ops store unavailable", code: "store_unavailable" }, 503, { "cache-control": "no-store" });
-      try { return json(await opsStats(env.RECEIPTS_DB, { days: url.searchParams.get("days") || 7 }), 200, { "cache-control": "no-store" }); }
+      try {
+        const days = url.searchParams.get("days") || 7;
+        const out = await opsStats(env.RECEIPTS_DB, { days });
+        // 0.78.0: settlement activity section (SETTLE_MATCH=1 only; omitted when off or before migration 0035). Carries its caveat.
+        if (settleOn(env)) { try { out.settlement_activity = await settleWeekly(env.RECEIPTS_DB, { days }); } catch (_) { out.settlement_activity = null; } }
+        return json(out, 200, { "cache-control": "no-store" });
+      }
       catch (_) { return json({ error: "ops counters not available (migration 0014 applied?)", code: "store_unavailable" }, 503, { "cache-control": "no-store" }); }
     }
     // 0.70.0 receipt anchors. Absent unless ANCHORS=1, so the default 404 body of every other path is unchanged.
