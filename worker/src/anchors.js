@@ -20,6 +20,20 @@ export const ANCHOR_MAX_PER_RUN = 2000;
 export const ANCHOR_PAGE = 200;
 export const anchorsOn = (env) => String((env && env.ANCHORS) || "") === "1";
 
+// Latest confirmed Bitcoin height for public pages. Null unless ANCHORS is on, D1 answers,
+// and a confirmed row has a positive integer btc_height. Pending rows never qualify.
+// Fail closed (null) on a missing table, a query error, or a non-integer height.
+export async function latestConfirmedBtcHeight(env) {
+  if (!anchorsOn(env) || !env || !env.RECEIPTS_DB) return null;
+  try {
+    const row = await env.RECEIPTS_DB.prepare(
+      "SELECT btc_height FROM receipt_anchors WHERE status = 'confirmed' AND btc_height IS NOT NULL ORDER BY btc_height DESC, confirmed_at DESC, id DESC LIMIT 1"
+    ).first();
+    const n = Number(row && row.btc_height);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  } catch (_) { return null; }
+}
+
 // 0.77.1: one vc_lookups point per nightly run. blob16='anchor' keeps these out of funnel and
 // 429 queries that filter on product. double3 stays 0 so a calendar HTTP 402 cannot match the
 // funnel's `double3 = 402` clause. No new dataset and no D1 migration.

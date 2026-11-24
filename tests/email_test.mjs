@@ -63,7 +63,7 @@ const post = (e, path, body, headers = {}) => worker.fetch(new Request(API + pat
 const keyRow = (e) => e.RECEIPTS_DB.prepare("SELECT plan, monthly_quota, email_plan, email_monthly_quota FROM api_keys WHERE id = 'key-1'").first();
 
 test("version is 0.77.1 and the flag stays off in wrangler.toml", () => {
-  assert.equal(VERSION, "0.78.0");
+  assert.equal(VERSION, "0.78.1");
   const toml = readFileSync(join(ROOT, "worker", "wrangler.toml"), "utf8");
   assert.doesNotMatch(toml, /^EMAIL\s*=/m);
   assert.doesNotMatch(toml, /^STRIPE_PRICE_EMAIL_(STARTER|PRO|SCALE)\s*=/m);

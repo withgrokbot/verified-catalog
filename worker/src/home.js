@@ -23,6 +23,30 @@ const ONE_LINER = "const pay = wrapFetchWithPayment(spotCheckFetch(fetch), clien
 export const HOME_TRUST_BEFORE_0670 = `<strong>Receipts verifiable offline</strong><p>Live-check receipts are ed25519-signed and the public keys are published, so anyone can verify one without calling us.</p>`;
 export const HOME_TRUST_0670 = `<strong>Verify our receipts without calling us</strong><p>Signed live-check receipts carry a <code>kid</code> and an Ed25519 signature. Keys are published at <a href="/.well-known/402xagent-keys.json">/.well-known/402xagent-keys.json</a> and pinned in <a href="/verify">/verify</a>. Stored crawl receipts are unsigned.</p>`;
 export const HOME_STACK_0670 = `<p class="stack-note">A payee guard such as INAM is a separate project. Nest it inside <code>spotCheckFetch</code>, then pay last. <a href="/docs#payee-guard">Composition</a>.</p>`;
+// 0.78.1: homepage receipt-anchors section. "confirmed" is only used as a definition, or
+// next to a height that was read from D1 at render. Pending is never called a Bitcoin confirmation.
+export const HOME_ANCHORS_KICKER = "Receipt anchors";
+export const HOME_ANCHORS_HEADING = "Each night's receipts are timestamped on Bitcoin.";
+export const HOME_ANCHORS_BODY = "Each night's check receipts are timestamped on Bitcoin through OpenTimestamps. A confirmed anchor has a Bitcoin block header attestation. A pending anchor means the digest was submitted to calendars; pending is not a Bitcoin confirmation.";
+export const HOME_ANCHORS_LINK = "See receipt anchors";
+export function homeAnchorsHeightText(height) {
+  const n = Number(height);
+  if (!Number.isInteger(n) || n <= 0) return "";
+  return ` The latest confirmed anchor has a Bitcoin block header attestation at height ${n}.`;
+}
+export function homeAnchorsSection(opts = {}) {
+  if (opts.anchors === false) return "";
+  const height = homeAnchorsHeightText(opts.confirmedHeight);
+  return `<section class="tight" id="anchors">
+<div class="wrap">
+<div class="section-head"><div class="kicker">${HOME_ANCHORS_KICKER}</div>
+<h2>${HOME_ANCHORS_HEADING}</h2>
+<p>${HOME_ANCHORS_BODY}${height} <a href="/anchors">${HOME_ANCHORS_LINK}</a>.</p>
+</div>
+</div>
+</section>
+`;
+}
 // Real public endpoints for the example chips (they only prefill the box; nothing runs until Check is pressed).
 export const HOME_EXAMPLES = [
   { url: DOCS_TRYIT_PREFILL, label: "api.402xagent.com" },
@@ -331,7 +355,7 @@ export function homeHtml(origin, opts = {}) {
     st.recheck && `<div class="proof-item"><div class="proof-num">${st.recheck}</div><div class="proof-label">currently at <strong>recheck</strong>: terms not confirmed yet</div></div>`,
     st.skip && `<div class="proof-item"><div class="proof-num">${st.skip}</div><div class="proof-label">at <strong>skip</strong>: live terms differ from the listing</div></div>`,
   ].filter(Boolean);
-  const nav = [["Products", "#explore", "products"], ["Docs", "/docs", ""], ["Pricing", "/pricing", "products"], ["Blog", "/blog", ""], ["Receipts", "/v1/skips", "skips"], ["GitHub", GH_GUARD, "dev"]];
+  const nav = [["Products", "#explore", "products"], ["Docs", "/docs", ""], ["Pricing", "/pricing", "products"], ["Blog", "/blog", ""], ["Receipts", "/v1/receipts", ""], ["GitHub", GH_GUARD, "dev"]];
   const navHtml = nav.map(([t, h, tab]) => `<a href="${esc(h)}"${tab ? ` data-tab="${tab}"` : ""}>${t}</a>`).join("");
   const vrows = rows.map((r) => `<div class="v-row" role="row"><div class="v-host" role="cell">${esc(r.host)}</div><div role="cell"><span class="verdict ${r.verdict}"><i></i>${r.verdict.toUpperCase()}</span></div><div class="v-reason" role="cell">${esc(r.reason)}</div><div class="v-time" role="cell">${esc(r.when)}</div></div>`).join("\n");
   return `<!doctype html>
@@ -456,13 +480,13 @@ ${vrows}
 </div>
 </div>
 </section>
-</main>
+${homeAnchorsSection(o)}</main>
 <footer>
 <div class="wrap">
 <div class="footer-grid">
 <div class="footer-brand"><a class="brand" href="/" aria-label="402xAgent home"><span class="footer-logo-chip"><img src="${LOGO}" alt="402xAgent" width="49" height="40"></span></a><p>Verification for the x402 economy. Ask before your agent pays, and keep the receipt.</p></div>
 <div><h4>Products</h4><ul><li><a href="/docs/check">402xAgent Check</a></li>${o.endpointReport ? '<li><a href="/docs/endpoint-report">Endpoint Report</a></li>' : ""}<li><a href="/docs/payment-status">Payment Status</a></li>${o.watchtower ? '<li><a href="/docs/watchtower">Watchtower</a></li>' : ""}<li><a href="/docs/facilitator-check">Facilitator Check</a></li><li><a href="/docs/hosted">Hosted Mode</a></li><li><a href="/#audit-layer">Audit layer</a></li></ul></div>
-<div><h4>Resources</h4><ul><li><a href="/docs">Docs</a></li><li><a href="/blog">Blog</a></li><li><a href="/v1/skips">Receipts</a></li><li><a href="/pricing">Pricing</a></li><li><a href="${GH_GUARD}">GitHub</a></li><li><a href="${NPM_GUARD}">npm: x402-spotcheck</a></li></ul></div>
+<div><h4>Resources</h4><ul><li><a href="/docs">Docs</a></li><li><a href="/blog">Blog</a></li><li><a href="/v1/receipts">Receipts</a></li><li><a href="/anchors">Anchors</a></li><li><a href="/pricing">Pricing</a></li><li><a href="${GH_GUARD}">GitHub</a></li><li><a href="${NPM_GUARD}">npm: x402-spotcheck</a></li></ul></div>
 <div><h4>Company</h4><ul><li><a href="/health">Status</a></li><li><a href="${GH_REPO}/issues">Contact</a></li><li><a href="https://x.com/402xAgent">X @402xAgent</a></li><li><a href="/rules">Verdict rules</a></li></ul></div>
 </div>
 <div class="footer-bottom"><span>402xAgent — verification for the x402 economy.</span><span>402xagent.com · Probes never pay the target</span></div>
