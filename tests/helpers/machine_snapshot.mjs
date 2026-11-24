@@ -65,7 +65,31 @@ import { DOCS_PAYEE_GUARD } from "../../worker/src/docs.js";
 // older fixture still proves the rest of the homepage and /home.js is unchanged (tests/home_curl_0600_test.mjs checks them).
 import { HOME_CURL_HTML, HOME_CURL_JS, CURL_CSS, HOME_TRUST_0670, HOME_TRUST_BEFORE_0670, HOME_STACK_0670 } from "../../worker/src/home.js";
 import { DOCS_TRYIT_PREFILL } from "../../worker/src/tryit.js";
+// 0.78.1: Receipts nav points at /v1/receipts, footer gains Anchors, the receipts list lead mentions /anchors,
+// and the homepage may include a receipt-anchors section. Unless SNAP_KEEP_0781=1, snapshots put those
+// surfaces back so older fixtures still prove every other byte; tests/home_anchors_0781_test.mjs checks the deltas.
+export const RECEIPTS_LEAD_0781 = " Nightly check receipts are timestamped on Bitcoin through OpenTimestamps. See <a href=\"/anchors\">receipt anchors</a>.";
+export const FOOTER_RESOURCES_0781 = '<li><a href="/v1/receipts">Receipts</a></li><li><a href="/anchors">Anchors</a></li>';
+export const FOOTER_RESOURCES_BEFORE_0781 = '<li><a href="/v1/skips">Receipts</a></li>';
+export function strip0781(body) {
+  if (process.env.SNAP_KEEP_0781 === "1" || typeof body !== "string") return body;
+  body = body.replace(/<section class="tight" id="anchors">[\s\S]*?<\/section>\n/, "");
+  body = body.split(FOOTER_RESOURCES_0781).join(FOOTER_RESOURCES_BEFORE_0781);
+  body = body.split(RECEIPTS_LEAD_0781).join("");
+  // Only the top nav (Blog is the previous item). Do not rewrite in-page /v1/receipts links.
+  // On /v1/skips, Receipts used to be the current item (href and aria-current were /v1/skips).
+  if (body.includes("<h1>Latest skips</h1>")) {
+    body = body.split('>Blog</a><a href="/v1/receipts">Receipts</a>').join('>Blog</a><a href="/v1/skips" aria-current="page">Receipts</a>');
+  } else if (body.includes('data-tab="products"')) {
+    body = body.split('>Blog</a><a href="/v1/receipts">Receipts</a>').join('>Blog</a><a href="/v1/skips" data-tab="skips">Receipts</a>');
+  } else {
+    body = body.split('>Blog</a><a href="/v1/receipts" aria-current="page">Receipts</a>').join('>Blog</a><a href="/v1/skips" aria-current="page">Receipts</a>');
+    body = body.split('>Blog</a><a href="/v1/receipts">Receipts</a>').join('>Blog</a><a href="/v1/skips">Receipts</a>');
+  }
+  return body;
+}
 export function as0598(key, body) {
+  body = strip0781(body);
   if (process.env.SNAP_KEEP_0600 === "1" || typeof body !== "string") return body;
   if (/^GET https:\/\/402xagent\.com\/home\.js \[/.test(key)) return body.replace(HOME_CURL_JS, "").replace(" syncCurl(); input.focus();", " input.focus();");
   if (/^GET https:\/\/402xagent\.com\/ \[html\]$/.test(key)) return body.replace(HOME_CURL_HTML, "").replace(CURL_CSS, "")
@@ -322,7 +346,7 @@ export async function snapshot0583(workerPath) {
     const [accept, ua] = a ? a.split("|") : [null, null];
     const headers = an === "html" ? HTML : { "cf-connecting-ip": "203.0.113.9", ...(ua ? { "user-agent": ua } : {}), ...(accept ? { accept } : {}) };
     const res = await mod.default.fetch(new Request(h + "/pricing", { headers }), env, { waitUntil() {}, passThroughOnException() {} });
-    const body = strip0610(strip0620("", await res.text())); // 0.61.0
+    const body = strip0781(strip0610(strip0620("", await res.text()))); // 0.61.0, 0.78.1 nav/footer
     const key = `GET ${h}/pricing [${an}]`;
     out[key] = { status: res.status, headers: snapHeaders(key, res, norm), sha256: createHash("sha256").update(norm(body)).digest("hex") };
   }
@@ -361,6 +385,7 @@ export const HOME_FOOTER_0584 = '<div><h4>Products</h4><ul><li><a href="/docs#qu
 export const HOME_FOOTER_0586 = '<div><h4>Products</h4><ul><li><a href="/docs/check">402xAgent Check</a></li><li><a href="/docs/endpoint-report">Endpoint Report</a></li><li><a href="/docs/payment-status">Payment Status</a></li><li><a href="/docs/watchtower">Watchtower</a></li><li><a href="/docs/facilitator-check">Facilitator Check</a></li><li><a href="/docs/hosted">Hosted Mode</a></li><li><a href="/#audit-layer">Audit layer</a></li></ul></div>';
 /** The homepage body with the 0.58.6 footer Products list put back to 0.58.4's (throws unless it occurs exactly once). */
 export function restoreHomeFooter(body) {
+  body = strip0781(body);
   body = strip0610(body);
   if (body.split(HOME_FOOTER_0586).length !== 2) throw new Error("0.58.6 footer list not found exactly once");
   return body.replace(HOME_FOOTER_0586, HOME_FOOTER_0584);
@@ -421,7 +446,7 @@ export async function snapshotSkips(workerPath) {
     const req = new Request(h + p, { headers: { "cf-connecting-ip": "203.0.113.9", ...(ua ? { "user-agent": ua } : {}), ...(accept ? { accept } : {}) } });
     const res = await mod.default.fetch(req, env(), { waitUntil() {}, passThroughOnException() {} });
     const key = `GET ${h}${p} [${an}]`;
-    const body = strip0662(await res.text());
+    const body = strip0781(strip0662(await res.text()));
     out[key] = { status: res.status, headers: snapHeaders(key, res, norm), sha256: createHash("sha256").update(norm(body)).digest("hex"), length: body.length };
   }
   return out;

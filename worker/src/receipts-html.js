@@ -100,7 +100,7 @@ const isUsdcBase = (a) => a && String(a.asset || "").toLowerCase() === "0x833589
 const amountText = (a) => (a.amount_usd != null ? "$" + Number(a.amount_usd).toString() + " " : isUsdcBase(a) && /^\d+$/.test(String(a.amount_atomic || "")) ? "$" + (Number(a.amount_atomic) / 1e6).toString() + " " : "") + (a.amount_atomic != null ? `(${esc(a.amount_atomic)} atomic)` : "");
 
 function page(o) {
-  return chromePage({ ...o, css: CSS + (o.css || ""), current: "/v1/skips", footer: o.footer });
+  return chromePage({ ...o, css: CSS + (o.css || ""), current: "/v1/receipts", footer: o.footer });
 }
 
 /** HTML list. d: { tab, rows:[{id, verdict, url, reason, time}], q, page, pages, prevHref, nextHref, total, note, exact } */
@@ -110,7 +110,7 @@ export function receiptListHtml(origin, d, fp) {
   const typeField = d.tab === "crawl" ? "" : `<input type="hidden" name="type" value="${esc(d.tab)}">`;
   const pager = d.prevHref || d.nextHref || d.pages ? `<nav class="rc-pager" aria-label="Pages"><span>${d.prevHref ? `<a href="${esc(d.prevHref)}" rel="prev">&larr; Newer</a>` : ""}</span><span>${d.pages ? `Page ${d.page} of ${d.pages}` : ""}</span><span>${d.nextHref ? `<a href="${esc(d.nextHref)}" rel="next">Older &rarr;</a>` : ""}</span></nav>` : "";
   const main = `<section class="pg-hero"><h1>Receipts</h1>
-<p class="pg-lead">Every verdict is kept as a public receipt, free to read. Crawl receipts come from our weekly self-checked crawl and are unsigned. Live-check receipts record one check of one endpoint; the signed ones carry an Ed25519 signature you can verify offline.</p></section>
+<p class="pg-lead">Every verdict is kept as a public receipt, free to read. Crawl receipts come from our weekly self-checked crawl and are unsigned. Live-check receipts record one check of one endpoint; the signed ones carry an Ed25519 signature you can verify offline. Nightly check receipts are timestamped on Bitcoin through OpenTimestamps. See <a href="/anchors">receipt anchors</a>.</p></section>
 <div class="pg-body">
 <nav class="rc-tabs" aria-label="Receipt types">${tabs}</nav>
 <form class="rc-search" method="get" action="/v1/receipts" role="search">${typeField}<input type="search" name="q" value="${esc(d.q || "")}" placeholder="Search by host or reason, or paste an endpoint URL" aria-label="Search receipts" maxlength="300"><button type="submit">Search</button></form>

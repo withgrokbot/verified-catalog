@@ -104,7 +104,7 @@ export function pricingHtml(origin, p) {
   const rows = pricingRows(p);
   const title = "Pricing · 402xAgent";
   const desc = `402xAgent prices: ${p.freePerDay} free checks a day, then ${usd(p.paidAtomic)} per check. All payments are USDC on Base via x402.`;
-  const nav = [["Products", "/#explore"], ["Docs", "/docs"], ["Pricing", "/pricing"], ["Blog", "/blog"], ["Receipts", "/v1/skips"], ["GitHub", GH_GUARD]];
+  const nav = [["Products", "/#explore"], ["Docs", "/docs"], ["Pricing", "/pricing"], ["Blog", "/blog"], ["Receipts", "/v1/receipts"], ["GitHub", GH_GUARD]];
   const navHtml = nav.map(([t, h]) => `<a href="${esc(h)}"${h === "/pricing" ? ' aria-current="page"' : ""}>${t}</a>`).join("");
   const body = rows.map((r) => `<tr id="${r.id}"><th scope="row">${esc(r.name)}</th><td data-label="Price"><span class="pr-price">${esc(r.price)}<span class="pr-unit">${esc(r.unit)}</span></span></td><td data-label="Free tier"><span class="pr-free">${esc(r.free)}</span></td><td data-label="Terms"><div class="pr-terms">${r.terms}</div><a class="pr-link" href="${esc(r.href)}">${esc(r.link)} &rarr;</a></td></tr>`).join("\n");
   return `<!doctype html>
@@ -166,7 +166,7 @@ ${p.bulkAccess ? `<div class="pr-note" id="bulk-access"><h2>Bulk access (not liv
 <div class="footer-grid">
 <div class="footer-brand"><a class="brand" href="/" aria-label="402xAgent home"><span class="footer-logo-chip"><img src="${LOGO}" alt="402xAgent" width="49" height="40"></span></a><p>Verification for the x402 economy. Ask before your agent pays, and keep the receipt.</p></div>
 <div><h4>Products</h4><ul><li><a href="/docs/check">402xAgent Check</a></li>${p.endpointReport ? '<li><a href="/docs/endpoint-report">Endpoint Report</a></li>' : ""}<li><a href="/docs/payment-status">Payment Status</a></li>${p.watchtower ? '<li><a href="/docs/watchtower">Watchtower</a></li>' : ""}<li><a href="/docs/facilitator-check">Facilitator Check</a></li><li><a href="/docs/hosted">Hosted Mode</a></li><li><a href="/#audit-layer">Audit layer</a></li></ul></div>
-<div><h4>Resources</h4><ul><li><a href="/docs">Docs</a></li><li><a href="/blog">Blog</a></li><li><a href="/v1/skips">Receipts</a></li><li><a href="/pricing">Pricing</a></li><li><a href="${GH_GUARD}">GitHub</a></li><li><a href="${NPM_GUARD}">npm: x402-spotcheck</a></li></ul></div>
+<div><h4>Resources</h4><ul><li><a href="/docs">Docs</a></li><li><a href="/blog">Blog</a></li><li><a href="/v1/receipts">Receipts</a></li><li><a href="/anchors">Anchors</a></li><li><a href="/pricing">Pricing</a></li><li><a href="${GH_GUARD}">GitHub</a></li><li><a href="${NPM_GUARD}">npm: x402-spotcheck</a></li></ul></div>
 <div><h4>Company</h4><ul><li><a href="/health">Status</a></li><li><a href="${GH_REPO}/issues">Contact</a></li><li><a href="https://x.com/402xAgent">X @402xAgent</a></li><li><a href="/rules">Verdict rules</a></li></ul></div>
 </div>
 <div class="footer-bottom"><span>402xAgent — verification for the x402 economy.</span><span>402xagent.com · Probes never pay the target</span></div>

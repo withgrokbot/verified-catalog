@@ -33,8 +33,9 @@ test("0.58.7 skips page: title, caption and crawl date line come from the homepa
   assert.ok(cd.text && /^Last crawl [A-Z][a-z]{2} \d{1,2} · next crawl [A-Z][a-z]{2} \d{1,2}$/.test(cd.text), cd.text);
   assert.ok(body.includes(`<p class="sk-dates" id="crawl-dates">${cd.text}</p>`), "derived from crawled_at like the homepage line");
   assert.ok(body.includes(SKIP_MEANS.replace(/'/g, "&#39;")) && body.includes(RECHECK_MEANS.replace(/'/g, "&#39;")));
-  // shared chrome: same header nav and footer as /pricing, /docs and the receipt pages; Receipts is the current nav item
-  assert.ok(body.includes('<a href="/v1/skips" aria-current="page">Receipts</a>') && body.includes('<div class="footer-grid">') && body.includes('class="skip-link"'));
+  // shared chrome: same header nav and footer as /pricing, /docs and the receipt pages; Receipts points at the receipts list, not this skips page
+  assert.ok(body.includes('<a href="/v1/receipts">Receipts</a>') && !body.includes('aria-current="page">Receipts') && body.includes('<div class="footer-grid">') && body.includes('class="skip-link"'));
+  assert.ok(body.includes('<a href="/anchors">Anchors</a>'), "anchors stay reachable from the footer");
 });
 
 test("0.58.7 skips page: method text kept inside <details>; featured callout gone; no script", async () => {

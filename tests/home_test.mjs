@@ -42,7 +42,10 @@ test("homepage: browsers on 402xagent.com only, strict CSP, one same-origin scri
   assert.ok(!/https?:\/\/(?!402xagent\.com|github\.com\/withgrokbot|www\.npmjs\.com\/package\/x402-spotcheck|api\.402xagent\.com|api\.402rates\.com|api\.automaton-sovereign|example\.com\/paid-endpoint|x\.com\/402xAgent)/.test(t.replace(/xmlns="[^"]+"/g, "")), "only own and named links");
   for (const id of ["tab-products", "tab-skips", "tab-dev"]) assert.ok(t.includes(`id="${id}"`));
   assert.match(t, /aria-selected="true" data-panel="products"/); assert.equal((t.match(/role="tabpanel"[^>]* hidden>/g) || []).length, 2);
-  for (const tab of ["products", "skips", "dev"]) assert.ok(t.includes(`data-tab="${tab}"`), "nav " + tab);
+  for (const tab of ["products", "dev"]) assert.ok(t.includes(`data-tab="${tab}"`), "nav " + tab);
+  const header = t.slice(t.indexOf("<header"), t.indexOf("</header>"));
+  assert.equal((header.match(/<a href="\/v1\/receipts">Receipts<\/a>/g) || []).length, 2, "Receipts in primary and mobile nav");
+  assert.ok(!/<a href="[^"]*" data-tab="skips">Receipts<\/a>/.test(t), "Receipts nav must not intercept into the Latest skips tab");
   for (const a of ["/docs#endpoint-report", "/docs#payment-status", "/docs#watchtower", "/docs#facilitator-check", "/docs#hosted"]) assert.ok(t.includes(`href="${a}"`), a); // product cards (old anchors still resolve, 0.58.6)
   for (const a of ["/docs/check", "/docs/endpoint-report", "/docs/payment-status", "/docs/watchtower", "/docs/facilitator-check", "/docs/hosted", "/#audit-layer"]) assert.ok(t.includes(`href="${a}"`), "footer " + a); // 0.58.6 footer
   assert.ok(t.includes("const pay = wrapFetchWithPayment(spotCheckFetch(fetch), client);"), "copy one-liner");

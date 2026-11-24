@@ -54,7 +54,7 @@ const queue = (db, day = P.queueDay(NOW)) => db.raw.prepare("SELECT url, method,
 const seeded = (rnd = () => 0.5) => rnd;
 
 test("version is 0.77.1; SCORE_PROBES and SCORE_DEMAND are on in wrangler.toml (owner-approved 7-day shadow run); code still defaults off when unset", () => {
-  assert.equal(VERSION, "0.78.0");
+  assert.equal(VERSION, "0.78.1");
   assert.equal(P.probesOn({}), false); assert.equal(P.demandOn({}), false);
   assert.equal(P.probesOn({ SCORE_PROBES: "1" }), true); assert.equal(P.probesOn({ SCORE_PROBES: "true" }), false);
   const toml = readFileSync(join(ROOT, "worker", "wrangler.toml"), "utf8");

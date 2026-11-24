@@ -35,7 +35,7 @@ function mk(env0, ip = "198.51.100.10", ua = "curl/8") {
 const SINGLE = "https://402xagent.com/v1/receipts/sc-0123456789abcdef";
 
 test("version and defaults", () => {
-  assert.equal(VERSION, "0.78.0");
+  assert.equal(VERSION, "0.78.1");
   assert.deepEqual([RECEIPT_PAGES_PER_MIN, RECEIPT_PAGES_PER_DAY, RECEIPT_SINGLE_PER_DAY, RECEIPT_RATE_PER_MIN], [6, 40, 300, 120]);
   const c = receiptCaps({ RECEIPT_PAGES_PER_MIN: "2", RECEIPT_SINGLE_PER_DAY: "abc", BULK_LIMITS: "0" });
   assert.equal(c.pagesPerMin, 2); assert.equal(c.singlePerDay, 300, "bad var falls back to the default"); assert.equal(c.on, false, "off unless BULK_LIMITS=1"); assert.equal(receiptCaps({ BULK_LIMITS: "1" }).on, true);
