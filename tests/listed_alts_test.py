@@ -2,6 +2,7 @@
 
 Run: python3 tests/listed_alts_test.py   (stdlib + requests import only; no network; synthetic hosts and wallets)
 """
+import io
 import json
 import os
 import sys
@@ -11,6 +12,7 @@ import unittest
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 sys.path.insert(0, os.path.join(ROOT, "scripts", "weekly-crawl"))
 import crawl_probe as cp  # noqa: E402
+from requests.structures import CaseInsensitiveDict  # noqa: E402
 
 A, B, C, D = ("0x" + h * 20 for h in ("a1", "b2", "c3", "d4"))
 BASE, SOL = "eip155:8453", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
@@ -76,6 +78,58 @@ class LoadCandidates(unittest.TestCase):
         rec = cp.probe(c)  # a path template answers before any request is made
         self.assertEqual(rec["listed_pay_tos"][1]["pay_to"], B)
         self.assertEqual(rec["listed_pay_to"], A)
+
+
+class Judge0800(unittest.TestCase):
+    """0.80.0: the crawl's skip accepts any listed wallet on the 402's network; a $0 listing price is no claim; directory
+    resource samples carry no service-level price."""
+    class R:
+        def __init__(self, accepts):
+            body = json.dumps({"x402Version": 2, "accepts": accepts}).encode()
+            self.status_code, self.headers = 402, CaseInsensitiveDict({"content-type": "application/json"})
+            self.raw, self.content, self._content = io.BytesIO(body), body, body
+            self.raw.read = (lambda f: (lambda n, decode_content=True: f(n)))(self.raw.read)
+
+    def judge(self, accepts, lead, alts, claimed=None):
+        rec = {}
+        def done(v, why):
+            rec.update(verdict=v, reason=why)
+            return rec
+        return cp.judge(self.R(accepts), rec, lead, claimed, done, alts)
+
+    def acc(self, pay_to, network=BASE, amount="1000"):
+        return {"scheme": "exact", "network": network, "asset": cp.USDC_MAINNET.get(network.lower(), "0xusdc"), "amount": amount, "payTo": pay_to}
+
+    def test_listed_alternative_is_not_a_skip(self):
+        lead = {"payTo": A, "network": BASE}
+        alts = [{"network": BASE, "pay_to": A, "scope": "endpoint"}, {"network": BASE, "pay_to": B, "scope": "site"}]
+        self.assertNotIn("different wallet", self.judge([self.acc(B)], lead, alts)["reason"])
+        self.assertIn("different wallet", self.judge([self.acc(B)], lead, [])["reason"])
+        self.assertIn("different wallet", self.judge([self.acc(C)], lead, alts)["reason"])
+
+    def test_listed_entry_preferred(self):
+        lead = {"payTo": A, "network": BASE}
+        alts = [{"network": BASE, "pay_to": B, "scope": "site"}]
+        rec = self.judge([self.acc(C), self.acc(B)], lead, alts)
+        self.assertEqual(rec.get("verdict"), "pay", rec)
+
+    def test_zero_listing_price_is_no_claim(self):
+        u = "https://zero.seller-fixture.dev/t/:id"
+        c = {"url": u, "norm": u, "also": [], "source_list": "cdp-bazaar", "method": "GET", "listing": {"payTo": A, "network": BASE, "maxAmountRequired": "0", "asset": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"}}
+        self.assertIsNone(cp.probe(c)["claimed_price_usd"])
+
+    def test_directory_samples_carry_no_service_price(self):
+        d = tempfile.mkdtemp()
+        json.dump([{"url": "https://svc.seller-fixture.dev/", "chains": ["base"], "price_min": 0.002, "price_max": 0.002,
+                    "resource_samples": [{"url": "https://svc.seller-fixture.dev/v1/video", "kind": "x402-resource", "method": "POST"}]}], open(os.path.join(d, "agenttools.json"), "w"))
+        old = cp.CRAWL
+        cp.CRAWL = d
+        try:
+            out = {c["url"]: c for c in cp.load_candidates()}
+        finally:
+            cp.CRAWL = old
+        self.assertEqual(out["https://svc.seller-fixture.dev/"]["listing"].get("_claimed_usd"), 0.002)
+        self.assertNotIn("_claimed_usd", out["https://svc.seller-fixture.dev/v1/video"]["listing"])
 
 
 if __name__ == "__main__":

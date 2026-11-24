@@ -14,7 +14,7 @@ import { sqliteD1 } from "./helpers/sqlite_d1.mjs";
 import { fakeReceiptsD1 } from "./helpers/machine_snapshot.mjs";
 import { pricingHtml } from "../worker/src/pricing.js";
 
-test("0.78.1 version", () => assert.equal(VERSION, "0.79.0"));
+test("0.78.1 version", () => assert.equal(VERSION, "0.80.0"));
 
 const HTML = { accept: "text/html,application/xhtml+xml,*/*;q=0.8", "user-agent": "Mozilla/5.0" };
 const ctx = { waitUntil() {}, passThroughOnException() {} };

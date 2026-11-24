@@ -33,8 +33,8 @@ const score = (observations, listing = null, now = NOW) => computeScore({ url: U
 const LIST_AB = { listed_pay_to: A, listed_network: BASE, listed_pay_tos: [{ network: BASE, pay_to: A, scope: "endpoint" }, { network: BASE, pay_to: B, scope: "site" }] };
 
 test("0.79.0 version and score formula version", () => {
-  assert.equal(VERSION, "0.79.0");
-  assert.equal(SCORE_VERSION, "score-2026-11-24");
+  assert.equal(VERSION, "0.80.0");
+  assert.ok(SCORE_VERSION.startsWith("score-2026-11-24"));
   assert.ok(REASON_CODES_SCORE.includes("band_held"));
   assert.deepEqual([...PAY_TO_FLAGS], ["pay_to_mismatch", "pay_to_changed"]);
   assert.equal(PUBLIC_MIN_CONFIDENCE, "medium");

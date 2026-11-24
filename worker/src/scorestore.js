@@ -48,7 +48,8 @@ const RECEIPT_SQL = `SELECT id, created_at AS at, verdict, check_type, ref,
   COALESCE(json_extract(body, '$.approved_payment.asset'), json_extract(body, '$.live_402.accepts[0].asset')) AS asset,
   COALESCE(json_extract(body, '$.approved_payment.amount_atomic'), json_extract(body, '$.live_402.accepts[0].amount_atomic')) AS amount,
   CASE WHEN COALESCE(json_extract(body, '$.reason_code'), reason) = 'pay_to_mismatch' THEN json_extract(body, '$.live_402.accepts') END AS accepts,
-  json_extract(body, '$.expected.network') AS expected_network
+  json_extract(body, '$.expected.network') AS expected_network,
+  CASE WHEN COALESCE(json_extract(body, '$.reason_code'), reason) = 'price_mismatch' THEN json_extract(body, '$.expected.claimed_price_usd') END AS claimed
   FROM spot_receipts WHERE url IN (?, ?) AND created_at >= ? ORDER BY created_at DESC LIMIT 600`;
 
 /** 0.79.0: the 402's accepts entries (pay_to_mismatch rows only), reduced to network + pay_to + asset, at most 8. */
@@ -66,6 +67,7 @@ export function receiptObservation(r) {
     verdict: r.verdict, reason_code: r.reason_code, http_status: r.http_status, x402_challenge: r.challenge == null ? undefined : !!r.challenge,
     listing_source: r.listing_source, terms: r.pay_to && r.network ? { pay_to: r.pay_to, network: r.network, asset: r.asset, amount: r.amount } : null,
     ...(r.accepts ? { accepts: acceptsOf(r.accepts) } : {}), ...(r.expected_network ? { expected_network: r.expected_network } : {}),
+    ...(r.claimed != null ? { claimed: Number(r.claimed) } : {}),
   };
 }
 /** Weekly crawl row -> one low-weight observation. Only a pay is read as an outcome; a crawl never penalises (no reason code, no terms). */
@@ -98,7 +100,8 @@ export async function loadScoreInputs(env, url, now, deps = {}) {
       const l = await deps.listingForAsync(env, uv.url);
       const c = crawlObservation(l); if (c) observations.push(c);
       // 0.79.0: the listed wallets (listed_pay_to + listed_pay_tos) so a 402 paying another listed wallet is not a mismatch
-      if (l && (l.listed_pay_to || Array.isArray(l.listed_pay_tos))) listing = { listed_pay_to: l.listed_pay_to || null, listed_network: l.listed_network || null, listed_pay_tos: Array.isArray(l.listed_pay_tos) ? l.listed_pay_tos : [] };
+      // 0.80.0: also the listing's current price claim (a $0 or missing price is no claim)
+      if (l) listing = { listed_pay_to: l.listed_pay_to || null, listed_network: l.listed_network || null, listed_pay_tos: Array.isArray(l.listed_pay_tos) ? l.listed_pay_tos : [], claimed_price_usd: l.claimed_price_usd ?? null };
     } catch (_) {}
   }
   const method = (recs.find((r) => String(r.method || "").toUpperCase() === "POST") && "POST") || "GET";

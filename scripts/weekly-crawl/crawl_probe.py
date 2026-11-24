@@ -236,9 +236,11 @@ def load_candidates():
     for x in _json("agenttools.json", []):
         if not x.get("chains"): continue  # not an x402 service (plain MCP/A2A directory entry)
         p = x.get("price_min") if x.get("price_min") is not None and x.get("price_min") == x.get("price_max") else None
-        urls = [(x.get("url"), "GET")] + [(r.get("url"), r.get("method") or "GET") for r in (x.get("resource_samples") or []) if isinstance(r, dict) and r.get("kind") in ("x402-resource", "http")]
-        for u, m in urls:
-            if isinstance(u, str) and u.startswith("http"): simple(u, "agent-tools-cloud", p, None, m)
+        urls = [(x.get("url"), "GET", p)] + [(r.get("url"), r.get("method") or "GET", None) for r in (x.get("resource_samples") or []) if isinstance(r, dict) and r.get("kind") in ("x402-resource", "http")]
+        # 0.80.0: the directory's single price belongs to the service, not to each sampled resource (a spot-check of 2026-11-24
+        # found it applied to resources asking 10-200x more), so resource samples carry no claimed price
+        for u, m, cp_ in urls:
+            if isinstance(u, str) and u.startswith("http"): simple(u, "agent-tools-cloud", cp_, None, m)
     # awesome-x402: only lines naming exactly one endpoint-like URL and exactly one $ price
     if os.path.exists(_f("awesome.md")):
         for line in open(_f("awesome.md"), encoding="utf-8"):
@@ -296,6 +298,7 @@ def decode_402(r):
 def probe(c):
     lead = c["listing"]
     claimed = lead.get("_claimed_usd") if "_claimed_usd" in lead else usd(lead)
+    if claimed is not None and claimed <= 0: claimed = None  # 0.80.0: a $0 listing price (maxAmountRequired "0") is a placeholder, not a claim
     rec = dict(id=rid(c["norm"]), url=c["url"], norm_url=c["norm"], also_listed_in=c["also"], claimed_price_usd=claimed, quoted_price_usd=None,
                pay_to=None, verdict=None, reason=None, timestamp=None, source_list=c["source_list"], check_type="self-checked",
                method=c["method"], http_status=None, network=None, asset=None, listed_pay_to=lead.get("payTo"),
@@ -324,7 +327,7 @@ def probe(c):
         if isinstance(r2, dict): return r2
         r = r2
     try:
-        return judge(r, rec, lead, claimed, done)
+        return judge(r, rec, lead, claimed, done, c.get("listed_alts") or [])
     finally:
         r.close()
 
@@ -369,7 +372,12 @@ def mainnet_policy(r):
         r["verdict"], r["reason"] = "skip", f"asks for a token other than USDC on {r.get('network')} ({r.get('asset')})"
     return r
 
-def judge(r, rec, lead, claimed, done):
+def listed_wallet(a, lead, alts):
+    """0.80.0: a's payTo is the lead's payTo or another listed wallet on a's network (case-insensitive, as before)."""
+    p, n = str(a.get("payTo") or "").lower(), net(a.get("network"))
+    return bool(p) and (p == str(lead.get("payTo") or "").lower() or any(e.get("network") == n and str(e.get("pay_to") or "").lower() == p for e in alts))
+
+def judge(r, rec, lead, claimed, done, alts=()):
     try:
         rec["http_status"] = r.status_code
         if r.status_code >= 500: return done("recheck", f"server error (HTTP {r.status_code}), try again later")
@@ -405,7 +413,7 @@ def judge(r, rec, lead, claimed, done):
         # 0.27.0 fix (false skip): the listing names only a testnet but the same seller's 402 also offers a supported
         # mainnet's canonical USDC -> judge the mainnet offer (same rule as the Worker's pickPayment).
         if want_net and want_net.lower() not in USDC_MAINNET and same_net:
-            sellers = {str(lead.get("payTo") or "").lower()} if lead.get("payTo") else {str(x.get("payTo") or "").lower() for x in same_net}
+            sellers = ({str(lead.get("payTo") or "").lower()} | {str(e["pay_to"]).lower() for e in alts}) if lead.get("payTo") else {str(x.get("payTo") or "").lower() for x in same_net}
             main = [a for a in accs if net(a.get("network")).lower() in USDC_MAINNET and str(a.get("asset") or "").lower() == USDC_MAINNET[net(a.get("network")).lower()] and str(a.get("payTo") or "").lower() in sellers]
             if main: same_net, lead = main, {k: v for k, v in lead.items() if k not in ("network", "asset")}
         elif not want_net:
@@ -416,11 +424,12 @@ def judge(r, rec, lead, claimed, done):
             a = accs[0]; rec.update(network=net(a.get("network")), asset=a.get("asset"), pay_to=a.get("payTo"), quoted_price_usd=usd(a), amount_atomic=atomic(a), x402_scheme=scheme_of(accs, a))
             return done("skip", f"asks for payment on a different network than listed (listed {want_net}, offers {', '.join(sorted({net(x.get('network')) for x in accs}))})")
         same_asset = [a for a in same_net if str(a.get("asset") or "").lower() == str(lead.get("asset") or "").lower()] if lead.get("asset") else same_net
-        a = (same_asset or same_net)[0]
+        pool = same_asset or same_net
+        a = next((x for x in pool if listed_wallet(x, lead, alts)), pool[0])  # 0.80.0: prefer an entry paying a listed wallet
         q = usd(a)
         rec.update(network=net(a.get("network")), asset=a.get("asset"), pay_to=a.get("payTo"), quoted_price_usd=q, amount_atomic=atomic(a), x402_scheme=scheme_of(accs, a))
         if not same_asset: return done("skip", f"asks for a different token than listed (listed {lead.get('asset')}, asks {a.get('asset')})")
-        if lead.get("payTo") and str(a.get("payTo") or "").lower() != str(lead["payTo"]).lower():
+        if lead.get("payTo") and not listed_wallet(a, lead, alts):  # 0.80.0: any listed wallet on that network (listed_pay_tos), not only the lead's
             return done("skip", f"pays a different wallet than listed ({lead['payTo']} listed, {a.get('payTo')} asked)")
         if q is None: return done("skip", f"asks for a token or network we can't price in USDC ({a.get('network')})")
         below = False
