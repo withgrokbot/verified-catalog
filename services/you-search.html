@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 04:09:00.302 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-11-26 22:57:42 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-11-27 17:52:44 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>147 ms</td></tr>
+<tr><th scope="row">Latency</th><td>89 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.005 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.005</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.005</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>no pass/fail (facts only: On 2026-09-30 the endpoint answered our x402 payment with a second HTTP 402 asking to pay again by another method (Tempo), so nothing was delivered.)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.005, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 5000 units of EPjFWdd5Aufq.</p>
-<p>Evidence: <a href="../results/raw/20261126T225742Z/you-search.json">raw log for this check</a>. Machine-readable: <a href="you-search.json">you-search.json</a>.</p>
+<p>Evidence: <a href="../results/raw/paid-20261127/you-search.json">raw log for this check</a>. Machine-readable: <a href="you-search.json">you-search.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: x402 payment protocol. Passes if: at least 1 result URL on x402.org or github.com/coinbase/x402.</p><p class="notice">Facts only (no pass/fail result is given): On 2026-09-30 the endpoint answered our x402 payment with a second HTTP 402 asking to pay again by another method (Tempo), so nothing was delivered.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-11-27 17:52:44 UTC</td><td>$0.005</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the endpoint answered our x402 payment with a second HTTP 402 asking to pay again by another method (Tempo), so nothing was delivered.)</td><td><a href="https://basescan.org/tx/0xb73dfd861c8a9380041ee645d780348b0c42b45a3cd884a59ee0efbee3325432">0xb73dfd86...</a></td></tr>
 <tr><td>2026-11-17 18:50:40 UTC</td><td>$0.005</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the endpoint answered our x402 payment with a second HTTP 402 asking to pay again by another method (Tempo), so nothing was delivered.)</td><td><a href="https://basescan.org/tx/0xe889deed6ae6b43a19798fbc8db3f9d5cbcb86e179fe66562b5ea69878442cbe">0xe889deed...</a></td></tr>
 <tr><td>2026-11-10 18:49:29 UTC</td><td>$0.005</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the endpoint answered our x402 payment with a second HTTP 402 asking to pay again by another method (Tempo), so nothing was delivered.)</td><td><a href="https://basescan.org/tx/0xafd03a56b45c1cfcb3e03d067883776192988b669999fb70ba822cd2c05de58c">0xafd03a56...</a></td></tr>
 <tr><td>2026-11-03 18:49:49 UTC</td><td>$0.005</td><td>yes</td><td>200</td><td>no pass/fail (facts only: On 2026-09-30 the endpoint answered our x402 payment with a second HTTP 402 asking to pay again by another method (Tempo), so nothing was delivered.)</td><td><a href="https://basescan.org/tx/0xb58d36256f5243d434edb3416a3ff747f0e61de81e8bd2187f21191b4b35c4fb">0xb58d3625...</a></td></tr>
@@ -54,10 +55,11 @@
 <tr><td>2026-09-30 17:45:26 UTC</td><td>n/a</td><td>no</td><td>402</td><td>no pass/fail (this paid call was made before the known-answer tests existed)</td><td>none</td></tr>
 </tbody></table></div>
 <h2>Recent checks</h2>
-<p class="meta">Days observed: 57 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-26 22:57:42 UTC. Days with no stored check are not counted.</p>
+<p class="meta">Days observed: 58 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-27 17:52:44 UTC. Days with no stored check are not counted.</p>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-11-27 17:52:44 UTC</td><td>paid</td><td>yes</td><td>402</td><td>89 ms</td><td>$0.005</td><td>yes</td><td><a href="../results/raw/paid-20261127/you-search.json">raw log</a></td></tr>
 <tr><td>2026-11-26 22:57:42 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>147 ms</td><td>$0.005</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261126T225742Z/you-search.json">raw log</a></td></tr>
 <tr><td>2026-11-25 23:03:52 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>141 ms</td><td>$0.005</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261125T230352Z/you-search.json">raw log</a></td></tr>
 <tr><td>2026-11-24 23:27:42 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>337 ms</td><td>$0.005</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261124T232742Z/you-search.json">raw log</a></td></tr>
@@ -67,7 +69,6 @@
 <tr><td>2026-11-20 21:47:22 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>198 ms</td><td>$0.005</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261120T214721Z/you-search.json">raw log</a></td></tr>
 <tr><td>2026-11-19 22:07:54 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>161 ms</td><td>$0.005</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261119T220753Z/you-search.json">raw log</a></td></tr>
 <tr><td>2026-11-18 21:54:26 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>75 ms</td><td>$0.005</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261118T215425Z/you-search.json">raw log</a></td></tr>
-<tr><td>2026-11-17 22:17:43 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>123 ms</td><td>$0.005</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261117T221743Z/you-search.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>

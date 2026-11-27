@@ -1,0 +1,93 @@
+{
+  "service_id": "massive-ticker-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://agent.massive.com/v2/reference/news?limit=10&order=desc&sort=published_utc&ticker=AAPL",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 250,
+    "headers": {
+      "content-type": "application/json",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://agent.massive.com/v2/reference/news?limit=10&order=desc&sort=published_utc&ticker=AAPL",
+            "description": "Get the most recent news articles relating to a stock ticker symbol, including a summary of the article and a link to the original source. Can't find what you're looking for? POST feedback to /feedback, no charge.",
+            "mimeType": "application/json",
+            "serviceName": "Massive",
+            "tags": [
+              "news",
+              "articles",
+              "stocks"
+            ],
+            "iconUrl": "https://agent.massive.com/icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "10000",
+              "payTo": "0x525f6dDcE9aF7a7179D7696aaBfCd5FCd15a21e6",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "date": "Fri, 27 Nov 2026 17:52:51 GMT",
+      "content-length": "96"
+    },
+    "body_bytes": 96,
+    "body_sha256": "0a32141aa8c76c645d9ddb3d0fd78adc0e2076ce57832aef40013d4d41c33d5c",
+    "body_excerpt": "{\"message\":\"See the PAYMENT-REQUIRED header for the payment terms.\",\"status\":\"PAYMENT_REQUIRED\"}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1224,
+    "headers": {
+      "content-length": "36505",
+      "content-type": "application/json",
+      "date": "Fri, 27 Nov 2026 17:52:52 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x297fc5a08d6c066dceaf8c90a04d343f13646004d9a97cda4b8e5bbeead3e429",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 36505,
+    "body_sha256": "d00c2c1d87d88146f7cb6719f2a1e0d23ddd8fa85034a3b4c2991fa6f2763642",
+    "body_excerpt": "{\"results\":[{\"id\":\"4ff5f312ace644eba896a777bcec787d5471f299c8e4b78eb5bf9170c9092687\",\"publisher\":{\"name\":\"The Motley Fool\",\"homepage_url\":\"https://www.fool.com/\",\"logo_url\":\"https://s3.massive.com/public/assets/news/logos/themotleyfool.svg\",\"favicon_url\":\"https://s3.massive.com/public/assets/news/favicons/themotleyfool.ico\"},\"title\":\"Berkshire Hathaway\u2019s CEO, Greg Abel, Just Bought $9.6 Billion Worth of 1 of Buffett\u2019s Favorite Stocks\",\"author\":\"Prosper Junior Bakiny\",\"published_utc\":\"2026-11-27T14:45:02Z\",\"article_url\":\"https://www.fool.com/investing/2026/11/27/berkshire-hathaway-s-ceo-greg-abel-just-bought-usd9-6-billion-worth-of-1-of-buffett-s-favorite-stocks/?source=iedfolrf0000001\",\"tickers\":[\"AAPL\",\"GOOG\",\"GOOGL\",\"GOOGM\",\"GOOGN\",\"BRK.A\",\"BRK.B\"],\"image_url\":\"https://g.foolcdn.com/image/?url=https%3A%2F%2Fcdn.content.foolcdn.com%2Fimages%2F1umn9qeh%2Fproduction%2F3fa6d30276fc5eb6b7d794f515c9e58b00f2c501-1280x853.jpg&w=1200&op=resize\",\"description\":\"Greg Abel, Berkshire Hathaway's new CEO, spent $9.6 billion on share buybacks during Q3 2026, continuing the company's aggressive repurchase strategy that has totaled $92 billion since 2018. The buybacks signal management confidence that Berkshire shares are undervalued, with analyst estimates suggesting the stock is trading 8-10% below intrinsic value. The company remains positioned as a diversified hedge against market uncertainty.\",\"keywords\":[\"share buybacks\",\"Greg Abel\",\"Berkshire Hathaway\",\"Warren Buffett\",\"intrinsic value\",\"corporate strategy\",\"market uncertainty\"],\"insights\":[{\"ticker\":\"AAPL\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Described as one of Buffett's favorite stocks and Berkshire's largest holding since 2016; Buffett praised it as 'probably the best business in the world'; demonstrates long-term confidence in the company's fundamentals\"},{\"ticker\":\"GOOG\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Mentioned as providing Berkshire exposure to AI through its public equity portfolio, but characterized as 'not too much' exposure, suggesting measured positioning rather than strong conviction\"},{\"ticker\":\"GOOGL\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Mentioned as providing Berkshire exposure to AI through its public equity portfolio, but characterized as 'not too much' exposure, suggesting measured positioning rather than strong conviction\"},{\"ticker\":\"GOOGM\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Mentioned as providing Berkshire exposure to AI through its public equity portfolio, but characterized as 'not too much' exposure, suggesting measured positioning rather than strong conviction\"},{\"ticker\":\"GOOGN\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Mentioned as providing Berkshire exposure to AI through its public equity portfolio, but characterized as 'not too much' exposure, suggesting measured positioning rather than strong conviction\"},{\"ticker\":\"BRK.A\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Significant $9.6B buyback demonstrates management confidence in undervaluation; analyst estimates suggest 8-10% discount to intrinsic value; positioned as diversified hedge against geopolitical and economic uncertainty; strong track record under Buffett's leadership\"},{\"ticker\":\"BRK.B\",\"sentiment\":\"positive\",\"sentiment_reasoning\":\"Significant $9.6B buyback demonstrates management confidence in undervaluation; analyst estimates suggest 8-10% discount to intrinsic value; positioned as diversified hedge against geopolitical and economic uncertainty; strong track record under Buffett's leadership\"}]},{\"id\":\"6ccda70814ddf02c7ba54c0a8f379c5e6ac40807d4c7370ca1a34504f99c44b8\",\"publisher\":{\"name\":\"The Motley Fool\",\"homepage_url\":\"https://www.fool.com/\",\"logo_url\":\"https://s3.massive.com/public/assets/news/logos/themotleyfool.svg\",\"favicon_url\":\"https://s3.massive.com/public/assets/news/favicons/themotleyfool.ico\"},\"title\":\"Tech Sell-Off: 1 Unstoppable Stock-Split Stock to Buy Before It Joins Nvidia, Alphabet, Microsoft, and Apple in the $3 Trillion Club\",\"author\":\"Anthony Di Pizio\",\"published_utc\":\"2026-11-27T12:17:02Z\",\"article_url\":\"https://www.foo"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "all 10 items tag AAPL; newest 0.1 days old",
+    "observed": {
+      "items": 10,
+      "items_without_ticker": 0,
+      "newest": "2026-11-27T14:45:02Z",
+      "newest_age_days": 0.13
+    },
+    "expected": {},
+    "test": {
+      "input": "ticker=AAPL, newest first",
+      "pass_if": "every item tags AAPL; newest item at most 7 days old"
+    },
+    "graded_at": "2026-11-27T17:52:52Z"
+  },
+  "run_id": "paid-20261127",
+  "checked_at": "2026-11-27T17:52:51Z"
+}

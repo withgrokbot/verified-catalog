@@ -1,0 +1,120 @@
+{
+  "service_id": "otto-crypto-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://x402.ottoai.services/crypto-news",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 366,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 24 Nov 2026 17:52:45 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://x402.ottoai.services/crypto-news",
+            "description": "Importance-ranked crypto headlines with per-article source links and publish times, plus a sentiment-scored market brief. Regenerated hourly; meta carries the snapshot's age and a fresh/stale verdict.",
+            "mimeType": "application/json",
+            "serviceName": "Otto AI",
+            "tags": [
+              "crypto news",
+              "market news",
+              "sentiment analysis",
+              "breaking headlines"
+            ],
+            "iconUrl": "https://x402.ottoai.services/assets/otto-icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "amount": "1000",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2",
+                "assetTransferMethod": "permit2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "amount": "1000",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "payTo": "6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "BENrLoUbndxoNMUS5JXApGMtNykLjFXXixMtpDwDR9SP"
+              }
+            }
+          ]
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "1517"
+    },
+    "body_bytes": 1517,
+    "body_sha256": "a6fc1d86f14bca3c3c13068df673a29790f06ce6fa000254b3b538654fbb4652",
+    "body_excerpt": "{\"error\":\"payment_required\",\"hint\":\"This is a pay-per-call x402 endpoint. The payment terms are the accepts[] array in this body -- mirrored verbatim from the base64 PAYMENT-REQUIRED response header, which remains the x402 v2 protocol contract. Pay one of them with an x402 client, then retry to receive the data.\",\"price\":\"$0.001\",\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"amount\":\"1000\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"payTo\":\"0x0E84dDEdAaE6A779c462C22a59F301EC31B6b808\",\"maxTimeoutSeconds\":300,\"extra\":{\"name\":\"USD Coin\",\"version\":\"2\",\"assetTransferMethod\":\"permit2\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"amount\":\"1000\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"payTo\":\"6XcSfqJHr9vNW2vbiRaMqUYVm7shDgLepca54wUTDPN5\",\"maxTimeoutSeconds\":300,\"extra\":{\"feePayer\":\"BENrLoUbndxoNMUS5JXApGMtNykLjFXXixMtpDwDR9SP\"}}],\"docs\":\"https://docs.useotto.xyz/getting-started/agent-quickstart\",\"contact\":{\"email\":\"[email redacted]\",\"telegram\":\"https://t.me/DeFAI_Capital\",\"twitter\":\"https://twitter.com/useOttoAI\",\"feedback\":\"POST https://x402.ottoai.services/feedback ($0.001) -- money-back guarantee on Otto-recommended services and Full Auto; feature requests welcome (email/Telegram are free).\"},\"x402Version\":2}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 2039,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 24 Nov 2026 17:52:47 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0x1575754612b5f42262bce4309659bed2a0335c6509f813462d90a0f43ce0038d",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      },
+      "server": "railway-hikari",
+      "content-length": "6972"
+    },
+    "body_bytes": 6972,
+    "body_sha256": "443870d1df9b085b9b0d3841e80b67a1161053076e018c933719c77c79e841ea",
+    "body_excerpt": "{\"status\":\"success\",\"data\":{\"report\":\"_Report generated 2026-11-24 17:00 UTC_\\n\\n## MARKET BRIEF\\n\\nOverview: Bitcoin is under severe pressure as record spot ETF outflows and a historic wave of underwater supply drive prices toward key downside levels near $55,000.\\n\\nMarket Sentiment:\\nOverall Bull/Bear Score: 22\\n\\n---\\n\\n## KEY STORIES\\n\\n1. **Bitcoin drops as November spot ETF outflows increase to record $4.71 billion** - Record spot ETF outflows signal sustained institutional de-risking, a major bearish driver for BTC price and liquidity.\\n\\n2. **Bitcoin ETFs see another $570 million in net outflows as November total nears $5 billion and BTC dips below $60K** - Confirms the scale of ETF redemptions, with BlackRock's IBIT leading outflows--critical for judging demand and near-term price pressure.\\n\\n3. **Bitcoin's drop to $55,000 left a record 11.6 million BTC underwater** - Record share of supply in loss rivals FTX-crash levels, a key on-chain signal for capitulation risk and potential support/resistance zones.\\n\\n4. **Bitcoin Trades Near $60,000, Below Where It Stood Before Nvidia Brought Back Jensen Huang** - Highlights BTC's failure to hold macro-driven gains and identifies $58K/$55K as key downside levels traders are watching.\\n\\n5. **South Korea proposes ending 2017 ICO ban to boost jobs and onshore crypto investment** - Reversing a years-long ICO ban is a significant regulatory shift that could unlock new issuance and capital in a major market.\\n\\n---\\n\\n## QUICK HITS\\n\\n- How South Korea's proposed 20% cap could change who runs Upbit\\n- Crypto Can Fill Up to Half of a Futures Exchange's Reserve Under New CFTC Staff Advisory\\n- Ethereum treasury firm BTCS sells $43.8 million in ETH to cut Aave debt, CEO says 'we do not take this lightly'\\n- Sky lender proposes buyback of up to $50M to fund stUSDS withdrawals\\n- BlackRock opens tokenized money market fund with $100 million in assets to Hong Kong investors\\n\\nNot investment advice.\\n\\n[Powered by $OTTO AI | @useOttoAI]\",\"headlines\":[{\"rank\":1,\"title\":\"Bitcoin drops as November spot ETF outflows increase to record $4.71 billion\",\"whyItMatters\":\"Record spot ETF outflows signal sustained institutional de-risking, a major bearish driver for BTC price and liquidity.\",\"url\":\"https://www.coindesk.com/daybook-us/2026/11/24/bitcoin-drops-as-november-spot-etf-outflows-increase-to-record-usd4-71-billion\",\"publishedAt\":\"2026-11-24T12:36:28.000Z\",\"source\":\"Coindesk\",\"match\":\"id\"},{\"rank\":2,\"title\":\"Bitcoin ETFs see another $570 million in net outflows as November total nears $5 billion and BTC dips below $60K\",\"whyItMatters\":\"Confirms the scale of ETF redemptions, with BlackRock's IBIT leading outflows--critical for judging demand and near-term price pressure.\",\"url\":\"https://www.theblock.co/news/markets/2026-11-24-bitcoin-etfs-another-570-million-net-outflows-november-total-nears-5-billion-btc-dips-below-60k-445548\",\"publishedAt\":\"2026-11-24T14:32:21.000Z\",\"source\":\"Theblock\",\"match\":\"id\"},{\"rank\":3,\"title\":\"Bitcoin's drop to $55,000 left a record 11.6 million BTC underwater\",\"whyItMatters\":\"Record share of supply in loss rivals FTX-crash levels, a key on-chain signal for capitulation risk and potential support/resistance zones.\",\"url\":\"https://www.coindesk.com/markets/2026/11/24/bitcoin-s-drop-to-usd55-000-left-a-record-11-6-million-btc-underwater\",\"publishedAt\":\"2026-11-24T11:11:38.000Z\",\"source\":\"Coindesk\",\"match\":\"id\",\"sourceTitle\":\"Bitcoin's drop to $55,000 left a record 11.6 million BTC underwater\"},{\"rank\":4,\"title\":\"Bitcoin Trades Near $60,000, Below Where It Stood Before Nvidia Brought Back Jensen Huang\",\"whyItMatters\":\"Highlights BTC's failure to hold macro-driven gains and identifies $58K/$55K as key downside levels traders are watching.\",\"url\":\"https://unchainedcrypto.com/bitcoin-trades-near-60000-below-where-it-stood-before-nvidia-brought-back-jensen-huang/\",\"publishedAt\":\"2026-11-24T11:00:05.000Z\",\"source\":\"Unchainedcrypto\",\"match\":\"id\"},{\"rank\":5,\"title\":\"South Korea proposes ending 2017 ICO ban to boost jobs and onshore crypto investment\",\"whyItMatters\":\"Rev"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "10 items with source URLs; newest 1.3 h old",
+    "observed": {
+      "items": 10,
+      "items_with_url": 10,
+      "newest": "2026-11-24T16:33:26Z",
+      "newest_age_hours": 1.32
+    },
+    "expected": {},
+    "test": {
+      "input": "none",
+      "pass_if": "at least 5 items, each with a source URL; newest item under 3 h old (the listing says hourly)"
+    },
+    "graded_at": "2026-11-24T17:52:47Z"
+  },
+  "run_id": "paid-20261124",
+  "checked_at": "2026-11-24T17:52:45Z"
+}

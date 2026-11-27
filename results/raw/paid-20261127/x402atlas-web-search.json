@@ -1,0 +1,145 @@
+{
+  "service_id": "x402atlas-web-search",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://websearch.use.x402atlas.com/search?chunks_per_source=2&query=x402+payment+protocol&search_depth=fast",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 334,
+    "headers": {
+      "content-length": "2354",
+      "content-type": "application/json",
+      "date": "Fri, 27 Nov 2026 17:52:38 GMT",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://websearch.use.x402atlas.com/search?chunks_per_source=2&query=x402+payment+protocol&search_depth=fast",
+            "description": "Real-time web search for AI agents \u2014 search the web and get ranked SERP-style results as clean JSON: title, URL, snippet, relevance score, optional LLM-generated answer. Find up-to-date information online \u2014 latest news, current events, finance. Date, domain and exact-phrase filters.",
+            "mimeType": "application/json",
+            "serviceName": "Web Search, News & Page Reader",
+            "tags": [
+              "web-search",
+              "search",
+              "serp",
+              "web",
+              "internet-search",
+              "news",
+              "news-search",
+              "real-time",
+              "rag",
+              "ai-agents",
+              "llm-answer",
+              "current-events",
+              "json",
+              "grounding",
+              "fast-search"
+            ]
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "10000",
+              "payTo": "0xF752eEB75d3Bea24AA867ad93bfd8EF5a2F431B9",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "merchant": "x402Atlas",
+                "name": "USD Coin",
+                "tier": "standard",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:137",
+              "asset": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+              "amount": "10000",
+              "payTo": "0xF752eEB75d3Bea24AA867ad93bfd8EF5a2F431B9",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "merchant": "x402Atlas",
+                "name": "USD Coin",
+                "tier": "standard",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "eip155:42161",
+              "asset": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+              "amount": "10000",
+              "payTo": "0xF752eEB75d3Bea24AA867ad93bfd8EF5a2F431B9",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "merchant": "x402Atlas",
+                "name": "USD Coin",
+                "tier": "standard",
+                "version": "2"
+              }
+            },
+            {
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "amount": "10000",
+              "payTo": "3nXsChcZGke6xebDPmndNMCt8L3yi6xyN4Pd6q5cQrgv",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "feePayer": "BENrLoUbndxoNMUS5JXApGMtNykLjFXXixMtpDwDR9SP",
+                "merchant": "x402Atlas",
+                "tier": "standard"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "body_bytes": 2354,
+    "body_sha256": "69a3ab9bb2b66507be76515b6dc8aae486d2f9674e87baa044cbf8aef879f39a",
+    "body_excerpt": "{\"error\":\"payment_required\",\"hint\":\"This endpoint requires x402 payment. The price and payment options are in the PAYMENT-REQUIRED response header (x402 v2). Pay with an x402 client, then retry to receive the data.\",\"price\":\"$0.01 per call\",\"method\":\"GET\",\"resource\":{\"url\":\"https://websearch.use.x402atlas.com/search?chunks_per_source=2\\u0026query=x402+payment+protocol\\u0026search_depth=fast\",\"description\":\"Real-time web search for AI agents \u2014 search the web and get ranked SERP-style results as clean JSON: title, URL, snippet, relevance score, optional LLM-generated answer. Find up-to-date information online \u2014 latest news, current events, finance. Date, domain and exact-phrase filters.\",\"mimeType\":\"application/json\",\"serviceName\":\"Web Search, News \\u0026 Page Reader\",\"tags\":[\"web-search\",\"search\",\"serp\",\"web\",\"internet-search\",\"news\",\"news-search\",\"real-time\",\"rag\",\"ai-agents\",\"llm-answer\",\"current-events\",\"json\",\"grounding\",\"fast-search\"]},\"accepts\":[{\"scheme\":\"exact\",\"network\":\"eip155:8453\",\"asset\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"amount\":\"10000\",\"payTo\":\"0xF752eEB75d3Bea24AA867ad93bfd8EF5a2F431B9\",\"maxTimeoutSeconds\":300,\"extra\":{\"merchant\":\"x402Atlas\",\"name\":\"USD Coin\",\"tier\":\"standard\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:137\",\"asset\":\"0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359\",\"amount\":\"10000\",\"payTo\":\"0xF752eEB75d3Bea24AA867ad93bfd8EF5a2F431B9\",\"maxTimeoutSeconds\":300,\"extra\":{\"merchant\":\"x402Atlas\",\"name\":\"USD Coin\",\"tier\":\"standard\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"eip155:42161\",\"asset\":\"0xaf88d065e77c8cC2239327C5EDb3A432268e5831\",\"amount\":\"10000\",\"payTo\":\"0xF752eEB75d3Bea24AA867ad93bfd8EF5a2F431B9\",\"maxTimeoutSeconds\":300,\"extra\":{\"merchant\":\"x402Atlas\",\"name\":\"USD Coin\",\"tier\":\"standard\",\"version\":\"2\"}},{\"scheme\":\"exact\",\"network\":\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",\"asset\":\"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\",\"amount\":\"10000\",\"payTo\":\"3nXsChcZGke6xebDPmndNMCt8L3yi6xyN4Pd6q5cQrgv\",\"maxTimeoutSeconds\":300,\"extra\":{\"feePayer\":\"BENrLoUbndxoNMUS5JXApGMtNykLjFXXixMtpDwDR9SP\",\"merchant\":\"x402Atlas\",\"tier\":\"standard\"}}],\"documentation\":\"https://websearch.use.x402atlas.com/docs\",\"llms\":\"https://websearch.use.x402atlas.com/llms.txt\",\"openapi\":\"https://websearch.use.x402atlas.com/openapi.json\",\"contact\":{\"email\":\"[email redacted]\"},\"x402Version\":2}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1657,
+    "headers": {
+      "content-length": "8040",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Fri, 27 Nov 2026 17:52:40 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0xbe61c9207dc8e71e385017ff727c0ad3e75b5cd67622d32ebca0765f81fc3843",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 8040,
+    "body_sha256": "c20fe2d44bf265d0ec2736795c335890933c11e070b513c275b6b785354e5780",
+    "body_excerpt": "{\"queried_at\":\"2026-11-27T17:52:39.3307821Z\",\"query\":\"x402 payment protocol\",\"results\":[{\"title\":\"x402 Payment Protocol Guide \u2014 HTTP 402, EIP-3009 \\u0026 Facilitators \u2014 PayProbe\",\"url\":\"https://payprobe.io/learn/x402\",\"content\":\"x402 is an open protocol that turns the HTTP status code 402 Payment Required \u2014 reserved since the 1990s but never standardized \u2014 into a working payment mechanism. A server answers an unpaid request with a 402 and machine-readable payment requirements; the client signs a stablecoin transfer authorization and retries the same request with the signature attached as a header; the server (usually via a third-party facilitator) verifies and settles the transfer on-chain and returns the resource. No [...] ## Common questions\\n\\nWhat is the x402 protocol?\\n\\nx402 turns HTTP status 402 Payment Required into a working payment flow: a server quotes payment requirements, the client signs a stablecoin authorization (EIP-3009), and a facilitator verifies and settles it on-chain \u2014 designed for API and AI-agent payments.\\n\\nHow does an x402 payment work?\",\"score\":0.84530497},{\"title\":\"x402 Protocol Explained: The Payment Layer for AI Agents\",\"url\":\"https://dropstab.com/research/crypto/x402-protocol-by-coinbase?hash=what+is+x402%3F-56642\",\"content\":\"The x402 protocol is an open payment standard that repurposes the HTTP 402 \\\"Payment Required\\\" status code so software \u2014 especially AI agents \u2014 can pay for a resource inside a normal web request.\\n Payment settles in stablecoins (USDC by default) with no accounts, subscriptions, or API keys \u2014 a wallet and a signature are the only requirements.\\n x402 is blockchain-agnostic: Version 2 defines 9 CAIP-2 chain namespaces. Solana and Base lead live settlement, but sources disagree on the exact split. [...] A client or agent requests a paid resource.\\n The server responds with HTTP 402 and a base64-encoded set of payment requirements in the PAYMENT-REQUIRED header.\\n The client retries the request with a signed payment payload in the PAYMENT-SIGNATURE header.\\n The server verifies the payment (locally or via a facilitator), settles it on-chain, and returns 200 OK with a PAYMENT-RESPONSE header confirming settlement.\",\"score\":0.8401279},{\"title\":\"x402 Protocol Explained: The Payment Layer for AI Agents\",\"url\":\"https://dropstab.com/research/crypto/x402-protocol-by-coinbase\",\"content\":\"The x402 protocol is an open payment standard that repurposes the HTTP 402 \\\"Payment Required\\\" status code so software \u2014 especially AI agents \u2014 can pay for a resource inside a normal web request.\\n Payment settles in stablecoins (USDC by default) with no accounts, subscriptions, or API keys \u2014 a wallet and a signature are the only requirements.\\n x402 is blockchain-agnostic: Version 2 defines 9 CAIP-2 chain namespaces. Solana and Base lead live settlement, but sources disagree on the exact split. [...] A client or agent requests a paid resource.\\n The server responds with HTTP 402 and a base64-encoded set of payment requirements in the PAYMENT-REQUIRED header.\\n The client retries the request with a signed payment payload in the PAYMENT-SIGNATURE header.\\n The server verifies the payment (locally or via a facilitator), settles it on-chain, and returns 200 OK with a PAYMENT-RESPONSE header confirming settlement.\",\"score\":0.8401279},{\"title\":\"What is x402 Protocol? A Beginner's Guide\",\"url\":\"https://99bitcoins.com/education/x402-protocol\",\"content\":\"x402 is an open payment protocol that uses the 402 Payment Required status code to enable internet-native payments.\\n Clients receive payment requirements, create a signed payment payload, and repay the request using the X-PAYMENT header.\\n The protocol enables instant stablecoin settlement in digital dollars, ideal for APIs, apps, and AI agents.\\n A payment facilitator verifies signatures, handles on-chain settlement, and returns the requested resource once paid.\",\"score\":0.8398654},{\"title\":\"What is x402? The Internet Native Payments Standard for APIs and Agents\",\"url\":\"https://formo.so/blog/x402-explained-internet-native-payments-standard#agentic-"
+  },
+  "quality": {
+    "result": "fail",
+    "reason": "none of 10 result URLs is on x402.org or github.com/coinbase/x402",
+    "observed": {
+      "result_urls": 10,
+      "matching_urls": []
+    },
+    "expected": {},
+    "test": {
+      "input": "x402 payment protocol",
+      "pass_if": "at least 1 result URL on x402.org or github.com/coinbase/x402"
+    },
+    "graded_at": "2026-11-27T17:52:40Z"
+  },
+  "run_id": "paid-20261127",
+  "checked_at": "2026-11-27T17:52:38Z"
+}

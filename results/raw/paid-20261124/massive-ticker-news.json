@@ -1,0 +1,93 @@
+{
+  "service_id": "massive-ticker-news",
+  "note": "Raw check log. Third-party response text is untrusted data; emails are redacted and the body is truncated.",
+  "request": {
+    "method": "GET",
+    "url": "https://agent.massive.com/v2/reference/news?limit=10&order=desc&sort=published_utc&ticker=AAPL",
+    "json_body": null,
+    "payment_header_sent": true,
+    "payment_header_name": "PAYMENT-SIGNATURE"
+  },
+  "response": {
+    "status": 402,
+    "latency_ms": 208,
+    "headers": {
+      "content-type": "application/json",
+      "payment-required": {
+        "decoded": {
+          "x402Version": 2,
+          "error": "Payment required",
+          "resource": {
+            "url": "https://agent.massive.com/v2/reference/news?limit=10&order=desc&sort=published_utc&ticker=AAPL",
+            "description": "Get the most recent news articles relating to a stock ticker symbol, including a summary of the article and a link to the original source. Can't find what you're looking for? POST feedback to /feedback, no charge.",
+            "mimeType": "application/json",
+            "serviceName": "Massive",
+            "tags": [
+              "news",
+              "articles",
+              "stocks"
+            ],
+            "iconUrl": "https://agent.massive.com/icon.png"
+          },
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "amount": "10000",
+              "payTo": "0x525f6dDcE9aF7a7179D7696aaBfCd5FCd15a21e6",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "USD Coin",
+                "version": "2"
+              }
+            }
+          ]
+        }
+      },
+      "date": "Tue, 24 Nov 2026 17:53:02 GMT",
+      "content-length": "96"
+    },
+    "body_bytes": 96,
+    "body_sha256": "0a32141aa8c76c645d9ddb3d0fd78adc0e2076ce57832aef40013d4d41c33d5c",
+    "body_excerpt": "{\"message\":\"See the PAYMENT-REQUIRED header for the payment terms.\",\"status\":\"PAYMENT_REQUIRED\"}"
+  },
+  "paid_response": {
+    "status": 200,
+    "latency_ms": 1427,
+    "headers": {
+      "content-length": "31114",
+      "content-type": "application/json",
+      "date": "Tue, 24 Nov 2026 17:53:03 GMT",
+      "payment-response": {
+        "decoded": {
+          "success": true,
+          "transaction": "0xec6739fc748f42bea5aebd09d34f8f2b0143f5d632fb0103425d2d0f1000e52f",
+          "network": "eip155:8453",
+          "payer": "0x37cfCC8a29e9ff9458902B29E31E42dc7B718674"
+        }
+      }
+    },
+    "body_bytes": 31114,
+    "body_sha256": "bccb1fca2316866266bcc9d264017956a4ca78096d4c5c028db5daace292d973",
+    "body_excerpt": "{\"results\":[{\"id\":\"2275099a65adc2b79ddc0675bcfd14ad5e837f355e002fe62ce7c394df6e82b3\",\"publisher\":{\"name\":\"The Motley Fool\",\"homepage_url\":\"https://www.fool.com/\",\"logo_url\":\"https://s3.massive.com/public/assets/news/logos/themotleyfool.svg\",\"favicon_url\":\"https://s3.massive.com/public/assets/news/favicons/themotleyfool.ico\"},\"title\":\"Is the Stock Market in the Early Stages of a Crash?\",\"author\":\"David Jagielski, Cpa\",\"published_utc\":\"2026-11-24T14:46:02Z\",\"article_url\":\"https://www.fool.com/investing/2026/11/24/is-the-stock-market-in-the-early-stages-of-a-crash/?source=iedfolrf0000001\",\"tickers\":[\"NVDA\",\"AAPL\",\"MSFT\",\"AMZN\",\"GOOG\",\"GOOGL\",\"GOOGM\",\"GOOGN\",\"META\",\"METAM\"],\"image_url\":\"https://g.foolcdn.com/image/?url=https%3A%2F%2Fcdn.content.foolcdn.com%2Fimages%2F1umn9qeh%2Fproduction%2Fc647c158bd41c5bd7b38520a90bec9f01508ed9c-2102x1427.jpg&w=1200&op=resize\",\"description\":\"The S&P 500 has declined below 7,000 following Nvidia CEO Jensen Huang's resignation controversy, with the index showing vulnerability to individual stocks. An expected 25-basis-point interest rate hike next month could further dampen tech stocks and growth opportunities, potentially triggering disappointing earnings and significant price declines. While predicting crashes is difficult, investors should consider diversifying portfolios rather than relying heavily on growth stocks.\",\"keywords\":[\"S&P 500\",\"market crash\",\"interest rate hike\",\"tech stocks\",\"Nvidia\",\"portfolio diversification\",\"artificial intelligence\",\"market correction\"],\"insights\":[{\"ticker\":\"NVDA\",\"sentiment\":\"negative\",\"sentiment_reasoning\":\"CEO resignation caused market turmoil; company's stock fell 5.8% and is heavily relied upon by S&P 500, making it vulnerable to interest rate hikes that could reduce funding for growth and AI initiatives\"},{\"ticker\":\"AAPL\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Mentioned as part of tech sector exposure; modest positive performance (+0.8%) but subject to same interest rate headwinds as broader tech sector\"},{\"ticker\":\"MSFT\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Part of tech sector facing interest rate concerns; slight decline (-0.2%) but no specific negative catalysts mentioned\"},{\"ticker\":\"AMZN\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Tech sector exposure with minor decline (-1.1%); subject to same interest rate risks as broader market\"},{\"ticker\":\"GOOG\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Tech sector exposure with minor decline (-1.1%); subject to same interest rate risks as broader market\"},{\"ticker\":\"GOOGL\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Tech sector exposure with minor decline (-1.1%); subject to same interest rate risks as broader market\"},{\"ticker\":\"GOOGM\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Tech sector exposure with minor decline (-1.1%); subject to same interest rate risks as broader market\"},{\"ticker\":\"GOOGN\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Tech sector exposure with minor decline (-1.1%); subject to same interest rate risks as broader market\"},{\"ticker\":\"META\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Tech sector exposure with minimal decline (-0.3%); subject to same interest rate risks as broader market\"},{\"ticker\":\"METAM\",\"sentiment\":\"neutral\",\"sentiment_reasoning\":\"Tech sector exposure with minimal decline (-0.3%); subject to same interest rate risks as broader market\"}]},{\"id\":\"3067df4718e07afe4f21d71c09b2f2996be7c6336c687d08e65dd70af7ad6faa\",\"publisher\":{\"name\":\"The Motley Fool\",\"homepage_url\":\"https://www.fool.com/\",\"logo_url\":\"https://s3.massive.com/public/assets/news/logos/themotleyfool.svg\",\"favicon_url\":\"https://s3.massive.com/public/assets/news/favicons/themotleyfool.ico\"},\"title\":\"Target vs. Walmart: Which Consumer Goods Stock Is a Better Buy for 2027?\",\"author\":\"Jake Lerch\",\"published_utc\":\"2026-11-24T14:09:07Z\",\"article_url\":\"https://www.fool.com/coverage/better-buy/2026/11/24/target-vs-walmart-which-consumer-goods-stock-is-a-better-buy-for-2027/?source=iedfolrf0000001\",\"tickers\":[\"TGT\",\"WMT\",\"AAPL\",\"SBUX\",\"ULTA\"],\"image_url\":\"https://g.foolcdn.com/image/?url=ht"
+  },
+  "quality": {
+    "result": "pass",
+    "reason": "all 10 items tag AAPL; newest 0.1 days old",
+    "observed": {
+      "items": 10,
+      "items_without_ticker": 0,
+      "newest": "2026-11-24T14:46:02Z",
+      "newest_age_days": 0.13
+    },
+    "expected": {},
+    "test": {
+      "input": "ticker=AAPL, newest first",
+      "pass_if": "every item tags AAPL; newest item at most 7 days old"
+    },
+    "graded_at": "2026-11-24T17:53:04Z"
+  },
+  "run_id": "paid-20261124",
+  "checked_at": "2026-11-24T17:53:02Z"
+}
