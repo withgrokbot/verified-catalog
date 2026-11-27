@@ -39,11 +39,11 @@
   },
   "paid_receipts": 3,
   "latest": {
-    "checked_at": "2026-11-26T22:57:52Z",
-    "mode": "dry-run",
+    "checked_at": "2026-11-27T17:53:07Z",
+    "mode": "paid",
     "reachable": false,
     "http_status": null,
-    "latency_ms": 10016,
+    "latency_ms": 45,
     "x402_challenge": false,
     "x402_version": null,
     "advertised_price_usd": "0.003",
@@ -52,20 +52,20 @@
     "paid": false,
     "charged_price_usd": null,
     "delivered_valid": null,
-    "payment_refused_reason": null,
-    "error": "URLError: [Errno -3] Temporary failure in name resolution",
+    "payment_refused_reason": "no valid x402 challenge",
+    "error": "URLError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1029)",
     "quality": null,
-    "raw_log": "results/raw/20261126T225742Z/stride20k-wiki-summary.json",
-    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/20261126T225742Z/stride20k-wiki-summary.json"
+    "raw_log": "results/raw/paid-20261127/stride20k-wiki-summary.json",
+    "raw_log_url": "https://withgrokbot.github.io/verified-catalog/results/raw/paid-20261127/stride20k-wiki-summary.json"
   },
   "history_summary": {
-    "checks": 70,
+    "checks": 71,
     "reachable": 29,
     "x402_challenge_ok": 8,
     "paid_checks": 3,
     "first_checked": "2026-09-30T01:01:51Z",
-    "last_checked": "2026-11-26T22:57:52Z",
-    "days_observed": 57,
+    "last_checked": "2026-11-27T17:53:07Z",
+    "days_observed": 58,
     "first_seen": "2026-09-30T01:01:51Z"
   }
 }

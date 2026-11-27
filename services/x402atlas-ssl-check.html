@@ -22,27 +22,28 @@
 <p>Listing source: <a href="https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources">CDP x402 Bazaar (public discovery API)</a>, retrieved 2026-09-29 (listing last updated 2026-09-29 11:14:56.722 UTC).</p>
 <h2>Latest check</h2>
 <table class="kv">
-<tr><th scope="row">Checked at</th><td>2026-11-26 22:57:43 UTC</td></tr>
-<tr><th scope="row">Check mode</th><td>dry-run</td></tr>
+<tr><th scope="row">Checked at</th><td>2026-11-27 17:53:08 UTC</td></tr>
+<tr><th scope="row">Check mode</th><td>paid</td></tr>
 <tr><th scope="row">Reachable</th><td>yes</td></tr>
 <tr><th scope="row">HTTP status</th><td>402</td></tr>
-<tr><th scope="row">Latency</th><td>171 ms</td></tr>
+<tr><th scope="row">Latency</th><td>229 ms</td></tr>
 <tr><th scope="row">Valid x402 challenge (HTTP 402 with payment terms)</th><td>yes</td></tr>
 <tr><th scope="row">Advertised price (listing)</th><td>$0.01 USDC</td></tr>
 <tr><th scope="row">Price in the 402 challenge (Base USDC)</th><td>$0.01</td></tr>
 <tr><th scope="row">Challenge price matches listing</th><td>yes</td></tr>
-<tr><th scope="row">Charged price (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Delivered a valid response (paid check)</th><td>not tested (no payment made)</td></tr>
-<tr><th scope="row">Known-answer test (paid check)</th><td>not tested (no payment made)</td></tr>
+<tr><th scope="row">Charged price (paid check)</th><td>$0.01</td></tr>
+<tr><th scope="row">Delivered a valid response (paid check)</th><td>yes</td></tr>
+<tr><th scope="row">Known-answer test (paid check)</th><td>passed (hostname matches; expiry equals our own TLS handshake)</td></tr>
 </table>
 <p>Payment options seen in the 402 challenge: exact on eip155:8453: $0.01, exact on eip155:137: 10000 units of 0x3c499c542c, exact on eip155:42161: 10000 units of 0xaf88d065e7, exact on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp: 10000 units of EPjFWdd5Aufq.</p>
-<p>Evidence: <a href="../results/raw/20261126T225742Z/x402atlas-ssl-check.json">raw log for this check</a>. Machine-readable: <a href="x402atlas-ssl-check.json">x402atlas-ssl-check.json</a>.</p>
+<p>Evidence: <a href="../results/raw/paid-20261127/x402atlas-ssl-check.json">raw log for this check</a>. Machine-readable: <a href="x402atlas-ssl-check.json">x402atlas-ssl-check.json</a>.</p>
 <h2>Known-answer test</h2>
 <p>Input: host=example.com, port 443. Passes if: hostname match is true; expiry equals the certificate expiry in our own TLS handshake.</p>
 <h2>Paid calls</h2>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Time</th><th scope="col">Charged</th><th scope="col">Delivered</th><th scope="col">HTTP status</th><th scope="col">Known-answer test</th><th scope="col">Transaction (Basescan)</th></tr></thead>
 <tbody>
+<tr><td>2026-11-27 17:53:08 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>passed (hostname matches; expiry equals our own TLS handshake)</td><td><a href="https://basescan.org/tx/0x71f1586053674e6d127a668cc226c59454ba1cfb680b8f9b758b279adf5efd18">0x71f15860...</a></td></tr>
 <tr><td>2026-11-17 18:50:51 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>passed (hostname matches; expiry equals our own TLS handshake)</td><td><a href="https://basescan.org/tx/0x6ad0059739910b6acee6557d1459a04f543a243ae7ade0036a37f2d26d0802de">0x6ad00597...</a></td></tr>
 <tr><td>2026-11-10 18:49:42 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>passed (hostname matches; expiry equals our own TLS handshake)</td><td><a href="https://basescan.org/tx/0x41ba5e0a4af6fb3b3d30eda2854a1fb54cff126953833cbb473c25156718f8c0">0x41ba5e0a...</a></td></tr>
 <tr><td>2026-11-03 18:50:02 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>passed (hostname matches; expiry equals our own TLS handshake)</td><td><a href="https://basescan.org/tx/0x65339abab38bb6d971691323d8367c2138f53fe03b43f8a1c1cc08f1f1abad88">0x65339aba...</a></td></tr>
@@ -52,13 +53,13 @@
 <tr><td>2026-10-16 17:49:13 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>passed (hostname matches; expiry equals our own TLS handshake)</td><td><a href="https://basescan.org/tx/0x2605f546ee092eeb3d75aa315a544ded118c661d3891566512d3303b4e790f52">0x2605f546...</a></td></tr>
 <tr><td>2026-10-13 17:57:18 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>passed (hostname matches; expiry equals our own TLS handshake)</td><td><a href="https://basescan.org/tx/0x24ed9e75e24caf81b0de09c1c304d60cc0831888fcaf4ae584236b2308d0c4e4">0x24ed9e75...</a></td></tr>
 <tr><td>2026-10-06 17:58:42 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>passed (hostname matches; expiry equals our own TLS handshake)</td><td><a href="https://basescan.org/tx/0xd13c183aa43af0e0c4e5107efd20a922a29d53516df7f7e7cf33788d0ea05699">0xd13c183a...</a></td></tr>
-<tr><td>2026-10-02 18:49:11 UTC</td><td>$0.01</td><td>yes</td><td>200</td><td>passed (hostname matches; expiry equals our own TLS handshake)</td><td><a href="https://basescan.org/tx/0x38f04a492fa4d628bb0dcf6b708345177207f5adec411d4c3b163fdd2893f9b1">0x38f04a49...</a></td></tr>
 </tbody></table></div>
 <h2>Recent checks</h2>
-<p class="meta">Days observed: 57 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-26 22:57:43 UTC. Days with no stored check are not counted.</p>
+<p class="meta">Days observed: 58 distinct UTC dates in the stored checks. First seen 2026-09-30 is the earliest of those dates, already included in the count. Last checked: 2026-11-27 17:53:08 UTC. Days with no stored check are not counted.</p>
 <div class="tablewrap"><table>
 <thead><tr><th scope="col">Checked</th><th scope="col">Mode</th><th scope="col">Reachable</th><th scope="col">HTTP status</th><th scope="col">Latency</th><th scope="col">402 price</th><th scope="col">Valid paid response</th><th scope="col">Log</th></tr></thead>
 <tbody>
+<tr><td>2026-11-27 17:53:08 UTC</td><td>paid</td><td>yes</td><td>402</td><td>229 ms</td><td>$0.01</td><td>yes</td><td><a href="../results/raw/paid-20261127/x402atlas-ssl-check.json">raw log</a></td></tr>
 <tr><td>2026-11-26 22:57:43 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>171 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261126T225742Z/x402atlas-ssl-check.json">raw log</a></td></tr>
 <tr><td>2026-11-25 23:03:53 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>277 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261125T230352Z/x402atlas-ssl-check.json">raw log</a></td></tr>
 <tr><td>2026-11-24 23:27:42 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>149 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261124T232742Z/x402atlas-ssl-check.json">raw log</a></td></tr>
@@ -68,7 +69,6 @@
 <tr><td>2026-11-20 21:47:22 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>240 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261120T214721Z/x402atlas-ssl-check.json">raw log</a></td></tr>
 <tr><td>2026-11-19 22:07:54 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>230 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261119T220753Z/x402atlas-ssl-check.json">raw log</a></td></tr>
 <tr><td>2026-11-18 21:54:26 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>95 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261118T215425Z/x402atlas-ssl-check.json">raw log</a></td></tr>
-<tr><td>2026-11-17 22:17:44 UTC</td><td>dry-run</td><td>yes</td><td>402</td><td>218 ms</td><td>$0.01</td><td>not tested (no payment made)</td><td><a href="../results/raw/20261117T221743Z/x402atlas-ssl-check.json">raw log</a></td></tr>
 </tbody></table></div>
 <h2>Is this wrong?</h2>
 <p>If you run this service and think a result is wrong, <a href="https://github.com/withgrokbot/verified-catalog/issues/new?template=contest-a-result.md">open a GitHub issue</a> (see <a href="../methodology.html#contest">how contests work</a>).</p>
